@@ -4,34 +4,113 @@ import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
-import Home from "./pages/Home";
+import LoginPage from "./pages/LoginPage";
+import AdminLayout from "./pages/admin/AdminLayout";
+import AdminResellers from "./pages/admin/AdminResellers";
+import AdminCategories from "./pages/admin/AdminCategories";
+import AdminApps from "./pages/admin/AdminApps";
+import AdminAppDetail from "./pages/admin/AdminAppDetail";
+import AdminKeys from "./pages/admin/AdminKeys";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import ResellerLayout from "./pages/reseller/ResellerLayout";
+import ResellerProfile from "./pages/reseller/ResellerProfile";
+import ResellerApps from "./pages/reseller/ResellerApps";
+import ResellerAppDetail from "./pages/reseller/ResellerAppDetail";
+import ResellerKeys from "./pages/reseller/ResellerKeys";
+import SetupPage from "./pages/SetupPage";
 
 function Router() {
-  // make sure to consider if you need authentication for certain routes
   return (
     <Switch>
-      <Route path={"/"} component={Home} />
-      <Route path={"/404"} component={NotFound} />
-      {/* Final fallback route */}
+      <Route path="/" component={LoginPage} />
+      <Route path="/setup" component={SetupPage} />
+
+      {/* Admin routes */}
+      <Route path="/admin">
+        {() => (
+          <AdminLayout>
+            <AdminDashboard />
+          </AdminLayout>
+        )}
+      </Route>
+      <Route path="/admin/resellers">
+        {() => (
+          <AdminLayout>
+            <AdminResellers />
+          </AdminLayout>
+        )}
+      </Route>
+      <Route path="/admin/categories">
+        {() => (
+          <AdminLayout>
+            <AdminCategories />
+          </AdminLayout>
+        )}
+      </Route>
+      <Route path="/admin/apps">
+        {() => (
+          <AdminLayout>
+            <AdminApps />
+          </AdminLayout>
+        )}
+      </Route>
+      <Route path="/admin/apps/:id">
+        {(params) => (
+          <AdminLayout>
+            <AdminAppDetail id={parseInt(params.id)} />
+          </AdminLayout>
+        )}
+      </Route>
+      <Route path="/admin/keys">
+        {() => (
+          <AdminLayout>
+            <AdminKeys />
+          </AdminLayout>
+        )}
+      </Route>
+
+      {/* Reseller routes */}
+      <Route path="/reseller">
+        {() => (
+          <ResellerLayout>
+            <ResellerProfile />
+          </ResellerLayout>
+        )}
+      </Route>
+      <Route path="/reseller/apps">
+        {() => (
+          <ResellerLayout>
+            <ResellerApps />
+          </ResellerLayout>
+        )}
+      </Route>
+      <Route path="/reseller/apps/:id">
+        {(params) => (
+          <ResellerLayout>
+            <ResellerAppDetail id={parseInt(params.id)} />
+          </ResellerLayout>
+        )}
+      </Route>
+      <Route path="/reseller/keys">
+        {() => (
+          <ResellerLayout>
+            <ResellerKeys />
+          </ResellerLayout>
+        )}
+      </Route>
+
+      <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
   );
 }
 
-// NOTE: About Theme
-// - First choose a default theme according to your design style (dark or light bg), than change color palette in index.css
-//   to keep consistent foreground/background color across components
-// - If you want to make theme switchable, pass `switchable` ThemeProvider and use `useTheme` hook
-
 function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider
-        defaultTheme="light"
-        // switchable
-      >
+      <ThemeProvider defaultTheme="dark">
         <TooltipProvider>
-          <Toaster />
+          <Toaster theme="dark" position="top-right" />
           <Router />
         </TooltipProvider>
       </ThemeProvider>
