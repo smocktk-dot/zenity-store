@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Plus, Search, Edit, UserCheck, UserX, PlusCircle, Eye, CreditCard, Percent } from "lucide-react";
+import { Plus, Search, Edit, UserCheck, UserX, PlusCircle, Package, CreditCard, Percent, Eye } from "lucide-react";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,6 +35,7 @@ const emptyCreate = { username: "", password: "", email: "", location: "", resel
 const emptyEdit = { email: "", location: "", status: "active" as string, password: "", resellerType: "credits" as "credits" | "percentage" };
 
 export default function AdminResellers() {
+  const [, navigate] = useLocation();
   const utils = trpc.useUtils();
   const { data: resellers = [], isLoading } = trpc.admin.listResellers.useQuery();
   const [search, setSearch] = useState("");
@@ -124,6 +126,13 @@ export default function AdminResellers() {
                   {type === "credits" && (
                     <button onClick={() => setCreditReseller(r)} className="p-1.5 rounded-lg text-gray-500 hover:text-green-400 hover:bg-green-500/10 transition-all" title="Adicionar créditos"><PlusCircle className="w-3.5 h-3.5" /></button>
                   )}
+                  <button
+                    onClick={() => navigate(`/admin/resellers/${r.id}`)}
+                    className="p-1.5 rounded-lg text-gray-500 hover:text-green-400 hover:bg-green-500/10 transition-all"
+                    title="Gerenciar Apps"
+                  >
+                    <Package className="w-3.5 h-3.5" />
+                  </button>
                   <button
                     onClick={() => update.mutate({ id: r.id, status: r.status === "active" ? "inactive" : "active" })}
                     className="p-1.5 rounded-lg text-gray-500 hover:text-yellow-400 hover:bg-yellow-500/10 transition-all"

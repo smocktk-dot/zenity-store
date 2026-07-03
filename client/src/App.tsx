@@ -11,6 +11,7 @@ import AdminCategories from "./pages/admin/AdminCategories";
 import AdminApps from "./pages/admin/AdminApps";
 import AdminAppDetail from "./pages/admin/AdminAppDetail";
 import AdminKeys from "./pages/admin/AdminKeys";
+import AdminResellerDetail from "./pages/admin/AdminResellerDetail";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import ResellerLayout from "./pages/reseller/ResellerLayout";
 import ResellerProfile from "./pages/reseller/ResellerProfile";
@@ -58,6 +59,13 @@ function Router() {
         {(params) => (
           <AdminLayout>
             <AdminAppDetail id={parseInt(params.id)} />
+          </AdminLayout>
+        )}
+      </Route>
+      <Route path="/admin/resellers/:id">
+        {(params) => (
+          <AdminLayout>
+            <AdminResellerDetail id={parseInt(params.id)} />
           </AdminLayout>
         )}
       </Route>

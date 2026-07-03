@@ -53,3 +53,8 @@
 - [x] Painel Reseller Créditos: perfil mostra só créditos + botão Buy Credits, gerar keys
 - [x] Painel Reseller Porcentagem: perfil mostra só desconto % + progresso, aba Comprar Keys
 - [x] Corrigir perfil: substituir aba "Minhas Keys" por "Comprar Créditos" no tipo créditos
+
+## Fase 7: Melhorias no Painel Admin
+- [x] AdminAppDetail: separação visual clara entre "Sistema de Créditos" e "Sistema de Porcentagem" nos cards e modal de planos
+- [x] AdminResellers: página de detalhe do reseller com lista de todos os apps disponíveis para adicionar/remover individualmente
+- [x] Backend: procedure getResellerApps retorna apps atribuídos e disponíveis por reseller (usada no AdminResellerDetail)
