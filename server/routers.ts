@@ -169,12 +169,13 @@ const adminRouter = router({
       password: z.string().min(6),
       email: z.string().email().optional(),
       location: z.string().optional(),
+      resellerType: z.enum(["credits", "percentage"]).default("credits"),
     }))
     .mutation(async ({ input }) => {
       const existing = await getResellerByUsername(input.username);
       if (existing) throw new TRPCError({ code: "CONFLICT", message: "Username já existe" });
       const passwordHash = await bcrypt.hash(input.password, 10);
-      await createReseller({ username: input.username, passwordHash, email: input.email, location: input.location });
+      await createReseller({ username: input.username, passwordHash, email: input.email, location: input.location, resellerType: input.resellerType });
       return { success: true };
     }),
 
@@ -185,6 +186,7 @@ const adminRouter = router({
       location: z.string().optional().nullable(),
       status: z.enum(["active", "inactive", "banned"]).optional(),
       password: z.string().min(6).optional(),
+      resellerType: z.enum(["credits", "percentage"]).optional(),
     }))
     .mutation(async ({ input }) => {
       const { id, password, ...rest } = input;
@@ -262,22 +264,31 @@ const adminRouter = router({
   createPlan: adminProcedure
     .input(z.object({
       appId: z.number(), name: z.string(), durationDays: z.number().positive(),
-      priceCredits: z.number().positive(), level: z.enum(["basic", "premium", "lifetime"]).optional(),
+      priceCredits: z.number().positive(),
+      pricePercentage: z.number().min(0).optional(),
+      level: z.enum(["basic", "premium", "lifetime"]).optional(),
     }))
     .mutation(async ({ input }) => {
-      await createPlan({ ...input, priceCredits: input.priceCredits.toFixed(2) } as any);
+      await createPlan({
+        ...input,
+        priceCredits: input.priceCredits.toFixed(2),
+        pricePercentage: (input.pricePercentage ?? 0).toFixed(2),
+      } as any);
       return { success: true };
     }),
 
   updatePlan: adminProcedure
     .input(z.object({
       id: z.number(), name: z.string().optional(), durationDays: z.number().optional(),
-      priceCredits: z.number().optional(), level: z.enum(["basic", "premium", "lifetime"]).optional(),
+      priceCredits: z.number().optional(),
+      pricePercentage: z.number().min(0).optional(),
+      level: z.enum(["basic", "premium", "lifetime"]).optional(),
     }))
     .mutation(async ({ input }) => {
-      const { id, priceCredits, ...rest } = input;
+      const { id, priceCredits, pricePercentage, ...rest } = input;
       const data: any = { ...rest };
       if (priceCredits !== undefined) data.priceCredits = priceCredits.toFixed(2);
+      if (pricePercentage !== undefined) data.pricePercentage = pricePercentage.toFixed(2);
       await updatePlan(id, data);
       return { success: true };
     }),
@@ -324,6 +335,7 @@ const resellerRouter = router({
     return {
       id: r.id, username: r.username, email: r.email, location: r.location,
       credits: r.credits, discountPercent: discount, totalPurchases: purchases,
+      resellerType: r.resellerType,
       status: r.status, createdAt: r.createdAt, lastLoginAt: r.lastLoginAt,
       nextLevel, transactions,
     };
@@ -428,6 +440,53 @@ const resellerRouter = router({
       if (key.status === "used") throw new TRPCError({ code: "BAD_REQUEST", message: "Key já utilizada não pode ser revogada" });
       await updateLicenseKey(input.keyId, { status: "revoked" });
       return { success: true };
+    }),
+
+  // Comprar keys para resellers de porcentagem (sem débito de créditos)
+  buyKey: resellerProcedure
+    .input(z.object({
+      appId: z.number(), planId: z.number(), quantity: z.number().min(1).max(100),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const reseller = ctx.reseller;
+      if (reseller.resellerType !== "percentage") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Esta ação é apenas para resellers de porcentagem" });
+      }
+
+      const assigned = await getAssignedAppIds(ctx.resellerId);
+      if (!assigned.includes(input.appId)) throw new TRPCError({ code: "FORBIDDEN", message: "App não disponível" });
+
+      const plan = await getPlanById(input.planId);
+      if (!plan || plan.appId !== input.appId) throw new TRPCError({ code: "NOT_FOUND", message: "Plano não encontrado" });
+
+      const app = await getAppById(input.appId);
+      if (!app) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const discount = calcDiscount(reseller.totalPurchases);
+      const basePrice = parseFloat((plan as any).pricePercentage ?? "0");
+      const discountedPrice = basePrice * (1 - discount / 100);
+      const totalCost = discountedPrice * input.quantity;
+
+      const newPurchases = reseller.totalPurchases + input.quantity;
+      const newDiscount = calcDiscount(newPurchases);
+      await updateResellerCredits(ctx.resellerId, reseller.credits as string, newPurchases, newDiscount.toFixed(2));
+
+      const generatedKeys: string[] = [];
+      for (let i = 0; i < input.quantity; i++) {
+        const keyValue = generateKeyValue(app.name);
+        const expiresAt = plan.durationDays < 9000 ? new Date(Date.now() + plan.durationDays * 86400000) : undefined;
+        await createLicenseKey({
+          keyValue, resellerId: ctx.resellerId, appId: input.appId,
+          planId: plan.id, planName: plan.name, durationDays: plan.durationDays,
+          creditsSpent: discountedPrice.toFixed(2),
+          expiresAt: expiresAt || null,
+          note: `Compra via porcentagem - R$ ${totalCost.toFixed(2)}`,
+          customMask: null,
+        } as any);
+        generatedKeys.push(keyValue);
+      }
+
+      return { success: true, keys: generatedKeys, totalCost, newBalance: reseller.credits };
     }),
 });
 

@@ -15,6 +15,13 @@
       "when": 1783117805101,
       "tag": "0001_military_magdalene",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1783120193688,
+      "tag": "0002_purple_celestials",
+      "breakpoints": true
     }
   ]
 }

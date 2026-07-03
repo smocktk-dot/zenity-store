@@ -18,7 +18,7 @@ export default function AdminAppDetail({ id }: { id: number }) {
   const { data: resellerApps } = trpc.admin.getResellerApps.useQuery({ resellerId: 0 }, { enabled: false });
 
   const [showPlan, setShowPlan] = useState(false);
-  const [planForm, setPlanForm] = useState({ name: "", durationDays: "30", priceCredits: "", level: "basic" as "basic" | "premium" | "lifetime" });
+  const [planForm, setPlanForm] = useState({ name: "", durationDays: "30", priceCredits: "", pricePercentage: "", level: "basic" as "basic" | "premium" | "lifetime" });
   const [selectedReseller, setSelectedReseller] = useState("");
 
   const createPlan = trpc.admin.createPlan.useMutation({ onSuccess: () => { toast.success("Plano criado!"); utils.admin.getApp.invalidate({ id }); setShowPlan(false); }, onError: e => toast.error(e.message) });
@@ -78,6 +78,11 @@ export default function AdminAppDetail({ id }: { id: number }) {
                     <span className="text-gray-600">créditos</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
+                    <span className="text-purple-400 text-xs">%</span>
+                    <span className="text-purple-400 font-bold font-mono">R$ {parseFloat(plan.pricePercentage ?? "0").toFixed(2)}</span>
+                    <span className="text-gray-600">porcentagem</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
                     <Clock className="w-3.5 h-3.5 text-blue-400" />
                     <span className="text-gray-400">{plan.durationDays >= 9000 ? "Lifetime" : `${plan.durationDays} dias`}</span>
                   </div>
@@ -130,11 +135,20 @@ export default function AdminAppDetail({ id }: { id: number }) {
       <Dialog open={showPlan} onOpenChange={setShowPlan}>
         <DialogContent className="bg-[#0d0d14] border-white/10 text-white max-w-md">
           <DialogHeader><DialogTitle className="text-white">Novo Plano de Assinatura</DialogTitle></DialogHeader>
-          <form onSubmit={e => { e.preventDefault(); createPlan.mutate({ appId: id, name: planForm.name, durationDays: parseInt(planForm.durationDays), priceCredits: parseFloat(planForm.priceCredits), level: planForm.level }); }} className="space-y-4 mt-2">
+          <form onSubmit={e => { e.preventDefault(); createPlan.mutate({ appId: id, name: planForm.name, durationDays: parseInt(planForm.durationDays), priceCredits: parseFloat(planForm.priceCredits), pricePercentage: planForm.pricePercentage ? parseFloat(planForm.pricePercentage) : 0, level: planForm.level }); }} className="space-y-4 mt-2">
             <div><Label className="text-gray-300 text-sm">Nome *</Label><Input value={planForm.name} onChange={e => setPlanForm(f => ({...f, name: e.target.value}))} placeholder="Ex: Daily, Weekly, Monthly" className="bg-white/5 border-white/10 text-white mt-1" required /></div>
+            <div><Label className="text-gray-300 text-sm">Duração (dias) *</Label><Input type="number" value={planForm.durationDays} onChange={e => setPlanForm(f => ({...f, durationDays: e.target.value}))} className="bg-white/5 border-white/10 text-white mt-1" required /></div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label className="text-gray-300 text-sm">Duração (dias) *</Label><Input type="number" value={planForm.durationDays} onChange={e => setPlanForm(f => ({...f, durationDays: e.target.value}))} className="bg-white/5 border-white/10 text-white mt-1" required /></div>
-              <div><Label className="text-gray-300 text-sm">Preço (créditos) *</Label><Input type="number" step="0.01" value={planForm.priceCredits} onChange={e => setPlanForm(f => ({...f, priceCredits: e.target.value}))} className="bg-white/5 border-white/10 text-white mt-1" required /></div>
+              <div>
+                <Label className="text-gray-300 text-sm flex items-center gap-1"><span className="text-yellow-400">●</span> Preço em Créditos *</Label>
+                <Input type="number" step="0.01" value={planForm.priceCredits} onChange={e => setPlanForm(f => ({...f, priceCredits: e.target.value}))} placeholder="Ex: 10.00" className="bg-white/5 border-white/10 text-white mt-1" required />
+                <p className="text-gray-600 text-xs mt-0.5">Para resellers de créditos</p>
+              </div>
+              <div>
+                <Label className="text-gray-300 text-sm flex items-center gap-1"><span className="text-purple-400">●</span> Preço em R$ (%) *</Label>
+                <Input type="number" step="0.01" value={planForm.pricePercentage} onChange={e => setPlanForm(f => ({...f, pricePercentage: e.target.value}))} placeholder="Ex: 25.00" className="bg-white/5 border-white/10 text-white mt-1" />
+                <p className="text-gray-600 text-xs mt-0.5">Para resellers de porcentagem</p>
+              </div>
             </div>
             <div>
               <Label className="text-gray-300 text-sm">Nível</Label>

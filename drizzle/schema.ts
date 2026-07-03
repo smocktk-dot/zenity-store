@@ -47,6 +47,7 @@ export const resellers = mysqlTable("resellers", {
   credits: decimal("credits", { precision: 12, scale: 2 }).default("0.00").notNull(),
   totalPurchases: int("totalPurchases").default(0).notNull(),
   discountPercent: decimal("discountPercent", { precision: 5, scale: 2 }).default("35.00").notNull(),
+  resellerType: mysqlEnum("resellerType", ["credits", "percentage"]).default("credits").notNull(),
   status: mysqlEnum("status", ["active", "inactive", "banned"]).default("active").notNull(),
   location: varchar("location", { length: 255 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -92,6 +93,7 @@ export const subscriptionPlans = mysqlTable("subscription_plans", {
   name: varchar("name", { length: 64 }).notNull(), // e.g. "Daily", "Weekly", "Monthly", "Lifetime"
   durationDays: int("durationDays").notNull(), // 1, 7, 30, 9999
   priceCredits: decimal("priceCredits", { precision: 10, scale: 2 }).notNull(),
+  pricePercentage: decimal("pricePercentage", { precision: 10, scale: 2 }).default("0.00").notNull(),
   level: mysqlEnum("level", ["basic", "premium", "lifetime"]).default("basic").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });

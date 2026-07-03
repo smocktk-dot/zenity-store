@@ -42,3 +42,14 @@
 - [x] Animações e micro-interações
 - [x] Testes vitest para routers críticos (7 testes passando)
 - [x] Checkpoint final
+
+## Fase 6: Separação de Tipos de Reseller
+- [x] Schema: adicionar campo resellerType (credits | percentage) na tabela resellers
+- [x] Schema: adicionar campo pricePercentage nos plans
+- [x] Backend: atualizar createReseller/updateReseller com resellerType
+- [x] Backend: router reseller.buyKey para resellers de porcentagem (compra com desconto %)
+- [x] Painel Admin: seleção de tipo ao criar/editar reseller
+- [x] Painel Admin: separação de preços por tipo nos planos de apps
+- [x] Painel Reseller Créditos: perfil mostra só créditos + botão Buy Credits, gerar keys
+- [x] Painel Reseller Porcentagem: perfil mostra só desconto % + progresso, aba Comprar Keys
+- [x] Corrigir perfil: substituir aba "Minhas Keys" por "Comprar Créditos" no tipo créditos
