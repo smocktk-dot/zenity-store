@@ -89,6 +89,7 @@ export const apps = pgTable("apps", {
   status: appStatusEnum("status").default("active").notNull(),
   maxUsers: integer("maxUsers").default(5000),
   features: text("features"), // JSON string of feature list
+  keyauthSellerKey: varchar("keyauthSellerKey", { length: 64 }), // KeyAuth Seller API Key for this app
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
 });

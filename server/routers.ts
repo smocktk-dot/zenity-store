@@ -59,6 +59,54 @@ function calcDiscount(totalPurchases: number): number {
   return 35;
 }
 
+// ─── KeyAuth Seller API ───────────────────────────────────────────────────────
+const KEYAUTH_SELLER_KEY = process.env.KEYAUTH_SELLER_KEY || "dd1d4c88ede441586316b84e6c71dac7";
+
+async function keyauthCreateLicense(opts: {
+  sellerKey: string;
+  durationDays: number;
+  quantity: number;
+  owner?: string;
+  note?: string;
+}): Promise<string[]> {
+  const expiry = opts.durationDays >= 9000 ? 0 : opts.durationDays; // 0 = lifetime in KeyAuth
+  const mask = "XXXX-XXXX-XXXX-XXXX";
+  const url = new URL("https://keyauth.win/api/seller/");
+  url.searchParams.set("sellerkey", opts.sellerKey);
+  url.searchParams.set("type", "add");
+  url.searchParams.set("format", "json");
+  url.searchParams.set("expiry", String(expiry));
+  url.searchParams.set("mask", mask);
+  url.searchParams.set("amount", String(opts.quantity));
+  if (opts.owner) url.searchParams.set("owner", opts.owner);
+  if (opts.note) url.searchParams.set("note", opts.note);
+
+  const res = await fetch(url.toString());
+  const data = await res.json() as any;
+  if (!data.success) {
+    console.error("[KeyAuth] Failed to create license:", data.message);
+    throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `KeyAuth: ${data.message}` });
+  }
+  // KeyAuth returns 'key' for single, 'keys' for multiple
+  if (opts.quantity === 1) {
+    return [data.key as string];
+  }
+  return data.keys as string[];
+}
+
+async function keyauthResetHwid(sellerKey: string, username: string): Promise<void> {
+  const url = new URL("https://keyauth.win/api/seller/");
+  url.searchParams.set("sellerkey", sellerKey);
+  url.searchParams.set("type", "resetuser");
+  url.searchParams.set("user", username);
+  url.searchParams.set("format", "json");
+  const res = await fetch(url.toString());
+  const data = await res.json() as any;
+  if (!data.success) {
+    console.warn("[KeyAuth] HWID reset warning:", data.message);
+  }
+}
+
 async function signCustomJwt(payload: object) {
   return new SignJWT(payload as Record<string, unknown>)
     .setProtectedHeader({ alg: "HS256" })
@@ -291,6 +339,7 @@ const adminRouter = router({
       name: z.string().min(2), description: z.string().optional(),
       version: z.string().optional(), categoryId: z.number().optional(),
       maxUsers: z.number().optional(), features: z.string().optional(),
+      keyauthSellerKey: z.string().length(32).optional(),
     }))
     .mutation(async ({ input }) => { await createApp(input as any); return { success: true }; }),
 
@@ -300,6 +349,7 @@ const adminRouter = router({
       version: z.string().optional(), categoryId: z.number().optional().nullable(),
       status: z.enum(["active", "inactive"]).optional(),
       maxUsers: z.number().optional(), features: z.string().optional(),
+      keyauthSellerKey: z.string().length(32).optional().nullable(),
     }))
     .mutation(async ({ input }) => { const { id, ...data } = input; await updateApp(id, data as any); return { success: true }; }),
 
@@ -470,6 +520,9 @@ const resellerRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       const reseller = ctx.reseller;
+      if (reseller.resellerType !== "credits") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Esta ação é apenas para resellers de créditos" });
+      }
       const assigned = await getAssignedAppIds(ctx.resellerId);
       if (!assigned.includes(input.appId)) throw new TRPCError({ code: "FORBIDDEN", message: "App não disponível" });
 
@@ -479,7 +532,8 @@ const resellerRouter = router({
       const app = await getAppById(input.appId);
       if (!app) throw new TRPCError({ code: "NOT_FOUND" });
 
-      const discount = calcDiscount(reseller.totalPurchases);
+      // Resellers de créditos usam o discountPercent fixo definido pelo admin (não o progressivo)
+      const discount = parseFloat(reseller.discountPercent as string);
       const basePrice = parseFloat(plan.priceCredits as string);
       const discountedPrice = basePrice * (1 - discount / 100);
       const totalCost = discountedPrice * input.quantity;
@@ -491,9 +545,8 @@ const resellerRouter = router({
 
       const newCredits = currentCredits - totalCost;
       const newPurchases = reseller.totalPurchases + input.quantity;
-      const newDiscount = calcDiscount(newPurchases);
-
-      await updateResellerCredits(ctx.resellerId, newCredits.toFixed(2), newPurchases, newDiscount.toFixed(2));
+      // Para créditos, o discountPercent é fixo (definido pelo admin), não atualiza automaticamente
+      await updateResellerCredits(ctx.resellerId, newCredits.toFixed(2), newPurchases, reseller.discountPercent as string);
 
       await createCreditTransaction({
         resellerId: ctx.resellerId, type: "deduct",
@@ -503,9 +556,25 @@ const resellerRouter = router({
         description: `Geração de ${input.quantity}x key(s) - ${app.name} (${plan.name})`,
       });
 
+      // Gerar licenças via KeyAuth se o app tiver seller key configurada
+      const sellerKey = (app as any).keyauthSellerKey || KEYAUTH_SELLER_KEY;
+      let keyauthKeys: string[] | null = null;
+      try {
+        keyauthKeys = await keyauthCreateLicense({
+          sellerKey,
+          durationDays: plan.durationDays,
+          quantity: input.quantity,
+          owner: reseller.username,
+          note: input.note || `Zenity Store - ${reseller.username} - ${plan.name}`,
+        });
+      } catch (err) {
+        console.error("[KeyAuth] License creation failed, using local key generation:", err);
+      }
+
       const generatedKeys: string[] = [];
       for (let i = 0; i < input.quantity; i++) {
-        const keyValue = generateKeyValue(app.name, input.customMask);
+        // Usar a key do KeyAuth se disponível, senão gerar localmente
+        const keyValue = keyauthKeys ? keyauthKeys[i] : generateKeyValue(app.name, input.customMask);
         const expiresAt = plan.durationDays < 9000 ? new Date(Date.now() + plan.durationDays * 86400000) : undefined;
         await createLicenseKey({
           keyValue, resellerId: ctx.resellerId, appId: input.appId,
@@ -526,7 +595,18 @@ const resellerRouter = router({
     .mutation(async ({ ctx, input }) => {
       const key = await getKeyById(input.keyId);
       if (!key || key.resellerId !== ctx.resellerId) throw new TRPCError({ code: "FORBIDDEN" });
+      // Resetar HWID localmente
       await updateLicenseKey(input.keyId, { hwid: null });
+      // Resetar HWID no KeyAuth se o usuário estiver registrado
+      if (key.usedBy) {
+        const app = await getAppById(key.appId);
+        const sellerKey = (app as any)?.keyauthSellerKey || KEYAUTH_SELLER_KEY;
+        try {
+          await keyauthResetHwid(sellerKey, key.usedBy);
+        } catch (err) {
+          console.warn("[KeyAuth] HWID reset failed (non-critical):", err);
+        }
+      }
       return { success: true };
     }),
 
@@ -652,6 +732,7 @@ const resellerRouter = router({
       const app = await getAppById(input.appId);
       if (!app) throw new TRPCError({ code: "NOT_FOUND" });
 
+      // Resellers de porcentagem usam desconto progressivo baseado em totalPurchases
       const discount = calcDiscount(reseller.totalPurchases);
       const basePrice = parseFloat((plan as any).pricePercentage ?? "0");
       const discountedPrice = basePrice * (1 - discount / 100);
@@ -661,9 +742,25 @@ const resellerRouter = router({
       const newDiscount = calcDiscount(newPurchases);
       await updateResellerCredits(ctx.resellerId, reseller.credits as string, newPurchases, newDiscount.toFixed(2));
 
+      // Gerar licenças via KeyAuth se o app tiver seller key configurada
+      const sellerKey = (app as any).keyauthSellerKey || KEYAUTH_SELLER_KEY;
+      let keyauthKeys: string[] | null = null;
+      try {
+        keyauthKeys = await keyauthCreateLicense({
+          sellerKey,
+          durationDays: plan.durationDays,
+          quantity: input.quantity,
+          owner: reseller.username,
+          note: `Zenity Store - ${reseller.username} - ${plan.name} - R$ ${totalCost.toFixed(2)}`,
+        });
+      } catch (err) {
+        console.error("[KeyAuth] License creation failed, using local key generation:", err);
+      }
+
       const generatedKeys: string[] = [];
       for (let i = 0; i < input.quantity; i++) {
-        const keyValue = generateKeyValue(app.name);
+        // Usar a key do KeyAuth se disponível, senão gerar localmente
+        const keyValue = keyauthKeys ? keyauthKeys[i] : generateKeyValue(app.name);
         const expiresAt = plan.durationDays < 9000 ? new Date(Date.now() + plan.durationDays * 86400000) : undefined;
         await createLicenseKey({
           keyValue, resellerId: ctx.resellerId, appId: input.appId,
