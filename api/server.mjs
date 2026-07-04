@@ -1157,13 +1157,7 @@ var authRouter = router({
     const valid = await bcrypt.compare(input.password, admin.passwordHash);
     if (!valid) throw new TRPCError3({ code: "UNAUTHORIZED", message: "Credenciais inv\xE1lidas" });
     const token = await signCustomJwt({ sub: String(admin.id), role: "admin", username: admin.username });
-    ctx.res.cookie(CUSTOM_COOKIE, token, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "none",
-      path: "/",
-      maxAge: 7 * 24 * 3600
-    });
+    ctx.res.cookie(CUSTOM_COOKIE, token, { ...getSessionCookieOptions(ctx.req), maxAge: 7 * 24 * 3600 });
     return { success: true, role: "admin", username: admin.username };
   }),
   resellerLogin: publicProcedure.input(z2.object({ username: z2.string(), password: z2.string() })).mutation(async ({ input, ctx }) => {
@@ -1175,13 +1169,7 @@ var authRouter = router({
         const ipAllowed = await isAdminIpAllowed(clientIp);
         if (!ipAllowed) throw new TRPCError3({ code: "FORBIDDEN", message: "Acesso negado: IP n\xE3o autorizado" });
         const token2 = await signCustomJwt({ sub: String(admin.id), role: "admin", username: admin.username });
-        ctx.res.cookie(CUSTOM_COOKIE, token2, {
-          httpOnly: true,
-          secure: true,
-          sameSite: "none",
-          path: "/",
-          maxAge: 7 * 24 * 3600
-        });
+        ctx.res.cookie(CUSTOM_COOKIE, token2, { ...getSessionCookieOptions(ctx.req), maxAge: 7 * 24 * 3600 });
         return { success: true, role: "admin", username: admin.username };
       }
     }
@@ -1195,13 +1183,7 @@ var authRouter = router({
     if (!resellerIpAllowed) throw new TRPCError3({ code: "FORBIDDEN", message: "Acesso negado: IP n\xE3o autorizado para este reseller" });
     await updateReseller(reseller.id, { lastLoginAt: /* @__PURE__ */ new Date() });
     const token = await signCustomJwt({ sub: String(reseller.id), role: "reseller", username: reseller.username });
-    ctx.res.cookie(CUSTOM_COOKIE, token, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "none",
-      path: "/",
-      maxAge: 7 * 24 * 3600
-    });
+    ctx.res.cookie(CUSTOM_COOKIE, token, { ...getSessionCookieOptions(ctx.req), maxAge: 7 * 24 * 3600 });
     return { success: true, role: "reseller", username: reseller.username };
   }),
   // Returns the real IP the server sees for this request (used by admin whitelist UI)
@@ -1234,7 +1216,7 @@ var authRouter = router({
     }
   }),
   logout: publicProcedure.mutation(({ ctx }) => {
-    ctx.res.clearCookie(CUSTOM_COOKIE, { httpOnly: true, secure: true, sameSite: "none", path: "/" });
+    ctx.res.clearCookie(CUSTOM_COOKIE, getSessionCookieOptions(ctx.req));
     const cookieOptions = getSessionCookieOptions(ctx.req);
     ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
     return { success: true };
@@ -1705,6 +1687,7 @@ async function createContext(opts) {
 
 // server/_core/serverless.ts
 var app = express();
+app.set("trust proxy", true);
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 registerStorageProxy(app);

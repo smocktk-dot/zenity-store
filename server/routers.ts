@@ -97,9 +97,7 @@ const authRouter = router({
       const valid = await bcrypt.compare(input.password, admin.passwordHash);
       if (!valid) throw new TRPCError({ code: "UNAUTHORIZED", message: "Credenciais inválidas" });
       const token = await signCustomJwt({ sub: String(admin.id), role: "admin", username: admin.username });
-      ctx.res.cookie(CUSTOM_COOKIE, token, {
-        httpOnly: true, secure: true, sameSite: "none", path: "/", maxAge: 7 * 24 * 3600,
-      });
+      ctx.res.cookie(CUSTOM_COOKIE, token, { ...getSessionCookieOptions(ctx.req), maxAge: 7 * 24 * 3600 });
       return { success: true, role: "admin" as const, username: admin.username };
     }),
 
@@ -116,9 +114,7 @@ const authRouter = router({
           const ipAllowed = await isAdminIpAllowed(clientIp);
           if (!ipAllowed) throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado: IP não autorizado" });
           const token = await signCustomJwt({ sub: String(admin.id), role: "admin", username: admin.username });
-          ctx.res.cookie(CUSTOM_COOKIE, token, {
-            httpOnly: true, secure: true, sameSite: "none", path: "/", maxAge: 7 * 24 * 3600,
-          });
+          ctx.res.cookie(CUSTOM_COOKIE, token, { ...getSessionCookieOptions(ctx.req), maxAge: 7 * 24 * 3600 });
           return { success: true, role: "admin" as const, username: admin.username };
         }
       }
@@ -134,9 +130,7 @@ const authRouter = router({
       if (!resellerIpAllowed) throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado: IP não autorizado para este reseller" });
       await updateReseller(reseller.id, { lastLoginAt: new Date() });
       const token = await signCustomJwt({ sub: String(reseller.id), role: "reseller", username: reseller.username });
-      ctx.res.cookie(CUSTOM_COOKIE, token, {
-        httpOnly: true, secure: true, sameSite: "none", path: "/", maxAge: 7 * 24 * 3600,
-      });
+      ctx.res.cookie(CUSTOM_COOKIE, token, { ...getSessionCookieOptions(ctx.req), maxAge: 7 * 24 * 3600 });
       return { success: true, role: "reseller" as const, username: reseller.username };
     }),
 
@@ -168,7 +162,7 @@ const authRouter = router({
   }),
 
   logout: publicProcedure.mutation(({ ctx }) => {
-    ctx.res.clearCookie(CUSTOM_COOKIE, { httpOnly: true, secure: true, sameSite: "none", path: "/" });
+    ctx.res.clearCookie(CUSTOM_COOKIE, getSessionCookieOptions(ctx.req));
     const cookieOptions = getSessionCookieOptions(ctx.req);
     ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
     return { success: true };
