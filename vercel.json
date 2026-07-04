@@ -5,8 +5,8 @@
       "src": "api/index.ts",
       "use": "@vercel/node",
       "config": {
-        "bundle": true,
-        "maxLambdaSize": "50mb"
+        "maxLambdaSize": "50mb",
+        "includeFiles": ["api/server.mjs"]
       }
     },
     {
