@@ -150,7 +150,7 @@ var init_schema = __esm({
       id: serial("id").primaryKey(),
       ip: varchar("ip", { length: 64 }).notNull(),
       label: varchar("label", { length: 128 }),
-      userType: ipUserTypeEnum("userType").notNull().default("admin"),
+      userType: varchar("userType", { length: 32 }).notNull().default("admin"),
       userId: integer("userId"),
       // null = any admin; for reseller = reseller.id
       createdAt: timestamp("createdAt").defaultNow().notNull()
