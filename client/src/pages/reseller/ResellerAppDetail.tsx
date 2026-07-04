@@ -47,8 +47,8 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
     <>
       <Tabs defaultValue="overview">
         <TabsList className="bg-white/5 border border-white/10">
-          <TabsTrigger value="overview" className="data-[state=active]:bg-white/10 data-[state=active]:text-white text-gray-500 font-medium tracking-wide text-xs uppercase">Overview</TabsTrigger>
-          <TabsTrigger value="generate" className="data-[state=active]:bg-violet-600 data-[state=active]:text-white text-gray-500 gap-1.5 font-medium tracking-wide text-xs uppercase">
+          <TabsTrigger value="overview" className="data-[state=active]:bg-white/10 data-[state=active]:text-white text-gray-400 font-bold text-sm">Overview</TabsTrigger>
+          <TabsTrigger value="generate" className="data-[state=active]:bg-violet-600 data-[state=active]:text-white text-gray-400 gap-1.5 font-bold text-sm">
             <Key className="w-3.5 h-3.5" /> Gerar Keys
           </TabsTrigger>
         </TabsList>
@@ -245,8 +245,8 @@ function PercentageAppDetail({ app, id }: { app: any; id: number }) {
     <>
       <Tabs defaultValue="overview">
         <TabsList className="bg-white/5 border border-white/10">
-          <TabsTrigger value="overview" className="data-[state=active]:bg-white/10 data-[state=active]:text-white text-gray-500 font-medium tracking-wide text-xs uppercase">Overview</TabsTrigger>
-          <TabsTrigger value="buy" className="data-[state=active]:bg-violet-600 data-[state=active]:text-white text-gray-500 gap-1.5 font-medium tracking-wide text-xs uppercase">
+          <TabsTrigger value="overview" className="data-[state=active]:bg-white/10 data-[state=active]:text-white text-gray-400 font-bold text-sm">Overview</TabsTrigger>
+          <TabsTrigger value="buy" className="data-[state=active]:bg-violet-600 data-[state=active]:text-white text-gray-400 gap-1.5 font-bold text-sm">
             <ShoppingCart className="w-3.5 h-3.5" /> Comprar Keys
           </TabsTrigger>
         </TabsList>

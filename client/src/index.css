@@ -26,7 +26,6 @@
   --color-ring: oklch(0.55 0.28 290);
   --radius: 0.75rem;
   --font-sans: 'Inter', sans-serif;
-  --font-display: 'Syne', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 }
 
@@ -42,13 +41,6 @@
   body {
     @apply bg-background text-foreground font-sans antialiased;
     min-height: 100vh;
-    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
-    letter-spacing: -0.01em;
-  }
-  h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-display);
-    letter-spacing: -0.02em;
-    font-weight: 700;
   }
   .font-mono, code, pre {
     font-family: var(--font-mono) !important;
