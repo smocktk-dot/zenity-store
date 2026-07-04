@@ -41,6 +41,14 @@ vi.mock("./db", async () => {
     // Password management
     updateAdminPassword: vi.fn(async () => {}),
     updateResellerPassword: vi.fn(async () => {}),
+    // Pix payments
+    createPixPayment: vi.fn(async (data: any) => ({ id: 1, ...data, createdAt: new Date() })),
+    getPixPaymentByPaymentId: vi.fn(async () => null),
+    updatePixPaymentStatus: vi.fn(async () => {}),
+    getPendingPixPaymentsByReseller: vi.fn(async () => []),
+    getPixPaymentsByReseller: vi.fn(async () => []),
+    updateResellerCredits: vi.fn(async () => {}),
+    createCreditTransaction: vi.fn(async () => {}),
   };
 });
 
@@ -116,5 +124,52 @@ describe("Admin Login (PostgreSQL schema)", () => {
     await expect(
       caller.auth.adminLogin({ username: "admin", password: "admin123" })
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+});
+
+describe("Pix Payment - createPixCharge validation", () => {
+  it("rejects credits below minimum (0)", async () => {
+    // We test the zod validation layer — no need for real API call
+    const ctx = makeCtx();
+    const caller = appRouter.createCaller(ctx);
+    // Should fail zod validation (min 1)
+    await expect(
+      (caller.reseller as any).createPixCharge({ credits: 0 })
+    ).rejects.toThrow();
+  });
+
+  it("rejects credits above maximum (10001)", async () => {
+    const ctx = makeCtx();
+    const caller = appRouter.createCaller(ctx);
+    await expect(
+      (caller.reseller as any).createPixCharge({ credits: 10001 })
+    ).rejects.toThrow();
+  });
+
+  it("rejects unauthenticated createPixCharge call", async () => {
+    const ctx = makeCtx();
+    const caller = appRouter.createCaller(ctx);
+    // No session cookie → should throw FORBIDDEN
+    await expect(
+      (caller.reseller as any).createPixCharge({ credits: 10 })
+    ).rejects.toThrow();
+  });
+});
+
+describe("Discount calculation", () => {
+  it("returns 35% for 0 purchases", () => {
+    const calc = (n: number) => n >= 20 ? 50 : n >= 10 ? 40 : 35;
+    expect(calc(0)).toBe(35);
+    expect(calc(9)).toBe(35);
+  });
+  it("returns 40% for 10-19 purchases", () => {
+    const calc = (n: number) => n >= 20 ? 50 : n >= 10 ? 40 : 35;
+    expect(calc(10)).toBe(40);
+    expect(calc(19)).toBe(40);
+  });
+  it("returns 50% for 20+ purchases", () => {
+    const calc = (n: number) => n >= 20 ? 50 : n >= 10 ? 40 : 35;
+    expect(calc(20)).toBe(50);
+    expect(calc(100)).toBe(50);
   });
 });

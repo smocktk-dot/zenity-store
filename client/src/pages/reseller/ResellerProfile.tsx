@@ -1,10 +1,14 @@
 import { trpc } from "@/lib/trpc";
-import { CreditCard, Percent, TrendingUp, ShoppingBag, Calendar, MapPin, Clock, ArrowUpRight, ArrowDownRight, Plus, User, Mail } from "lucide-react";
-import { useState } from "react";
+import {
+  CreditCard, Percent, TrendingUp, ShoppingBag, Calendar, MapPin, Clock,
+  ArrowUpRight, ArrowDownRight, Plus, User, Mail, QrCode, Copy, CheckCircle2,
+  Loader2, RefreshCw, X, Zap,
+} from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
 function formatDate(d: Date | null | undefined) {
@@ -12,10 +16,306 @@ function formatDate(d: Date | null | undefined) {
   return new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-// ─── Credits Profile ──────────────────────────────────────────────────────────
-function CreditsProfile({ profile }: { profile: any }) {
-  const [showBuy, setShowBuy] = useState(false);
+// ─── Pix Modal ────────────────────────────────────────────────────────────────
+type PixStep = "select" | "pending" | "paid";
+
+interface PixModalProps {
+  open: boolean;
+  onClose: () => void;
+  currentCredits: number;
+  onSuccess: () => void;
+}
+
+function BuyCreditsModal({ open, onClose, currentCredits, onSuccess }: PixModalProps) {
+  const [step, setStep] = useState<PixStep>("select");
   const [amount, setAmount] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [pixData, setPixData] = useState<{
+    paymentId: string;
+    brCode: string;
+    qrCodeImage?: string;
+    credits: number;
+    amountCents: number;
+    expiresAt?: string;
+  } | null>(null);
+
+  const createCharge = trpc.reseller.createPixCharge.useMutation({
+    onSuccess: (data) => {
+      setPixData({
+        paymentId: data.paymentId,
+        brCode: data.brCode || "",
+        qrCodeImage: data.qrCodeImage,
+        credits: data.credits,
+        amountCents: data.amountCents,
+        expiresAt: data.expiresAt,
+      });
+      setStep("pending");
+    },
+    onError: (err) => {
+      toast.error(err.message || "Erro ao criar cobrança Pix");
+    },
+  });
+
+  const { data: statusData, refetch: refetchStatus } = trpc.reseller.checkPixStatus.useQuery(
+    { paymentId: pixData?.paymentId || "" },
+    {
+      enabled: step === "pending" && !!pixData?.paymentId,
+      refetchInterval: step === "pending" ? 4000 : false,
+    }
+  );
+
+  useEffect(() => {
+    if (statusData?.status === "paid" && step === "pending") {
+      setStep("paid");
+      toast.success("Pagamento confirmado! Créditos adicionados.");
+      onSuccess();
+    }
+  }, [statusData?.status, step, onSuccess]);
+
+  const handleClose = useCallback(() => {
+    setStep("select");
+    setAmount("");
+    setPixData(null);
+    setCopied(false);
+    onClose();
+  }, [onClose]);
+
+  const handleCopy = () => {
+    if (!pixData?.brCode) return;
+    navigator.clipboard.writeText(pixData.brCode).then(() => {
+      setCopied(true);
+      toast.success("Código Pix copiado!");
+      setTimeout(() => setCopied(false), 2500);
+    });
+  };
+
+  const handleGenerate = () => {
+    const n = parseInt(amount);
+    if (!n || n < 1) { toast.error("Informe uma quantidade válida"); return; }
+    createCharge.mutate({ credits: n });
+  };
+
+  const presets = [10, 25, 50, 100, 250, 500];
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); }}>
+      <DialogContent className="p-0 border-0 bg-transparent max-w-md w-full shadow-2xl" style={{ boxShadow: "none" }}>
+        <div
+          className="relative rounded-2xl overflow-hidden"
+          style={{
+            background: "linear-gradient(145deg, rgba(13,10,25,0.98) 0%, rgba(18,12,35,0.98) 100%)",
+            border: "1px solid rgba(124,58,237,0.3)",
+            boxShadow: "0 0 60px rgba(124,58,237,0.15), 0 25px 50px rgba(0,0,0,0.6)",
+          }}
+        >
+          {/* Glow top */}
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(139,92,246,0.6), transparent)" }} />
+
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-white/[0.06]">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, rgba(124,58,237,0.3), rgba(139,92,246,0.15))", border: "1px solid rgba(124,58,237,0.4)" }}>
+                <QrCode className="w-4.5 h-4.5 text-violet-400" />
+              </div>
+              <div>
+                <h2 className="text-white font-semibold text-base leading-tight">Comprar Créditos</h2>
+                <p className="text-gray-500 text-xs">Pagamento via Pix • Instantâneo</p>
+              </div>
+            </div>
+            <button onClick={handleClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-gray-300 hover:bg-white/5 transition-all">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* ── Step: Select amount ── */}
+          {step === "select" && (
+            <div className="p-6 space-y-5">
+              {/* Balance badge */}
+              <div className="flex items-center justify-between rounded-xl px-4 py-3" style={{ background: "rgba(124,58,237,0.08)", border: "1px solid rgba(124,58,237,0.2)" }}>
+                <div className="flex items-center gap-2">
+                  <CreditCard className="w-3.5 h-3.5 text-violet-400" />
+                  <span className="text-gray-400 text-xs">Saldo atual</span>
+                </div>
+                <span className="text-violet-300 font-mono font-bold text-sm">{currentCredits.toFixed(2)} créditos</span>
+              </div>
+
+              {/* Preset amounts */}
+              <div>
+                <p className="text-gray-400 text-xs mb-2.5 font-medium uppercase tracking-wider">Valores rápidos</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {presets.map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => setAmount(String(p))}
+                      className={`rounded-xl py-2.5 text-sm font-semibold transition-all active:scale-95 ${
+                        amount === String(p)
+                          ? "text-white"
+                          : "text-gray-400 hover:text-gray-200"
+                      }`}
+                      style={amount === String(p) ? {
+                        background: "linear-gradient(135deg, rgba(124,58,237,0.4), rgba(139,92,246,0.25))",
+                        border: "1px solid rgba(124,58,237,0.5)",
+                        boxShadow: "0 0 16px rgba(124,58,237,0.2)",
+                      } : {
+                        background: "rgba(255,255,255,0.04)",
+                        border: "1px solid rgba(255,255,255,0.08)",
+                      }}
+                    >
+                      <span className="font-mono">{p}</span>
+                      <span className="text-xs ml-1 opacity-60">R$</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Custom amount */}
+              <div>
+                <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider mb-2 block">Ou digite o valor</Label>
+                <div className="relative">
+                  <Input
+                    type="number"
+                    min="1"
+                    max="10000"
+                    step="1"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    placeholder="Ex: 150"
+                    className="bg-white/[0.04] border-white/10 text-white placeholder:text-gray-600 pr-16 focus:border-violet-500/50 focus:ring-violet-500/20 h-11"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm font-medium">créditos</span>
+                </div>
+                {amount && parseInt(amount) > 0 && (
+                  <p className="text-violet-400 text-xs mt-1.5 flex items-center gap-1">
+                    <Zap className="w-3 h-3" />
+                    Valor a pagar: <span className="font-mono font-bold">R$ {parseInt(amount).toFixed(2)}</span>
+                  </p>
+                )}
+              </div>
+
+              {/* Rate info */}
+              <div className="flex items-center gap-2 rounded-lg px-3 py-2.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                <p className="text-gray-500 text-xs">1 crédito = R$ 1,00 • Pix expira em 30 minutos</p>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3 pt-1">
+                <Button variant="outline" onClick={handleClose} className="flex-1 border-white/10 text-gray-400 hover:text-gray-200 bg-transparent h-11">
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleGenerate}
+                  disabled={createCharge.isPending || !amount || parseInt(amount) < 1}
+                  className="flex-1 h-11 font-semibold text-white gap-2"
+                  style={{ background: "linear-gradient(135deg, #7c3aed, #8b5cf6)", boxShadow: "0 4px 20px rgba(124,58,237,0.35)" }}
+                >
+                  {createCharge.isPending ? (
+                    <><Loader2 className="w-4 h-4 animate-spin" /> Gerando...</>
+                  ) : (
+                    <><QrCode className="w-4 h-4" /> Gerar Pix</>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* ── Step: Pending payment ── */}
+          {step === "pending" && pixData && (
+            <div className="p-6 space-y-5">
+              {/* Amount summary */}
+              <div className="text-center">
+                <p className="text-gray-500 text-xs mb-1">Valor a pagar</p>
+                <p className="text-white text-4xl font-bold font-mono">R$ {(pixData.amountCents / 100).toFixed(2)}</p>
+                <p className="text-violet-400 text-sm mt-1">+{pixData.credits} créditos na sua conta</p>
+              </div>
+
+              {/* QR Code */}
+              <div className="flex flex-col items-center gap-3">
+                {pixData.qrCodeImage ? (
+                  <div className="rounded-xl overflow-hidden p-3" style={{ background: "white", border: "3px solid rgba(124,58,237,0.4)" }}>
+                    <img src={pixData.qrCodeImage} alt="QR Code Pix" className="w-44 h-44 object-contain" />
+                  </div>
+                ) : (
+                  <div className="w-52 h-52 rounded-xl flex items-center justify-center" style={{ background: "rgba(124,58,237,0.08)", border: "2px dashed rgba(124,58,237,0.3)" }}>
+                    <QrCode className="w-16 h-16 text-violet-500/40" />
+                  </div>
+                )}
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
+                  <span className="text-yellow-400 text-xs font-medium">Aguardando pagamento...</span>
+                </div>
+              </div>
+
+              {/* Pix copy-paste */}
+              {pixData.brCode && (
+                <div>
+                  <p className="text-gray-500 text-xs mb-2 text-center">Ou use o código Pix Copia e Cola</p>
+                  <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(124,58,237,0.25)" }}>
+                    <div className="px-3 py-2.5 bg-white/[0.03]">
+                      <p className="text-gray-400 text-xs font-mono truncate">{pixData.brCode.slice(0, 60)}...</p>
+                    </div>
+                    <button
+                      onClick={handleCopy}
+                      className="w-full flex items-center justify-center gap-2 py-2.5 text-sm font-medium transition-all"
+                      style={{ background: copied ? "rgba(34,197,94,0.15)" : "rgba(124,58,237,0.15)", color: copied ? "#4ade80" : "#a78bfa" }}
+                    >
+                      {copied ? <><CheckCircle2 className="w-4 h-4" /> Copiado!</> : <><Copy className="w-4 h-4" /> Copiar código</>}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Refresh + cancel */}
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={handleClose}
+                  className="flex-1 border-white/10 text-gray-400 hover:text-gray-200 bg-transparent h-10 text-sm"
+                >
+                  Fechar
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => refetchStatus()}
+                  className="flex-1 border-violet-500/30 text-violet-400 hover:text-violet-300 bg-transparent h-10 text-sm gap-1.5"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" /> Verificar
+                </Button>
+              </div>
+              <p className="text-gray-600 text-xs text-center">Verificação automática a cada 4 segundos</p>
+            </div>
+          )}
+
+          {/* ── Step: Paid ── */}
+          {step === "paid" && (
+            <div className="p-8 flex flex-col items-center gap-5 text-center">
+              <div className="w-20 h-20 rounded-full flex items-center justify-center" style={{ background: "linear-gradient(135deg, rgba(34,197,94,0.2), rgba(34,197,94,0.08))", border: "2px solid rgba(34,197,94,0.4)" }}>
+                <CheckCircle2 className="w-10 h-10 text-green-400" />
+              </div>
+              <div>
+                <h3 className="text-white text-xl font-bold mb-1">Pagamento confirmado!</h3>
+                <p className="text-gray-400 text-sm">
+                  <span className="text-green-400 font-bold font-mono">+{pixData?.credits}</span> créditos adicionados à sua conta
+                </p>
+              </div>
+              <Button
+                onClick={handleClose}
+                className="w-full h-11 font-semibold text-white"
+                style={{ background: "linear-gradient(135deg, #7c3aed, #8b5cf6)" }}
+              >
+                Fechar
+              </Button>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Credits Profile ──────────────────────────────────────────────────────────
+function CreditsProfile({ profile, refetch }: { profile: any; refetch: () => void }) {
+  const [showBuy, setShowBuy] = useState(false);
   const credits = parseFloat(String(profile.credits ?? "0"));
 
   return (
@@ -39,7 +339,11 @@ function CreditsProfile({ profile }: { profile: any }) {
         </div>
         <p className="text-white text-5xl font-bold font-mono mb-5">{credits.toFixed(2)}</p>
         <div className="flex items-center gap-4">
-          <Button onClick={() => setShowBuy(true)} className="bg-yellow-500 hover:bg-yellow-400 text-black font-bold gap-2 h-9 text-sm">
+          <Button
+            onClick={() => setShowBuy(true)}
+            className="font-bold gap-2 h-9 text-sm text-white"
+            style={{ background: "linear-gradient(135deg, #7c3aed, #8b5cf6)", boxShadow: "0 4px 16px rgba(124,58,237,0.35)" }}
+          >
             <Plus className="w-4 h-4" /> Comprar Créditos
           </Button>
           <p className="text-gray-500 text-sm"><span className="text-gray-300 font-medium">{profile.totalPurchases}</span> compras realizadas</p>
@@ -110,34 +414,16 @@ function CreditsProfile({ profile }: { profile: any }) {
       </div>
 
       {/* Buy Credits Modal */}
-      <Dialog open={showBuy} onOpenChange={setShowBuy}>
-        <DialogContent className="bg-[#0d0d14] border-white/10 text-white max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="text-white flex items-center gap-2">
-              <CreditCard className="w-4 h-4 text-yellow-400" /> Comprar Créditos
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 mt-2">
-            <div className="rounded-lg border border-yellow-500/20 p-3" style={{ background: "rgba(234,179,8,0.05)" }}>
-              <p className="text-yellow-400/80 text-xs">Saldo atual: <span className="font-mono font-bold text-yellow-400">{credits.toFixed(2)} créditos</span></p>
-            </div>
-            <div>
-              <Label className="text-gray-300 text-sm">Quantidade de Créditos</Label>
-              <Input type="number" min="1" step="1" value={amount} onChange={e => setAmount(e.target.value)} placeholder="Ex: 100" className="bg-white/5 border-white/10 text-white mt-1" />
-            </div>
-            <div className="rounded-lg bg-white/5 p-3 text-center">
-              <p className="text-gray-400 text-xs mb-1">Pagamento via Pix</p>
-              <p className="text-gray-600 text-xs">Integração Pix (Purin Cash) em breve</p>
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setShowBuy(false)} className="flex-1 border-white/10 text-gray-300">Cancelar</Button>
-              <Button onClick={() => { toast.info("Integração Pix em breve!"); setShowBuy(false); }} className="flex-1 bg-yellow-500 hover:bg-yellow-400 text-black font-bold">
-                Gerar Pix
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <BuyCreditsModal
+        open={showBuy}
+        onClose={() => setShowBuy(false)}
+        currentCredits={credits}
+        onSuccess={() => {
+          // Don't close the modal here — BuyCreditsModal shows the success screen itself.
+          // Refetch profile so balance updates when user closes.
+          refetch();
+        }}
+      />
     </div>
   );
 }
@@ -273,7 +559,7 @@ function PercentageProfile({ profile }: { profile: any }) {
 
 // ─── Main Export ──────────────────────────────────────────────────────────────
 export default function ResellerProfile() {
-  const { data: profile, isLoading } = trpc.reseller.profile.useQuery();
+  const { data: profile, isLoading, refetch } = trpc.reseller.profile.useQuery();
 
   if (isLoading) return (
     <div className="p-6 flex items-center justify-center h-64">
@@ -289,5 +575,5 @@ export default function ResellerProfile() {
     return <PercentageProfile profile={profile} />;
   }
 
-  return <CreditsProfile profile={profile} />;
+  return <CreditsProfile profile={profile} refetch={refetch} />;
 }

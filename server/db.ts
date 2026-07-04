@@ -1,8 +1,8 @@
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { InsertUser, users, admins, resellers, categories, apps, subscriptionPlans, resellerApps, licenseKeys, creditTransactions, ipWhitelist } from "../drizzle/schema";
-import type { InsertAdmin, InsertReseller, InsertCategory, InsertApp, InsertSubscriptionPlan, InsertResellerApp, InsertLicenseKey, InsertCreditTransaction } from "../drizzle/schema";
+import { InsertUser, users, admins, resellers, categories, apps, subscriptionPlans, resellerApps, licenseKeys, creditTransactions, ipWhitelist, pixPayments } from "../drizzle/schema";
+import type { InsertAdmin, InsertReseller, InsertCategory, InsertApp, InsertSubscriptionPlan, InsertResellerApp, InsertLicenseKey, InsertCreditTransaction, InsertPixPayment } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -366,6 +366,51 @@ export async function isResellerIpAllowed(rawIp: string, resellerId: number): Pr
 // Backward compat alias
 export async function isIpWhitelisted(ip: string): Promise<boolean> {
   return isAdminIpAllowed(ip);
+}
+
+
+// ─── Pix Payments (Purin Cash) ───────────────────────────────────────────────
+export async function createPixPayment(data: InsertPixPayment) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.insert(pixPayments).values(data).returning();
+  return row;
+}
+
+export async function getPixPaymentByPaymentId(paymentId: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db.select().from(pixPayments).where(eq(pixPayments.paymentId, paymentId));
+  return row ?? null;
+}
+
+export async function updatePixPaymentStatus(
+  paymentId: string,
+  status: "pending" | "paid" | "expired" | "refunded" | "cancelled",
+  paidAt?: Date
+) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(pixPayments)
+    .set({ status, ...(paidAt ? { paidAt } : {}) })
+    .where(eq(pixPayments.paymentId, paymentId));
+}
+
+export async function getPendingPixPaymentsByReseller(resellerId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(pixPayments)
+    .where(and(eq(pixPayments.resellerId, resellerId), eq(pixPayments.status, "pending")))
+    .orderBy(desc(pixPayments.createdAt));
+}
+
+export async function getPixPaymentsByReseller(resellerId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(pixPayments)
+    .where(eq(pixPayments.resellerId, resellerId))
+    .orderBy(desc(pixPayments.createdAt))
+    .limit(20);
 }
 
 // ─── Password Management ───────────────────────────────────────────────────────

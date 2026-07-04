@@ -18,6 +18,8 @@ import {
   getAllIpWhitelist, addIpToWhitelist, removeIpFromWhitelist, isIpWhitelisted,
   isAdminIpAllowed, isResellerIpAllowed, normalizeIp,
   updateAdminPassword, updateResellerPassword,
+  createPixPayment, getPixPaymentByPaymentId, updatePixPaymentStatus,
+  getPendingPixPaymentsByReseller, getPixPaymentsByReseller,
 } from "./db";
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "cv-reseller-secret-key-2024");
@@ -543,6 +545,98 @@ const resellerRouter = router({
       await updateLicenseKey(input.keyId, { status: "revoked" });
       return { success: true };
     }),
+
+  // ─── Pix / Purin Cash ──────────────────────────────────────────────────────
+  createPixCharge: resellerProcedure
+    .input(z.object({
+      credits: z.number().min(1, "Mínimo 1 crédito").max(10000, "Máximo 10000 créditos"),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const PURIN_API_KEY = process.env.PURIN_CASH_API_KEY;
+      if (!PURIN_API_KEY) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Pagamento Pix não configurado" });
+
+      const reseller = ctx.reseller;
+      const amountCents = Math.round(input.credits * 100); // 1 crédito = R$ 1,00
+      const callbackUrl = `${process.env.VITE_APP_URL || "https://cvreseller-n3qqggx2.manus.space"}/api/webhooks/purincash`;
+
+      const body = {
+        valueCents: amountCents,
+        description: `Compra de ${input.credits} crédito(s) - ZENITY STORE`,
+        callbackUrl,
+        customer: {
+          name: reseller.username,
+          email: reseller.email || `${reseller.username}@zenitystore.com`,
+          externalId: String(reseller.id),
+        },
+        metadata: JSON.stringify({ resellerId: reseller.id, credits: input.credits }),
+      };
+
+      const response = await fetch("https://api.purincash.com/v1/charges", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${PURIN_API_KEY}`,
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const err = await response.text();
+        console.error("[PurinCash] Error creating charge:", err);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Erro ao criar cobrança Pix" });
+      }
+
+      const data = await response.json() as {
+        paymentId: string;
+        status: string;
+        amountCents: number;
+        pix: { brCode: string; qrCodeImage: string };
+        expiresAt: string;
+      };
+
+      // Persist the payment record
+      const payment = await createPixPayment({
+        resellerId: reseller.id,
+        paymentId: data.paymentId,
+        amountCents: data.amountCents,
+        credits: input.credits.toFixed(2),
+        status: "pending",
+        brCode: data.pix?.brCode || null,
+        qrCodeImage: data.pix?.qrCodeImage || null,
+        expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
+      });
+
+      return {
+        paymentId: data.paymentId,
+        amountCents: data.amountCents,
+        credits: input.credits,
+        brCode: data.pix?.brCode,
+        qrCodeImage: data.pix?.qrCodeImage,
+        expiresAt: data.expiresAt,
+        status: "pending" as const,
+      };
+    }),
+
+  checkPixStatus: resellerProcedure
+    .input(z.object({ paymentId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const payment = await getPixPaymentByPaymentId(input.paymentId);
+      if (!payment || payment.resellerId !== ctx.resellerId) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
+      return {
+        paymentId: payment.paymentId,
+        status: payment.status,
+        credits: parseFloat(payment.credits as string),
+        amountCents: payment.amountCents,
+        paidAt: payment.paidAt,
+        expiresAt: payment.expiresAt,
+      };
+    }),
+
+  myPixPayments: resellerProcedure.query(async ({ ctx }) => {
+    return getPixPaymentsByReseller(ctx.resellerId);
+  }),
 
   // Comprar keys para resellers de porcentagem (sem débito de créditos)
   buyKey: resellerProcedure

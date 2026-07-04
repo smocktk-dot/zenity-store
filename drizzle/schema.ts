@@ -18,6 +18,7 @@ export const appStatusEnum = pgEnum("app_status", ["active", "inactive"]);
 export const planLevelEnum = pgEnum("plan_level", ["basic", "premium", "lifetime"]);
 export const keyStatusEnum = pgEnum("key_status", ["active", "used", "revoked", "expired"]);
 export const transactionTypeEnum = pgEnum("transaction_type", ["add", "deduct", "purchase"]);
+export const pixPaymentStatusEnum = pgEnum("pix_payment_status", ["pending", "paid", "expired", "refunded", "cancelled"]);
 export const ipUserTypeEnum = pgEnum("ip_user_type", ["admin", "reseller"]);
 
 // ─── Core users table (Manus OAuth, kept for compatibility) ───────────────────
@@ -159,6 +160,24 @@ export const creditTransactions = pgTable("credit_transactions", {
 
 export type CreditTransaction = typeof creditTransactions.$inferSelect;
 export type InsertCreditTransaction = typeof creditTransactions.$inferInsert;
+
+// ─── Pix Payments (Purin Cash) ───────────────────────────────────────────────
+export const pixPayments = pgTable("pix_payments", {
+  id: serial("id").primaryKey(),
+  resellerId: integer("resellerId").notNull().references(() => resellers.id),
+  paymentId: varchar("paymentId", { length: 128 }).notNull().unique(), // psc_...
+  amountCents: integer("amountCents").notNull(),
+  credits: decimal("credits", { precision: 10, scale: 2 }).notNull(), // credits to add
+  status: pixPaymentStatusEnum("status").notNull().default("pending"),
+  brCode: text("brCode"),
+  qrCodeImage: text("qrCodeImage"),
+  expiresAt: timestamp("expiresAt"),
+  paidAt: timestamp("paidAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type PixPayment = typeof pixPayments.$inferSelect;
+export type InsertPixPayment = typeof pixPayments.$inferInsert;
 
 // ─── IP Whitelist ─────────────────────────────────────────────────────────────
 export const ipWhitelist = pgTable("ip_whitelist", {

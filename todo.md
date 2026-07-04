@@ -96,8 +96,20 @@
 - [x] Mostrar "Seu IP atual (visto pelo servidor)" na aba Whitelist IPs com botão "Usar este IP"
 
 ## Fase 13: Redesign de Botões e Modais
-- [ ] Criar estilos globais para botões de ação primária (gradiente roxo/violeta) e botões secundários
-- [ ] Redesenhar modais (glassmorphism, inputs elegantes, tipografia refinada)
-- [ ] Atualizar botões Novo App, Novo Reseller, Nova Categoria
-- [ ] Atualizar modais de criação (App, Reseller, Categoria)
-- [ ] Push automático para GitHub após cada alteração
+- [x] Criar estilos globais para botões de ação primária (gradiente roxo/violeta) e botões secundários
+- [x] Redesenhar modais (glassmorphism, inputs elegantes, tipografia refinada)
+- [x] Atualizar botões Novo App, Novo Reseller, Nova Categoria
+- [x] Atualizar modais de criação (App, Reseller, Categoria)
+- [x] Push automático para GitHub após cada alteração
+
+## Fase 14: Integração KeyAuth + Purin Cash + Redesign Modal
+- [x] Ler documentação Purin Cash e obter credenciais KeyAuth
+- [x] Salvar PURIN_CASH_API_KEY como secret
+- [ ] Backend: integrar KeyAuth API para geração automática de keys ao comprar (ADIADO - requer upgrade de plano)
+- [x] Backend: integrar Purin Cash para criar cobrança Pix real (procedure createPixCharge)
+- [x] Backend: webhook Purin Cash para confirmar pagamento e adicionar créditos (/api/webhooks/purincash)
+- [x] Schema: tabela pix_payments criada no Supabase
+- [x] Frontend: redesenhar modal "Comprar Créditos" com visual glassmorphism roxo/violeta
+- [x] Frontend: fluxo Pix (QR Code + copia-e-cola + polling de status a cada 4s + tela de sucesso)
+- [x] 18 testes vitest passando
+- [x] Push para GitHub após cada alteração

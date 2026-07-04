@@ -66,6 +66,77 @@ async function startServer() {
       },
     });
   });
+  // Webhook Purin Cash (Pix payment confirmation)
+  app.post("/api/webhooks/purincash", async (req, res) => {
+    try {
+      const { paymentId, status, amountCents, paidAt } = req.body;
+      if (!paymentId || !status) {
+        return res.status(400).json({ error: "Missing paymentId or status" });
+      }
+      console.log(`[PurinCash Webhook] paymentId=${paymentId} status=${status}`);
+
+      if (status === "paid") {
+        // Import DB helpers inline to avoid circular deps
+        const {
+          getPixPaymentByPaymentId,
+          updatePixPaymentStatus,
+          updateResellerCredits,
+          getResellerById,
+          createCreditTransaction,
+        } = await import("../db");
+
+        const payment = await getPixPaymentByPaymentId(paymentId);
+        if (!payment) {
+          console.warn(`[PurinCash Webhook] Payment not found: ${paymentId}`);
+          return res.status(404).json({ error: "Payment not found" });
+        }
+        if (payment.status === "paid") {
+          // Already processed (idempotency)
+          return res.json({ ok: true, message: "Already processed" });
+        }
+
+        const reseller = await getResellerById(payment.resellerId);
+        if (!reseller) {
+          console.warn(`[PurinCash Webhook] Reseller not found: ${payment.resellerId}`);
+          return res.status(404).json({ error: "Reseller not found" });
+        }
+
+        const creditsToAdd = parseFloat(payment.credits as string);
+        const currentCredits = parseFloat(reseller.credits as string);
+        const newCredits = currentCredits + creditsToAdd;
+
+        // Update payment status
+        await updatePixPaymentStatus(paymentId, "paid", paidAt ? new Date(paidAt) : new Date());
+
+        // Add credits to reseller
+        await updateResellerCredits(payment.resellerId, newCredits.toFixed(2), reseller.totalPurchases, reseller.discountPercent as string);
+
+        // Record transaction
+        await createCreditTransaction({
+          resellerId: payment.resellerId,
+          type: "add",
+          amount: creditsToAdd.toFixed(2),
+          balanceBefore: currentCredits.toFixed(2),
+          balanceAfter: newCredits.toFixed(2),
+          description: `Compra via Pix - ${creditsToAdd} crédito(s) (${paymentId})`,
+        });
+
+        console.log(`[PurinCash Webhook] ✅ Added ${creditsToAdd} credits to reseller ${reseller.username}`);
+      } else if (status === "expired" || status === "cancelled" || status === "refunded") {
+        const { getPixPaymentByPaymentId, updatePixPaymentStatus } = await import("../db");
+        const payment = await getPixPaymentByPaymentId(paymentId);
+        if (payment && payment.status === "pending") {
+          await updatePixPaymentStatus(paymentId, status as any);
+        }
+      }
+
+      return res.json({ ok: true });
+    } catch (err) {
+      console.error("[PurinCash Webhook] Error:", err);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   // tRPC API
   app.use(
     "/api/trpc",
