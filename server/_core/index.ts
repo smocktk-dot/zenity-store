@@ -38,18 +38,18 @@ async function startServer() {
   registerOAuthRoutes(app);
   // Endpoint that returns the real IP seen by the server (used by admin whitelist UI)
   app.get("/api/my-ip", (req, res) => {
-    const headers = req.headers;
-    // Try all common proxy headers in priority order
+    const h = req.headers;
+    // Priority: Cloudflare > true-client-ip > x-real-ip > x-forwarded-for > socket
     const candidates = [
-      (headers["x-forwarded-for"] as string || "").split(",")[0].trim(),
-      headers["x-real-ip"] as string || "",
-      headers["cf-connecting-ip"] as string || "",
-      headers["true-client-ip"] as string || "",
-      headers["x-client-ip"] as string || "",
+      (h["cf-connecting-ip"] as string) || "",
+      (h["true-client-ip"] as string) || "",
+      (h["x-real-ip"] as string) || "",
+      ((h["x-forwarded-for"] as string) || "").split(",")[0].trim(),
+      (h["x-client-ip"] as string) || "",
       req.socket?.remoteAddress || "",
     ];
     const raw = candidates.find(c => c && c.length > 0) || "";
-    // Normalize IPv6-mapped IPv4
+    // Normalize: ::ffff:x.x.x.x → IPv4, ::1 → 127.0.0.1, real IPv6 kept as-is
     let ip = raw.trim();
     const mapped = ip.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
     if (mapped) ip = mapped[1];
@@ -58,11 +58,10 @@ async function startServer() {
       ip,
       raw,
       allHeaders: {
-        "x-forwarded-for": headers["x-forwarded-for"],
-        "x-real-ip": headers["x-real-ip"],
-        "cf-connecting-ip": headers["cf-connecting-ip"],
-        "true-client-ip": headers["true-client-ip"],
-        "x-client-ip": headers["x-client-ip"],
+        "cf-connecting-ip": h["cf-connecting-ip"],
+        "x-forwarded-for": h["x-forwarded-for"],
+        "x-real-ip": h["x-real-ip"],
+        "true-client-ip": h["true-client-ip"],
         "socket": req.socket?.remoteAddress,
       },
     });

@@ -26,11 +26,13 @@ const CUSTOM_COOKIE = "cv_session";
 /** Extract the real client IP from all common proxy headers, normalized to IPv4 */
 function getClientIp(req: { headers: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } }): string {
   const h = req.headers;
+  // Priority: Cloudflare real IP > x-real-ip > first entry of x-forwarded-for > socket
+  // cf-connecting-ip is the most reliable when behind Cloudflare proxy
   const candidates = [
-    ((h["x-forwarded-for"] as string) || "").split(",")[0].trim(),
-    (h["x-real-ip"] as string) || "",
     (h["cf-connecting-ip"] as string) || "",
     (h["true-client-ip"] as string) || "",
+    (h["x-real-ip"] as string) || "",
+    ((h["x-forwarded-for"] as string) || "").split(",")[0].trim(),
     (h["x-client-ip"] as string) || "",
     req.socket?.remoteAddress || "",
   ];

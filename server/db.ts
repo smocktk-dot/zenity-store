@@ -299,13 +299,16 @@ export async function createCreditTransaction(data: InsertCreditTransaction) {
 }
 
 // ─── IP Whitelist ─────────────────────────────────────────────────────────────
-/** Normalize IP: strip IPv6-mapped IPv4 prefix (::ffff:) and loopback variants */
+/** Normalize IP: strip IPv6-mapped IPv4 prefix (::ffff:) and loopback variants. Real IPv6 addresses are kept as-is. */
 export function normalizeIp(raw: string): string {
   if (!raw) return "";
   const s = raw.trim();
+  // Convert ::ffff:x.x.x.x (IPv4-mapped IPv6) to plain IPv4
   const mapped = s.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
   if (mapped) return mapped[1];
+  // Convert loopback IPv6 to 127.0.0.1
   if (s === "::1" || s === "0:0:0:0:0:0:0:1") return "127.0.0.1";
+  // Keep real IPv6 addresses as-is (e.g. 2804:14d:7630:...)
   return s;
 }
 
