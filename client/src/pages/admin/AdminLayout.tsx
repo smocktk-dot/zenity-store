@@ -3,7 +3,7 @@ import { useLocation, Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
-  LayoutDashboard, Users, Tag, AppWindow, Key, LogOut, ChevronRight, Shield
+  LayoutDashboard, Users, Tag, AppWindow, Key, LogOut, ChevronRight, Shield, Lock
 } from "lucide-react";
 import InteractiveStars from "@/components/InteractiveStars";
 
@@ -16,6 +16,7 @@ const navItems = [
   { href: "/admin/apps", icon: AppWindow, label: "Apps" },
   { href: "/admin/keys", icon: Key, label: "License Keys" },
   { href: "/admin/ip-whitelist", icon: Shield, label: "Whitelist IPs" },
+  { href: "/admin/security", icon: Lock, label: "Segurança" },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

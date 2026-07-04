@@ -76,3 +76,8 @@
 - [x] Detectar login admin no painel reseller e mostrar seção "Admin" embutida
 - [x] Criar aba "Whitelist de IPs" no painel admin para gerenciar IPs autorizados
 - [x] Integrar whitelist com o middleware de IP já existente
+
+## Fase 10: Bloqueio IP Real + Alteração de Senha
+- [x] Bloquear login admin de IPs não cadastrados na whitelist (quando lista não está vazia)
+- [x] Criar aba "Segurança" no painel admin para alterar senha do admin
+- [x] Criar funcionalidade para alterar senha de qualquer reseller no painel admin

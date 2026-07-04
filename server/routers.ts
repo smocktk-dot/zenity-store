@@ -15,7 +15,8 @@ import {
   getAppsByResellerId, assignAppToReseller, removeAppFromReseller, getAssignedAppIds,
   getKeysByResellerId, getAllKeys, getKeyById, createLicenseKey, updateLicenseKey,
   getTransactionsByResellerId, createCreditTransaction,
-  getAllIpWhitelist, addIpToWhitelist, removeIpFromWhitelist,
+  getAllIpWhitelist, addIpToWhitelist, removeIpFromWhitelist, isIpWhitelisted,
+  updateAdminPassword, updateResellerPassword,
 } from "./db";
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "cv-reseller-secret-key-2024");
@@ -67,6 +68,10 @@ const authRouter = router({
   adminLogin: publicProcedure
     .input(z.object({ username: z.string(), password: z.string() }))
     .mutation(async ({ input, ctx }) => {
+      // IP whitelist check
+      const clientIp = ((ctx.req.headers["x-forwarded-for"] as string) || "").split(",")[0].trim() || ctx.req.socket?.remoteAddress || "";
+      const ipAllowed = await isIpWhitelisted(clientIp);
+      if (!ipAllowed) throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado: IP não autorizado" });
       const admin = await getAdminByUsername(input.username);
       if (!admin) throw new TRPCError({ code: "UNAUTHORIZED", message: "Credenciais inválidas" });
       const valid = await bcrypt.compare(input.password, admin.passwordHash);
@@ -86,6 +91,10 @@ const authRouter = router({
       if (admin) {
         const validAdmin = await bcrypt.compare(input.password, admin.passwordHash);
         if (validAdmin) {
+          // IP whitelist check for admin login
+          const clientIp = ((ctx.req.headers["x-forwarded-for"] as string) || "").split(",")[0].trim() || ctx.req.socket?.remoteAddress || "";
+          const ipAllowed = await isIpWhitelisted(clientIp);
+          if (!ipAllowed) throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado: IP não autorizado" });
           const token = await signCustomJwt({ sub: String(admin.id), role: "admin", username: admin.username });
           ctx.res.cookie(CUSTOM_COOKIE, token, {
             httpOnly: true, secure: true, sameSite: "none", path: "/", maxAge: 7 * 24 * 3600,
@@ -351,6 +360,35 @@ const adminRouter = router({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       await removeIpFromWhitelist(input.id);
+      return { success: true };
+    }),
+
+  // Password management
+  changeAdminPassword: adminProcedure
+    .input(z.object({
+      currentPassword: z.string().min(1),
+      newPassword: z.string().min(6, "Nova senha deve ter pelo menos 6 caracteres"),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const admin = await getAdminById(ctx.adminId);
+      if (!admin) throw new TRPCError({ code: "NOT_FOUND" });
+      const valid = await bcrypt.compare(input.currentPassword, admin.passwordHash);
+      if (!valid) throw new TRPCError({ code: "UNAUTHORIZED", message: "Senha atual incorreta" });
+      const newHash = await bcrypt.hash(input.newPassword, 10);
+      await updateAdminPassword(admin.id, newHash);
+      return { success: true };
+    }),
+
+  changeResellerPassword: adminProcedure
+    .input(z.object({
+      resellerId: z.number(),
+      newPassword: z.string().min(6, "Nova senha deve ter pelo menos 6 caracteres"),
+    }))
+    .mutation(async ({ input }) => {
+      const reseller = await getResellerById(input.resellerId);
+      if (!reseller) throw new TRPCError({ code: "NOT_FOUND", message: "Reseller não encontrado" });
+      const newHash = await bcrypt.hash(input.newPassword, 10);
+      await updateResellerPassword(input.resellerId, newHash);
       return { success: true };
     }),
 });

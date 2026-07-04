@@ -324,3 +324,16 @@ export async function isIpWhitelisted(ip: string): Promise<boolean> {
   if (list.length === 0) return true; // if no IPs configured, allow all
   return list.some(entry => entry.ip === ip);
 }
+
+// ─── Password Management ───────────────────────────────────────────────────────
+export async function updateAdminPassword(id: number, passwordHash: string) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(admins).set({ passwordHash }).where(eq(admins.id, id));
+}
+
+export async function updateResellerPassword(id: number, passwordHash: string) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(resellers).set({ passwordHash }).where(eq(resellers.id, id));
+}
