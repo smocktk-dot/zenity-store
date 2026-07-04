@@ -44,13 +44,13 @@ function getClientIp(req: { headers: Record<string, string | string[] | undefine
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function generateKeyValue(prefix: string, mask?: string): string {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
   const rand = (len: number) => Array.from({ length: len }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
   if (mask) {
-    return mask.replace(/X/g, () => chars[Math.floor(Math.random() * chars.length)]);
+    return mask.replace(/X/gi, () => chars[Math.floor(Math.random() * chars.length)]);
   }
-  const p = prefix.toUpperCase().slice(0, 4).padEnd(4, "X");
-  return `${p}-${rand(4)}-${rand(4)}-${rand(4)}-${rand(8)}`;
+  // Formato KeyAuth: 6-6-6 com letras e números mistos
+  return `${rand(6)}-${rand(6)}-${rand(6)}`;
 }
 
 function calcDiscount(totalPurchases: number): number {
@@ -575,12 +575,12 @@ const resellerRouter = router({
       for (let i = 0; i < input.quantity; i++) {
         // Usar a key do KeyAuth se disponível, senão gerar localmente
         const keyValue = keyauthKeys ? keyauthKeys[i] : generateKeyValue(app.name, input.customMask);
-        const expiresAt = plan.durationDays < 9000 ? new Date(Date.now() + plan.durationDays * 86400000) : undefined;
+        // expiresAt é null: a contagem começa apenas quando a key for usada pela primeira vez
         await createLicenseKey({
           keyValue, resellerId: ctx.resellerId, appId: input.appId,
           planId: plan.id, planName: plan.name, durationDays: plan.durationDays,
           creditsSpent: discountedPrice.toFixed(2),
-          expiresAt: expiresAt || null,
+          expiresAt: null,
           note: input.note || null,
           customMask: input.customMask || null,
         } as any);
@@ -761,12 +761,12 @@ const resellerRouter = router({
       for (let i = 0; i < input.quantity; i++) {
         // Usar a key do KeyAuth se disponível, senão gerar localmente
         const keyValue = keyauthKeys ? keyauthKeys[i] : generateKeyValue(app.name);
-        const expiresAt = plan.durationDays < 9000 ? new Date(Date.now() + plan.durationDays * 86400000) : undefined;
+        // expiresAt é null: a contagem começa apenas quando a key for usada pela primeira vez
         await createLicenseKey({
           keyValue, resellerId: ctx.resellerId, appId: input.appId,
           planId: plan.id, planName: plan.name, durationDays: plan.durationDays,
           creditsSpent: discountedPrice.toFixed(2),
-          expiresAt: expiresAt || null,
+          expiresAt: null,
           note: `Compra via porcentagem - R$ ${totalCost.toFixed(2)}`,
           customMask: null,
         } as any);

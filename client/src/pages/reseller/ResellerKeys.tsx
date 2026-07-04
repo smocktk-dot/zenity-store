@@ -127,7 +127,7 @@ export default function ResellerKeys() {
                 <td className="px-4 py-3"><StatusBadge status={k.status} /></td>
                 <td className="px-4 py-3 text-yellow-400 text-sm font-mono">{parseFloat(k.creditsSpent).toFixed(2)}</td>
                 <td className="px-4 py-3 text-gray-500 text-xs">{new Date(k.createdAt).toLocaleDateString("pt-BR")}</td>
-                <td className="px-4 py-3 text-gray-500 text-xs">{k.expiresAt ? new Date(k.expiresAt).toLocaleDateString("pt-BR") : <span className="text-gray-700">Lifetime</span>}</td>
+                <td className="px-4 py-3 text-gray-500 text-xs">{k.expiresAt ? new Date(k.expiresAt).toLocaleDateString("pt-BR") : k.durationDays >= 9000 ? <span className="text-gray-700">Lifetime</span> : <span className="text-blue-400/70 text-xs">Conta após uso</span>}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-1">
                     <button onClick={() => copyKey(k.id, k.keyValue)} title="Copiar key" className="p-1.5 rounded-lg text-gray-500 hover:text-green-400 hover:bg-green-500/10 transition-all">
@@ -195,7 +195,7 @@ export default function ResellerKeys() {
                   { label: "Créditos Gastos", value: `${parseFloat(viewKey.creditsSpent).toFixed(2)} cr` },
                   { label: "Duração", value: viewKey.durationDays >= 9000 ? "Lifetime" : `${viewKey.durationDays} dias` },
                   { label: "Criado em", value: new Date(viewKey.createdAt).toLocaleString("pt-BR") },
-                  { label: "Expira em", value: viewKey.expiresAt ? new Date(viewKey.expiresAt).toLocaleString("pt-BR") : "Lifetime" },
+                  { label: "Expira em", value: viewKey.expiresAt ? new Date(viewKey.expiresAt).toLocaleString("pt-BR") : viewKey.durationDays >= 9000 ? "Lifetime" : "Conta a partir do primeiro uso" },
                 ].map(({ label, value }) => (
                   <div key={label} className="rounded-lg bg-white/[0.03] border border-white/5 p-3">
                     <p className="text-gray-500 text-xs">{label}</p>

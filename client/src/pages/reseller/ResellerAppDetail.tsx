@@ -37,7 +37,7 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
   });
 
   const credits = parseFloat(String(profile?.credits ?? "0"));
-  const discount = parseFloat(String(profile?.discountPercent ?? "35"));
+  const discount = parseFloat(String(profile?.discountPercent ?? "0"));
   const selectedPlan = app.plans?.find((p: any) => String(p.id) === genForm.planId);
   const planPrice = selectedPlan ? parseFloat(String(selectedPlan.priceCredits)) : 0;
   const discountedPrice = planPrice * (1 - discount / 100);
@@ -57,10 +57,7 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
               <p className="text-white font-bold font-mono text-base leading-tight">{credits.toFixed(2)} <span className="text-violet-400 text-sm font-semibold">créditos</span></p>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-3 py-1">
-            <Percent className="w-3 h-3 text-emerald-400" />
-            <span className="text-emerald-400 text-xs font-bold">{discount.toFixed(0)}% off</span>
-          </div>
+
         </div>
 
         {/* Plans */}
@@ -71,8 +68,7 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
               {app.plans.map((plan: any) => {
-                const original = parseFloat(String(plan.priceCredits));
-                const withDiscount = original * (1 - discount / 100);
+                const price = parseFloat(String(plan.priceCredits)) * (1 - discount / 100);
                 return (
                   <div key={plan.id} className="rounded-xl border border-white/10 p-4 hover:border-white/20 transition-all cursor-pointer" style={{ background: "rgba(255,255,255,0.02)" }}
                     onClick={() => { setGenForm(f => ({...f, planId: String(plan.id)})); setShowGenerate(true); }}>
@@ -83,9 +79,8 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
                     <div className="mt-3 space-y-1.5">
                       <div className="flex items-center gap-2">
                         <DollarSign className="w-3.5 h-3.5 text-yellow-400" />
-                        <span className="text-yellow-400 font-bold font-mono text-sm">{withDiscount.toFixed(2)}</span>
+                        <span className="text-yellow-400 font-bold font-mono text-sm">{price.toFixed(2)}</span>
                         <span className="text-gray-600 text-xs">cr</span>
-                        {discount > 0 && <span className="text-gray-600 text-xs line-through">{original.toFixed(2)}</span>}
                       </div>
                       <div className="flex items-center gap-2 text-xs text-gray-400">
                         <Clock className="w-3 h-3 text-blue-400" />
@@ -137,10 +132,7 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
                   <p className="text-white font-bold font-mono">{credits.toFixed(2)} <span className="text-violet-400 text-xs">cr</span></p>
                 </div>
               </div>
-              <div className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-3 py-1">
-                <Percent className="w-3 h-3 text-emerald-400" />
-                <span className="text-emerald-400 text-xs font-bold">{discount.toFixed(0)}% off</span>
-              </div>
+
             </div>
 
             <div>
@@ -173,7 +165,7 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
               <div className="rounded-lg bg-white/5 border border-white/10 p-3 space-y-1.5">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-400">Preço por key:</span>
-                  <span className="text-white font-mono">{discountedPrice.toFixed(2)} cr <span className="text-green-400 text-xs">(-{discount.toFixed(0)}%)</span></span>
+                  <span className="text-white font-mono">{discountedPrice.toFixed(2)} cr</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-400">Quantidade:</span>
