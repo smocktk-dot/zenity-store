@@ -167,6 +167,14 @@ export async function updateApp(id: number, data: Partial<InsertApp>) {
 export async function deleteApp(id: number) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
+  // Get all plans for this app to delete their keys first
+  const plans = await db.select().from(subscriptionPlans).where(eq(subscriptionPlans.appId, id));
+  for (const plan of plans) {
+    await db.delete(licenseKeys).where(eq(licenseKeys.planId, plan.id));
+  }
+  // Delete plans, reseller assignments, then the app
+  await db.delete(subscriptionPlans).where(eq(subscriptionPlans.appId, id));
+  await db.delete(resellerApps).where(eq(resellerApps.appId, id));
   await db.delete(apps).where(eq(apps.id, id));
 }
 
@@ -199,6 +207,8 @@ export async function updatePlan(id: number, data: Partial<InsertSubscriptionPla
 export async function deletePlan(id: number) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
+  // Delete associated license keys first to avoid FK constraint violation
+  await db.delete(licenseKeys).where(eq(licenseKeys.planId, id));
   await db.delete(subscriptionPlans).where(eq(subscriptionPlans.id, id));
 }
 
