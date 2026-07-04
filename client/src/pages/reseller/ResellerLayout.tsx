@@ -2,7 +2,9 @@ import { useEffect } from "react";
 import { useLocation, Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { User, AppWindow, Key, LogOut, ChevronRight } from "lucide-react";
+import { User, AppWindow, Key, LogOut } from "lucide-react";
+
+const LOGO_URL = "/manus-storage/zenity-logo_13a05e29.png";
 
 const navItems = [
   { href: "/reseller", icon: User, label: "Perfil" },
@@ -23,12 +25,10 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "#0a0a0f" }}>
-        <div className="flex items-center gap-3 text-gray-400">
-          <svg className="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-          </svg>
+      <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
+        <div className="galaxy-bg"><div className="galaxy-stars" /></div>
+        <div className="relative z-10 flex items-center gap-3 text-gray-400">
+          <div className="w-5 h-5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
           Carregando...
         </div>
       </div>
@@ -36,25 +36,57 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
   }
 
   const resellerSession = session?.role === "reseller" ? session : null;
+  const isCredits = !resellerSession || (resellerSession as any).resellerType !== "percentage";
 
   return (
-    <div className="min-h-screen" style={{ background: "#0a0a0f" }}>
+    <div className="min-h-screen relative overflow-hidden">
+      {/* Galaxy Background */}
+      <div className="galaxy-bg">
+        <div className="galaxy-stars" />
+        <div className="galaxy-shooting-star" />
+        <div className="galaxy-shooting-star" style={{ animationDelay: "10s", top: "60%" }} />
+      </div>
+
       {/* Top Header */}
-      <header className="border-b border-white/5 sticky top-0 z-50" style={{ background: "rgba(10,10,15,0.95)", backdropFilter: "blur(12px)" }}>
+      <header
+        className="relative z-10 border-b sticky top-0"
+        style={{
+          background: "rgba(8,6,18,0.92)",
+          backdropFilter: "blur(20px)",
+          borderColor: "rgba(124,58,237,0.12)",
+        }}
+      >
         <div className="flex items-center justify-between px-6 h-14">
+          {/* Left: Logo + Nav */}
           <div className="flex items-center gap-4">
-            {/* Logo */}
             <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-lg bg-red-600 flex items-center justify-center font-bold text-white text-sm">C</div>
-              <span className="text-white font-semibold text-sm">CV STORE</span>
+              <img
+                src={LOGO_URL}
+                alt="Zenity"
+                className="w-7 h-7 object-contain"
+                style={{ filter: "drop-shadow(0 0 6px rgba(124,58,237,0.7))" }}
+              />
+              <span className="text-white font-black text-sm tracking-wide">ZENITY <span className="font-normal text-purple-400 text-xs tracking-widest">STORE</span></span>
             </div>
-            {/* Nav */}
-            <nav className="flex items-center gap-1 ml-4">
+
+            <nav className="flex items-center gap-0.5 ml-2">
               {navItems.map(({ href, icon: Icon, label }) => {
                 const active = location === href || (href !== "/reseller" && location.startsWith(href));
                 return (
                   <Link key={href} href={href}>
-                    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer transition-all text-sm ${active ? "bg-red-600/20 text-red-400" : "text-gray-500 hover:text-gray-200 hover:bg-white/5"}`}>
+                    <div
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer transition-all text-sm"
+                      style={active ? {
+                        background: "rgba(124,58,237,0.15)",
+                        color: "#c4b5fd",
+                        border: "1px solid rgba(124,58,237,0.2)",
+                      } : {
+                        color: "#6b7280",
+                        border: "1px solid transparent",
+                      }}
+                      onMouseEnter={e => { if (!active) { (e.currentTarget as HTMLDivElement).style.background = "rgba(255,255,255,0.04)"; (e.currentTarget as HTMLDivElement).style.color = "#d1d5db"; } }}
+                      onMouseLeave={e => { if (!active) { (e.currentTarget as HTMLDivElement).style.background = "transparent"; (e.currentTarget as HTMLDivElement).style.color = "#6b7280"; } }}
+                    >
                       <Icon className="w-3.5 h-3.5" />
                       {label}
                     </div>
@@ -64,30 +96,43 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
             </nav>
           </div>
 
-          <div className="flex items-center gap-3">
-            {resellerSession && (
-              <>
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
-                  <span className="text-yellow-400 text-xs font-mono font-medium">
-                    {parseFloat((resellerSession as any).credits ?? "0").toFixed(2)} cr
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-500/10 border border-green-500/20">
-                  <span className="text-green-400 text-xs font-medium">
-                    {parseFloat((resellerSession as any).discountPercent ?? "35").toFixed(0)}% desc
-                  </span>
-                </div>
-              </>
+          {/* Right: badges + user */}
+          <div className="flex items-center gap-2">
+            {resellerSession && isCredits && (
+              <div
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-semibold"
+                style={{ background: "rgba(234,179,8,0.08)", border: "1px solid rgba(234,179,8,0.2)", color: "#fbbf24" }}
+              >
+                {parseFloat((resellerSession as any).credits ?? "0").toFixed(2)} cr
+              </div>
             )}
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5">
-              <div className="w-5 h-5 rounded-full bg-red-600/40 flex items-center justify-center text-red-400 text-xs font-bold uppercase">
+            {resellerSession && !isCredits && (
+              <div
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
+                style={{ background: "rgba(124,58,237,0.08)", border: "1px solid rgba(124,58,237,0.2)", color: "#a78bfa" }}
+              >
+                {parseFloat((resellerSession as any).discountPercent ?? "35").toFixed(0)}% desc
+              </div>
+            )}
+
+            <div
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg"
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}
+            >
+              <div
+                className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold uppercase"
+                style={{ background: "rgba(124,58,237,0.3)", color: "#a78bfa" }}
+              >
                 {resellerSession?.username?.[0] ?? "R"}
               </div>
               <span className="text-gray-300 text-sm">{resellerSession?.username}</span>
             </div>
+
             <button
               onClick={() => logout.mutate()}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-all text-sm"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-gray-500 transition-all text-sm"
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#f87171"; (e.currentTarget as HTMLButtonElement).style.background = "rgba(239,68,68,0.08)"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#6b7280"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
             >
               <LogOut className="w-3.5 h-3.5" />
               Logout
@@ -96,7 +141,7 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
         </div>
       </header>
 
-      <main className="p-6">{children}</main>
+      <main className="relative z-10 p-6">{children}</main>
     </div>
   );
 }

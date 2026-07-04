@@ -3,8 +3,10 @@ import { useLocation, Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
-  LayoutDashboard, Users, Tag, AppWindow, Key, LogOut, ChevronRight
+  LayoutDashboard, Users, Tag, AppWindow, Key, LogOut, ChevronRight, Shield
 } from "lucide-react";
+
+const LOGO_URL = "/manus-storage/zenity-logo_13a05e29.png";
 
 const navItems = [
   { href: "/admin", icon: LayoutDashboard, label: "Dashboard" },
@@ -27,12 +29,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "#0a0a0f" }}>
-        <div className="flex items-center gap-3 text-gray-400">
-          <svg className="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-          </svg>
+      <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
+        <div className="galaxy-bg"><div className="galaxy-stars" /></div>
+        <div className="relative z-10 flex items-center gap-3 text-gray-400">
+          <div className="w-5 h-5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
           Carregando...
         </div>
       </div>
@@ -40,39 +40,62 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   return (
-    <div className="min-h-screen flex" style={{ background: "#0a0a0f" }}>
+    <div className="min-h-screen flex relative overflow-hidden">
+      {/* Galaxy Background */}
+      <div className="galaxy-bg">
+        <div className="galaxy-stars" />
+        <div className="galaxy-shooting-star" />
+        <div className="galaxy-shooting-star" style={{ animationDelay: "9s", top: "55%" }} />
+      </div>
+
       {/* Sidebar */}
       <aside
-        className="w-56 flex-shrink-0 flex flex-col border-r border-white/5"
-        style={{ background: "linear-gradient(180deg, #0d0d14 0%, #0a0a0f 100%)" }}
+        className="relative z-10 w-56 flex-shrink-0 flex flex-col border-r"
+        style={{
+          background: "rgba(8,6,18,0.92)",
+          backdropFilter: "blur(20px)",
+          borderColor: "rgba(124,58,237,0.12)",
+        }}
       >
         {/* Logo */}
-        <div className="flex items-center gap-3 px-5 py-5 border-b border-white/5">
-          <div className="w-8 h-8 rounded-lg bg-red-600 flex items-center justify-center font-bold text-white text-sm shadow-lg shadow-red-900/40">
-            C
-          </div>
+        <div className="flex items-center gap-3 px-4 py-5 border-b" style={{ borderColor: "rgba(124,58,237,0.12)" }}>
+          <img
+            src={LOGO_URL}
+            alt="Zenity"
+            className="w-8 h-8 object-contain"
+            style={{ filter: "drop-shadow(0 0 8px rgba(124,58,237,0.7))" }}
+          />
           <div>
-            <p className="text-white font-semibold text-sm leading-none">CV STORE</p>
-            <p className="text-gray-500 text-xs mt-0.5">Admin Panel</p>
+            <p className="text-white font-black text-sm leading-none tracking-wide">ZENITY</p>
+            <p className="text-xs font-semibold tracking-widest mt-0.5" style={{ color: "#a78bfa" }}>STORE</p>
+          </div>
+          <div className="ml-auto">
+            <Shield className="w-3.5 h-3.5" style={{ color: "#7c3aed" }} />
           </div>
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 px-3 py-4 space-y-1">
+        <nav className="flex-1 px-3 py-4 space-y-0.5">
           {navItems.map(({ href, icon: Icon, label }) => {
             const active = location === href || (href !== "/admin" && location.startsWith(href));
             return (
               <Link key={href} href={href}>
                 <div
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-150 group ${
-                    active
-                      ? "bg-red-600/20 text-red-400 border border-red-500/20"
-                      : "text-gray-500 hover:text-gray-200 hover:bg-white/5"
-                  }`}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-150 group"
+                  style={active ? {
+                    background: "rgba(124,58,237,0.15)",
+                    border: "1px solid rgba(124,58,237,0.25)",
+                    color: "#c4b5fd",
+                  } : {
+                    color: "#6b7280",
+                    border: "1px solid transparent",
+                  }}
+                  onMouseEnter={e => { if (!active) { (e.currentTarget as HTMLDivElement).style.background = "rgba(255,255,255,0.04)"; (e.currentTarget as HTMLDivElement).style.color = "#d1d5db"; } }}
+                  onMouseLeave={e => { if (!active) { (e.currentTarget as HTMLDivElement).style.background = "transparent"; (e.currentTarget as HTMLDivElement).style.color = "#6b7280"; } }}
                 >
-                  <Icon className={`w-4 h-4 flex-shrink-0 ${active ? "text-red-400" : "text-gray-600 group-hover:text-gray-300"}`} />
+                  <Icon className="w-4 h-4 flex-shrink-0" style={{ color: active ? "#a78bfa" : "inherit" }} />
                   <span className="text-sm font-medium">{label}</span>
-                  {active && <ChevronRight className="w-3 h-3 ml-auto text-red-400/60" />}
+                  {active && <ChevronRight className="w-3 h-3 ml-auto" style={{ color: "rgba(167,139,250,0.6)" }} />}
                 </div>
               </Link>
             );
@@ -80,19 +103,24 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </nav>
 
         {/* User */}
-        <div className="px-3 py-4 border-t border-white/5">
+        <div className="px-3 py-4 border-t" style={{ borderColor: "rgba(124,58,237,0.12)" }}>
           <div className="flex items-center gap-3 px-3 py-2 mb-2">
-            <div className="w-7 h-7 rounded-full bg-red-600/30 flex items-center justify-center text-red-400 text-xs font-bold uppercase">
+            <div
+              className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold uppercase"
+              style={{ background: "rgba(124,58,237,0.25)", color: "#a78bfa", border: "1px solid rgba(124,58,237,0.3)" }}
+            >
               {session?.username?.[0] ?? "A"}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-white text-xs font-medium truncate">{session?.username}</p>
-              <p className="text-gray-600 text-xs">Administrator</p>
+              <p className="text-xs" style={{ color: "#7c3aed" }}>Administrator</p>
             </div>
           </div>
           <button
             onClick={() => logout.mutate()}
-            className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-all text-sm"
+            className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-gray-500 transition-all text-sm"
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#f87171"; (e.currentTarget as HTMLButtonElement).style.background = "rgba(239,68,68,0.08)"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#6b7280"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
           >
             <LogOut className="w-4 h-4" />
             Logout
@@ -101,7 +129,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </aside>
 
       {/* Main */}
-      <main className="flex-1 overflow-auto">
+      <main className="relative z-10 flex-1 overflow-auto">
         {children}
       </main>
     </div>
