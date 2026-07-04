@@ -94,3 +94,10 @@
 - [x] Criar função getClientIp() centralizada no backend (x-forwarded-for, x-real-ip, cf-connecting-ip, etc.)
 - [x] Usar getClientIp() em todos os logins (adminLogin e resellerLogin)
 - [x] Mostrar "Seu IP atual (visto pelo servidor)" na aba Whitelist IPs com botão "Usar este IP"
+
+## Fase 13: Redesign de Botões e Modais
+- [ ] Criar estilos globais para botões de ação primária (gradiente roxo/violeta) e botões secundários
+- [ ] Redesenhar modais (glassmorphism, inputs elegantes, tipografia refinada)
+- [ ] Atualizar botões Novo App, Novo Reseller, Nova Categoria
+- [ ] Atualizar modais de criação (App, Reseller, Categoria)
+- [ ] Push automático para GitHub após cada alteração

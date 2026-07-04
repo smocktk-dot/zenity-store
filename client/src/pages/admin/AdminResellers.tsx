@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Plus, Search, Edit, UserCheck, UserX, PlusCircle, Package, CreditCard, Percent, Eye } from "lucide-react";
+import { Plus, Search, Edit, UserCheck, UserX, PlusCircle, Package, CreditCard, Percent, Eye, Users } from "lucide-react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -156,7 +156,14 @@ export default function AdminResellers() {
           <h1 className="text-white text-2xl font-bold">Resellers</h1>
           <p className="text-gray-500 text-sm mt-1">{resellers.length} resellers cadastrados</p>
         </div>
-        <Button onClick={() => setShowCreate(true)} className="bg-red-600 hover:bg-red-500 text-white gap-2">
+        <Button
+          onClick={() => setShowCreate(true)}
+          className="relative overflow-hidden gap-2 px-5 py-2.5 text-sm font-semibold text-white rounded-xl transition-all duration-200 active:scale-[0.97]"
+          style={{
+            background: "linear-gradient(135deg, oklch(0.55 0.28 290), oklch(0.45 0.25 270))",
+            boxShadow: "0 0 20px oklch(0.55 0.28 290 / 0.35), 0 4px 12px rgba(0,0,0,0.4)",
+          }}
+        >
           <Plus className="w-4 h-4" /> Novo Reseller
         </Button>
       </div>
@@ -207,28 +214,43 @@ export default function AdminResellers() {
 
       {/* Create Modal */}
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent className="bg-[#0d0d14] border-white/10 text-white max-w-md">
-          <DialogHeader><DialogTitle className="text-white">Criar Reseller</DialogTitle></DialogHeader>
-          <form onSubmit={e => { e.preventDefault(); create.mutate(cf); }} className="space-y-4 mt-2">
-            <div><Label className="text-gray-300 text-sm">Username *</Label><Input value={cf.username} onChange={e => setCf(f => ({...f, username: e.target.value}))} className="bg-white/5 border-white/10 text-white mt-1" required /></div>
+        <DialogContent
+          className="text-white max-w-md border-0"
+          style={{
+            background: "linear-gradient(145deg, rgba(18,12,35,0.98) 0%, rgba(10,8,25,0.98) 100%)",
+            boxShadow: "0 0 0 1px rgba(139,92,246,0.2), 0 25px 60px rgba(0,0,0,0.7), 0 0 40px rgba(139,92,246,0.08)",
+            backdropFilter: "blur(20px)",
+          }}
+        >
+          <DialogHeader className="pb-2">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, oklch(0.55 0.28 290 / 0.3), oklch(0.45 0.25 270 / 0.2))", border: "1px solid oklch(0.55 0.28 290 / 0.3)" }}>
+                <Users className="w-4 h-4 text-purple-400" />
+              </div>
+              <DialogTitle className="text-white text-lg font-semibold">Criar Reseller</DialogTitle>
+            </div>
+          </DialogHeader>
+          <div className="h-px w-full my-1" style={{ background: "linear-gradient(90deg, transparent, rgba(139,92,246,0.3), transparent)" }} />
+          <form onSubmit={e => { e.preventDefault(); create.mutate(cf); }} className="space-y-4 mt-3">
+            <div><Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Username *</Label><Input value={cf.username} onChange={e => setCf(f => ({...f, username: e.target.value}))} className="mt-1.5 text-white border-white/10 focus:border-purple-500/60 transition-colors" style={{ background: "rgba(255,255,255,0.05)" }} required /></div>
             <div>
-              <Label className="text-gray-300 text-sm">Senha *</Label>
-              <div className="relative mt-1">
-                <Input type={showPass ? "text" : "password"} value={cf.password} onChange={e => setCf(f => ({...f, password: e.target.value}))} className="bg-white/5 border-white/10 text-white pr-10" required />
-                <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500"><Eye className="w-4 h-4" /></button>
+              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Senha *</Label>
+              <div className="relative mt-1.5">
+                <Input type={showPass ? "text" : "password"} value={cf.password} onChange={e => setCf(f => ({...f, password: e.target.value}))} className="text-white border-white/10 focus:border-purple-500/60 transition-colors pr-10" style={{ background: "rgba(255,255,255,0.05)" }} required />
+                <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"><Eye className="w-4 h-4" /></button>
               </div>
             </div>
-            <div><Label className="text-gray-300 text-sm">Email</Label><Input type="email" value={cf.email} onChange={e => setCf(f => ({...f, email: e.target.value}))} className="bg-white/5 border-white/10 text-white mt-1" /></div>
-            <div><Label className="text-gray-300 text-sm">Localização</Label><Input value={cf.location} onChange={e => setCf(f => ({...f, location: e.target.value}))} placeholder="Ex: São Paulo, SP" className="bg-white/5 border-white/10 text-white mt-1" /></div>
+            <div><Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Email</Label><Input type="email" value={cf.email} onChange={e => setCf(f => ({...f, email: e.target.value}))} className="mt-1.5 text-white border-white/10 focus:border-purple-500/60 transition-colors" style={{ background: "rgba(255,255,255,0.05)" }} /></div>
+            <div><Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Localização</Label><Input value={cf.location} onChange={e => setCf(f => ({...f, location: e.target.value}))} placeholder="Ex: São Paulo, SP" className="mt-1.5 text-white border-white/10 focus:border-purple-500/60 transition-colors" style={{ background: "rgba(255,255,255,0.05)" }} /></div>
             <div>
-              <Label className="text-gray-300 text-sm">Tipo de Reseller *</Label>
+              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Tipo de Reseller *</Label>
               <Select value={cf.resellerType} onValueChange={v => setCf(f => ({...f, resellerType: v as "credits" | "percentage"}))}>
-                <SelectTrigger className="bg-white/5 border-white/10 text-white mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent className="bg-[#0d0d14] border-white/10">
-                  <SelectItem value="credits" className="text-white">
+                <SelectTrigger className="mt-1.5 text-white border-white/10 focus:border-purple-500/60 transition-colors" style={{ background: "rgba(255,255,255,0.05)" }}><SelectValue /></SelectTrigger>
+                <SelectContent style={{ background: "rgba(18,12,35,0.98)", border: "1px solid rgba(139,92,246,0.2)" }}>
+                  <SelectItem value="credits" className="text-white focus:bg-purple-500/20">
                     <div className="flex items-center gap-2"><CreditCard className="w-4 h-4 text-yellow-400" /><div><div className="font-medium">Créditos</div><div className="text-xs text-gray-400">Compra keys usando saldo de créditos</div></div></div>
                   </SelectItem>
-                  <SelectItem value="percentage" className="text-white">
+                  <SelectItem value="percentage" className="text-white focus:bg-purple-500/20">
                     <div className="flex items-center gap-2"><Percent className="w-4 h-4 text-purple-400" /><div><div className="font-medium">Porcentagem</div><div className="text-xs text-gray-400">Desconto progressivo 35% → 40% → 50%</div></div></div>
                   </SelectItem>
                 </SelectContent>
@@ -244,9 +266,9 @@ export default function AdminResellers() {
                 O reseller terá desconto progressivo: 35% inicial → 40% após 10 compras → 50% após 20 compras (máximo).
               </div>
             )}
-            <div className="flex gap-2 pt-2">
-              <Button type="button" variant="outline" onClick={() => setShowCreate(false)} className="flex-1 border-white/10 text-gray-300">Cancelar</Button>
-              <Button type="submit" disabled={create.isPending} className="flex-1 bg-red-600 hover:bg-red-500 text-white">{create.isPending ? "Criando..." : "Criar"}</Button>
+            <div className="flex gap-3 pt-2">
+              <Button type="button" onClick={() => setShowCreate(false)} className="flex-1 font-medium text-gray-300 rounded-xl transition-all duration-200 active:scale-[0.97] hover:text-white" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}>Cancelar</Button>
+              <Button type="submit" disabled={create.isPending} className="flex-1 font-semibold text-white rounded-xl transition-all duration-200 active:scale-[0.97] disabled:opacity-50" style={{ background: "linear-gradient(135deg, oklch(0.55 0.28 290), oklch(0.45 0.25 270))", boxShadow: "0 0 20px oklch(0.55 0.28 290 / 0.3), 0 4px 12px rgba(0,0,0,0.3)" }}>{create.isPending ? "Criando..." : "Criar Reseller"}</Button>
             </div>
           </form>
         </DialogContent>
@@ -254,44 +276,57 @@ export default function AdminResellers() {
 
       {/* Edit Modal */}
       <Dialog open={!!editReseller} onOpenChange={() => setEditReseller(null)}>
-        <DialogContent className="bg-[#0d0d14] border-white/10 text-white max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-white flex items-center gap-2">
-              Editar: {editReseller?.username}
-              <TypeBadge type={editReseller?.resellerType ?? "credits"} />
-            </DialogTitle>
+        <DialogContent
+          className="text-white max-w-md border-0"
+          style={{
+            background: "linear-gradient(145deg, rgba(18,12,35,0.98) 0%, rgba(10,8,25,0.98) 100%)",
+            boxShadow: "0 0 0 1px rgba(139,92,246,0.2), 0 25px 60px rgba(0,0,0,0.7), 0 0 40px rgba(139,92,246,0.08)",
+            backdropFilter: "blur(20px)",
+          }}
+        >
+          <DialogHeader className="pb-2">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, oklch(0.55 0.28 290 / 0.3), oklch(0.45 0.25 270 / 0.2))", border: "1px solid oklch(0.55 0.28 290 / 0.3)" }}>
+                <Edit className="w-4 h-4 text-purple-400" />
+              </div>
+              <div>
+                <DialogTitle className="text-white text-lg font-semibold">Editar Reseller</DialogTitle>
+                <div className="mt-0.5"><TypeBadge type={editReseller?.resellerType ?? "credits"} /></div>
+              </div>
+            </div>
           </DialogHeader>
+          <div className="h-px w-full my-1" style={{ background: "linear-gradient(90deg, transparent, rgba(139,92,246,0.3), transparent)" }} />
           <form onSubmit={e => {
             e.preventDefault();
             if (editReseller) update.mutate({ id: editReseller.id, email: ef.email || undefined, location: ef.location || undefined, status: ef.status as "active" | "inactive" | "banned", password: ef.password || undefined, resellerType: ef.resellerType });
-          }} className="space-y-4 mt-2">
-            <div><Label className="text-gray-300 text-sm">Email</Label><Input type="email" value={ef.email} onChange={e => setEf(f => ({...f, email: e.target.value}))} className="bg-white/5 border-white/10 text-white mt-1" /></div>
-            <div><Label className="text-gray-300 text-sm">Localização</Label><Input value={ef.location} onChange={e => setEf(f => ({...f, location: e.target.value}))} className="bg-white/5 border-white/10 text-white mt-1" /></div>
+          }} className="space-y-4 mt-3">
+            <div><Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Email</Label><Input type="email" value={ef.email} onChange={e => setEf(f => ({...f, email: e.target.value}))} className="mt-1.5 text-white border-white/10 focus:border-purple-500/60 transition-colors" style={{ background: "rgba(255,255,255,0.05)" }} /></div>
+            <div><Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Localização</Label><Input value={ef.location} onChange={e => setEf(f => ({...f, location: e.target.value}))} className="mt-1.5 text-white border-white/10 focus:border-purple-500/60 transition-colors" style={{ background: "rgba(255,255,255,0.05)" }} /></div>
             <div>
-              <Label className="text-gray-300 text-sm">Tipo de Reseller</Label>
+              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Tipo de Reseller</Label>
               <Select value={ef.resellerType} onValueChange={v => setEf(f => ({...f, resellerType: v as "credits" | "percentage"}))}>
-                <SelectTrigger className="bg-white/5 border-white/10 text-white mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent className="bg-[#0d0d14] border-white/10">
-                  <SelectItem value="credits" className="text-white">Créditos</SelectItem>
-                  <SelectItem value="percentage" className="text-white">Porcentagem</SelectItem>
+                <SelectTrigger className="mt-1.5 text-white border-white/10 focus:border-purple-500/60 transition-colors" style={{ background: "rgba(255,255,255,0.05)" }}><SelectValue /></SelectTrigger>
+                <SelectContent style={{ background: "rgba(18,12,35,0.98)", border: "1px solid rgba(139,92,246,0.2)" }}>
+                  <SelectItem value="credits" className="text-white focus:bg-purple-500/20">Créditos</SelectItem>
+                  <SelectItem value="percentage" className="text-white focus:bg-purple-500/20">Porcentagem</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <Label className="text-gray-300 text-sm">Status</Label>
+              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Status</Label>
               <Select value={ef.status} onValueChange={v => setEf(f => ({...f, status: v}))}>
-                <SelectTrigger className="bg-white/5 border-white/10 text-white mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent className="bg-[#0d0d14] border-white/10">
-                  <SelectItem value="active" className="text-white">Ativo</SelectItem>
-                  <SelectItem value="inactive" className="text-white">Inativo</SelectItem>
-                  <SelectItem value="banned" className="text-white">Banido</SelectItem>
+                <SelectTrigger className="mt-1.5 text-white border-white/10 focus:border-purple-500/60 transition-colors" style={{ background: "rgba(255,255,255,0.05)" }}><SelectValue /></SelectTrigger>
+                <SelectContent style={{ background: "rgba(18,12,35,0.98)", border: "1px solid rgba(139,92,246,0.2)" }}>
+                  <SelectItem value="active" className="text-white focus:bg-purple-500/20">Ativo</SelectItem>
+                  <SelectItem value="inactive" className="text-white focus:bg-purple-500/20">Inativo</SelectItem>
+                  <SelectItem value="banned" className="text-white focus:bg-purple-500/20">Banido</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div><Label className="text-gray-300 text-sm">Nova Senha (opcional)</Label><Input type="password" value={ef.password} onChange={e => setEf(f => ({...f, password: e.target.value}))} placeholder="Deixe vazio para manter" className="bg-white/5 border-white/10 text-white mt-1" /></div>
-            <div className="flex gap-2 pt-2">
-              <Button type="button" variant="outline" onClick={() => setEditReseller(null)} className="flex-1 border-white/10 text-gray-300">Cancelar</Button>
-              <Button type="submit" disabled={update.isPending} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white">{update.isPending ? "Salvando..." : "Salvar"}</Button>
+            <div><Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Nova Senha (opcional)</Label><Input type="password" value={ef.password} onChange={e => setEf(f => ({...f, password: e.target.value}))} placeholder="Deixe vazio para manter" className="mt-1.5 text-white border-white/10 focus:border-purple-500/60 transition-colors" style={{ background: "rgba(255,255,255,0.05)" }} /></div>
+            <div className="flex gap-3 pt-2">
+              <Button type="button" onClick={() => setEditReseller(null)} className="flex-1 font-medium text-gray-300 rounded-xl transition-all duration-200 active:scale-[0.97] hover:text-white" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}>Cancelar</Button>
+              <Button type="submit" disabled={update.isPending} className="flex-1 font-semibold text-white rounded-xl transition-all duration-200 active:scale-[0.97] disabled:opacity-50" style={{ background: "linear-gradient(135deg, oklch(0.55 0.28 290), oklch(0.45 0.25 270))", boxShadow: "0 0 20px oklch(0.55 0.28 290 / 0.3), 0 4px 12px rgba(0,0,0,0.3)" }}>{update.isPending ? "Salvando..." : "Salvar Alterações"}</Button>
             </div>
           </form>
         </DialogContent>
@@ -299,20 +334,35 @@ export default function AdminResellers() {
 
       {/* Add Credits Modal (apenas para resellers de créditos) */}
       <Dialog open={!!creditReseller} onOpenChange={() => setCreditReseller(null)}>
-        <DialogContent className="bg-[#0d0d14] border-white/10 text-white max-w-sm">
-          <DialogHeader><DialogTitle className="text-white">Adicionar Créditos</DialogTitle></DialogHeader>
-          <div className="space-y-4 mt-2">
-            <div className="rounded-lg bg-white/5 p-3">
-              <p className="text-gray-400 text-sm">Reseller: <span className="text-white font-medium">{creditReseller?.username}</span></p>
-              <p className="text-gray-400 text-sm mt-1">Saldo atual: <span className="text-yellow-400 font-mono font-medium">{parseFloat(creditReseller?.credits ?? "0").toFixed(2)} créditos</span></p>
+        <DialogContent
+          className="text-white max-w-sm border-0"
+          style={{
+            background: "linear-gradient(145deg, rgba(18,12,35,0.98) 0%, rgba(10,8,25,0.98) 100%)",
+            boxShadow: "0 0 0 1px rgba(139,92,246,0.2), 0 25px 60px rgba(0,0,0,0.7), 0 0 40px rgba(139,92,246,0.08)",
+            backdropFilter: "blur(20px)",
+          }}
+        >
+          <DialogHeader className="pb-2">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, rgba(234,179,8,0.25), rgba(234,179,8,0.1))", border: "1px solid rgba(234,179,8,0.3)" }}>
+                <CreditCard className="w-4 h-4 text-yellow-400" />
+              </div>
+              <DialogTitle className="text-white text-lg font-semibold">Adicionar Créditos</DialogTitle>
+            </div>
+          </DialogHeader>
+          <div className="h-px w-full my-1" style={{ background: "linear-gradient(90deg, transparent, rgba(234,179,8,0.3), transparent)" }} />
+          <div className="space-y-4 mt-3">
+            <div className="rounded-xl p-3.5" style={{ background: "rgba(234,179,8,0.06)", border: "1px solid rgba(234,179,8,0.15)" }}>
+              <p className="text-gray-400 text-sm">Reseller: <span className="text-white font-semibold">{creditReseller?.username}</span></p>
+              <p className="text-gray-400 text-sm mt-1">Saldo atual: <span className="text-yellow-400 font-mono font-semibold">{parseFloat(creditReseller?.credits ?? "0").toFixed(2)} créditos</span></p>
             </div>
             <div>
-              <Label className="text-gray-300 text-sm">Quantidade de Créditos</Label>
-              <Input type="number" min="0.01" step="0.01" value={creditAmount} onChange={e => setCreditAmount(e.target.value)} placeholder="Ex: 100.00" className="bg-white/5 border-white/10 text-white mt-1" />
+              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Quantidade de Créditos</Label>
+              <Input type="number" min="0.01" step="0.01" value={creditAmount} onChange={e => setCreditAmount(e.target.value)} placeholder="Ex: 100.00" className="mt-1.5 text-white border-white/10 focus:border-yellow-500/60 transition-colors" style={{ background: "rgba(255,255,255,0.05)" }} />
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setCreditReseller(null)} className="flex-1 border-white/10 text-gray-300">Cancelar</Button>
-              <Button onClick={() => { if (creditReseller && creditAmount) addCredits.mutate({ resellerId: creditReseller.id, amount: parseFloat(creditAmount) }); }} disabled={addCredits.isPending || !creditAmount} className="flex-1 bg-green-600 hover:bg-green-500 text-white">{addCredits.isPending ? "Adicionando..." : "Adicionar"}</Button>
+            <div className="flex gap-3">
+              <Button onClick={() => setCreditReseller(null)} className="flex-1 font-medium text-gray-300 rounded-xl transition-all duration-200 active:scale-[0.97] hover:text-white" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}>Cancelar</Button>
+              <Button onClick={() => { if (creditReseller && creditAmount) addCredits.mutate({ resellerId: creditReseller.id, amount: parseFloat(creditAmount) }); }} disabled={addCredits.isPending || !creditAmount} className="flex-1 font-semibold text-white rounded-xl transition-all duration-200 active:scale-[0.97] disabled:opacity-50" style={{ background: "linear-gradient(135deg, rgba(22,163,74,0.9), rgba(16,122,55,0.9))", boxShadow: "0 0 20px rgba(22,163,74,0.25), 0 4px 12px rgba(0,0,0,0.3)" }}>{addCredits.isPending ? "Adicionando..." : "Adicionar Créditos"}</Button>
             </div>
           </div>
         </DialogContent>
