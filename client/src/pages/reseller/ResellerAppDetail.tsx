@@ -45,91 +45,88 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
 
   return (
     <>
-      <Tabs defaultValue="overview">
-        <TabsList className="bg-white/5 border border-white/10">
-          <TabsTrigger value="overview" className="data-[state=active]:bg-white/10 data-[state=active]:text-white text-gray-400 font-bold text-sm">Overview</TabsTrigger>
-          <TabsTrigger value="generate" className="data-[state=active]:bg-violet-600 data-[state=active]:text-white text-gray-400 gap-1.5 font-bold text-sm">
-            <Key className="w-3.5 h-3.5" /> Gerar Keys
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="overview" className="mt-4 space-y-4">
-          {/* Credit balance bar */}
-          <div className="rounded-xl border border-violet-500/20 p-4 flex items-center justify-between" style={{ background: "linear-gradient(135deg, rgba(109,40,217,0.12) 0%, rgba(139,92,246,0.06) 100%)" }}>
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-violet-500/20 flex items-center justify-center">
-                <CreditCard className="w-4 h-4 text-violet-400" />
-              </div>
-              <div>
-                <p className="text-gray-500 text-xs uppercase tracking-widest font-medium">Saldo disponível</p>
-                <p className="text-white font-bold font-mono text-base leading-tight">{credits.toFixed(2)} <span className="text-violet-400 text-sm font-semibold">créditos</span></p>
-              </div>
+      <div className="space-y-4">
+        {/* Credit balance bar */}
+        <div className="rounded-xl border border-violet-500/20 p-4 flex items-center justify-between" style={{ background: "linear-gradient(135deg, rgba(109,40,217,0.12) 0%, rgba(139,92,246,0.06) 100%)" }}>
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-violet-500/20 flex items-center justify-center">
+              <CreditCard className="w-4 h-4 text-violet-400" />
             </div>
-            <div className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-3 py-1">
-              <Percent className="w-3 h-3 text-emerald-400" />
-              <span className="text-emerald-400 text-xs font-bold">{discount.toFixed(0)}% off</span>
+            <div>
+              <p className="text-gray-500 text-xs uppercase tracking-widest font-medium">Saldo disponível</p>
+              <p className="text-white font-bold font-mono text-base leading-tight">{credits.toFixed(2)} <span className="text-violet-400 text-sm font-semibold">créditos</span></p>
             </div>
           </div>
+          <div className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-3 py-1">
+            <Percent className="w-3 h-3 text-emerald-400" />
+            <span className="text-emerald-400 text-xs font-bold">{discount.toFixed(0)}% off</span>
+          </div>
+        </div>
 
-          {/* Plans */}
-          <div>
-            <h3 className="text-white font-semibold text-sm mb-3">Planos Disponíveis</h3>
-            {!app.plans?.length ? (
-              <p className="text-gray-600 text-sm">Nenhum plano disponível</p>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
-                {app.plans.map((plan: any) => {
-                  const original = parseFloat(String(plan.priceCredits));
-                  const withDiscount = original * (1 - discount / 100);
-                  return (
-                    <div key={plan.id} className="rounded-xl border border-white/10 p-4 hover:border-white/20 transition-all cursor-pointer" style={{ background: "rgba(255,255,255,0.02)" }}
-                      onClick={() => { setGenForm(f => ({...f, planId: String(plan.id)})); setShowGenerate(true); }}>
-                      <div className="mb-3">
-                        <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${levelColors[plan.level] ?? levelColors.basic}`}>{plan.level}</span>
-                      </div>
-                      <h4 className="text-white font-semibold">{plan.name}</h4>
-                      <div className="mt-3 space-y-1.5">
-                        <div className="flex items-center gap-2">
-                          <DollarSign className="w-3.5 h-3.5 text-yellow-400" />
-                          <span className="text-yellow-400 font-bold font-mono text-sm">{withDiscount.toFixed(2)}</span>
-                          <span className="text-gray-600 text-xs">cr</span>
-                          {discount > 0 && <span className="text-gray-600 text-xs line-through">{original.toFixed(2)}</span>}
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-gray-400">
-                          <Clock className="w-3 h-3 text-blue-400" />
-                          {plan.durationDays >= 9000 ? "Lifetime" : `${plan.durationDays} dias`}
-                        </div>
-                      </div>
-                      <Button size="sm" className="w-full mt-3 text-xs h-7 font-semibold tracking-wide border-0" style={{ background: "linear-gradient(135deg, rgba(124,58,237,0.3) 0%, rgba(109,40,217,0.2) 100%)", color: "#a78bfa" }}>
-                        <Key className="w-3 h-3 mr-1" /> Gerar Key
-                      </Button>
+        {/* Plans */}
+        <div>
+          <h3 className="text-white font-semibold text-sm mb-3">Planos Disponíveis</h3>
+          {!app.plans?.length ? (
+            <p className="text-gray-600 text-sm">Nenhum plano disponível</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+              {app.plans.map((plan: any) => {
+                const original = parseFloat(String(plan.priceCredits));
+                const withDiscount = original * (1 - discount / 100);
+                return (
+                  <div key={plan.id} className="rounded-xl border border-white/10 p-4 hover:border-white/20 transition-all cursor-pointer" style={{ background: "rgba(255,255,255,0.02)" }}
+                    onClick={() => { setGenForm(f => ({...f, planId: String(plan.id)})); setShowGenerate(true); }}>
+                    <div className="mb-3">
+                      <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${levelColors[plan.level] ?? levelColors.basic}`}>{plan.level}</span>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Features */}
-          {app.features && (
-            <div className="rounded-xl border border-white/5 p-5" style={{ background: "rgba(255,255,255,0.02)" }}>
-              <h3 className="text-white font-semibold text-sm mb-3 flex items-center gap-2">
-                <Star className="w-4 h-4 text-yellow-400" /> Features
-              </h3>
-              <div className="space-y-2">
-                {app.features.split("\n").filter(Boolean).map((f: string, i: number) => (
-                  <div key={i} className="flex items-center gap-2 text-sm">
-                    <CheckCircle className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
-                    <span className="text-gray-300">{f}</span>
+                    <h4 className="text-white font-semibold">{plan.name}</h4>
+                    <div className="mt-3 space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <DollarSign className="w-3.5 h-3.5 text-yellow-400" />
+                        <span className="text-yellow-400 font-bold font-mono text-sm">{withDiscount.toFixed(2)}</span>
+                        <span className="text-gray-600 text-xs">cr</span>
+                        {discount > 0 && <span className="text-gray-600 text-xs line-through">{original.toFixed(2)}</span>}
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-gray-400">
+                        <Clock className="w-3 h-3 text-blue-400" />
+                        {plan.durationDays >= 9000 ? "Lifetime" : `${plan.durationDays} dias`}
+                      </div>
+                    </div>
+                    <Button size="sm" className="w-full mt-3 text-xs h-7 font-semibold tracking-wide border-0" style={{ background: "linear-gradient(135deg, rgba(124,58,237,0.3) 0%, rgba(109,40,217,0.2) 100%)", color: "#a78bfa" }}>
+                      <Key className="w-3 h-3 mr-1" /> Gerar Key
+                    </Button>
                   </div>
-                ))}
-              </div>
+                );
+              })}
             </div>
           )}
-        </TabsContent>
+        </div>
 
-        <TabsContent value="generate" className="mt-4">
-          <div className="max-w-md mx-auto space-y-4">
+        {/* Features */}
+        {app.features && (
+          <div className="rounded-xl border border-white/5 p-5" style={{ background: "rgba(255,255,255,0.02)" }}>
+            <h3 className="text-white font-semibold text-sm mb-3 flex items-center gap-2">
+              <Star className="w-4 h-4 text-yellow-400" /> Features
+            </h3>
+            <div className="space-y-2">
+              {app.features.split("\n").filter(Boolean).map((f: string, i: number) => (
+                <div key={i} className="flex items-center gap-2 text-sm">
+                  <CheckCircle className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
+                  <span className="text-gray-300">{f}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Generate Modal */}
+      <Dialog open={showGenerate} onOpenChange={setShowGenerate}>
+        <DialogContent className="bg-[#0d0d14] border-white/10 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-white font-bold">Gerar Keys — {app.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
             <div className="rounded-xl border border-violet-500/20 p-4 flex items-center justify-between" style={{ background: "linear-gradient(135deg, rgba(109,40,217,0.12) 0%, rgba(139,92,246,0.06) 100%)" }}>
               <div className="flex items-center gap-2.5">
                 <div className="w-7 h-7 rounded-lg bg-violet-500/20 flex items-center justify-center">
@@ -162,15 +159,9 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
               </Select>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-gray-300 text-sm">Quantidade (1-100)</Label>
-                <Input type="number" min="1" max="100" value={genForm.quantity} onChange={e => setGenForm(f => ({...f, quantity: e.target.value}))} className="bg-white/5 border-white/10 text-white mt-1" />
-              </div>
-              <div>
-                <Label className="text-gray-300 text-sm">Máscara (opcional)</Label>
-                <Input value={genForm.customMask} onChange={e => setGenForm(f => ({...f, customMask: e.target.value}))} placeholder="XXXX-XXXX-XXXX" className="bg-white/5 border-white/10 text-white mt-1 placeholder:text-gray-700" />
-              </div>
+            <div>
+              <Label className="text-gray-300 text-sm">Quantidade (1-100)</Label>
+              <Input type="number" min="1" max="100" value={genForm.quantity} onChange={e => setGenForm(f => ({...f, quantity: e.target.value}))} className="bg-white/5 border-white/10 text-white mt-1" />
             </div>
 
             <div>
@@ -210,8 +201,8 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
               {generateKeys.isPending ? "Gerando..." : `Gerar ${genForm.quantity} Key(s)`}
             </Button>
           </div>
-        </TabsContent>
-      </Tabs>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
