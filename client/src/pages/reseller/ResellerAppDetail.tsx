@@ -47,23 +47,27 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
     <>
       <Tabs defaultValue="overview">
         <TabsList className="bg-white/5 border border-white/10">
-          <TabsTrigger value="overview" className="data-[state=active]:bg-red-600 data-[state=active]:text-white text-gray-400">Overview</TabsTrigger>
-          <TabsTrigger value="generate" className="data-[state=active]:bg-green-600 data-[state=active]:text-white text-gray-400 gap-1.5">
+          <TabsTrigger value="overview" className="data-[state=active]:bg-white/10 data-[state=active]:text-white text-gray-500 font-medium tracking-wide text-xs uppercase">Overview</TabsTrigger>
+          <TabsTrigger value="generate" className="data-[state=active]:bg-violet-600 data-[state=active]:text-white text-gray-500 gap-1.5 font-medium tracking-wide text-xs uppercase">
             <Key className="w-3.5 h-3.5" /> Gerar Keys
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-4 space-y-4">
           {/* Credit balance bar */}
-          <div className="rounded-xl border border-yellow-500/20 p-4 flex items-center justify-between" style={{ background: "rgba(234,179,8,0.05)" }}>
-            <div className="flex items-center gap-2">
-              <CreditCard className="w-4 h-4 text-yellow-400" />
-              <span className="text-gray-400 text-sm">Seu saldo:</span>
-              <span className="text-yellow-400 font-mono font-bold">{credits.toFixed(2)} créditos</span>
+          <div className="rounded-xl border border-violet-500/20 p-4 flex items-center justify-between" style={{ background: "linear-gradient(135deg, rgba(109,40,217,0.12) 0%, rgba(139,92,246,0.06) 100%)" }}>
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-violet-500/20 flex items-center justify-center">
+                <CreditCard className="w-4 h-4 text-violet-400" />
+              </div>
+              <div>
+                <p className="text-gray-500 text-xs uppercase tracking-widest font-medium">Saldo disponível</p>
+                <p className="text-white font-bold font-mono text-base leading-tight">{credits.toFixed(2)} <span className="text-violet-400 text-sm font-semibold">créditos</span></p>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Percent className="w-3.5 h-3.5 text-green-400" />
-              <span className="text-green-400 text-sm font-medium">{discount.toFixed(0)}% desconto</span>
+            <div className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-3 py-1">
+              <Percent className="w-3 h-3 text-emerald-400" />
+              <span className="text-emerald-400 text-xs font-bold">{discount.toFixed(0)}% off</span>
             </div>
           </div>
 
@@ -96,7 +100,7 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
                           {plan.durationDays >= 9000 ? "Lifetime" : `${plan.durationDays} dias`}
                         </div>
                       </div>
-                      <Button size="sm" className="w-full mt-3 bg-green-600/20 hover:bg-green-600 text-green-400 hover:text-white border border-green-600/30 transition-all text-xs h-7">
+                      <Button size="sm" className="w-full mt-3 text-xs h-7 font-semibold tracking-wide border-0" style={{ background: "linear-gradient(135deg, rgba(124,58,237,0.3) 0%, rgba(109,40,217,0.2) 100%)", color: "#a78bfa" }}>
                         <Key className="w-3 h-3 mr-1" /> Gerar Key
                       </Button>
                     </div>
@@ -126,13 +130,20 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
 
         <TabsContent value="generate" className="mt-4">
           <div className="max-w-md mx-auto space-y-4">
-            <div className="rounded-xl border border-yellow-500/20 p-4 flex items-center justify-between" style={{ background: "rgba(234,179,8,0.05)" }}>
-              <div className="flex items-center gap-2">
-                <CreditCard className="w-4 h-4 text-yellow-400" />
-                <span className="text-gray-400 text-sm">Saldo:</span>
-                <span className="text-yellow-400 font-mono font-bold">{credits.toFixed(2)} cr</span>
+            <div className="rounded-xl border border-violet-500/20 p-4 flex items-center justify-between" style={{ background: "linear-gradient(135deg, rgba(109,40,217,0.12) 0%, rgba(139,92,246,0.06) 100%)" }}>
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-violet-500/20 flex items-center justify-center">
+                  <CreditCard className="w-3.5 h-3.5 text-violet-400" />
+                </div>
+                <div>
+                  <p className="text-gray-500 text-xs uppercase tracking-widest">Saldo</p>
+                  <p className="text-white font-bold font-mono">{credits.toFixed(2)} <span className="text-violet-400 text-xs">cr</span></p>
+                </div>
               </div>
-              <span className="text-green-400 text-sm font-medium">{discount.toFixed(0)}% desconto</span>
+              <div className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-3 py-1">
+                <Percent className="w-3 h-3 text-emerald-400" />
+                <span className="text-emerald-400 text-xs font-bold">{discount.toFixed(0)}% off</span>
+              </div>
             </div>
 
             <div>
@@ -192,7 +203,8 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
             <Button
               onClick={() => generateKeys.mutate({ appId: id, planId: parseInt(genForm.planId), quantity: parseInt(genForm.quantity), customMask: genForm.customMask || undefined, note: genForm.note || undefined })}
               disabled={generateKeys.isPending || !genForm.planId || totalCost > credits}
-              className="w-full bg-green-600 hover:bg-green-500 text-white gap-2"
+              className="w-full gap-2 font-bold tracking-wide text-sm h-11"
+              style={{ background: "linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)", boxShadow: "0 0 20px rgba(124,58,237,0.3)" }}
             >
               <Key className="w-4 h-4" />
               {generateKeys.isPending ? "Gerando..." : `Gerar ${genForm.quantity} Key(s)`}
@@ -233,8 +245,8 @@ function PercentageAppDetail({ app, id }: { app: any; id: number }) {
     <>
       <Tabs defaultValue="overview">
         <TabsList className="bg-white/5 border border-white/10">
-          <TabsTrigger value="overview" className="data-[state=active]:bg-red-600 data-[state=active]:text-white text-gray-400">Overview</TabsTrigger>
-          <TabsTrigger value="buy" className="data-[state=active]:bg-purple-600 data-[state=active]:text-white text-gray-400 gap-1.5">
+          <TabsTrigger value="overview" className="data-[state=active]:bg-white/10 data-[state=active]:text-white text-gray-500 font-medium tracking-wide text-xs uppercase">Overview</TabsTrigger>
+          <TabsTrigger value="buy" className="data-[state=active]:bg-violet-600 data-[state=active]:text-white text-gray-500 gap-1.5 font-medium tracking-wide text-xs uppercase">
             <ShoppingCart className="w-3.5 h-3.5" /> Comprar Keys
           </TabsTrigger>
         </TabsList>

@@ -65,7 +65,7 @@ export default function LoginPage() {
 
         {/* Logo + Brand */}
         <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-4 mb-3">
+          <div className="flex items-center justify-center gap-3 mb-3" style={{ fontFamily: 'var(--font-display)' }}>
             <img
               src={LOGO_URL}
               alt="Zenity Store"
