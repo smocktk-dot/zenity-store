@@ -1,2 +1,0 @@
-ALTER TABLE `resellers` ADD `resellerType` enum('credits','percentage') DEFAULT 'credits' NOT NULL;--> statement-breakpoint
-ALTER TABLE `subscription_plans` ADD `pricePercentage` decimal(10,2) DEFAULT '0.00' NOT NULL;

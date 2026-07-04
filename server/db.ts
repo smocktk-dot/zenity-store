@@ -1,5 +1,6 @@
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/mysql2";
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
 import { InsertUser, users, admins, resellers, categories, apps, subscriptionPlans, resellerApps, licenseKeys, creditTransactions } from "../drizzle/schema";
 import type { InsertAdmin, InsertReseller, InsertCategory, InsertApp, InsertSubscriptionPlan, InsertResellerApp, InsertLicenseKey, InsertCreditTransaction } from "../drizzle/schema";
 import { ENV } from './_core/env';
@@ -7,12 +8,16 @@ import { ENV } from './_core/env';
 let _db: ReturnType<typeof drizzle> | null = null;
 
 export async function getDb() {
-  if (!_db && process.env.DATABASE_URL) {
-    try {
-      _db = drizzle(process.env.DATABASE_URL);
-    } catch (error) {
-      console.warn("[Database] Failed to connect:", error);
-      _db = null;
+  if (!_db) {
+    const connectionString = process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL;
+    if (connectionString) {
+      try {
+        const client = postgres(connectionString, { ssl: "require" });
+        _db = drizzle(client);
+      } catch (error) {
+        console.warn("[Database] Failed to connect:", error);
+        _db = null;
+      }
     }
   }
   return _db;
@@ -38,7 +43,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   else if (user.openId === ENV.ownerOpenId) { values.role = 'admin'; updateSet.role = 'admin'; }
   if (!values.lastSignedIn) values.lastSignedIn = new Date();
   if (Object.keys(updateSet).length === 0) updateSet.lastSignedIn = new Date();
-  await db.insert(users).values(values).onDuplicateKeyUpdate({ set: updateSet });
+  await db.insert(users).values(values).onConflictDoUpdate({ target: users.openId, set: updateSet });
 }
 
 export async function getUserByOpenId(openId: string) {

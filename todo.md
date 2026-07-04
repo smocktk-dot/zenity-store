@@ -58,3 +58,14 @@
 - [x] AdminAppDetail: separação visual clara entre "Sistema de Créditos" e "Sistema de Porcentagem" nos cards e modal de planos
 - [x] AdminResellers: página de detalhe do reseller com lista de todos os apps disponíveis para adicionar/remover individualmente
 - [x] Backend: procedure getResellerApps retorna apps atribuídos e disponíveis por reseller (usada no AdminResellerDetail)
+
+## Fase 8: Migração para Supabase PostgreSQL
+- [x] Instalar driver postgres e remover mysql2
+- [x] Migrar drizzle/schema.ts de mysqlTable/mysqlEnum para pgTable/pgEnum
+- [x] Migrar server/db.ts para drizzle-orm/postgres-js com SSL
+- [x] Atualizar drizzle.config.ts para dialect postgresql
+- [x] Gerar migrations PostgreSQL (drizzle-kit generate)
+- [x] Aplicar migrations no Supabase via psql
+- [x] Criar admin inicial no Supabase (admin/admin123)
+- [x] Configurar SUPABASE_DATABASE_URL como secret
+- [x] 9 testes vitest passando com novo schema
