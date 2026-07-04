@@ -338,11 +338,7 @@ export default function AdminAppDetail({ id }: { id: number }) {
                   className="bg-black/30 border-yellow-500/20 text-white mt-1 focus:border-yellow-500/50"
                   required
                 />
-                {planForm.priceCredits && (
-                  <p className="text-yellow-600 text-xs mt-1">
-                    35% desc → {(parseFloat(planForm.priceCredits) * 0.65).toFixed(2)} cr · 50% desc → {(parseFloat(planForm.priceCredits) * 0.50).toFixed(2)} cr
-                  </p>
-                )}
+
               </div>
             </div>
 
@@ -361,11 +357,7 @@ export default function AdminAppDetail({ id }: { id: number }) {
                   placeholder="Ex: 25.00"
                   className="bg-black/30 border-purple-500/20 text-white mt-1 focus:border-purple-500/50"
                 />
-                {planForm.pricePercentage && (
-                  <p className="text-purple-400 text-xs mt-1">
-                    35% desc → R$ {(parseFloat(planForm.pricePercentage) * 0.65).toFixed(2)} · 50% desc → R$ {(parseFloat(planForm.pricePercentage) * 0.50).toFixed(2)}
-                  </p>
-                )}
+
               </div>
             </div>
 
