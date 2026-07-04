@@ -18,6 +18,7 @@ export const appStatusEnum = pgEnum("app_status", ["active", "inactive"]);
 export const planLevelEnum = pgEnum("plan_level", ["basic", "premium", "lifetime"]);
 export const keyStatusEnum = pgEnum("key_status", ["active", "used", "revoked", "expired"]);
 export const transactionTypeEnum = pgEnum("transaction_type", ["add", "deduct", "purchase"]);
+export const ipUserTypeEnum = pgEnum("ip_user_type", ["admin", "reseller"]);
 
 // ─── Core users table (Manus OAuth, kept for compatibility) ───────────────────
 export const users = pgTable("users", {
@@ -162,8 +163,10 @@ export type InsertCreditTransaction = typeof creditTransactions.$inferInsert;
 // ─── IP Whitelist ─────────────────────────────────────────────────────────────
 export const ipWhitelist = pgTable("ip_whitelist", {
   id: serial("id").primaryKey(),
-  ip: varchar("ip", { length: 64 }).notNull().unique(),
+  ip: varchar("ip", { length: 64 }).notNull(),
   label: varchar("label", { length: 128 }),
+  userType: ipUserTypeEnum("userType").notNull().default("admin"),
+  userId: integer("userId"),  // null = any admin; for reseller = reseller.id
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 

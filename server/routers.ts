@@ -16,6 +16,7 @@ import {
   getKeysByResellerId, getAllKeys, getKeyById, createLicenseKey, updateLicenseKey,
   getTransactionsByResellerId, createCreditTransaction,
   getAllIpWhitelist, addIpToWhitelist, removeIpFromWhitelist, isIpWhitelisted,
+  isAdminIpAllowed, isResellerIpAllowed,
   updateAdminPassword, updateResellerPassword,
 } from "./db";
 
@@ -70,7 +71,7 @@ const authRouter = router({
     .mutation(async ({ input, ctx }) => {
       // IP whitelist check
       const clientIp = ((ctx.req.headers["x-forwarded-for"] as string) || "").split(",")[0].trim() || ctx.req.socket?.remoteAddress || "";
-      const ipAllowed = await isIpWhitelisted(clientIp);
+      const ipAllowed = await isAdminIpAllowed(clientIp);
       if (!ipAllowed) throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado: IP não autorizado" });
       const admin = await getAdminByUsername(input.username);
       if (!admin) throw new TRPCError({ code: "UNAUTHORIZED", message: "Credenciais inválidas" });
@@ -93,7 +94,7 @@ const authRouter = router({
         if (validAdmin) {
           // IP whitelist check for admin login
           const clientIp = ((ctx.req.headers["x-forwarded-for"] as string) || "").split(",")[0].trim() || ctx.req.socket?.remoteAddress || "";
-          const ipAllowed = await isIpWhitelisted(clientIp);
+          const ipAllowed = await isAdminIpAllowed(clientIp);
           if (!ipAllowed) throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado: IP não autorizado" });
           const token = await signCustomJwt({ sub: String(admin.id), role: "admin", username: admin.username });
           ctx.res.cookie(CUSTOM_COOKIE, token, {
@@ -108,6 +109,10 @@ const authRouter = router({
       if (reseller.status !== "active") throw new TRPCError({ code: "FORBIDDEN", message: "Conta desativada" });
       const valid = await bcrypt.compare(input.password, reseller.passwordHash);
       if (!valid) throw new TRPCError({ code: "UNAUTHORIZED", message: "Credenciais inválidas" });
+      // IP whitelist check for reseller
+      const resellerIp = ((ctx.req.headers["x-forwarded-for"] as string) || "").split(",")[0].trim() || ctx.req.socket?.remoteAddress || "";
+      const resellerIpAllowed = await isResellerIpAllowed(resellerIp, reseller.id);
+      if (!resellerIpAllowed) throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado: IP não autorizado para este reseller" });
       await updateReseller(reseller.id, { lastLoginAt: new Date() });
       const token = await signCustomJwt({ sub: String(reseller.id), role: "reseller", username: reseller.username });
       ctx.res.cookie(CUSTOM_COOKIE, token, {
@@ -350,9 +355,14 @@ const adminRouter = router({
   listIpWhitelist: adminProcedure.query(() => getAllIpWhitelist()),
 
   addIp: adminProcedure
-    .input(z.object({ ip: z.string().min(1), label: z.string().optional() }))
+    .input(z.object({
+      ip: z.string().min(1),
+      label: z.string().optional(),
+      userType: z.enum(["admin", "reseller"]).default("admin"),
+      userId: z.number().optional().nullable(),
+    }))
     .mutation(async ({ input }) => {
-      await addIpToWhitelist(input.ip, input.label);
+      await addIpToWhitelist(input.ip, input.label, input.userType, input.userId);
       return { success: true };
     }),
 

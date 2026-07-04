@@ -299,16 +299,37 @@ export async function createCreditTransaction(data: InsertCreditTransaction) {
 }
 
 // ─── IP Whitelist ─────────────────────────────────────────────────────────────
+/** Normalize IP: strip IPv6-mapped IPv4 prefix (::ffff:) and loopback variants */
+export function normalizeIp(raw: string): string {
+  if (!raw) return "";
+  const s = raw.trim();
+  const mapped = s.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
+  if (mapped) return mapped[1];
+  if (s === "::1" || s === "0:0:0:0:0:0:0:1") return "127.0.0.1";
+  return s;
+}
+
 export async function getAllIpWhitelist() {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(ipWhitelist).orderBy(desc(ipWhitelist.createdAt));
 }
 
-export async function addIpToWhitelist(ip: string, label?: string) {
+export async function addIpToWhitelist(
+  ip: string,
+  label?: string,
+  userType: "admin" | "reseller" = "admin",
+  userId?: number | null
+) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  await db.insert(ipWhitelist).values({ ip, label: label || null });
+  const normalized = normalizeIp(ip);
+  await db.insert(ipWhitelist).values({
+    ip: normalized,
+    label: label || null,
+    userType,
+    userId: userId ?? null,
+  });
 }
 
 export async function removeIpFromWhitelist(id: number) {
@@ -317,12 +338,31 @@ export async function removeIpFromWhitelist(id: number) {
   await db.delete(ipWhitelist).where(eq(ipWhitelist.id, id));
 }
 
-export async function isIpWhitelisted(ip: string): Promise<boolean> {
+/** Check if IP is allowed for admin login. Empty list = allow all. */
+export async function isAdminIpAllowed(rawIp: string): Promise<boolean> {
   const db = await getDb();
-  if (!db) return true; // if DB unavailable, allow
-  const list = await db.select().from(ipWhitelist);
-  if (list.length === 0) return true; // if no IPs configured, allow all
-  return list.some(entry => entry.ip === ip);
+  if (!db) return true;
+  const ip = normalizeIp(rawIp);
+  const adminEntries = await db.select().from(ipWhitelist).where(eq(ipWhitelist.userType, "admin"));
+  if (adminEntries.length === 0) return true;
+  return adminEntries.some(e => normalizeIp(e.ip) === ip);
+}
+
+/** Check if IP is allowed for a specific reseller. Empty list for that reseller = allow all. */
+export async function isResellerIpAllowed(rawIp: string, resellerId: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return true;
+  const ip = normalizeIp(rawIp);
+  const entries = await db.select().from(ipWhitelist).where(
+    and(eq(ipWhitelist.userType, "reseller"), eq(ipWhitelist.userId, resellerId))
+  );
+  if (entries.length === 0) return true;
+  return entries.some(e => normalizeIp(e.ip) === ip);
+}
+
+// Backward compat alias
+export async function isIpWhitelisted(ip: string): Promise<boolean> {
+  return isAdminIpAllowed(ip);
 }
 
 // ─── Password Management ───────────────────────────────────────────────────────

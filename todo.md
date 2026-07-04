@@ -81,3 +81,9 @@
 - [x] Bloquear login admin de IPs não cadastrados na whitelist (quando lista não está vazia)
 - [x] Criar aba "Segurança" no painel admin para alterar senha do admin
 - [x] Criar funcionalidade para alterar senha de qualquer reseller no painel admin
+
+## Fase 11: Sistema de IP por Usuário + Correções de Segurança
+- [x] Corrigir normalização de IP (IPv6 ::1, ::ffff:x.x.x.x → IPv4 puro)
+- [x] Migrar tabela ip_whitelist: adicionar userType (admin/reseller) e userId
+- [x] Verificar IP por usuário no login (cada usuário tem seus próprios IPs autorizados)
+- [x] Atualizar UI da aba Whitelist IPs com vinculação a resellers e admin
