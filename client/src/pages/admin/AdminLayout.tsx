@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import {
   LayoutDashboard, Users, Tag, AppWindow, Key, LogOut, ChevronRight, Shield
 } from "lucide-react";
+import InteractiveStars from "@/components/InteractiveStars";
 
 const LOGO_URL = "/manus-storage/zenity-logo_13a05e29.png";
 
@@ -43,10 +44,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     <div className="min-h-screen flex relative overflow-hidden">
       {/* Galaxy Background */}
       <div className="galaxy-bg">
-        <div className="galaxy-stars" />
         <div className="galaxy-shooting-star" />
         <div className="galaxy-shooting-star" style={{ animationDelay: "9s", top: "55%" }} />
       </div>
+      <InteractiveStars />
 
       {/* Sidebar */}
       <aside

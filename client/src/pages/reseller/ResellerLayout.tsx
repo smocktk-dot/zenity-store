@@ -3,6 +3,7 @@ import { useLocation, Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { User, AppWindow, Key, LogOut } from "lucide-react";
+import InteractiveStars from "@/components/InteractiveStars";
 
 const LOGO_URL = "/manus-storage/zenity-logo_13a05e29.png";
 
@@ -42,10 +43,10 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
     <div className="min-h-screen relative overflow-hidden">
       {/* Galaxy Background */}
       <div className="galaxy-bg">
-        <div className="galaxy-stars" />
         <div className="galaxy-shooting-star" />
         <div className="galaxy-shooting-star" style={{ animationDelay: "10s", top: "60%" }} />
       </div>
+      <InteractiveStars />
 
       {/* Top Header */}
       <header

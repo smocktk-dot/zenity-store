@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Eye, EyeOff, LogIn, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import InteractiveStars from "@/components/InteractiveStars";
 
 const LOGO_URL = "/manus-storage/zenity-logo_13a05e29.png";
 
@@ -37,11 +38,11 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
       {/* Galaxy Background */}
       <div className="galaxy-bg">
-        <div className="galaxy-stars" />
         <div className="galaxy-shooting-star" />
         <div className="galaxy-shooting-star" style={{ animationDelay: "7s", top: "40%" }} />
         <div className="galaxy-shooting-star" style={{ animationDelay: "13s", top: "65%" }} />
       </div>
+      <InteractiveStars />
 
       {/* Glow orbs */}
       <div className="absolute inset-0 z-0 pointer-events-none">
