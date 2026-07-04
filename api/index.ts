@@ -1,3 +1,5 @@
 // Vercel serverless entry point
-// Imports the Express app without calling .listen()
+// This file is compiled by @vercel/node using esbuild with bundling enabled
+// All imports are resolved and bundled at build time
+
 export { default } from "../server/_core/app";
