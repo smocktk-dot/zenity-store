@@ -113,3 +113,18 @@
 - [x] Frontend: fluxo Pix (QR Code + copia-e-cola + polling de status a cada 4s + tela de sucesso)
 - [x] 18 testes vitest passando
 - [x] Push para GitHub após cada alteração
+
+## Fase 15: Migração do Supabase para Banco de Dados Próprio
+- [x] Remover dependência de SUPABASE_DATABASE_URL em todos os arquivos
+- [x] Atualizar server/db.ts: usar apenas DATABASE_URL com detecção automática de SSL
+- [x] Atualizar drizzle.config.ts: usar apenas DATABASE_URL
+- [x] Atualizar scripts/seed-admin.mjs: usar DATABASE_URL
+- [x] Atualizar scripts/create-ip-whitelist.mjs: usar DATABASE_URL
+- [x] Atualizar scripts/migrate-ip-whitelist.mjs: usar DATABASE_URL
+- [x] Atualizar scripts/migrate-pix.mjs: usar DATABASE_URL
+- [x] Atualizar scripts/check-ip-whitelist.mjs: usar DATABASE_URL
+- [x] Atualizar api/server.mjs (bundle compilado): usar DATABASE_URL com SSL automático
+- [x] Renomear supabase-connection.test.ts → db.test.ts (testes independentes de Supabase)
+- [x] Sistema de IPs (whitelist) mantido 100% no banco de dados próprio
+- [x] Admin panel mantido 100% no banco de dados próprio
+- [x] Loja/reseller mantida 100% no banco de dados próprio

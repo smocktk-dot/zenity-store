@@ -9,10 +9,12 @@ let _db: ReturnType<typeof drizzle> | null = null;
 
 export async function getDb() {
   if (!_db) {
-    const connectionString = process.env.DATABASE_URL || process.env.SUPABASE_DATABASE_URL;
+    const connectionString = process.env.DATABASE_URL;
     if (connectionString) {
       try {
-        const client = postgres(connectionString, { ssl: "require" });
+        // Detecta se a URL usa SSL (ex: postgres com ?sslmode=require) e configura automaticamente
+        const sslRequired = connectionString.includes("sslmode=require") || connectionString.includes("ssl=true");
+        const client = postgres(connectionString, sslRequired ? { ssl: "require" } : {});
         _db = drizzle(client);
       } catch (error) {
         console.warn("[Database] Failed to connect:", error);

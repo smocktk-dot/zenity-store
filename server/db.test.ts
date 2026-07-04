@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/trpc";
 
+// Testes do banco de dados próprio (PostgreSQL via DATABASE_URL)
 // Mock the db module to test the admin login flow
 vi.mock("./db", async () => {
   const bcrypt = await import("bcryptjs");
@@ -98,7 +99,7 @@ describe("Reseller Login IP Blocking", () => {
   });
 });
 
-describe("Admin Login (PostgreSQL schema)", () => {
+describe("Admin Login (banco de dados próprio)", () => {
   it("returns success token for valid admin credentials when IP is whitelisted", async () => {
     const ctx = makeCtx();
     const caller = appRouter.createCaller(ctx);

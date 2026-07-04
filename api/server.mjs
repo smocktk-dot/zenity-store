@@ -235,10 +235,11 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 async function getDb() {
   if (!_db) {
-    const connectionString = process.env.DATABASE_URL || process.env.SUPABASE_DATABASE_URL;
+    const connectionString = process.env.DATABASE_URL;
     if (connectionString) {
       try {
-        const client = postgres(connectionString, { ssl: "require" });
+        const sslRequired = connectionString.includes("sslmode=require") || connectionString.includes("ssl=true");
+        const client = postgres(connectionString, sslRequired ? { ssl: "require" } : {});
         _db = drizzle(client);
       } catch (error) {
         console.warn("[Database] Failed to connect:", error);

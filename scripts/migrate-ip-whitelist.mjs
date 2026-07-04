@@ -1,39 +1,46 @@
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
-const dotenv = require('dotenv');
-dotenv.config({ path: '/home/ubuntu/cv_reseller_panel/.env' });
+/**
+ * Script de migração para atualizar a tabela ip_whitelist com suporte a userType e userId.
+ * Uso: DATABASE_URL=postgres://... node scripts/migrate-ip-whitelist.mjs
+ */
+import postgres from "postgres";
 
-const postgres = (await import('postgres')).default;
-const sql = postgres(process.env.SUPABASE_DATABASE_URL, { ssl: 'require', max: 1 });
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  console.error("DATABASE_URL is required");
+  process.exit(1);
+}
+
+const sslRequired = connectionString.includes("sslmode=require") || connectionString.includes("ssl=true");
+const sql = postgres(connectionString, sslRequired ? { ssl: "require", max: 1 } : { max: 1 });
 
 try {
-  // 1. Create the enum
+  // 1. Criar enum se não existir
   await sql`DO $$ BEGIN
     CREATE TYPE ip_user_type AS ENUM ('admin', 'reseller');
   EXCEPTION WHEN duplicate_object THEN null;
   END $$`;
-  console.log('✓ Enum ip_user_type created');
+  console.log('✓ Enum ip_user_type criado (ou já existia)');
 
-  // 2. Drop the unique constraint on ip column (since now ip can repeat across users)
+  // 2. Remover constraint unique antiga no ip (agora ip pode repetir entre usuários)
   await sql`ALTER TABLE ip_whitelist DROP CONSTRAINT IF EXISTS ip_whitelist_ip_unique`;
-  console.log('✓ Dropped unique constraint on ip');
+  console.log('✓ Constraint unique antiga removida');
 
-  // 3. Add userType column
+  // 3. Adicionar coluna userType
   await sql`ALTER TABLE ip_whitelist ADD COLUMN IF NOT EXISTS "userType" ip_user_type NOT NULL DEFAULT 'admin'`;
-  console.log('✓ Added userType column');
+  console.log('✓ Coluna userType adicionada');
 
-  // 4. Add userId column
+  // 4. Adicionar coluna userId
   await sql`ALTER TABLE ip_whitelist ADD COLUMN IF NOT EXISTS "userId" integer`;
-  console.log('✓ Added userId column');
+  console.log('✓ Coluna userId adicionada');
 
-  // 5. Add unique constraint on (ip, userType, userId)
+  // 5. Adicionar constraint unique em (ip, userType, userId)
   await sql`ALTER TABLE ip_whitelist DROP CONSTRAINT IF EXISTS ip_whitelist_ip_user_unique`;
   await sql`ALTER TABLE ip_whitelist ADD CONSTRAINT ip_whitelist_ip_user_unique UNIQUE (ip, "userType", "userId")`;
-  console.log('✓ Added unique constraint on (ip, userType, userId)');
+  console.log('✓ Constraint unique em (ip, userType, userId) adicionada');
 
-  console.log('\n✅ Migration completed successfully!');
+  console.log('\n✅ Migração concluída com sucesso!');
 } catch (e) {
-  console.error('Migration error:', e.message);
+  console.error('Erro na migração:', e.message);
   process.exit(1);
 } finally {
   await sql.end();

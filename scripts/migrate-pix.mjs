@@ -1,16 +1,21 @@
+/**
+ * Script de migração para criar a tabela pix_payments no banco de dados próprio.
+ * Uso: DATABASE_URL=postgres://... node scripts/migrate-pix.mjs
+ */
 import postgres from "postgres";
 
-const connectionString = process.env.SUPABASE_DATABASE_URL;
+const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
-  console.error("SUPABASE_DATABASE_URL is required");
+  console.error("DATABASE_URL is required");
   process.exit(1);
 }
 
-const sql = postgres(connectionString, { ssl: "require" });
+const sslRequired = connectionString.includes("sslmode=require") || connectionString.includes("ssl=true");
+const sql = postgres(connectionString, sslRequired ? { ssl: "require", max: 1 } : { max: 1 });
 
 async function migrate() {
   try {
-    // Create enum if not exists
+    // Criar enum se não existir
     await sql`
       DO $$ BEGIN
         CREATE TYPE "public"."pix_payment_status" AS ENUM('pending', 'paid', 'expired', 'refunded', 'cancelled');
@@ -18,9 +23,9 @@ async function migrate() {
         WHEN duplicate_object THEN null;
       END $$;
     `;
-    console.log("✓ Enum pix_payment_status created (or already exists)");
+    console.log("✓ Enum pix_payment_status criado (ou já existia)");
 
-    // Create table if not exists
+    // Criar tabela se não existir
     await sql`
       CREATE TABLE IF NOT EXISTS "pix_payments" (
         "id" serial PRIMARY KEY NOT NULL,
@@ -37,9 +42,9 @@ async function migrate() {
         CONSTRAINT "pix_payments_paymentId_unique" UNIQUE("paymentId")
       )
     `;
-    console.log("✓ Table pix_payments created (or already exists)");
+    console.log("✓ Tabela pix_payments criada (ou já existia)");
 
-    // Add FK if not exists
+    // Adicionar FK se não existir
     await sql`
       DO $$ BEGIN
         ALTER TABLE "pix_payments" ADD CONSTRAINT "pix_payments_resellerId_fkey"
@@ -48,11 +53,11 @@ async function migrate() {
         WHEN duplicate_object THEN null;
       END $$;
     `;
-    console.log("✓ Foreign key added (or already exists)");
+    console.log("✓ Foreign key adicionada (ou já existia)");
 
-    console.log("\n✅ Migration completed successfully!");
+    console.log("\n✅ Migração concluída com sucesso!");
   } catch (err) {
-    console.error("Migration failed:", err);
+    console.error("Migração falhou:", err);
     process.exit(1);
   } finally {
     await sql.end();
