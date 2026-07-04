@@ -2,8 +2,7 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Eye, EyeOff, LogIn, Shield } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Eye, EyeOff, LogIn } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import InteractiveStars from "@/components/InteractiveStars";
 
@@ -11,28 +10,31 @@ const LOGO_URL = "/manus-storage/zenity-logo_13a05e29.png";
 
 export default function LoginPage() {
   const [, navigate] = useLocation();
-  const [tab, setTab] = useState<"admin" | "reseller">("reseller");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
 
-  const adminLogin = trpc.auth.adminLogin.useMutation({
-    onSuccess: () => { toast.success("Login realizado com sucesso!"); navigate("/admin"); },
-    onError: (e) => toast.error(e.message),
-  });
+  // Unified login: tries reseller first, then admin (admin gets redirected to /admin)
   const resellerLogin = trpc.auth.resellerLogin.useMutation({
-    onSuccess: () => { toast.success("Login realizado com sucesso!"); navigate("/reseller"); },
+    onSuccess: (data) => {
+      toast.success("Login realizado com sucesso!");
+      // If admin logged in via reseller flow, go to admin panel
+      if (data.role === "admin") {
+        navigate("/admin");
+      } else {
+        navigate("/reseller");
+      }
+    },
     onError: (e) => toast.error(e.message),
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!username || !password) { toast.error("Preencha todos os campos"); return; }
-    if (tab === "admin") adminLogin.mutate({ username, password });
-    else resellerLogin.mutate({ username, password });
+    resellerLogin.mutate({ username, password });
   };
 
-  const isLoading = adminLogin.isPending || resellerLogin.isPending;
+  const isLoading = resellerLogin.isPending;
 
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
@@ -62,7 +64,6 @@ export default function LoginPage() {
 
       {/* Login Card */}
       <div className="relative z-10 w-full max-w-md mx-4">
-
         {/* Logo + Brand */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-3 mb-3" style={{ fontFamily: 'var(--font-display)' }}>
@@ -90,51 +91,15 @@ export default function LoginPage() {
             boxShadow: "0 0 80px rgba(124,58,237,0.1), 0 30px 60px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.05)",
           }}
         >
-          {/* Tabs */}
-          <div className="flex border-b" style={{ borderColor: "rgba(124,58,237,0.15)" }}>
-            <button
-              onClick={() => setTab("reseller")}
-              className="flex-1 py-3.5 text-sm font-semibold transition-all relative"
-              style={{
-                color: tab === "reseller" ? "#fff" : "#6b7280",
-                background: tab === "reseller" ? "rgba(124,58,237,0.08)" : "transparent",
-              }}
-            >
-              Reseller
-              {tab === "reseller" && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5" style={{ background: "linear-gradient(90deg, transparent, #7c3aed, transparent)" }} />
-              )}
-            </button>
-            <button
-              onClick={() => setTab("admin")}
-              className="flex-1 py-3.5 text-sm font-semibold transition-all relative"
-              style={{
-                color: tab === "admin" ? "#fff" : "#6b7280",
-                background: tab === "admin" ? "rgba(124,58,237,0.08)" : "transparent",
-              }}
-            >
-              Admin
-              {tab === "admin" && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5" style={{ background: "linear-gradient(90deg, transparent, #7c3aed, transparent)" }} />
-              )}
-            </button>
-          </div>
-
           {/* Form */}
           <div className="p-8">
             <div className="flex items-center gap-2.5 mb-7">
               <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(124,58,237,0.2)", border: "1px solid rgba(124,58,237,0.3)" }}>
-                {tab === "admin"
-                  ? <Shield className="w-4 h-4" style={{ color: "#a78bfa" }} />
-                  : <LogIn className="w-4 h-4" style={{ color: "#a78bfa" }} />}
+                <LogIn className="w-4 h-4" style={{ color: "#a78bfa" }} />
               </div>
               <div>
-                <h2 className="text-white font-bold text-lg leading-none">
-                  {tab === "reseller" ? "Reseller Access" : "Admin Access"}
-                </h2>
-                <p className="text-gray-600 text-xs mt-0.5">
-                  {tab === "admin" ? "Sign in to admin panel" : "Sign in to your reseller account"}
-                </p>
+                <h2 className="text-white font-bold text-lg leading-none">Reseller Access</h2>
+                <p className="text-gray-600 text-xs mt-0.5">Sign in to your reseller account</p>
               </div>
             </div>
 
@@ -147,10 +112,7 @@ export default function LoginPage() {
                   placeholder="Digite seu usuário"
                   autoComplete="username"
                   className="h-11 text-white placeholder:text-gray-600 transition-all"
-                  style={{
-                    background: "rgba(255,255,255,0.04)",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                  }}
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
                   onFocus={e => { e.currentTarget.style.borderColor = "rgba(124,58,237,0.5)"; }}
                   onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"; }}
                 />
@@ -165,10 +127,7 @@ export default function LoginPage() {
                     placeholder="••••••••••"
                     autoComplete="current-password"
                     className="h-11 text-white placeholder:text-gray-600 pr-10 transition-all"
-                    style={{
-                      background: "rgba(255,255,255,0.04)",
-                      border: "1px solid rgba(255,255,255,0.08)",
-                    }}
+                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
                     onFocus={e => { e.currentTarget.style.borderColor = "rgba(124,58,237,0.5)"; }}
                     onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"; }}
                   />
@@ -208,7 +167,7 @@ export default function LoginPage() {
             </form>
 
             <p className="text-center text-gray-700 text-xs mt-5">
-              Secure {tab === "admin" ? "admin" : "reseller"} access for ZENITY STORE
+              Secure reseller access for ZENITY STORE
             </p>
           </div>
         </div>

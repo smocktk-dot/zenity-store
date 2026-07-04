@@ -1,7 +1,7 @@
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { InsertUser, users, admins, resellers, categories, apps, subscriptionPlans, resellerApps, licenseKeys, creditTransactions } from "../drizzle/schema";
+import { InsertUser, users, admins, resellers, categories, apps, subscriptionPlans, resellerApps, licenseKeys, creditTransactions, ipWhitelist } from "../drizzle/schema";
 import type { InsertAdmin, InsertReseller, InsertCategory, InsertApp, InsertSubscriptionPlan, InsertResellerApp, InsertLicenseKey, InsertCreditTransaction } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -296,4 +296,31 @@ export async function createCreditTransaction(data: InsertCreditTransaction) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   await db.insert(creditTransactions).values(data);
+}
+
+// ─── IP Whitelist ─────────────────────────────────────────────────────────────
+export async function getAllIpWhitelist() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(ipWhitelist).orderBy(desc(ipWhitelist.createdAt));
+}
+
+export async function addIpToWhitelist(ip: string, label?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.insert(ipWhitelist).values({ ip, label: label || null });
+}
+
+export async function removeIpFromWhitelist(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.delete(ipWhitelist).where(eq(ipWhitelist.id, id));
+}
+
+export async function isIpWhitelisted(ip: string): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return true; // if DB unavailable, allow
+  const list = await db.select().from(ipWhitelist);
+  if (list.length === 0) return true; // if no IPs configured, allow all
+  return list.some(entry => entry.ip === ip);
 }

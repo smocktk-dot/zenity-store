@@ -13,6 +13,7 @@ import AdminAppDetail from "./pages/admin/AdminAppDetail";
 import AdminKeys from "./pages/admin/AdminKeys";
 import AdminResellerDetail from "./pages/admin/AdminResellerDetail";
 import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminIpWhitelist from "./pages/admin/AdminIpWhitelist";
 import ResellerLayout from "./pages/reseller/ResellerLayout";
 import ResellerProfile from "./pages/reseller/ResellerProfile";
 import ResellerApps from "./pages/reseller/ResellerApps";
@@ -73,6 +74,13 @@ function Router() {
         {() => (
           <AdminLayout>
             <AdminKeys />
+          </AdminLayout>
+        )}
+      </Route>
+      <Route path="/admin/ip-whitelist">
+        {() => (
+          <AdminLayout>
+            <AdminIpWhitelist />
           </AdminLayout>
         )}
       </Route>

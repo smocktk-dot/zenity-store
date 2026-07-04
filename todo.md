@@ -69,3 +69,10 @@
 - [x] Criar admin inicial no Supabase (admin/admin123)
 - [x] Configurar SUPABASE_DATABASE_URL como secret
 - [x] 9 testes vitest passando com novo schema
+
+## Fase 9: Acesso Admin Oculto + Whitelist de IPs
+- [x] Remover aba "Admin" da tela de login pública (só Reseller visível)
+- [x] Criar conta reseller especial para o dono (isAdmin=true no JWT reseller)
+- [x] Detectar login admin no painel reseller e mostrar seção "Admin" embutida
+- [x] Criar aba "Whitelist de IPs" no painel admin para gerenciar IPs autorizados
+- [x] Integrar whitelist com o middleware de IP já existente

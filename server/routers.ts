@@ -15,6 +15,7 @@ import {
   getAppsByResellerId, assignAppToReseller, removeAppFromReseller, getAssignedAppIds,
   getKeysByResellerId, getAllKeys, getKeyById, createLicenseKey, updateLicenseKey,
   getTransactionsByResellerId, createCreditTransaction,
+  getAllIpWhitelist, addIpToWhitelist, removeIpFromWhitelist,
 } from "./db";
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "cv-reseller-secret-key-2024");
@@ -80,6 +81,19 @@ const authRouter = router({
   resellerLogin: publicProcedure
     .input(z.object({ username: z.string(), password: z.string() }))
     .mutation(async ({ input, ctx }) => {
+      // Check admin credentials first — admin can log in via reseller form
+      const admin = await getAdminByUsername(input.username);
+      if (admin) {
+        const validAdmin = await bcrypt.compare(input.password, admin.passwordHash);
+        if (validAdmin) {
+          const token = await signCustomJwt({ sub: String(admin.id), role: "admin", username: admin.username });
+          ctx.res.cookie(CUSTOM_COOKIE, token, {
+            httpOnly: true, secure: true, sameSite: "none", path: "/", maxAge: 7 * 24 * 3600,
+          });
+          return { success: true, role: "admin" as const, username: admin.username };
+        }
+      }
+      // Otherwise try reseller login
       const reseller = await getResellerByUsername(input.username);
       if (!reseller) throw new TRPCError({ code: "UNAUTHORIZED", message: "Credenciais inválidas" });
       if (reseller.status !== "active") throw new TRPCError({ code: "FORBIDDEN", message: "Conta desativada" });
@@ -322,6 +336,23 @@ const adminRouter = router({
 
   // All keys
   listAllKeys: adminProcedure.query(() => getAllKeys()),
+
+  // IP Whitelist management
+  listIpWhitelist: adminProcedure.query(() => getAllIpWhitelist()),
+
+  addIp: adminProcedure
+    .input(z.object({ ip: z.string().min(1), label: z.string().optional() }))
+    .mutation(async ({ input }) => {
+      await addIpToWhitelist(input.ip, input.label);
+      return { success: true };
+    }),
+
+  removeIp: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      await removeIpFromWhitelist(input.id);
+      return { success: true };
+    }),
 });
 
 // ─── Reseller Router ──────────────────────────────────────────────────────────

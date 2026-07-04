@@ -15,6 +15,7 @@ const navItems = [
   { href: "/admin/categories", icon: Tag, label: "Categorias" },
   { href: "/admin/apps", icon: AppWindow, label: "Apps" },
   { href: "/admin/keys", icon: Key, label: "License Keys" },
+  { href: "/admin/ip-whitelist", icon: Shield, label: "Whitelist IPs" },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

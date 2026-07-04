@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useLocation, Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { User, AppWindow, Key, LogOut } from "lucide-react";
+import { User, AppWindow, Key, LogOut, Shield } from "lucide-react";
 import InteractiveStars from "@/components/InteractiveStars";
 
 const LOGO_URL = "/manus-storage/zenity-logo_13a05e29.png";
@@ -20,8 +20,11 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
     onSuccess: () => { toast.success("Logout realizado"); navigate("/"); },
   });
 
+  // Allow both resellers and admins to access the reseller panel
   useEffect(() => {
-    if (!isLoading && (!session || session.role !== "reseller")) navigate("/");
+    if (!isLoading && (!session || (session.role !== "reseller" && session.role !== "admin"))) {
+      navigate("/");
+    }
   }, [session, isLoading]);
 
   if (isLoading) {
@@ -36,8 +39,10 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
     );
   }
 
+  const isAdmin = session?.role === "admin";
   const resellerSession = session?.role === "reseller" ? session : null;
   const isCredits = !resellerSession || (resellerSession as any).resellerType !== "percentage";
+  const displayUsername = session?.username ?? "User";
 
   return (
     <div className="min-h-screen relative overflow-hidden">
@@ -94,11 +99,41 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
                   </Link>
                 );
               })}
+
+              {/* Admin-only: link to Admin Panel */}
+              {isAdmin && (
+                <Link href="/admin">
+                  <div
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer transition-all text-sm ml-1"
+                    style={{
+                      background: "rgba(124,58,237,0.12)",
+                      color: "#a78bfa",
+                      border: "1px solid rgba(124,58,237,0.3)",
+                    }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = "rgba(124,58,237,0.25)"; (e.currentTarget as HTMLDivElement).style.color = "#c4b5fd"; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = "rgba(124,58,237,0.12)"; (e.currentTarget as HTMLDivElement).style.color = "#a78bfa"; }}
+                  >
+                    <Shield className="w-3.5 h-3.5" />
+                    Admin Panel
+                  </div>
+                </Link>
+              )}
             </nav>
           </div>
 
           {/* Right: badges + user */}
           <div className="flex items-center gap-2">
+            {/* Admin badge */}
+            {isAdmin && (
+              <div
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold"
+                style={{ background: "rgba(124,58,237,0.12)", border: "1px solid rgba(124,58,237,0.3)", color: "#a78bfa" }}
+              >
+                <Shield className="w-3 h-3" />
+                Admin
+              </div>
+            )}
+
             {resellerSession && isCredits && (
               <div
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-semibold"
@@ -122,11 +157,11 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
             >
               <div
                 className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold uppercase"
-                style={{ background: "rgba(124,58,237,0.3)", color: "#a78bfa" }}
+                style={{ background: isAdmin ? "rgba(124,58,237,0.4)" : "rgba(124,58,237,0.3)", color: "#a78bfa" }}
               >
-                {resellerSession?.username?.[0] ?? "R"}
+                {displayUsername[0]}
               </div>
-              <span className="text-gray-300 text-sm">{resellerSession?.username}</span>
+              <span className="text-gray-300 text-sm">{displayUsername}</span>
             </div>
 
             <button

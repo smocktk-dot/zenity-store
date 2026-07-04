@@ -158,3 +158,14 @@ export const creditTransactions = pgTable("credit_transactions", {
 
 export type CreditTransaction = typeof creditTransactions.$inferSelect;
 export type InsertCreditTransaction = typeof creditTransactions.$inferInsert;
+
+// ─── IP Whitelist ─────────────────────────────────────────────────────────────
+export const ipWhitelist = pgTable("ip_whitelist", {
+  id: serial("id").primaryKey(),
+  ip: varchar("ip", { length: 64 }).notNull().unique(),
+  label: varchar("label", { length: 128 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type IpWhitelist = typeof ipWhitelist.$inferSelect;
+export type InsertIpWhitelist = typeof ipWhitelist.$inferInsert;
