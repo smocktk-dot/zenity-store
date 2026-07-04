@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import InteractiveStars from "@/components/InteractiveStars";
 
-const LOGO_URL = "/manus-storage/zenity-logo_13a05e29.png";
+const LOGO_URL = "/logo.png";
 
 const navItems = [
   { href: "/admin", icon: LayoutDashboard, label: "Dashboard" },

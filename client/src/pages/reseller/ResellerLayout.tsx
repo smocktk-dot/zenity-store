@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { User, AppWindow, Key, LogOut, Shield } from "lucide-react";
 import InteractiveStars from "@/components/InteractiveStars";
 
-const LOGO_URL = "/manus-storage/zenity-logo_13a05e29.png";
+const LOGO_URL = "/logo.png";
 
 const navItems = [
   { href: "/reseller", icon: User, label: "Perfil" },

@@ -6,7 +6,7 @@ import { Eye, EyeOff, LogIn } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import InteractiveStars from "@/components/InteractiveStars";
 
-const LOGO_URL = "/manus-storage/zenity-logo_13a05e29.png";
+const LOGO_URL = "/logo.png";
 
 export default function LoginPage() {
   const [, navigate] = useLocation();
