@@ -9,7 +9,7 @@ let _db: ReturnType<typeof drizzle> | null = null;
 
 export async function getDb() {
   if (!_db) {
-    const connectionString = process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL;
+    const connectionString = process.env.DATABASE_URL || process.env.SUPABASE_DATABASE_URL;
     if (connectionString) {
       try {
         const client = postgres(connectionString, { ssl: "require" });
