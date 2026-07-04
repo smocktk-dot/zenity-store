@@ -19,7 +19,7 @@ import {
   decimal,
   serial
 } from "drizzle-orm/pg-core";
-var userRoleEnum, resellerTypeEnum, resellerStatusEnum, appStatusEnum, planLevelEnum, keyStatusEnum, transactionTypeEnum, pixPaymentStatusEnum, ipUserTypeEnum, users, admins, resellers, categories, apps, subscriptionPlans, resellerApps, licenseKeys, creditTransactions, pixPayments, ipWhitelist;
+var userRoleEnum, resellerTypeEnum, resellerStatusEnum, appStatusEnum, planLevelEnum, keyStatusEnum, transactionTypeEnum, pixPaymentStatusEnum, users, admins, resellers, categories, apps, subscriptionPlans, resellerApps, licenseKeys, creditTransactions, pixPayments, ipWhitelist;
 var init_schema = __esm({
   "drizzle/schema.ts"() {
     "use strict";
@@ -31,7 +31,6 @@ var init_schema = __esm({
     keyStatusEnum = pgEnum("key_status", ["active", "used", "revoked", "expired"]);
     transactionTypeEnum = pgEnum("transaction_type", ["add", "deduct", "purchase"]);
     pixPaymentStatusEnum = pgEnum("pix_payment_status", ["pending", "paid", "expired", "refunded", "cancelled"]);
-    ipUserTypeEnum = pgEnum("ip_user_type", ["admin", "reseller"]);
     users = pgTable("users", {
       id: serial("id").primaryKey(),
       openId: varchar("openId", { length: 64 }).notNull().unique(),

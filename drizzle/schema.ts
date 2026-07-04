@@ -19,7 +19,6 @@ export const planLevelEnum = pgEnum("plan_level", ["basic", "premium", "lifetime
 export const keyStatusEnum = pgEnum("key_status", ["active", "used", "revoked", "expired"]);
 export const transactionTypeEnum = pgEnum("transaction_type", ["add", "deduct", "purchase"]);
 export const pixPaymentStatusEnum = pgEnum("pix_payment_status", ["pending", "paid", "expired", "refunded", "cancelled"]);
-export const ipUserTypeEnum = pgEnum("ip_user_type", ["admin", "reseller"]);
 
 // ─── Core users table (Manus OAuth, kept for compatibility) ───────────────────
 export const users = pgTable("users", {
