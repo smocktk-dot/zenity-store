@@ -16,12 +16,27 @@ import {
   getKeysByResellerId, getAllKeys, getKeyById, createLicenseKey, updateLicenseKey,
   getTransactionsByResellerId, createCreditTransaction,
   getAllIpWhitelist, addIpToWhitelist, removeIpFromWhitelist, isIpWhitelisted,
-  isAdminIpAllowed, isResellerIpAllowed,
+  isAdminIpAllowed, isResellerIpAllowed, normalizeIp,
   updateAdminPassword, updateResellerPassword,
 } from "./db";
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "cv-reseller-secret-key-2024");
 const CUSTOM_COOKIE = "cv_session";
+
+/** Extract the real client IP from all common proxy headers, normalized to IPv4 */
+function getClientIp(req: { headers: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } }): string {
+  const h = req.headers;
+  const candidates = [
+    ((h["x-forwarded-for"] as string) || "").split(",")[0].trim(),
+    (h["x-real-ip"] as string) || "",
+    (h["cf-connecting-ip"] as string) || "",
+    (h["true-client-ip"] as string) || "",
+    (h["x-client-ip"] as string) || "",
+    req.socket?.remoteAddress || "",
+  ];
+  const raw = candidates.find(c => c && c.length > 0) || "";
+  return normalizeIp(raw);
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function generateKeyValue(prefix: string, mask?: string): string {
@@ -70,7 +85,7 @@ const authRouter = router({
     .input(z.object({ username: z.string(), password: z.string() }))
     .mutation(async ({ input, ctx }) => {
       // IP whitelist check
-      const clientIp = ((ctx.req.headers["x-forwarded-for"] as string) || "").split(",")[0].trim() || ctx.req.socket?.remoteAddress || "";
+      const clientIp = getClientIp(ctx.req);
       const ipAllowed = await isAdminIpAllowed(clientIp);
       if (!ipAllowed) throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado: IP não autorizado" });
       const admin = await getAdminByUsername(input.username);
@@ -93,7 +108,7 @@ const authRouter = router({
         const validAdmin = await bcrypt.compare(input.password, admin.passwordHash);
         if (validAdmin) {
           // IP whitelist check for admin login
-          const clientIp = ((ctx.req.headers["x-forwarded-for"] as string) || "").split(",")[0].trim() || ctx.req.socket?.remoteAddress || "";
+          const clientIp = getClientIp(ctx.req);
           const ipAllowed = await isAdminIpAllowed(clientIp);
           if (!ipAllowed) throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado: IP não autorizado" });
           const token = await signCustomJwt({ sub: String(admin.id), role: "admin", username: admin.username });
@@ -110,7 +125,7 @@ const authRouter = router({
       const valid = await bcrypt.compare(input.password, reseller.passwordHash);
       if (!valid) throw new TRPCError({ code: "UNAUTHORIZED", message: "Credenciais inválidas" });
       // IP whitelist check for reseller
-      const resellerIp = ((ctx.req.headers["x-forwarded-for"] as string) || "").split(",")[0].trim() || ctx.req.socket?.remoteAddress || "";
+      const resellerIp = getClientIp(ctx.req);
       const resellerIpAllowed = await isResellerIpAllowed(resellerIp, reseller.id);
       if (!resellerIpAllowed) throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado: IP não autorizado para este reseller" });
       await updateReseller(reseller.id, { lastLoginAt: new Date() });
@@ -120,6 +135,12 @@ const authRouter = router({
       });
       return { success: true, role: "reseller" as const, username: reseller.username };
     }),
+
+  // Returns the real IP the server sees for this request (used by admin whitelist UI)
+  getMyIp: publicProcedure.query(({ ctx }) => {
+    const ip = getClientIp(ctx.req);
+    return { ip };
+  }),
 
   session: publicProcedure.query(async ({ ctx }) => {
     const token = getCustomToken(ctx.req);

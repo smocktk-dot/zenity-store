@@ -17,6 +17,7 @@ export default function AdminIpWhitelist() {
 
   const { data: list = [], refetch, isLoading } = trpc.admin.listIpWhitelist.useQuery();
   const { data: resellers = [] } = trpc.admin.listResellers.useQuery();
+  const { data: myIpData } = trpc.auth.getMyIp.useQuery();
 
   const addIp = trpc.admin.addIp.useMutation({
     onSuccess: () => {
@@ -90,6 +91,34 @@ export default function AdminIpWhitelist() {
           </p>
         </div>
       </div>
+
+      {/* My current IP banner */}
+      {myIpData?.ip && (
+        <div
+          className="flex items-center justify-between p-4 rounded-xl"
+          style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.25)" }}
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-2 h-2 rounded-full" style={{ background: "#60a5fa", boxShadow: "0 0 6px rgba(96,165,250,0.6)" }} />
+            <div>
+              <p className="text-xs text-blue-400/70 font-medium uppercase tracking-wider">Seu IP atual (visto pelo servidor)</p>
+              <p className="text-white font-mono text-base font-semibold">{myIpData.ip}</p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            onClick={() => {
+              setNewIp(myIpData.ip);
+              setNewLabel("Meu IP");
+              setUserType("admin");
+            }}
+            className="text-xs font-semibold text-white h-8 px-3"
+            style={{ background: "rgba(59,130,246,0.2)", border: "1px solid rgba(59,130,246,0.4)", color: "#93c5fd" }}
+          >
+            <Plus className="w-3 h-3 mr-1" /> Usar este IP
+          </Button>
+        </div>
+      )}
 
       {/* Add form */}
       <div

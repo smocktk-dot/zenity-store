@@ -87,3 +87,10 @@
 - [x] Migrar tabela ip_whitelist: adicionar userType (admin/reseller) e userId
 - [x] Verificar IP por usuário no login (cada usuário tem seus próprios IPs autorizados)
 - [x] Atualizar UI da aba Whitelist IPs com vinculação a resellers e admin
+
+## Fase 12: Diagnóstico e Correção do Sistema de IP
+- [x] Verificar estado real da tabela ip_whitelist no Supabase
+- [x] Criar endpoint /api/my-ip para detectar IP real via todos os headers de proxy
+- [x] Criar função getClientIp() centralizada no backend (x-forwarded-for, x-real-ip, cf-connecting-ip, etc.)
+- [x] Usar getClientIp() em todos os logins (adminLogin e resellerLogin)
+- [x] Mostrar "Seu IP atual (visto pelo servidor)" na aba Whitelist IPs com botão "Usar este IP"
