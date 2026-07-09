@@ -580,9 +580,8 @@ const resellerRouter = router({
           keyValue, resellerId: ctx.resellerId, appId: input.appId,
           planId: plan.id, planName: plan.name, durationDays: plan.durationDays,
           creditsSpent: discountedPrice.toFixed(2),
-          expiresAt: null,
-          note: input.note || null,
-          customMask: input.customMask || null,
+          ...(input.note ? { note: input.note } : {}),
+          ...(input.customMask ? { customMask: input.customMask } : {}),
         } as any);
         generatedKeys.push(keyValue);
       }
@@ -766,9 +765,7 @@ const resellerRouter = router({
           keyValue, resellerId: ctx.resellerId, appId: input.appId,
           planId: plan.id, planName: plan.name, durationDays: plan.durationDays,
           creditsSpent: discountedPrice.toFixed(2),
-          expiresAt: null,
           note: `Compra via porcentagem - R$ ${totalCost.toFixed(2)}`,
-          customMask: null,
         } as any);
         generatedKeys.push(keyValue);
       }

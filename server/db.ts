@@ -278,7 +278,14 @@ export async function getKeyById(id: number) {
 export async function createLicenseKey(data: InsertLicenseKey) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  await db.insert(licenseKeys).values(data);
+  // Filter out undefined/null optional fields so Drizzle uses column DEFAULTs
+  const values: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (value !== undefined) {
+      values[key] = value;
+    }
+  }
+  await db.insert(licenseKeys).values(values as InsertLicenseKey);
 }
 
 export async function updateLicenseKey(id: number, data: Partial<InsertLicenseKey>) {

@@ -15,6 +15,13 @@
       "when": 1783135239577,
       "tag": "0001_mute_scarlet_spider",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783563118224,
+      "tag": "0002_outgoing_gabe_jones",
+      "breakpoints": true
     }
   ]
 }
