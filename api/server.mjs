@@ -1131,11 +1131,11 @@ function getClientIp(req) {
   const raw = candidates.find((c) => c && c.length > 0) || "";
   return normalizeIp(raw);
 }
-var DEFAULT_KEY_MASK = "XXXtXX-XXXmXX-XXXXXk";
+var DEFAULT_KEY_MASK = "***t**-***m**-*****k";
 function generateKeyValue(prefix, mask) {
   const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
   const activeMask = mask || DEFAULT_KEY_MASK;
-  return activeMask.replace(/X/g, () => chars[Math.floor(Math.random() * chars.length)]);
+  return activeMask.replace(/\*/g, () => chars[Math.floor(Math.random() * chars.length)]);
 }
 function calcDiscount(totalPurchases) {
   if (totalPurchases >= 20) return 50;

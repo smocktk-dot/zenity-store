@@ -44,13 +44,14 @@ function getClientIp(req: { headers: Record<string, string | string[] | undefine
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 // Formato padrão das keys: ***t**-***m**-*****k
-// onde * = caractere aleatório (letras/números), t/m/k = letras fixas
-const DEFAULT_KEY_MASK = "XXXtXX-XXXmXX-XXXXXk";
+// O KeyAuth usa asterisco (*) como wildcard na máscara
+const DEFAULT_KEY_MASK = "***t**-***m**-*****k";
 
 function generateKeyValue(prefix: string, mask?: string): string {
   const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
   const activeMask = mask || DEFAULT_KEY_MASK;
-  return activeMask.replace(/X/g, () => chars[Math.floor(Math.random() * chars.length)]);
+  // Substitui apenas os asteriscos por caracteres aleatórios, mantendo letras fixas
+  return activeMask.replace(/\*/g, () => chars[Math.floor(Math.random() * chars.length)]);
 }
 
 function calcDiscount(totalPurchases: number): number {
