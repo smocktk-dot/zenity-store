@@ -278,14 +278,24 @@ export async function getKeyById(id: number) {
 export async function createLicenseKey(data: InsertLicenseKey) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  // Filter out undefined/null optional fields so Drizzle uses column DEFAULTs
-  const values: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(data)) {
-    if (value !== undefined) {
-      values[key] = value;
-    }
-  }
-  await db.insert(licenseKeys).values(values as InsertLicenseKey);
+  // Build INSERT with only the required + explicitly provided optional fields
+  // This avoids Drizzle including all columns (even those with DB DEFAULTs)
+  const requiredValues = {
+    keyValue: data.keyValue,
+    resellerId: data.resellerId,
+    appId: data.appId,
+    planId: data.planId ?? null,
+    planName: data.planName ?? null,
+    durationDays: data.durationDays,
+    creditsSpent: data.creditsSpent,
+  };
+  // Only include optional fields if they were explicitly provided
+  const optionalValues: Record<string, unknown> = {};
+  if (data.note !== undefined && data.note !== null) optionalValues.note = data.note;
+  if (data.customMask !== undefined && data.customMask !== null) optionalValues.customMask = data.customMask;
+  if (data.expiresAt !== undefined && data.expiresAt !== null) optionalValues.expiresAt = data.expiresAt;
+
+  await db.insert(licenseKeys).values({ ...requiredValues, ...optionalValues } as InsertLicenseKey);
 }
 
 export async function updateLicenseKey(id: number, data: Partial<InsertLicenseKey>) {

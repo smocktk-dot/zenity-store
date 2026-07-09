@@ -43,14 +43,14 @@ function getClientIp(req: { headers: Record<string, string | string[] | undefine
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+// Formato padrão das keys: ***t**-***m**-*****k
+// onde * = caractere aleatório (letras/números), t/m/k = letras fixas
+const DEFAULT_KEY_MASK = "XXXtXX-XXXmXX-XXXXXk";
+
 function generateKeyValue(prefix: string, mask?: string): string {
   const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-  const rand = (len: number) => Array.from({ length: len }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
-  if (mask) {
-    return mask.replace(/X/gi, () => chars[Math.floor(Math.random() * chars.length)]);
-  }
-  // Formato KeyAuth: 6-6-6 com letras e números mistos
-  return `${rand(6)}-${rand(6)}-${rand(6)}`;
+  const activeMask = mask || DEFAULT_KEY_MASK;
+  return activeMask.replace(/X/g, () => chars[Math.floor(Math.random() * chars.length)]);
 }
 
 function calcDiscount(totalPurchases: number): number {
@@ -68,9 +68,10 @@ async function keyauthCreateLicense(opts: {
   quantity: number;
   owner?: string;
   note?: string;
+  mask?: string;
 }): Promise<string[]> {
   const expiry = opts.durationDays >= 9000 ? 0 : opts.durationDays; // 0 = lifetime in KeyAuth
-  const mask = "XXXX-XXXX-XXXX-XXXX";
+  const mask = opts.mask || DEFAULT_KEY_MASK;
   const url = new URL("https://keyauth.win/api/seller/");
   url.searchParams.set("sellerkey", opts.sellerKey);
   url.searchParams.set("type", "add");

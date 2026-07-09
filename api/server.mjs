@@ -462,13 +462,20 @@ async function getKeyById(id) {
 async function createLicenseKey(data) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  const values = {};
-  for (const [key, value] of Object.entries(data)) {
-    if (value !== void 0) {
-      values[key] = value;
-    }
-  }
-  await db.insert(licenseKeys).values(values);
+  const requiredValues = {
+    keyValue: data.keyValue,
+    resellerId: data.resellerId,
+    appId: data.appId,
+    planId: data.planId ?? null,
+    planName: data.planName ?? null,
+    durationDays: data.durationDays,
+    creditsSpent: data.creditsSpent
+  };
+  const optionalValues = {};
+  if (data.note !== void 0 && data.note !== null) optionalValues.note = data.note;
+  if (data.customMask !== void 0 && data.customMask !== null) optionalValues.customMask = data.customMask;
+  if (data.expiresAt !== void 0 && data.expiresAt !== null) optionalValues.expiresAt = data.expiresAt;
+  await db.insert(licenseKeys).values({ ...requiredValues, ...optionalValues });
 }
 async function updateLicenseKey(id, data) {
   const db = await getDb();
@@ -1124,13 +1131,11 @@ function getClientIp(req) {
   const raw = candidates.find((c) => c && c.length > 0) || "";
   return normalizeIp(raw);
 }
+var DEFAULT_KEY_MASK = "XXXtXX-XXXmXX-XXXXXk";
 function generateKeyValue(prefix, mask) {
   const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-  const rand = (len) => Array.from({ length: len }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
-  if (mask) {
-    return mask.replace(/X/gi, () => chars[Math.floor(Math.random() * chars.length)]);
-  }
-  return `${rand(6)}-${rand(6)}-${rand(6)}`;
+  const activeMask = mask || DEFAULT_KEY_MASK;
+  return activeMask.replace(/X/g, () => chars[Math.floor(Math.random() * chars.length)]);
 }
 function calcDiscount(totalPurchases) {
   if (totalPurchases >= 20) return 50;
@@ -1140,7 +1145,7 @@ function calcDiscount(totalPurchases) {
 var KEYAUTH_SELLER_KEY = process.env.KEYAUTH_SELLER_KEY || "dd1d4c88ede441586316b84e6c71dac7";
 async function keyauthCreateLicense(opts) {
   const expiry = opts.durationDays >= 9e3 ? 0 : opts.durationDays;
-  const mask = "XXXX-XXXX-XXXX-XXXX";
+  const mask = opts.mask || DEFAULT_KEY_MASK;
   const url = new URL("https://keyauth.win/api/seller/");
   url.searchParams.set("sellerkey", opts.sellerKey);
   url.searchParams.set("type", "add");
