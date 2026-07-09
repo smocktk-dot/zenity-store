@@ -432,6 +432,15 @@ export async function getPixPaymentsByReseller(resellerId: number) {
     .limit(20);
 }
 
+export async function getKeysByPaymentId(paymentId: string): Promise<string[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db.select({ keyValue: licenseKeys.keyValue })
+    .from(licenseKeys)
+    .where(eq(licenseKeys.note, `pix:${paymentId}`));
+  return rows.map(r => r.keyValue);
+}
+
 // ─── Password Management ───────────────────────────────────────────────────────
 export async function updateAdminPassword(id: number, passwordHash: string) {
   const db = await getDb();

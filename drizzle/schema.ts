@@ -167,13 +167,18 @@ export const pixPayments = pgTable("pix_payments", {
   resellerId: integer("resellerId").notNull().references(() => resellers.id),
   paymentId: varchar("paymentId", { length: 128 }).notNull().unique(), // psc_...
   amountCents: integer("amountCents").notNull(),
-  credits: decimal("credits", { precision: 10, scale: 2 }).notNull(), // credits to add
+  credits: decimal("credits", { precision: 10, scale: 2 }).notNull(), // credits to add (0 for key purchases)
   status: pixPaymentStatusEnum("status").notNull().default("pending"),
   brCode: text("brCode"),
   qrCodeImage: text("qrCodeImage"),
   expiresAt: timestamp("expiresAt"),
   paidAt: timestamp("paidAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
+  // Key purchase fields (null for credit purchases)
+  paymentType: varchar("paymentType", { length: 32 }).default("credits").notNull(), // 'credits' | 'key'
+  appId: integer("appId").references(() => apps.id),
+  planId: integer("planId").references(() => subscriptionPlans.id),
+  quantity: integer("quantity").default(1),
 });
 
 export type PixPayment = typeof pixPayments.$inferSelect;

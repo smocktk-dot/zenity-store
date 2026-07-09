@@ -2,13 +2,14 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { ArrowLeft, Key, DollarSign, Clock, Star, Plus, ShoppingCart, CreditCard, Percent, CheckCircle } from "lucide-react";
+import { ArrowLeft, Key, DollarSign, Clock, Star, Plus, ShoppingCart, CreditCard, Percent, CheckCircle, QrCode, Copy, CheckCircle2, Loader2, RefreshCw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useEffect, useCallback } from "react";
 
 const levelColors: Record<string, string> = {
   basic: "text-blue-400 bg-blue-500/20 border-blue-500/30",
@@ -200,24 +201,215 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
 }
 
 // ─── Percentage Flow (Comprar Keys) ──────────────────────────────────────────
-function PercentageAppDetail({ app, id }: { app: any; id: number }) {
+// ─── Pix Key Modal ────────────────────────────────────────────────────────────
+type PixKeyStep = "pending" | "paid";
+
+function PixKeyModal({
+  open, onClose, pixData, appName, planName, quantity,
+}: {
+  open: boolean;
+  onClose: () => void;
+  pixData: { paymentId: string; brCode?: string; qrCodeImage?: string; amountCents: number; totalCost: number } | null;
+  appName: string;
+  planName: string;
+  quantity: number;
+}) {
+  const utils = trpc.useUtils();
   const [, navigate] = useLocation();
+  const [step, setStep] = useState<PixKeyStep>("pending");
+  const [copied, setCopied] = useState(false);
+  const [deliveredKeys, setDeliveredKeys] = useState<string[]>([]);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  const { data: statusData, refetch: refetchStatus } = trpc.reseller.checkKeyPixStatus.useQuery(
+    { paymentId: pixData?.paymentId || "" },
+    {
+      enabled: step === "pending" && !!pixData?.paymentId,
+      refetchInterval: step === "pending" ? 4000 : false,
+    }
+  );
+
+  useEffect(() => {
+    if (statusData?.status === "paid" && step === "pending") {
+      setStep("paid");
+      setDeliveredKeys((statusData.keys as string[]) || []);
+      toast.success(`Pagamento confirmado! ${(statusData.keys as string[]).length} key(s) entregue(s).`);
+      utils.reseller.myKeys.invalidate();
+      utils.reseller.profile.invalidate();
+    }
+  }, [statusData?.status, step, utils]);
+
+  const handleClose = useCallback(() => {
+    setStep("pending");
+    setCopied(false);
+    setCopiedKey(null);
+    setDeliveredKeys([]);
+    onClose();
+    if (step === "paid") navigate("/reseller/keys");
+  }, [onClose, step, navigate]);
+
+  const handleCopy = () => {
+    if (!pixData?.brCode) return;
+    navigator.clipboard.writeText(pixData.brCode).then(() => {
+      setCopied(true);
+      toast.success("Código Pix copiado!");
+      setTimeout(() => setCopied(false), 2500);
+    });
+  };
+
+  const handleCopyKey = (key: string) => {
+    navigator.clipboard.writeText(key).then(() => {
+      setCopiedKey(key);
+      toast.success("Key copiada!");
+      setTimeout(() => setCopiedKey(null), 2500);
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); }}>
+      <DialogContent className="p-0 border-0 bg-transparent max-w-md w-full shadow-2xl" style={{ boxShadow: "none" }}>
+        <div
+          className="relative rounded-2xl overflow-hidden"
+          style={{
+            background: "linear-gradient(145deg, rgba(13,10,25,0.98) 0%, rgba(18,12,35,0.98) 100%)",
+            border: "1px solid rgba(124,58,237,0.3)",
+            boxShadow: "0 0 60px rgba(124,58,237,0.15), 0 25px 50px rgba(0,0,0,0.6)",
+          }}
+        >
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(139,92,246,0.6), transparent)" }} />
+
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-white/[0.06]">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, rgba(124,58,237,0.3), rgba(139,92,246,0.15))", border: "1px solid rgba(124,58,237,0.4)" }}>
+                <QrCode className="w-4 h-4 text-violet-400" />
+              </div>
+              <div>
+                <h2 className="text-white font-semibold text-base leading-tight">Comprar Key — {planName}</h2>
+                <p className="text-gray-500 text-xs">{quantity}x {appName} • Pagamento via Pix</p>
+              </div>
+            </div>
+            <button onClick={handleClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-gray-300 hover:bg-white/5 transition-all">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* ── Pending ── */}
+          {step === "pending" && pixData && (
+            <div className="p-6 space-y-5">
+              <div className="text-center">
+                <p className="text-gray-500 text-xs mb-1">Valor a pagar</p>
+                <p className="text-white text-4xl font-bold font-mono">R$ {(pixData.amountCents / 100).toFixed(2)}</p>
+                <p className="text-violet-400 text-sm mt-1">{quantity} key(s) serão entregues após o pagamento</p>
+              </div>
+
+              <div className="flex flex-col items-center gap-3">
+                {pixData.qrCodeImage ? (
+                  <div className="rounded-xl overflow-hidden p-3" style={{ background: "white", border: "3px solid rgba(124,58,237,0.4)" }}>
+                    <img src={pixData.qrCodeImage} alt="QR Code Pix" className="w-44 h-44 object-contain" />
+                  </div>
+                ) : (
+                  <div className="w-52 h-52 rounded-xl flex items-center justify-center" style={{ background: "rgba(124,58,237,0.08)", border: "2px dashed rgba(124,58,237,0.3)" }}>
+                    <QrCode className="w-16 h-16 text-violet-500/40" />
+                  </div>
+                )}
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
+                  <span className="text-yellow-400 text-xs font-medium">Aguardando pagamento...</span>
+                </div>
+              </div>
+
+              {pixData.brCode && (
+                <div>
+                  <p className="text-gray-500 text-xs mb-2 text-center">Ou use o código Pix Copia e Cola</p>
+                  <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(124,58,237,0.25)" }}>
+                    <div className="px-3 py-2.5 bg-white/[0.03]">
+                      <p className="text-gray-400 text-xs font-mono truncate">{pixData.brCode.slice(0, 60)}...</p>
+                    </div>
+                    <button
+                      onClick={handleCopy}
+                      className="w-full flex items-center justify-center gap-2 py-2.5 text-sm font-medium transition-all"
+                      style={{ background: copied ? "rgba(34,197,94,0.15)" : "rgba(124,58,237,0.15)", color: copied ? "#4ade80" : "#a78bfa" }}
+                    >
+                      {copied ? <><CheckCircle2 className="w-4 h-4" /> Copiado!</> : <><Copy className="w-4 h-4" /> Copiar código</>}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <Button variant="outline" onClick={handleClose} className="flex-1 border-white/10 text-gray-400 hover:text-gray-200 bg-transparent h-10 text-sm">Fechar</Button>
+                <Button variant="outline" onClick={() => refetchStatus()} className="flex-1 border-violet-500/30 text-violet-400 hover:text-violet-300 bg-transparent h-10 text-sm gap-1.5">
+                  <RefreshCw className="w-3.5 h-3.5" /> Verificar
+                </Button>
+              </div>
+              <p className="text-gray-600 text-xs text-center">Verificação automática a cada 4 segundos</p>
+            </div>
+          )}
+
+          {/* ── Paid ── */}
+          {step === "paid" && (
+            <div className="p-6 flex flex-col items-center gap-4 text-center">
+              <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: "linear-gradient(135deg, rgba(34,197,94,0.2), rgba(34,197,94,0.08))", border: "2px solid rgba(34,197,94,0.4)" }}>
+                <CheckCircle2 className="w-8 h-8 text-green-400" />
+              </div>
+              <div>
+                <h3 className="text-white text-xl font-bold mb-1">Pagamento confirmado!</h3>
+                <p className="text-gray-400 text-sm">{deliveredKeys.length} key(s) gerada(s) com sucesso</p>
+              </div>
+              {deliveredKeys.length > 0 && (
+                <div className="w-full space-y-2">
+                  {deliveredKeys.map((k) => (
+                    <div key={k} className="flex items-center gap-2 rounded-lg px-3 py-2" style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.2)" }}>
+                      <Key className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
+                      <span className="text-green-300 font-mono text-sm flex-1 text-left truncate">{k}</span>
+                      <button onClick={() => handleCopyKey(k)} className="text-gray-500 hover:text-green-400 transition-colors">
+                        {copiedKey === k ? <CheckCircle2 className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <Button onClick={handleClose} className="w-full h-11 font-semibold text-white" style={{ background: "linear-gradient(135deg, #7c3aed, #8b5cf6)" }}>
+                Ver Minhas Keys
+              </Button>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Percentage Flow (Comprar Keys via Pix) ───────────────────────────────────
+function PercentageAppDetail({ app, id }: { app: any; id: number }) {
   const utils = trpc.useUtils();
   const { data: profile } = trpc.reseller.profile.useQuery();
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
   const [showBuy, setShowBuy] = useState(false);
+  const [showPix, setShowPix] = useState(false);
   const [quantity, setQuantity] = useState("1");
+  const [pixData, setPixData] = useState<{ paymentId: string; brCode?: string; qrCodeImage?: string; amountCents: number; totalCost: number } | null>(null);
 
-  const buyKey = trpc.reseller.buyKey.useMutation({
+  const createKeyPix = trpc.reseller.createKeyPixCharge.useMutation({
     onSuccess: (data) => {
-      toast.success(`${data.keys.length} key(s) comprada(s) com sucesso!`);
-      utils.reseller.myKeys.invalidate();
-      utils.reseller.profile.invalidate();
+      setPixData({
+        paymentId: data.paymentId,
+        brCode: data.brCode,
+        qrCodeImage: data.qrCodeImage,
+        amountCents: data.amountCents,
+        totalCost: data.totalCost,
+      });
       setShowBuy(false);
-      navigate("/reseller/keys");
+      setShowPix(true);
     },
-    onError: e => toast.error(e.message),
+    onError: (e) => toast.error(e.message),
   });
+
+  const handleBuy = () => {
+    if (!selectedPlan) return;
+    createKeyPix.mutate({ appId: id, planId: selectedPlan.id, quantity: parseInt(quantity) || 1 });
+  };
 
   const discount = parseFloat(String(profile?.discountPercent ?? "35"));
   const planPrice = selectedPlan ? parseFloat(String(selectedPlan.pricePercentage ?? "0")) : 0;
@@ -352,16 +544,26 @@ function PercentageAppDetail({ app, id }: { app: any; id: number }) {
             )}
 
             <Button
-              onClick={() => buyKey.mutate({ appId: id, planId: selectedPlan?.id, quantity: parseInt(quantity) })}
-              disabled={buyKey.isPending || !selectedPlan}
+              onClick={handleBuy}
+              disabled={createKeyPix.isPending || !selectedPlan}
               className="w-full bg-purple-600 hover:bg-purple-500 text-white gap-2"
             >
               <ShoppingCart className="w-4 h-4" />
-              {buyKey.isPending ? "Processando..." : `Comprar ${quantity} Key(s)`}
+              {createKeyPix.isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> Gerando Pix...</> : `Comprar ${quantity} Key(s)`}
             </Button>
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Pix Key Modal */}
+      <PixKeyModal
+        open={showPix}
+        onClose={() => setShowPix(false)}
+        pixData={pixData}
+        appName={app.name}
+        planName={selectedPlan?.name || ""}
+        quantity={parseInt(quantity) || 1}
+      />
 
       {/* Buy Modal (from plan card click) */}
       <Dialog open={showBuy} onOpenChange={setShowBuy}>
@@ -384,8 +586,8 @@ function PercentageAppDetail({ app, id }: { app: any; id: number }) {
             </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => setShowBuy(false)} className="flex-1 border-white/10 text-gray-300">Cancelar</Button>
-              <Button onClick={() => buyKey.mutate({ appId: id, planId: selectedPlan?.id, quantity: parseInt(quantity) })} disabled={buyKey.isPending} className="flex-1 bg-purple-600 hover:bg-purple-500 text-white">
-                {buyKey.isPending ? "Processando..." : "Confirmar"}
+              <Button onClick={handleBuy} disabled={createKeyPix.isPending} className="flex-1 bg-purple-600 hover:bg-purple-500 text-white">
+                {createKeyPix.isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> Gerando...</> : "Confirmar"}
               </Button>
             </div>
           </div>
