@@ -479,8 +479,10 @@ const resellerRouter = router({
   profile: resellerProcedure.query(async ({ ctx }) => {
     const r = ctx.reseller;
     const purchases = r.totalPurchases;
-    const discount = calcDiscount(purchases);
-    const nextLevel = purchases < 10 ? { target: 10, discount: 40 } : purchases < 20 ? { target: 20, discount: 50 } : null;
+    // Desconto progressivo só se aplica a resellers de porcentagem
+    const isPercentage = r.resellerType === "percentage";
+    const discount = isPercentage ? calcDiscount(purchases) : 0;
+    const nextLevel = isPercentage && purchases < 10 ? { target: 10, discount: 40 } : isPercentage && purchases < 20 ? { target: 20, discount: 50 } : null;
     const transactions = await getTransactionsByResellerId(r.id);
     return {
       id: r.id, username: r.username, email: r.email, location: r.location,
@@ -534,10 +536,10 @@ const resellerRouter = router({
       const app = await getAppById(input.appId);
       if (!app) throw new TRPCError({ code: "NOT_FOUND" });
 
-      // Resellers de créditos usam o discountPercent fixo definido pelo admin (não o progressivo)
-      const discount = parseFloat(reseller.discountPercent as string);
+      // Resellers de créditos pagam o preço cheio do plano (sem desconto progressivo)
+      // O discountPercent só é aplicado para resellers de porcentagem
       const basePrice = parseFloat(plan.priceCredits as string);
-      const discountedPrice = basePrice * (1 - discount / 100);
+      const discountedPrice = basePrice; // sem desconto para resellers de créditos
       const totalCost = discountedPrice * input.quantity;
 
       const currentCredits = parseFloat(reseller.credits as string);

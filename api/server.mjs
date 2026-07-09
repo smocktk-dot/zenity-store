@@ -1493,8 +1493,9 @@ var resellerRouter = router({
   profile: resellerProcedure.query(async ({ ctx }) => {
     const r = ctx.reseller;
     const purchases = r.totalPurchases;
-    const discount = calcDiscount(purchases);
-    const nextLevel = purchases < 10 ? { target: 10, discount: 40 } : purchases < 20 ? { target: 20, discount: 50 } : null;
+    const isPercentage = r.resellerType === "percentage";
+    const discount = isPercentage ? calcDiscount(purchases) : 0;
+    const nextLevel = isPercentage && purchases < 10 ? { target: 10, discount: 40 } : isPercentage && purchases < 20 ? { target: 20, discount: 50 } : null;
     const transactions = await getTransactionsByResellerId(r.id);
     return {
       id: r.id,
@@ -1548,9 +1549,8 @@ var resellerRouter = router({
     if (!plan || plan.appId !== input.appId) throw new TRPCError3({ code: "NOT_FOUND", message: "Plano n\xE3o encontrado" });
     const app2 = await getAppById(input.appId);
     if (!app2) throw new TRPCError3({ code: "NOT_FOUND" });
-    const discount = parseFloat(reseller.discountPercent);
     const basePrice = parseFloat(plan.priceCredits);
-    const discountedPrice = basePrice * (1 - discount / 100);
+    const discountedPrice = basePrice;
     const totalCost = discountedPrice * input.quantity;
     const currentCredits = parseFloat(reseller.credits);
     if (currentCredits < totalCost) {
