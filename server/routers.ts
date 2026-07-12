@@ -6,6 +6,8 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
+import { keyauthCreateLicense } from "./keyauth";
+import { calcDiscount } from "./resellerPricing";
 import {
   getAdminByUsername, getAdminById, createAdmin,
   getResellerByUsername, getResellerById, getAllResellers, createReseller, updateReseller, updateResellerCredits,
@@ -54,47 +56,8 @@ function generateKeyValue(prefix: string, mask?: string): string {
   return activeMask.replace(/\*/g, () => chars[Math.floor(Math.random() * chars.length)]);
 }
 
-export function calcDiscount(totalPurchases: number): number {
-  if (totalPurchases >= 20) return 50;
-  if (totalPurchases >= 10) return 40;
-  return 35;
-}
-
 // ─── KeyAuth Seller API ───────────────────────────────────────────────────────
 const KEYAUTH_SELLER_KEY = process.env.KEYAUTH_SELLER_KEY || "dd1d4c88ede441586316b84e6c71dac7";
-
-async function keyauthCreateLicense(opts: {
-  sellerKey: string;
-  durationDays: number;
-  quantity: number;
-  owner?: string;
-  note?: string;
-  mask?: string;
-}): Promise<string[]> {
-  const expiry = opts.durationDays >= 9000 ? 0 : opts.durationDays; // 0 = lifetime in KeyAuth
-  const mask = opts.mask || DEFAULT_KEY_MASK;
-  const url = new URL("https://keyauth.win/api/seller/");
-  url.searchParams.set("sellerkey", opts.sellerKey);
-  url.searchParams.set("type", "add");
-  url.searchParams.set("format", "json");
-  url.searchParams.set("expiry", String(expiry));
-  url.searchParams.set("mask", mask);
-  url.searchParams.set("amount", String(opts.quantity));
-  if (opts.owner) url.searchParams.set("owner", opts.owner);
-  if (opts.note) url.searchParams.set("note", opts.note);
-
-  const res = await fetch(url.toString());
-  const data = await res.json() as any;
-  if (!data.success) {
-    console.error("[KeyAuth] Failed to create license:", data.message);
-    throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `KeyAuth: ${data.message}` });
-  }
-  // KeyAuth returns 'key' for single, 'keys' for multiple
-  if (opts.quantity === 1) {
-    return [data.key as string];
-  }
-  return data.keys as string[];
-}
 
 async function keyauthResetHwid(sellerKey: string, username: string): Promise<void> {
   const url = new URL("https://keyauth.win/api/seller/");

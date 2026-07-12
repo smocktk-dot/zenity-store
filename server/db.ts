@@ -6,6 +6,8 @@ import type { InsertAdmin, InsertReseller, InsertCategory, InsertApp, InsertSubs
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
+let _sqlClient: ReturnType<typeof postgres> | null = null;
+let _pixPaymentSchemaReady: Promise<void> | null = null;
 
 export async function getDb() {
   if (!_db) {
@@ -15,6 +17,7 @@ export async function getDb() {
         // Detecta se a URL usa SSL (ex: postgres com ?sslmode=require) e configura automaticamente
         const sslRequired = connectionString.includes("sslmode=require") || connectionString.includes("ssl=true");
         const client = postgres(connectionString, sslRequired ? { ssl: "require" } : {});
+        _sqlClient = client;
         _db = drizzle(client);
       } catch (error) {
         console.warn("[Database] Failed to connect:", error);
@@ -23,6 +26,33 @@ export async function getDb() {
     }
   }
   return _db;
+}
+
+/**
+ * Ensure the columns used by percentage-reseller key purchases exist.
+ *
+ * Vercel deploys application code independently from Drizzle migrations. Without
+ * this idempotent guard, a successful deploy can still fail at runtime with
+ * "column paymentType does not exist" until migration 0003 is applied manually.
+ */
+export async function ensurePixPaymentSchema(): Promise<void> {
+  await getDb();
+  if (!_sqlClient) throw new Error("DB not available");
+
+  if (!_pixPaymentSchemaReady) {
+    _pixPaymentSchemaReady = _sqlClient.begin(async sql => {
+      await sql.unsafe(`ALTER TABLE "pix_payments" ADD COLUMN IF NOT EXISTS "paymentType" varchar(32) DEFAULT 'credits' NOT NULL`);
+      await sql.unsafe(`ALTER TABLE "pix_payments" ADD COLUMN IF NOT EXISTS "appId" integer`);
+      await sql.unsafe(`ALTER TABLE "pix_payments" ADD COLUMN IF NOT EXISTS "planId" integer`);
+      await sql.unsafe(`ALTER TABLE "pix_payments" ADD COLUMN IF NOT EXISTS "quantity" integer DEFAULT 1`);
+    }).then(() => undefined).catch(error => {
+      _pixPaymentSchemaReady = null;
+      console.error("[Database] Failed to ensure Pix payment schema:", error);
+      throw new Error("Não foi possível preparar o banco para compras via Pix");
+    });
+  }
+
+  return _pixPaymentSchemaReady;
 }
 
 // ─── Users (Manus OAuth) ─────────────────────────────────────────────────────
@@ -390,6 +420,7 @@ export async function isIpWhitelisted(ip: string): Promise<boolean> {
 
 // ─── Pix Payments (Purin Cash) ───────────────────────────────────────────────
 export async function createPixPayment(data: InsertPixPayment) {
+  await ensurePixPaymentSchema();
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const [row] = await db.insert(pixPayments).values(data).returning();
@@ -397,6 +428,7 @@ export async function createPixPayment(data: InsertPixPayment) {
 }
 
 export async function getPixPaymentByPaymentId(paymentId: string) {
+  await ensurePixPaymentSchema();
   const db = await getDb();
   if (!db) return null;
   const [row] = await db.select().from(pixPayments).where(eq(pixPayments.paymentId, paymentId));
@@ -408,6 +440,7 @@ export async function updatePixPaymentStatus(
   status: "pending" | "paid" | "expired" | "refunded" | "cancelled",
   paidAt?: Date
 ) {
+  await ensurePixPaymentSchema();
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   await db.update(pixPayments)
@@ -416,6 +449,7 @@ export async function updatePixPaymentStatus(
 }
 
 export async function getPendingPixPaymentsByReseller(resellerId: number) {
+  await ensurePixPaymentSchema();
   const db = await getDb();
   if (!db) return [];
   return db.select().from(pixPayments)
@@ -424,6 +458,7 @@ export async function getPendingPixPaymentsByReseller(resellerId: number) {
 }
 
 export async function getPixPaymentsByReseller(resellerId: number) {
+  await ensurePixPaymentSchema();
   const db = await getDb();
   if (!db) return [];
   return db.select().from(pixPayments)

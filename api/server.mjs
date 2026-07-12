@@ -8,19 +8,6 @@ var __export = (target, all) => {
     __defProp(target, name, { get: all[name], enumerable: true });
 };
 
-// shared/const.ts
-var COOKIE_NAME, ONE_YEAR_MS, AXIOS_TIMEOUT_MS, UNAUTHED_ERR_MSG, NOT_ADMIN_ERR_MSG;
-var init_const = __esm({
-  "shared/const.ts"() {
-    "use strict";
-    COOKIE_NAME = "app_session_id";
-    ONE_YEAR_MS = 1e3 * 60 * 60 * 24 * 365;
-    AXIOS_TIMEOUT_MS = 3e4;
-    UNAUTHED_ERR_MSG = "Please login (10001)";
-    NOT_ADMIN_ERR_MSG = "You do not have required permission (10002)";
-  }
-});
-
 // drizzle/schema.ts
 import {
   integer,
@@ -212,6 +199,7 @@ __export(db_exports, {
   deleteApp: () => deleteApp,
   deleteCategory: () => deleteCategory,
   deletePlan: () => deletePlan,
+  ensurePixPaymentSchema: () => ensurePixPaymentSchema,
   getAdminById: () => getAdminById,
   getAdminByUsername: () => getAdminByUsername,
   getAllApps: () => getAllApps,
@@ -262,6 +250,7 @@ async function getDb() {
       try {
         const sslRequired = connectionString.includes("sslmode=require") || connectionString.includes("ssl=true");
         const client = postgres(connectionString, sslRequired ? { ssl: "require" } : {});
+        _sqlClient = client;
         _db = drizzle(client);
       } catch (error) {
         console.warn("[Database] Failed to connect:", error);
@@ -270,6 +259,23 @@ async function getDb() {
     }
   }
   return _db;
+}
+async function ensurePixPaymentSchema() {
+  await getDb();
+  if (!_sqlClient) throw new Error("DB not available");
+  if (!_pixPaymentSchemaReady) {
+    _pixPaymentSchemaReady = _sqlClient.begin(async (sql2) => {
+      await sql2.unsafe(`ALTER TABLE "pix_payments" ADD COLUMN IF NOT EXISTS "paymentType" varchar(32) DEFAULT 'credits' NOT NULL`);
+      await sql2.unsafe(`ALTER TABLE "pix_payments" ADD COLUMN IF NOT EXISTS "appId" integer`);
+      await sql2.unsafe(`ALTER TABLE "pix_payments" ADD COLUMN IF NOT EXISTS "planId" integer`);
+      await sql2.unsafe(`ALTER TABLE "pix_payments" ADD COLUMN IF NOT EXISTS "quantity" integer DEFAULT 1`);
+    }).then(() => void 0).catch((error) => {
+      _pixPaymentSchemaReady = null;
+      console.error("[Database] Failed to ensure Pix payment schema:", error);
+      throw new Error("N\xE3o foi poss\xEDvel preparar o banco para compras via Pix");
+    });
+  }
+  return _pixPaymentSchemaReady;
 }
 async function upsertUser(user) {
   if (!user.openId) throw new Error("User openId is required for upsert");
@@ -563,28 +569,33 @@ async function isIpWhitelisted(ip) {
   return isAdminIpAllowed(ip);
 }
 async function createPixPayment(data) {
+  await ensurePixPaymentSchema();
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const [row] = await db.insert(pixPayments).values(data).returning();
   return row;
 }
 async function getPixPaymentByPaymentId(paymentId) {
+  await ensurePixPaymentSchema();
   const db = await getDb();
   if (!db) return null;
   const [row] = await db.select().from(pixPayments).where(eq(pixPayments.paymentId, paymentId));
   return row ?? null;
 }
 async function updatePixPaymentStatus(paymentId, status, paidAt) {
+  await ensurePixPaymentSchema();
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   await db.update(pixPayments).set({ status, ...paidAt ? { paidAt } : {} }).where(eq(pixPayments.paymentId, paymentId));
 }
 async function getPendingPixPaymentsByReseller(resellerId) {
+  await ensurePixPaymentSchema();
   const db = await getDb();
   if (!db) return [];
   return db.select().from(pixPayments).where(and(eq(pixPayments.resellerId, resellerId), eq(pixPayments.status, "pending"))).orderBy(desc(pixPayments.createdAt));
 }
 async function getPixPaymentsByReseller(resellerId) {
+  await ensurePixPaymentSchema();
   const db = await getDb();
   if (!db) return [];
   return db.select().from(pixPayments).where(eq(pixPayments.resellerId, resellerId)).orderBy(desc(pixPayments.createdAt)).limit(20);
@@ -605,15 +616,32 @@ async function updateResellerPassword(id, passwordHash) {
   if (!db) throw new Error("DB not available");
   await db.update(resellers).set({ passwordHash }).where(eq(resellers.id, id));
 }
-var _db;
+var _db, _sqlClient, _pixPaymentSchemaReady;
 var init_db = __esm({
   "server/db.ts"() {
     "use strict";
     init_schema();
     init_env();
     _db = null;
+    _sqlClient = null;
+    _pixPaymentSchemaReady = null;
   }
 });
+
+// server/_core/serverless.ts
+import "dotenv/config";
+import express from "express";
+import { createExpressMiddleware } from "@trpc/server/adapters/express";
+
+// shared/const.ts
+var COOKIE_NAME = "app_session_id";
+var ONE_YEAR_MS = 1e3 * 60 * 60 * 24 * 365;
+var AXIOS_TIMEOUT_MS = 3e4;
+var UNAUTHED_ERR_MSG = "Please login (10001)";
+var NOT_ADMIN_ERR_MSG = "You do not have required permission (10002)";
+
+// server/_core/oauth.ts
+init_db();
 
 // server/_core/cookies.ts
 function isSecureRequest(req) {
@@ -631,944 +659,6 @@ function getSessionCookieOptions(req) {
     secure: isSecureRequest(req)
   };
 }
-var init_cookies = __esm({
-  "server/_core/cookies.ts"() {
-    "use strict";
-  }
-});
-
-// server/_core/notification.ts
-import { TRPCError } from "@trpc/server";
-async function notifyOwner(payload) {
-  const { title, content } = validatePayload(payload);
-  if (!ENV.forgeApiUrl) {
-    throw new TRPCError({
-      code: "INTERNAL_SERVER_ERROR",
-      message: "Notification service URL is not configured."
-    });
-  }
-  if (!ENV.forgeApiKey) {
-    throw new TRPCError({
-      code: "INTERNAL_SERVER_ERROR",
-      message: "Notification service API key is not configured."
-    });
-  }
-  const endpoint = buildEndpointUrl(ENV.forgeApiUrl);
-  try {
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        accept: "application/json",
-        authorization: `Bearer ${ENV.forgeApiKey}`,
-        "content-type": "application/json",
-        "connect-protocol-version": "1"
-      },
-      body: JSON.stringify({ title, content })
-    });
-    if (!response.ok) {
-      const detail = await response.text().catch(() => "");
-      console.warn(
-        `[Notification] Failed to notify owner (${response.status} ${response.statusText})${detail ? `: ${detail}` : ""}`
-      );
-      return false;
-    }
-    return true;
-  } catch (error) {
-    console.warn("[Notification] Error calling notification service:", error);
-    return false;
-  }
-}
-var TITLE_MAX_LENGTH, CONTENT_MAX_LENGTH, trimValue, isNonEmptyString2, buildEndpointUrl, validatePayload;
-var init_notification = __esm({
-  "server/_core/notification.ts"() {
-    "use strict";
-    init_env();
-    TITLE_MAX_LENGTH = 1200;
-    CONTENT_MAX_LENGTH = 2e4;
-    trimValue = (value) => value.trim();
-    isNonEmptyString2 = (value) => typeof value === "string" && value.trim().length > 0;
-    buildEndpointUrl = (baseUrl) => {
-      const normalizedBase = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
-      return new URL(
-        "webdevtoken.v1.WebDevService/SendNotification",
-        normalizedBase
-      ).toString();
-    };
-    validatePayload = (input) => {
-      if (!isNonEmptyString2(input.title)) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Notification title is required."
-        });
-      }
-      if (!isNonEmptyString2(input.content)) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Notification content is required."
-        });
-      }
-      const title = trimValue(input.title);
-      const content = trimValue(input.content);
-      if (title.length > TITLE_MAX_LENGTH) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: `Notification title must be at most ${TITLE_MAX_LENGTH} characters.`
-        });
-      }
-      if (content.length > CONTENT_MAX_LENGTH) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: `Notification content must be at most ${CONTENT_MAX_LENGTH} characters.`
-        });
-      }
-      return { title, content };
-    };
-  }
-});
-
-// server/_core/trpc.ts
-import { initTRPC, TRPCError as TRPCError2 } from "@trpc/server";
-import superjson from "superjson";
-var t, router, publicProcedure, requireUser, protectedProcedure, adminProcedure;
-var init_trpc = __esm({
-  "server/_core/trpc.ts"() {
-    "use strict";
-    init_const();
-    t = initTRPC.context().create({
-      transformer: superjson
-    });
-    router = t.router;
-    publicProcedure = t.procedure;
-    requireUser = t.middleware(async (opts) => {
-      const { ctx, next } = opts;
-      if (!ctx.user) {
-        throw new TRPCError2({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
-      }
-      return next({
-        ctx: {
-          ...ctx,
-          user: ctx.user
-        }
-      });
-    });
-    protectedProcedure = t.procedure.use(requireUser);
-    adminProcedure = t.procedure.use(
-      t.middleware(async (opts) => {
-        const { ctx, next } = opts;
-        if (!ctx.user || ctx.user.role !== "admin") {
-          throw new TRPCError2({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
-        }
-        return next({
-          ctx: {
-            ...ctx,
-            user: ctx.user
-          }
-        });
-      })
-    );
-  }
-});
-
-// server/_core/systemRouter.ts
-import { z } from "zod";
-var systemRouter;
-var init_systemRouter = __esm({
-  "server/_core/systemRouter.ts"() {
-    "use strict";
-    init_notification();
-    init_trpc();
-    systemRouter = router({
-      health: publicProcedure.input(
-        z.object({
-          timestamp: z.number().min(0, "timestamp cannot be negative")
-        })
-      ).query(() => ({
-        ok: true
-      })),
-      notifyOwner: adminProcedure.input(
-        z.object({
-          title: z.string().min(1, "title is required"),
-          content: z.string().min(1, "content is required")
-        })
-      ).mutation(async ({ input }) => {
-        const delivered = await notifyOwner(input);
-        return {
-          success: delivered
-        };
-      })
-    });
-  }
-});
-
-// server/routers.ts
-var routers_exports = {};
-__export(routers_exports, {
-  appRouter: () => appRouter,
-  calcDiscount: () => calcDiscount
-});
-import { z as z2 } from "zod";
-import { TRPCError as TRPCError3 } from "@trpc/server";
-import bcrypt from "bcryptjs";
-import { SignJWT as SignJWT2, jwtVerify as jwtVerify2 } from "jose";
-function getClientIp(req) {
-  const h = req.headers;
-  const candidates = [
-    h["cf-connecting-ip"] || "",
-    h["true-client-ip"] || "",
-    h["x-real-ip"] || "",
-    (h["x-forwarded-for"] || "").split(",")[0].trim(),
-    h["x-client-ip"] || "",
-    req.socket?.remoteAddress || ""
-  ];
-  const raw = candidates.find((c) => c && c.length > 0) || "";
-  return normalizeIp(raw);
-}
-function generateKeyValue(prefix, mask) {
-  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-  const activeMask = mask || DEFAULT_KEY_MASK;
-  return activeMask.replace(/\*/g, () => chars[Math.floor(Math.random() * chars.length)]);
-}
-function calcDiscount(totalPurchases) {
-  if (totalPurchases >= 20) return 50;
-  if (totalPurchases >= 10) return 40;
-  return 35;
-}
-async function keyauthCreateLicense(opts) {
-  const expiry = opts.durationDays >= 9e3 ? 0 : opts.durationDays;
-  const mask = opts.mask || DEFAULT_KEY_MASK;
-  const url = new URL("https://keyauth.win/api/seller/");
-  url.searchParams.set("sellerkey", opts.sellerKey);
-  url.searchParams.set("type", "add");
-  url.searchParams.set("format", "json");
-  url.searchParams.set("expiry", String(expiry));
-  url.searchParams.set("mask", mask);
-  url.searchParams.set("amount", String(opts.quantity));
-  if (opts.owner) url.searchParams.set("owner", opts.owner);
-  if (opts.note) url.searchParams.set("note", opts.note);
-  const res = await fetch(url.toString());
-  const data = await res.json();
-  if (!data.success) {
-    console.error("[KeyAuth] Failed to create license:", data.message);
-    throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: `KeyAuth: ${data.message}` });
-  }
-  if (opts.quantity === 1) {
-    return [data.key];
-  }
-  return data.keys;
-}
-async function keyauthResetHwid(sellerKey, username) {
-  const url = new URL("https://keyauth.win/api/seller/");
-  url.searchParams.set("sellerkey", sellerKey);
-  url.searchParams.set("type", "resetuser");
-  url.searchParams.set("user", username);
-  url.searchParams.set("format", "json");
-  const res = await fetch(url.toString());
-  const data = await res.json();
-  if (!data.success) {
-    console.warn("[KeyAuth] HWID reset warning:", data.message);
-  }
-}
-async function signCustomJwt(payload) {
-  return new SignJWT2(payload).setProtectedHeader({ alg: "HS256" }).setExpirationTime("7d").sign(JWT_SECRET);
-}
-async function verifyCustomJwt(token) {
-  try {
-    const { payload } = await jwtVerify2(token, JWT_SECRET);
-    return payload;
-  } catch {
-    return null;
-  }
-}
-function getCustomToken(req) {
-  const cookieHeader = req.headers?.cookie || "";
-  const match = cookieHeader.match(new RegExp(`${CUSTOM_COOKIE}=([^;]+)`));
-  return match ? match[1] : null;
-}
-var JWT_SECRET, CUSTOM_COOKIE, DEFAULT_KEY_MASK, KEYAUTH_SELLER_KEY, authRouter, adminProcedure2, resellerProcedure, adminRouter, resellerRouter, appRouter;
-var init_routers = __esm({
-  "server/routers.ts"() {
-    "use strict";
-    init_const();
-    init_cookies();
-    init_systemRouter();
-    init_trpc();
-    init_db();
-    JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "cv-reseller-secret-key-2024");
-    CUSTOM_COOKIE = "cv_session";
-    DEFAULT_KEY_MASK = "***t**-***m**-*****k";
-    KEYAUTH_SELLER_KEY = process.env.KEYAUTH_SELLER_KEY || "dd1d4c88ede441586316b84e6c71dac7";
-    authRouter = router({
-      me: publicProcedure.query((opts) => opts.ctx.user),
-      adminLogin: publicProcedure.input(z2.object({ username: z2.string(), password: z2.string() })).mutation(async ({ input, ctx }) => {
-        const clientIp = getClientIp(ctx.req);
-        const ipAllowed = await isAdminIpAllowed(clientIp);
-        if (!ipAllowed) throw new TRPCError3({ code: "FORBIDDEN", message: "Acesso negado: IP n\xE3o autorizado" });
-        const admin = await getAdminByUsername(input.username);
-        if (!admin) throw new TRPCError3({ code: "UNAUTHORIZED", message: "Credenciais inv\xE1lidas" });
-        const valid = await bcrypt.compare(input.password, admin.passwordHash);
-        if (!valid) throw new TRPCError3({ code: "UNAUTHORIZED", message: "Credenciais inv\xE1lidas" });
-        const token = await signCustomJwt({ sub: String(admin.id), role: "admin", username: admin.username });
-        ctx.res.cookie(CUSTOM_COOKIE, token, { ...getSessionCookieOptions(ctx.req), maxAge: 7 * 24 * 3600 });
-        return { success: true, role: "admin", username: admin.username };
-      }),
-      resellerLogin: publicProcedure.input(z2.object({ username: z2.string(), password: z2.string() })).mutation(async ({ input, ctx }) => {
-        const admin = await getAdminByUsername(input.username);
-        if (admin) {
-          const validAdmin = await bcrypt.compare(input.password, admin.passwordHash);
-          if (validAdmin) {
-            const clientIp = getClientIp(ctx.req);
-            const ipAllowed = await isAdminIpAllowed(clientIp);
-            if (!ipAllowed) throw new TRPCError3({ code: "FORBIDDEN", message: "Acesso negado: IP n\xE3o autorizado" });
-            const token2 = await signCustomJwt({ sub: String(admin.id), role: "admin", username: admin.username });
-            ctx.res.cookie(CUSTOM_COOKIE, token2, { ...getSessionCookieOptions(ctx.req), maxAge: 7 * 24 * 3600 });
-            return { success: true, role: "admin", username: admin.username };
-          }
-        }
-        const reseller = await getResellerByUsername(input.username);
-        if (!reseller) throw new TRPCError3({ code: "UNAUTHORIZED", message: "Credenciais inv\xE1lidas" });
-        if (reseller.status !== "active") throw new TRPCError3({ code: "FORBIDDEN", message: "Conta desativada" });
-        const valid = await bcrypt.compare(input.password, reseller.passwordHash);
-        if (!valid) throw new TRPCError3({ code: "UNAUTHORIZED", message: "Credenciais inv\xE1lidas" });
-        const resellerIp = getClientIp(ctx.req);
-        const resellerIpAllowed = await isResellerIpAllowed(resellerIp, reseller.id);
-        if (!resellerIpAllowed) throw new TRPCError3({ code: "FORBIDDEN", message: "Acesso negado: IP n\xE3o autorizado para este reseller" });
-        await updateReseller(reseller.id, { lastLoginAt: /* @__PURE__ */ new Date() });
-        const token = await signCustomJwt({ sub: String(reseller.id), role: "reseller", username: reseller.username });
-        ctx.res.cookie(CUSTOM_COOKIE, token, { ...getSessionCookieOptions(ctx.req), maxAge: 7 * 24 * 3600 });
-        return { success: true, role: "reseller", username: reseller.username };
-      }),
-      // Returns the real IP the server sees for this request (used by admin whitelist UI)
-      getMyIp: publicProcedure.query(({ ctx }) => {
-        const ip = getClientIp(ctx.req);
-        return { ip };
-      }),
-      session: publicProcedure.query(async ({ ctx }) => {
-        const token = getCustomToken(ctx.req);
-        if (!token) return null;
-        const payload = await verifyCustomJwt(token);
-        if (!payload) return null;
-        const id = parseInt(payload.sub);
-        if (payload.role === "admin") {
-          const admin = await getAdminById(id);
-          if (!admin) return null;
-          return { id: admin.id, username: admin.username, role: "admin" };
-        } else {
-          const reseller = await getResellerById(id);
-          if (!reseller) return null;
-          return {
-            id: reseller.id,
-            username: reseller.username,
-            role: "reseller",
-            credits: reseller.credits,
-            discountPercent: reseller.discountPercent,
-            totalPurchases: reseller.totalPurchases,
-            status: reseller.status
-          };
-        }
-      }),
-      logout: publicProcedure.mutation(({ ctx }) => {
-        ctx.res.clearCookie(CUSTOM_COOKIE, getSessionCookieOptions(ctx.req));
-        const cookieOptions = getSessionCookieOptions(ctx.req);
-        ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
-        return { success: true };
-      }),
-      // Bootstrap: create first admin if none exists
-      setupAdmin: publicProcedure.input(z2.object({ username: z2.string().min(3), password: z2.string().min(6), setupKey: z2.string() })).mutation(async ({ input }) => {
-        if (input.setupKey !== "CV-SETUP-2024") throw new TRPCError3({ code: "FORBIDDEN", message: "Chave de setup inv\xE1lida" });
-        const existing = await getAdminByUsername(input.username);
-        if (existing) throw new TRPCError3({ code: "CONFLICT", message: "Admin j\xE1 existe" });
-        const passwordHash = await bcrypt.hash(input.password, 10);
-        await createAdmin({ username: input.username, passwordHash });
-        return { success: true };
-      })
-    });
-    adminProcedure2 = publicProcedure.use(async ({ ctx, next }) => {
-      const token = getCustomToken(ctx.req);
-      if (!token) throw new TRPCError3({ code: "UNAUTHORIZED" });
-      const payload = await verifyCustomJwt(token);
-      if (!payload || payload.role !== "admin") throw new TRPCError3({ code: "FORBIDDEN" });
-      return next({ ctx: { ...ctx, adminId: parseInt(payload.sub) } });
-    });
-    resellerProcedure = publicProcedure.use(async ({ ctx, next }) => {
-      const token = getCustomToken(ctx.req);
-      if (!token) throw new TRPCError3({ code: "UNAUTHORIZED" });
-      const payload = await verifyCustomJwt(token);
-      if (!payload || payload.role !== "reseller") throw new TRPCError3({ code: "FORBIDDEN" });
-      const resellerId = parseInt(payload.sub);
-      const reseller = await getResellerById(resellerId);
-      if (!reseller || reseller.status !== "active") throw new TRPCError3({ code: "FORBIDDEN", message: "Conta desativada" });
-      return next({ ctx: { ...ctx, resellerId, reseller } });
-    });
-    adminRouter = router({
-      // Resellers
-      listResellers: adminProcedure2.query(async () => {
-        const list = await getAllResellers();
-        return list.map((r) => ({ ...r, passwordHash: void 0 }));
-      }),
-      createReseller: adminProcedure2.input(z2.object({
-        username: z2.string().min(3).max(64),
-        password: z2.string().min(6),
-        email: z2.string().email().optional(),
-        location: z2.string().optional(),
-        resellerType: z2.enum(["credits", "percentage"]).default("credits")
-      })).mutation(async ({ input }) => {
-        const existing = await getResellerByUsername(input.username);
-        if (existing) throw new TRPCError3({ code: "CONFLICT", message: "Username j\xE1 existe" });
-        const passwordHash = await bcrypt.hash(input.password, 10);
-        await createReseller({ username: input.username, passwordHash, email: input.email, location: input.location, resellerType: input.resellerType });
-        return { success: true };
-      }),
-      updateReseller: adminProcedure2.input(z2.object({
-        id: z2.number(),
-        email: z2.string().email().optional().nullable(),
-        location: z2.string().optional().nullable(),
-        status: z2.enum(["active", "inactive", "banned"]).optional(),
-        password: z2.string().min(6).optional(),
-        resellerType: z2.enum(["credits", "percentage"]).optional()
-      })).mutation(async ({ input }) => {
-        const { id, password, ...rest } = input;
-        const data = { ...rest };
-        if (password) data.passwordHash = await bcrypt.hash(password, 10);
-        await updateReseller(id, data);
-        return { success: true };
-      }),
-      addCredits: adminProcedure2.input(z2.object({ resellerId: z2.number(), amount: z2.number().positive(), description: z2.string().optional() })).mutation(async ({ input }) => {
-        const reseller = await getResellerById(input.resellerId);
-        if (!reseller) throw new TRPCError3({ code: "NOT_FOUND" });
-        const before = parseFloat(reseller.credits);
-        const after = before + input.amount;
-        await updateReseller(input.resellerId, { credits: after.toFixed(2) });
-        await createCreditTransaction({
-          resellerId: input.resellerId,
-          type: "add",
-          amount: input.amount.toFixed(2),
-          balanceBefore: before.toFixed(2),
-          balanceAfter: after.toFixed(2),
-          description: input.description || "Cr\xE9ditos adicionados pelo admin"
-        });
-        return { success: true, newBalance: after };
-      }),
-      // Categories
-      listCategories: adminProcedure2.query(() => getAllCategories()),
-      createCategory: adminProcedure2.input(z2.object({ name: z2.string().min(2), description: z2.string().optional() })).mutation(async ({ input }) => {
-        await createCategory(input);
-        return { success: true };
-      }),
-      updateCategory: adminProcedure2.input(z2.object({ id: z2.number(), name: z2.string().min(2).optional(), description: z2.string().optional() })).mutation(async ({ input }) => {
-        const { id, ...data } = input;
-        await updateCategory(id, data);
-        return { success: true };
-      }),
-      deleteCategory: adminProcedure2.input(z2.object({ id: z2.number() })).mutation(async ({ input }) => {
-        await deleteCategory(input.id);
-        return { success: true };
-      }),
-      // Apps
-      listApps: adminProcedure2.query(() => getAllApps()),
-      getApp: adminProcedure2.input(z2.object({ id: z2.number() })).query(async ({ input }) => {
-        const app2 = await getAppById(input.id);
-        if (!app2) throw new TRPCError3({ code: "NOT_FOUND" });
-        const plans = await getPlansByAppId(input.id);
-        return { ...app2, plans };
-      }),
-      createApp: adminProcedure2.input(z2.object({
-        name: z2.string().min(2),
-        description: z2.string().optional(),
-        version: z2.string().optional(),
-        categoryId: z2.number().optional(),
-        maxUsers: z2.number().optional(),
-        features: z2.string().optional(),
-        keyauthSellerKey: z2.string().length(32).optional()
-      })).mutation(async ({ input }) => {
-        await createApp(input);
-        return { success: true };
-      }),
-      updateApp: adminProcedure2.input(z2.object({
-        id: z2.number(),
-        name: z2.string().optional(),
-        description: z2.string().optional(),
-        version: z2.string().optional(),
-        categoryId: z2.number().optional().nullable(),
-        status: z2.enum(["active", "inactive"]).optional(),
-        maxUsers: z2.number().optional(),
-        features: z2.string().optional(),
-        keyauthSellerKey: z2.string().length(32).optional().nullable()
-      })).mutation(async ({ input }) => {
-        const { id, ...data } = input;
-        await updateApp(id, data);
-        return { success: true };
-      }),
-      deleteApp: adminProcedure2.input(z2.object({ id: z2.number() })).mutation(async ({ input }) => {
-        await deleteApp(input.id);
-        return { success: true };
-      }),
-      // Plans
-      createPlan: adminProcedure2.input(z2.object({
-        appId: z2.number(),
-        name: z2.string(),
-        durationDays: z2.number().positive(),
-        priceCredits: z2.number().positive(),
-        pricePercentage: z2.number().min(0).optional(),
-        level: z2.enum(["basic", "premium", "lifetime"]).optional()
-      })).mutation(async ({ input }) => {
-        await createPlan({
-          ...input,
-          priceCredits: input.priceCredits.toFixed(2),
-          pricePercentage: (input.pricePercentage ?? 0).toFixed(2)
-        });
-        return { success: true };
-      }),
-      updatePlan: adminProcedure2.input(z2.object({
-        id: z2.number(),
-        name: z2.string().optional(),
-        durationDays: z2.number().optional(),
-        priceCredits: z2.number().optional(),
-        pricePercentage: z2.number().min(0).optional(),
-        level: z2.enum(["basic", "premium", "lifetime"]).optional()
-      })).mutation(async ({ input }) => {
-        const { id, priceCredits, pricePercentage, ...rest } = input;
-        const data = { ...rest };
-        if (priceCredits !== void 0) data.priceCredits = priceCredits.toFixed(2);
-        if (pricePercentage !== void 0) data.pricePercentage = pricePercentage.toFixed(2);
-        await updatePlan(id, data);
-        return { success: true };
-      }),
-      deletePlan: adminProcedure2.input(z2.object({ id: z2.number() })).mutation(async ({ input }) => {
-        await deletePlan(input.id);
-        return { success: true };
-      }),
-      // Assign apps to resellers
-      assignApp: adminProcedure2.input(z2.object({ resellerId: z2.number(), appId: z2.number() })).mutation(async ({ input }) => {
-        await assignAppToReseller(input);
-        return { success: true };
-      }),
-      removeApp: adminProcedure2.input(z2.object({ resellerId: z2.number(), appId: z2.number() })).mutation(async ({ input }) => {
-        await removeAppFromReseller(input.resellerId, input.appId);
-        return { success: true };
-      }),
-      getResellerApps: adminProcedure2.input(z2.object({ resellerId: z2.number() })).query(async ({ input }) => {
-        const assigned = await getAssignedAppIds(input.resellerId);
-        const all = await getAllApps();
-        return { assigned, all };
-      }),
-      // All keys
-      listAllKeys: adminProcedure2.query(() => getAllKeys()),
-      // IP Whitelist management
-      listIpWhitelist: adminProcedure2.query(() => getAllIpWhitelist()),
-      addIp: adminProcedure2.input(z2.object({
-        ip: z2.string().min(1),
-        label: z2.string().optional(),
-        userType: z2.enum(["admin", "reseller"]).default("admin"),
-        userId: z2.number().optional().nullable()
-      })).mutation(async ({ input }) => {
-        await addIpToWhitelist(input.ip, input.label, input.userType, input.userId);
-        return { success: true };
-      }),
-      removeIp: adminProcedure2.input(z2.object({ id: z2.number() })).mutation(async ({ input }) => {
-        await removeIpFromWhitelist(input.id);
-        return { success: true };
-      }),
-      // Password management
-      changeAdminPassword: adminProcedure2.input(z2.object({
-        currentPassword: z2.string().min(1),
-        newPassword: z2.string().min(6, "Nova senha deve ter pelo menos 6 caracteres")
-      })).mutation(async ({ input, ctx }) => {
-        const admin = await getAdminById(ctx.adminId);
-        if (!admin) throw new TRPCError3({ code: "NOT_FOUND" });
-        const valid = await bcrypt.compare(input.currentPassword, admin.passwordHash);
-        if (!valid) throw new TRPCError3({ code: "UNAUTHORIZED", message: "Senha atual incorreta" });
-        const newHash = await bcrypt.hash(input.newPassword, 10);
-        await updateAdminPassword(admin.id, newHash);
-        return { success: true };
-      }),
-      changeResellerPassword: adminProcedure2.input(z2.object({
-        resellerId: z2.number(),
-        newPassword: z2.string().min(6, "Nova senha deve ter pelo menos 6 caracteres")
-      })).mutation(async ({ input }) => {
-        const reseller = await getResellerById(input.resellerId);
-        if (!reseller) throw new TRPCError3({ code: "NOT_FOUND", message: "Reseller n\xE3o encontrado" });
-        const newHash = await bcrypt.hash(input.newPassword, 10);
-        await updateResellerPassword(input.resellerId, newHash);
-        return { success: true };
-      })
-    });
-    resellerRouter = router({
-      profile: resellerProcedure.query(async ({ ctx }) => {
-        const r = ctx.reseller;
-        const purchases = r.totalPurchases;
-        const isPercentage = r.resellerType === "percentage";
-        const discount = isPercentage ? calcDiscount(purchases) : 0;
-        const nextLevel = isPercentage && purchases < 10 ? { target: 10, discount: 40 } : isPercentage && purchases < 20 ? { target: 20, discount: 50 } : null;
-        const transactions = await getTransactionsByResellerId(r.id);
-        return {
-          id: r.id,
-          username: r.username,
-          email: r.email,
-          location: r.location,
-          credits: r.credits,
-          discountPercent: discount,
-          totalPurchases: purchases,
-          resellerType: r.resellerType,
-          status: r.status,
-          createdAt: r.createdAt,
-          lastLoginAt: r.lastLoginAt,
-          nextLevel,
-          transactions
-        };
-      }),
-      myApps: resellerProcedure.query(async ({ ctx }) => {
-        const rows = await getAppsByResellerId(ctx.resellerId);
-        const result = await Promise.all(rows.map(async (row) => {
-          const plans = await getPlansByAppId(row.app.id);
-          return { ...row.app, plans, assignedAt: row.assignedAt };
-        }));
-        return result;
-      }),
-      appDetail: resellerProcedure.input(z2.object({ appId: z2.number() })).query(async ({ ctx, input }) => {
-        const assigned = await getAssignedAppIds(ctx.resellerId);
-        if (!assigned.includes(input.appId)) throw new TRPCError3({ code: "FORBIDDEN" });
-        const app2 = await getAppById(input.appId);
-        if (!app2) throw new TRPCError3({ code: "NOT_FOUND" });
-        const plans = await getPlansByAppId(input.appId);
-        return { ...app2, plans };
-      }),
-      myKeys: resellerProcedure.query(async ({ ctx }) => {
-        return getKeysByResellerId(ctx.resellerId);
-      }),
-      generateKeys: resellerProcedure.input(z2.object({
-        appId: z2.number(),
-        planId: z2.number(),
-        quantity: z2.number().min(1).max(100),
-        customMask: z2.string().optional(),
-        note: z2.string().optional()
-      })).mutation(async ({ ctx, input }) => {
-        const reseller = ctx.reseller;
-        if (reseller.resellerType !== "credits") {
-          throw new TRPCError3({ code: "FORBIDDEN", message: "Esta a\xE7\xE3o \xE9 apenas para resellers de cr\xE9ditos" });
-        }
-        const assigned = await getAssignedAppIds(ctx.resellerId);
-        if (!assigned.includes(input.appId)) throw new TRPCError3({ code: "FORBIDDEN", message: "App n\xE3o dispon\xEDvel" });
-        const plan = await getPlanById(input.planId);
-        if (!plan || plan.appId !== input.appId) throw new TRPCError3({ code: "NOT_FOUND", message: "Plano n\xE3o encontrado" });
-        const app2 = await getAppById(input.appId);
-        if (!app2) throw new TRPCError3({ code: "NOT_FOUND" });
-        const basePrice = parseFloat(plan.priceCredits);
-        const discountedPrice = basePrice;
-        const totalCost = discountedPrice * input.quantity;
-        const currentCredits = parseFloat(reseller.credits);
-        if (currentCredits < totalCost) {
-          throw new TRPCError3({ code: "BAD_REQUEST", message: `Cr\xE9ditos insuficientes. Necess\xE1rio: ${totalCost.toFixed(2)}, Dispon\xEDvel: ${currentCredits.toFixed(2)}` });
-        }
-        const newCredits = currentCredits - totalCost;
-        const newPurchases = reseller.totalPurchases + input.quantity;
-        await updateResellerCredits(ctx.resellerId, newCredits.toFixed(2), newPurchases, reseller.discountPercent);
-        await createCreditTransaction({
-          resellerId: ctx.resellerId,
-          type: "deduct",
-          amount: totalCost.toFixed(2),
-          balanceBefore: currentCredits.toFixed(2),
-          balanceAfter: newCredits.toFixed(2),
-          description: `Gera\xE7\xE3o de ${input.quantity}x key(s) - ${app2.name} (${plan.name})`
-        });
-        const sellerKey = app2.keyauthSellerKey || KEYAUTH_SELLER_KEY;
-        let keyauthKeys = null;
-        try {
-          keyauthKeys = await keyauthCreateLicense({
-            sellerKey,
-            durationDays: plan.durationDays,
-            quantity: input.quantity,
-            owner: reseller.username,
-            note: input.note || `Zenity Store - ${reseller.username} - ${plan.name}`
-          });
-        } catch (err) {
-          console.error("[KeyAuth] License creation failed, using local key generation:", err);
-        }
-        const generatedKeys = [];
-        for (let i = 0; i < input.quantity; i++) {
-          const keyValue = keyauthKeys ? keyauthKeys[i] : generateKeyValue(app2.name, input.customMask);
-          await createLicenseKey({
-            keyValue,
-            resellerId: ctx.resellerId,
-            appId: input.appId,
-            planId: plan.id,
-            planName: plan.name,
-            durationDays: plan.durationDays,
-            creditsSpent: discountedPrice.toFixed(2),
-            ...input.note ? { note: input.note } : {},
-            ...input.customMask ? { customMask: input.customMask } : {}
-          });
-          generatedKeys.push(keyValue);
-        }
-        return { success: true, keys: generatedKeys, creditsSpent: totalCost, newBalance: newCredits };
-      }),
-      resetHwid: resellerProcedure.input(z2.object({ keyId: z2.number() })).mutation(async ({ ctx, input }) => {
-        const key = await getKeyById(input.keyId);
-        if (!key || key.resellerId !== ctx.resellerId) throw new TRPCError3({ code: "FORBIDDEN" });
-        await updateLicenseKey(input.keyId, { hwid: null });
-        if (key.usedBy) {
-          const app2 = await getAppById(key.appId);
-          const sellerKey = app2?.keyauthSellerKey || KEYAUTH_SELLER_KEY;
-          try {
-            await keyauthResetHwid(sellerKey, key.usedBy);
-          } catch (err) {
-            console.warn("[KeyAuth] HWID reset failed (non-critical):", err);
-          }
-        }
-        return { success: true };
-      }),
-      revokeKey: resellerProcedure.input(z2.object({ keyId: z2.number() })).mutation(async ({ ctx, input }) => {
-        const key = await getKeyById(input.keyId);
-        if (!key || key.resellerId !== ctx.resellerId) throw new TRPCError3({ code: "FORBIDDEN" });
-        if (key.status === "used") throw new TRPCError3({ code: "BAD_REQUEST", message: "Key j\xE1 utilizada n\xE3o pode ser revogada" });
-        await updateLicenseKey(input.keyId, { status: "revoked" });
-        return { success: true };
-      }),
-      // ─── Pix / Purin Cash ──────────────────────────────────────────────────────
-      createPixCharge: resellerProcedure.input(z2.object({
-        credits: z2.number().min(1, "M\xEDnimo 1 cr\xE9dito").max(1e4, "M\xE1ximo 10000 cr\xE9ditos")
-      })).mutation(async ({ ctx, input }) => {
-        const PURIN_API_KEY = process.env.PURIN_CASH_API_KEY;
-        if (!PURIN_API_KEY) throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: "Pagamento Pix n\xE3o configurado" });
-        const reseller = ctx.reseller;
-        const amountCents = Math.round(input.credits * 100);
-        const callbackUrl = `${process.env.VITE_APP_URL || "https://cvreseller-n3qqggx2.manus.space"}/api/webhooks/purincash`;
-        const body = {
-          valueCents: amountCents,
-          description: `Compra de ${input.credits} cr\xE9dito(s) - ZENITY STORE`,
-          callbackUrl,
-          customer: {
-            name: reseller.username,
-            email: reseller.email || `${reseller.username}@zenitystore.com`,
-            externalId: String(reseller.id)
-          },
-          metadata: JSON.stringify({ resellerId: reseller.id, credits: input.credits })
-        };
-        const response = await fetch("https://api.purincash.com/v1/charges", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${PURIN_API_KEY}`
-          },
-          body: JSON.stringify(body)
-        });
-        if (!response.ok) {
-          const err = await response.text();
-          console.error("[PurinCash] Error creating charge:", err);
-          throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: "Erro ao criar cobran\xE7a Pix" });
-        }
-        const data = await response.json();
-        const payment = await createPixPayment({
-          resellerId: reseller.id,
-          paymentId: data.paymentId,
-          amountCents: data.amountCents,
-          credits: input.credits.toFixed(2),
-          status: "pending",
-          brCode: data.pix?.brCode || null,
-          qrCodeImage: data.pix?.qrCodeImage || null,
-          expiresAt: data.expiresAt ? new Date(data.expiresAt) : null
-        });
-        return {
-          paymentId: data.paymentId,
-          amountCents: data.amountCents,
-          credits: input.credits,
-          brCode: data.pix?.brCode,
-          qrCodeImage: data.pix?.qrCodeImage,
-          expiresAt: data.expiresAt,
-          status: "pending"
-        };
-      }),
-      checkPixStatus: resellerProcedure.input(z2.object({ paymentId: z2.string() })).query(async ({ ctx, input }) => {
-        const payment = await getPixPaymentByPaymentId(input.paymentId);
-        if (!payment || payment.resellerId !== ctx.resellerId) {
-          throw new TRPCError3({ code: "NOT_FOUND" });
-        }
-        return {
-          paymentId: payment.paymentId,
-          status: payment.status,
-          credits: parseFloat(payment.credits),
-          amountCents: payment.amountCents,
-          paidAt: payment.paidAt,
-          expiresAt: payment.expiresAt
-        };
-      }),
-      myPixPayments: resellerProcedure.query(async ({ ctx }) => {
-        return getPixPaymentsByReseller(ctx.resellerId);
-      }),
-      // Criar cobrança Pix para compra de key (resellers de porcentagem)
-      createKeyPixCharge: resellerProcedure.input(z2.object({
-        appId: z2.number(),
-        planId: z2.number(),
-        quantity: z2.number().min(1).max(100)
-      })).mutation(async ({ ctx, input }) => {
-        const reseller = ctx.reseller;
-        if (reseller.resellerType !== "percentage") {
-          throw new TRPCError3({ code: "FORBIDDEN", message: "Esta a\xE7\xE3o \xE9 apenas para resellers de porcentagem" });
-        }
-        const PURIN_API_KEY = process.env.PURIN_CASH_API_KEY;
-        if (!PURIN_API_KEY) throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: "Pagamento Pix n\xE3o configurado" });
-        const assigned = await getAssignedAppIds(ctx.resellerId);
-        if (!assigned.includes(input.appId)) throw new TRPCError3({ code: "FORBIDDEN", message: "App n\xE3o dispon\xEDvel" });
-        const plan = await getPlanById(input.planId);
-        if (!plan || plan.appId !== input.appId) throw new TRPCError3({ code: "NOT_FOUND", message: "Plano n\xE3o encontrado" });
-        const app2 = await getAppById(input.appId);
-        if (!app2) throw new TRPCError3({ code: "NOT_FOUND" });
-        const discount = calcDiscount(reseller.totalPurchases);
-        const basePrice = parseFloat(plan.pricePercentage ?? "0");
-        const discountedPrice = basePrice * (1 - discount / 100);
-        const totalCost = discountedPrice * input.quantity;
-        const amountCents = Math.round(totalCost * 100);
-        if (amountCents < 100) throw new TRPCError3({ code: "BAD_REQUEST", message: "Valor m\xEDnimo \xE9 R$ 1,00" });
-        const callbackUrl = `${process.env.VITE_APP_URL || "https://zenity-store.vercel.app"}/api/webhooks/purincash`;
-        const body = {
-          valueCents: amountCents,
-          description: `${input.quantity}x key(s) ${app2.name} - ${plan.name} - ZENITY STORE`,
-          callbackUrl,
-          customer: {
-            name: reseller.username,
-            email: reseller.email || `${reseller.username}@zenitystore.com`,
-            externalId: String(reseller.id)
-          },
-          metadata: JSON.stringify({
-            resellerId: reseller.id,
-            paymentType: "key",
-            appId: input.appId,
-            planId: input.planId,
-            quantity: input.quantity
-          })
-        };
-        const response = await fetch("https://api.purincash.com/v1/charges", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${PURIN_API_KEY}`
-          },
-          body: JSON.stringify(body)
-        });
-        if (!response.ok) {
-          const err = await response.text();
-          console.error("[PurinCash] Error creating key charge:", err);
-          throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: "Erro ao criar cobran\xE7a Pix" });
-        }
-        const data = await response.json();
-        await createPixPayment({
-          resellerId: reseller.id,
-          paymentId: data.paymentId,
-          amountCents: data.amountCents,
-          credits: "0.00",
-          status: "pending",
-          brCode: data.pix?.brCode || null,
-          qrCodeImage: data.pix?.qrCodeImage || null,
-          expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
-          paymentType: "key",
-          appId: input.appId,
-          planId: input.planId,
-          quantity: input.quantity
-        });
-        return {
-          paymentId: data.paymentId,
-          amountCents: data.amountCents,
-          totalCost,
-          brCode: data.pix?.brCode,
-          qrCodeImage: data.pix?.qrCodeImage,
-          expiresAt: data.expiresAt,
-          status: "pending"
-        };
-      }),
-      // Verificar status de pagamento Pix de key e retornar keys se pago
-      checkKeyPixStatus: resellerProcedure.input(z2.object({ paymentId: z2.string() })).query(async ({ ctx, input }) => {
-        const payment = await getPixPaymentByPaymentId(input.paymentId);
-        if (!payment || payment.resellerId !== ctx.resellerId) {
-          throw new TRPCError3({ code: "NOT_FOUND" });
-        }
-        let keys = [];
-        if (payment.status === "paid") {
-          const { getKeysByPaymentId: getKeysByPaymentId2 } = await Promise.resolve().then(() => (init_db(), db_exports));
-          keys = await getKeysByPaymentId2(input.paymentId);
-        }
-        return {
-          paymentId: payment.paymentId,
-          status: payment.status,
-          amountCents: payment.amountCents,
-          paidAt: payment.paidAt,
-          expiresAt: payment.expiresAt,
-          keys
-        };
-      }),
-      // Comprar keys para resellers de porcentagem (sem débito de créditos)
-      buyKey: resellerProcedure.input(z2.object({
-        appId: z2.number(),
-        planId: z2.number(),
-        quantity: z2.number().min(1).max(100)
-      })).mutation(async ({ ctx, input }) => {
-        const reseller = ctx.reseller;
-        if (reseller.resellerType !== "percentage") {
-          throw new TRPCError3({ code: "FORBIDDEN", message: "Esta a\xE7\xE3o \xE9 apenas para resellers de porcentagem" });
-        }
-        const assigned = await getAssignedAppIds(ctx.resellerId);
-        if (!assigned.includes(input.appId)) throw new TRPCError3({ code: "FORBIDDEN", message: "App n\xE3o dispon\xEDvel" });
-        const plan = await getPlanById(input.planId);
-        if (!plan || plan.appId !== input.appId) throw new TRPCError3({ code: "NOT_FOUND", message: "Plano n\xE3o encontrado" });
-        const app2 = await getAppById(input.appId);
-        if (!app2) throw new TRPCError3({ code: "NOT_FOUND" });
-        const discount = calcDiscount(reseller.totalPurchases);
-        const basePrice = parseFloat(plan.pricePercentage ?? "0");
-        const discountedPrice = basePrice * (1 - discount / 100);
-        const totalCost = discountedPrice * input.quantity;
-        const newPurchases = reseller.totalPurchases + input.quantity;
-        const newDiscount = calcDiscount(newPurchases);
-        await updateResellerCredits(ctx.resellerId, reseller.credits, newPurchases, newDiscount.toFixed(2));
-        const sellerKey = app2.keyauthSellerKey || KEYAUTH_SELLER_KEY;
-        let keyauthKeys = null;
-        try {
-          keyauthKeys = await keyauthCreateLicense({
-            sellerKey,
-            durationDays: plan.durationDays,
-            quantity: input.quantity,
-            owner: reseller.username,
-            note: `Zenity Store - ${reseller.username} - ${plan.name} - R$ ${totalCost.toFixed(2)}`
-          });
-        } catch (err) {
-          console.error("[KeyAuth] License creation failed, using local key generation:", err);
-        }
-        const generatedKeys = [];
-        for (let i = 0; i < input.quantity; i++) {
-          const keyValue = keyauthKeys ? keyauthKeys[i] : generateKeyValue(app2.name);
-          await createLicenseKey({
-            keyValue,
-            resellerId: ctx.resellerId,
-            appId: input.appId,
-            planId: plan.id,
-            planName: plan.name,
-            durationDays: plan.durationDays,
-            creditsSpent: discountedPrice.toFixed(2),
-            note: `Compra via porcentagem - R$ ${totalCost.toFixed(2)}`
-          });
-          generatedKeys.push(keyValue);
-        }
-        return { success: true, keys: generatedKeys, totalCost, newBalance: reseller.credits };
-      })
-    });
-    appRouter = router({
-      system: systemRouter,
-      auth: authRouter,
-      admin: adminRouter,
-      reseller: resellerRouter
-    });
-  }
-});
-
-// server/_core/serverless.ts
-import "dotenv/config";
-import express from "express";
-import { createExpressMiddleware } from "@trpc/server/adapters/express";
-
-// server/_core/oauth.ts
-init_const();
-init_db();
-init_cookies();
-
-// server/_core/sdk.ts
-init_const();
 
 // shared/_core/errors.ts
 var HttpError = class extends Error {
@@ -1913,8 +1003,903 @@ function registerStorageProxy(app2) {
   });
 }
 
-// server/_core/serverless.ts
-init_routers();
+// server/routers.ts
+import { z as z2 } from "zod";
+import { TRPCError as TRPCError3 } from "@trpc/server";
+import bcrypt from "bcryptjs";
+import { SignJWT as SignJWT2, jwtVerify as jwtVerify2 } from "jose";
+
+// server/_core/systemRouter.ts
+import { z } from "zod";
+
+// server/_core/notification.ts
+init_env();
+import { TRPCError } from "@trpc/server";
+var TITLE_MAX_LENGTH = 1200;
+var CONTENT_MAX_LENGTH = 2e4;
+var trimValue = (value) => value.trim();
+var isNonEmptyString2 = (value) => typeof value === "string" && value.trim().length > 0;
+var buildEndpointUrl = (baseUrl) => {
+  const normalizedBase = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+  return new URL(
+    "webdevtoken.v1.WebDevService/SendNotification",
+    normalizedBase
+  ).toString();
+};
+var validatePayload = (input) => {
+  if (!isNonEmptyString2(input.title)) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Notification title is required."
+    });
+  }
+  if (!isNonEmptyString2(input.content)) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Notification content is required."
+    });
+  }
+  const title = trimValue(input.title);
+  const content = trimValue(input.content);
+  if (title.length > TITLE_MAX_LENGTH) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: `Notification title must be at most ${TITLE_MAX_LENGTH} characters.`
+    });
+  }
+  if (content.length > CONTENT_MAX_LENGTH) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: `Notification content must be at most ${CONTENT_MAX_LENGTH} characters.`
+    });
+  }
+  return { title, content };
+};
+async function notifyOwner(payload) {
+  const { title, content } = validatePayload(payload);
+  if (!ENV.forgeApiUrl) {
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Notification service URL is not configured."
+    });
+  }
+  if (!ENV.forgeApiKey) {
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Notification service API key is not configured."
+    });
+  }
+  const endpoint = buildEndpointUrl(ENV.forgeApiUrl);
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        accept: "application/json",
+        authorization: `Bearer ${ENV.forgeApiKey}`,
+        "content-type": "application/json",
+        "connect-protocol-version": "1"
+      },
+      body: JSON.stringify({ title, content })
+    });
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      console.warn(
+        `[Notification] Failed to notify owner (${response.status} ${response.statusText})${detail ? `: ${detail}` : ""}`
+      );
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.warn("[Notification] Error calling notification service:", error);
+    return false;
+  }
+}
+
+// server/_core/trpc.ts
+import { initTRPC, TRPCError as TRPCError2 } from "@trpc/server";
+import superjson from "superjson";
+var t = initTRPC.context().create({
+  transformer: superjson
+});
+var router = t.router;
+var publicProcedure = t.procedure;
+var requireUser = t.middleware(async (opts) => {
+  const { ctx, next } = opts;
+  if (!ctx.user) {
+    throw new TRPCError2({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
+  }
+  return next({
+    ctx: {
+      ...ctx,
+      user: ctx.user
+    }
+  });
+});
+var protectedProcedure = t.procedure.use(requireUser);
+var adminProcedure = t.procedure.use(
+  t.middleware(async (opts) => {
+    const { ctx, next } = opts;
+    if (!ctx.user || ctx.user.role !== "admin") {
+      throw new TRPCError2({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
+    }
+    return next({
+      ctx: {
+        ...ctx,
+        user: ctx.user
+      }
+    });
+  })
+);
+
+// server/_core/systemRouter.ts
+var systemRouter = router({
+  health: publicProcedure.input(
+    z.object({
+      timestamp: z.number().min(0, "timestamp cannot be negative")
+    })
+  ).query(() => ({
+    ok: true
+  })),
+  notifyOwner: adminProcedure.input(
+    z.object({
+      title: z.string().min(1, "title is required"),
+      content: z.string().min(1, "content is required")
+    })
+  ).mutation(async ({ input }) => {
+    const delivered = await notifyOwner(input);
+    return {
+      success: delivered
+    };
+  })
+});
+
+// server/keyauth.ts
+var DEFAULT_KEY_MASK = "***t**-***m**-*****k";
+async function keyauthCreateLicense(opts) {
+  if (!opts.sellerKey) {
+    throw new Error("Seller key da KeyAuth n\xE3o configurada");
+  }
+  const expiry = opts.durationDays >= 9e3 ? 0 : opts.durationDays;
+  const url = new URL("https://keyauth.win/api/seller/");
+  url.searchParams.set("sellerkey", opts.sellerKey);
+  url.searchParams.set("type", "add");
+  url.searchParams.set("format", "json");
+  url.searchParams.set("expiry", String(expiry));
+  url.searchParams.set("mask", opts.mask || DEFAULT_KEY_MASK);
+  url.searchParams.set("amount", String(opts.quantity));
+  if (opts.owner) url.searchParams.set("owner", opts.owner);
+  if (opts.note) url.searchParams.set("note", opts.note);
+  const res = await fetch(url.toString(), { signal: AbortSignal.timeout(15e3) });
+  if (!res.ok) {
+    throw new Error(`KeyAuth respondeu HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  if (!data.success) {
+    throw new Error(`KeyAuth: ${data.message || "falha ao criar licen\xE7a"}`);
+  }
+  const keys = Array.isArray(data.keys) ? data.keys : typeof data.key === "string" && data.key.length > 0 ? [data.key] : [];
+  if (keys.length !== opts.quantity || keys.some((key) => typeof key !== "string" || key.length === 0)) {
+    throw new Error(`KeyAuth retornou ${keys.length} de ${opts.quantity} licen\xE7a(s)`);
+  }
+  return keys;
+}
+
+// server/resellerPricing.ts
+function calcDiscount(totalPurchases) {
+  if (totalPurchases >= 20) return 50;
+  if (totalPurchases >= 10) return 40;
+  return 35;
+}
+
+// server/routers.ts
+init_db();
+var JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "cv-reseller-secret-key-2024");
+var CUSTOM_COOKIE = "cv_session";
+function getClientIp(req) {
+  const h = req.headers;
+  const candidates = [
+    h["cf-connecting-ip"] || "",
+    h["true-client-ip"] || "",
+    h["x-real-ip"] || "",
+    (h["x-forwarded-for"] || "").split(",")[0].trim(),
+    h["x-client-ip"] || "",
+    req.socket?.remoteAddress || ""
+  ];
+  const raw = candidates.find((c) => c && c.length > 0) || "";
+  return normalizeIp(raw);
+}
+var DEFAULT_KEY_MASK2 = "***t**-***m**-*****k";
+function generateKeyValue(prefix, mask) {
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  const activeMask = mask || DEFAULT_KEY_MASK2;
+  return activeMask.replace(/\*/g, () => chars[Math.floor(Math.random() * chars.length)]);
+}
+var KEYAUTH_SELLER_KEY = process.env.KEYAUTH_SELLER_KEY || "dd1d4c88ede441586316b84e6c71dac7";
+async function keyauthResetHwid(sellerKey, username) {
+  const url = new URL("https://keyauth.win/api/seller/");
+  url.searchParams.set("sellerkey", sellerKey);
+  url.searchParams.set("type", "resetuser");
+  url.searchParams.set("user", username);
+  url.searchParams.set("format", "json");
+  const res = await fetch(url.toString());
+  const data = await res.json();
+  if (!data.success) {
+    console.warn("[KeyAuth] HWID reset warning:", data.message);
+  }
+}
+async function signCustomJwt(payload) {
+  return new SignJWT2(payload).setProtectedHeader({ alg: "HS256" }).setExpirationTime("7d").sign(JWT_SECRET);
+}
+async function verifyCustomJwt(token) {
+  try {
+    const { payload } = await jwtVerify2(token, JWT_SECRET);
+    return payload;
+  } catch {
+    return null;
+  }
+}
+function getCustomToken(req) {
+  const cookieHeader = req.headers?.cookie || "";
+  const match = cookieHeader.match(new RegExp(`${CUSTOM_COOKIE}=([^;]+)`));
+  return match ? match[1] : null;
+}
+var authRouter = router({
+  me: publicProcedure.query((opts) => opts.ctx.user),
+  adminLogin: publicProcedure.input(z2.object({ username: z2.string(), password: z2.string() })).mutation(async ({ input, ctx }) => {
+    const clientIp = getClientIp(ctx.req);
+    const ipAllowed = await isAdminIpAllowed(clientIp);
+    if (!ipAllowed) throw new TRPCError3({ code: "FORBIDDEN", message: "Acesso negado: IP n\xE3o autorizado" });
+    const admin = await getAdminByUsername(input.username);
+    if (!admin) throw new TRPCError3({ code: "UNAUTHORIZED", message: "Credenciais inv\xE1lidas" });
+    const valid = await bcrypt.compare(input.password, admin.passwordHash);
+    if (!valid) throw new TRPCError3({ code: "UNAUTHORIZED", message: "Credenciais inv\xE1lidas" });
+    const token = await signCustomJwt({ sub: String(admin.id), role: "admin", username: admin.username });
+    ctx.res.cookie(CUSTOM_COOKIE, token, { ...getSessionCookieOptions(ctx.req), maxAge: 7 * 24 * 3600 });
+    return { success: true, role: "admin", username: admin.username };
+  }),
+  resellerLogin: publicProcedure.input(z2.object({ username: z2.string(), password: z2.string() })).mutation(async ({ input, ctx }) => {
+    const admin = await getAdminByUsername(input.username);
+    if (admin) {
+      const validAdmin = await bcrypt.compare(input.password, admin.passwordHash);
+      if (validAdmin) {
+        const clientIp = getClientIp(ctx.req);
+        const ipAllowed = await isAdminIpAllowed(clientIp);
+        if (!ipAllowed) throw new TRPCError3({ code: "FORBIDDEN", message: "Acesso negado: IP n\xE3o autorizado" });
+        const token2 = await signCustomJwt({ sub: String(admin.id), role: "admin", username: admin.username });
+        ctx.res.cookie(CUSTOM_COOKIE, token2, { ...getSessionCookieOptions(ctx.req), maxAge: 7 * 24 * 3600 });
+        return { success: true, role: "admin", username: admin.username };
+      }
+    }
+    const reseller = await getResellerByUsername(input.username);
+    if (!reseller) throw new TRPCError3({ code: "UNAUTHORIZED", message: "Credenciais inv\xE1lidas" });
+    if (reseller.status !== "active") throw new TRPCError3({ code: "FORBIDDEN", message: "Conta desativada" });
+    const valid = await bcrypt.compare(input.password, reseller.passwordHash);
+    if (!valid) throw new TRPCError3({ code: "UNAUTHORIZED", message: "Credenciais inv\xE1lidas" });
+    const resellerIp = getClientIp(ctx.req);
+    const resellerIpAllowed = await isResellerIpAllowed(resellerIp, reseller.id);
+    if (!resellerIpAllowed) throw new TRPCError3({ code: "FORBIDDEN", message: "Acesso negado: IP n\xE3o autorizado para este reseller" });
+    await updateReseller(reseller.id, { lastLoginAt: /* @__PURE__ */ new Date() });
+    const token = await signCustomJwt({ sub: String(reseller.id), role: "reseller", username: reseller.username });
+    ctx.res.cookie(CUSTOM_COOKIE, token, { ...getSessionCookieOptions(ctx.req), maxAge: 7 * 24 * 3600 });
+    return { success: true, role: "reseller", username: reseller.username };
+  }),
+  // Returns the real IP the server sees for this request (used by admin whitelist UI)
+  getMyIp: publicProcedure.query(({ ctx }) => {
+    const ip = getClientIp(ctx.req);
+    return { ip };
+  }),
+  session: publicProcedure.query(async ({ ctx }) => {
+    const token = getCustomToken(ctx.req);
+    if (!token) return null;
+    const payload = await verifyCustomJwt(token);
+    if (!payload) return null;
+    const id = parseInt(payload.sub);
+    if (payload.role === "admin") {
+      const admin = await getAdminById(id);
+      if (!admin) return null;
+      return { id: admin.id, username: admin.username, role: "admin" };
+    } else {
+      const reseller = await getResellerById(id);
+      if (!reseller) return null;
+      return {
+        id: reseller.id,
+        username: reseller.username,
+        role: "reseller",
+        credits: reseller.credits,
+        discountPercent: reseller.discountPercent,
+        totalPurchases: reseller.totalPurchases,
+        status: reseller.status
+      };
+    }
+  }),
+  logout: publicProcedure.mutation(({ ctx }) => {
+    ctx.res.clearCookie(CUSTOM_COOKIE, getSessionCookieOptions(ctx.req));
+    const cookieOptions = getSessionCookieOptions(ctx.req);
+    ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+    return { success: true };
+  }),
+  // Bootstrap: create first admin if none exists
+  setupAdmin: publicProcedure.input(z2.object({ username: z2.string().min(3), password: z2.string().min(6), setupKey: z2.string() })).mutation(async ({ input }) => {
+    if (input.setupKey !== "CV-SETUP-2024") throw new TRPCError3({ code: "FORBIDDEN", message: "Chave de setup inv\xE1lida" });
+    const existing = await getAdminByUsername(input.username);
+    if (existing) throw new TRPCError3({ code: "CONFLICT", message: "Admin j\xE1 existe" });
+    const passwordHash = await bcrypt.hash(input.password, 10);
+    await createAdmin({ username: input.username, passwordHash });
+    return { success: true };
+  })
+});
+var adminProcedure2 = publicProcedure.use(async ({ ctx, next }) => {
+  const token = getCustomToken(ctx.req);
+  if (!token) throw new TRPCError3({ code: "UNAUTHORIZED" });
+  const payload = await verifyCustomJwt(token);
+  if (!payload || payload.role !== "admin") throw new TRPCError3({ code: "FORBIDDEN" });
+  return next({ ctx: { ...ctx, adminId: parseInt(payload.sub) } });
+});
+var resellerProcedure = publicProcedure.use(async ({ ctx, next }) => {
+  const token = getCustomToken(ctx.req);
+  if (!token) throw new TRPCError3({ code: "UNAUTHORIZED" });
+  const payload = await verifyCustomJwt(token);
+  if (!payload || payload.role !== "reseller") throw new TRPCError3({ code: "FORBIDDEN" });
+  const resellerId = parseInt(payload.sub);
+  const reseller = await getResellerById(resellerId);
+  if (!reseller || reseller.status !== "active") throw new TRPCError3({ code: "FORBIDDEN", message: "Conta desativada" });
+  return next({ ctx: { ...ctx, resellerId, reseller } });
+});
+var adminRouter = router({
+  // Resellers
+  listResellers: adminProcedure2.query(async () => {
+    const list = await getAllResellers();
+    return list.map((r) => ({ ...r, passwordHash: void 0 }));
+  }),
+  createReseller: adminProcedure2.input(z2.object({
+    username: z2.string().min(3).max(64),
+    password: z2.string().min(6),
+    email: z2.string().email().optional(),
+    location: z2.string().optional(),
+    resellerType: z2.enum(["credits", "percentage"]).default("credits")
+  })).mutation(async ({ input }) => {
+    const existing = await getResellerByUsername(input.username);
+    if (existing) throw new TRPCError3({ code: "CONFLICT", message: "Username j\xE1 existe" });
+    const passwordHash = await bcrypt.hash(input.password, 10);
+    await createReseller({ username: input.username, passwordHash, email: input.email, location: input.location, resellerType: input.resellerType });
+    return { success: true };
+  }),
+  updateReseller: adminProcedure2.input(z2.object({
+    id: z2.number(),
+    email: z2.string().email().optional().nullable(),
+    location: z2.string().optional().nullable(),
+    status: z2.enum(["active", "inactive", "banned"]).optional(),
+    password: z2.string().min(6).optional(),
+    resellerType: z2.enum(["credits", "percentage"]).optional()
+  })).mutation(async ({ input }) => {
+    const { id, password, ...rest } = input;
+    const data = { ...rest };
+    if (password) data.passwordHash = await bcrypt.hash(password, 10);
+    await updateReseller(id, data);
+    return { success: true };
+  }),
+  addCredits: adminProcedure2.input(z2.object({ resellerId: z2.number(), amount: z2.number().positive(), description: z2.string().optional() })).mutation(async ({ input }) => {
+    const reseller = await getResellerById(input.resellerId);
+    if (!reseller) throw new TRPCError3({ code: "NOT_FOUND" });
+    const before = parseFloat(reseller.credits);
+    const after = before + input.amount;
+    await updateReseller(input.resellerId, { credits: after.toFixed(2) });
+    await createCreditTransaction({
+      resellerId: input.resellerId,
+      type: "add",
+      amount: input.amount.toFixed(2),
+      balanceBefore: before.toFixed(2),
+      balanceAfter: after.toFixed(2),
+      description: input.description || "Cr\xE9ditos adicionados pelo admin"
+    });
+    return { success: true, newBalance: after };
+  }),
+  // Categories
+  listCategories: adminProcedure2.query(() => getAllCategories()),
+  createCategory: adminProcedure2.input(z2.object({ name: z2.string().min(2), description: z2.string().optional() })).mutation(async ({ input }) => {
+    await createCategory(input);
+    return { success: true };
+  }),
+  updateCategory: adminProcedure2.input(z2.object({ id: z2.number(), name: z2.string().min(2).optional(), description: z2.string().optional() })).mutation(async ({ input }) => {
+    const { id, ...data } = input;
+    await updateCategory(id, data);
+    return { success: true };
+  }),
+  deleteCategory: adminProcedure2.input(z2.object({ id: z2.number() })).mutation(async ({ input }) => {
+    await deleteCategory(input.id);
+    return { success: true };
+  }),
+  // Apps
+  listApps: adminProcedure2.query(() => getAllApps()),
+  getApp: adminProcedure2.input(z2.object({ id: z2.number() })).query(async ({ input }) => {
+    const app2 = await getAppById(input.id);
+    if (!app2) throw new TRPCError3({ code: "NOT_FOUND" });
+    const plans = await getPlansByAppId(input.id);
+    return { ...app2, plans };
+  }),
+  createApp: adminProcedure2.input(z2.object({
+    name: z2.string().min(2),
+    description: z2.string().optional(),
+    version: z2.string().optional(),
+    categoryId: z2.number().optional(),
+    maxUsers: z2.number().optional(),
+    features: z2.string().optional(),
+    keyauthSellerKey: z2.string().length(32).optional()
+  })).mutation(async ({ input }) => {
+    await createApp(input);
+    return { success: true };
+  }),
+  updateApp: adminProcedure2.input(z2.object({
+    id: z2.number(),
+    name: z2.string().optional(),
+    description: z2.string().optional(),
+    version: z2.string().optional(),
+    categoryId: z2.number().optional().nullable(),
+    status: z2.enum(["active", "inactive"]).optional(),
+    maxUsers: z2.number().optional(),
+    features: z2.string().optional(),
+    keyauthSellerKey: z2.string().length(32).optional().nullable()
+  })).mutation(async ({ input }) => {
+    const { id, ...data } = input;
+    await updateApp(id, data);
+    return { success: true };
+  }),
+  deleteApp: adminProcedure2.input(z2.object({ id: z2.number() })).mutation(async ({ input }) => {
+    await deleteApp(input.id);
+    return { success: true };
+  }),
+  // Plans
+  createPlan: adminProcedure2.input(z2.object({
+    appId: z2.number(),
+    name: z2.string(),
+    durationDays: z2.number().positive(),
+    priceCredits: z2.number().positive(),
+    pricePercentage: z2.number().min(0).optional(),
+    level: z2.enum(["basic", "premium", "lifetime"]).optional()
+  })).mutation(async ({ input }) => {
+    await createPlan({
+      ...input,
+      priceCredits: input.priceCredits.toFixed(2),
+      pricePercentage: (input.pricePercentage ?? 0).toFixed(2)
+    });
+    return { success: true };
+  }),
+  updatePlan: adminProcedure2.input(z2.object({
+    id: z2.number(),
+    name: z2.string().optional(),
+    durationDays: z2.number().optional(),
+    priceCredits: z2.number().optional(),
+    pricePercentage: z2.number().min(0).optional(),
+    level: z2.enum(["basic", "premium", "lifetime"]).optional()
+  })).mutation(async ({ input }) => {
+    const { id, priceCredits, pricePercentage, ...rest } = input;
+    const data = { ...rest };
+    if (priceCredits !== void 0) data.priceCredits = priceCredits.toFixed(2);
+    if (pricePercentage !== void 0) data.pricePercentage = pricePercentage.toFixed(2);
+    await updatePlan(id, data);
+    return { success: true };
+  }),
+  deletePlan: adminProcedure2.input(z2.object({ id: z2.number() })).mutation(async ({ input }) => {
+    await deletePlan(input.id);
+    return { success: true };
+  }),
+  // Assign apps to resellers
+  assignApp: adminProcedure2.input(z2.object({ resellerId: z2.number(), appId: z2.number() })).mutation(async ({ input }) => {
+    await assignAppToReseller(input);
+    return { success: true };
+  }),
+  removeApp: adminProcedure2.input(z2.object({ resellerId: z2.number(), appId: z2.number() })).mutation(async ({ input }) => {
+    await removeAppFromReseller(input.resellerId, input.appId);
+    return { success: true };
+  }),
+  getResellerApps: adminProcedure2.input(z2.object({ resellerId: z2.number() })).query(async ({ input }) => {
+    const assigned = await getAssignedAppIds(input.resellerId);
+    const all = await getAllApps();
+    return { assigned, all };
+  }),
+  // All keys
+  listAllKeys: adminProcedure2.query(() => getAllKeys()),
+  // IP Whitelist management
+  listIpWhitelist: adminProcedure2.query(() => getAllIpWhitelist()),
+  addIp: adminProcedure2.input(z2.object({
+    ip: z2.string().min(1),
+    label: z2.string().optional(),
+    userType: z2.enum(["admin", "reseller"]).default("admin"),
+    userId: z2.number().optional().nullable()
+  })).mutation(async ({ input }) => {
+    await addIpToWhitelist(input.ip, input.label, input.userType, input.userId);
+    return { success: true };
+  }),
+  removeIp: adminProcedure2.input(z2.object({ id: z2.number() })).mutation(async ({ input }) => {
+    await removeIpFromWhitelist(input.id);
+    return { success: true };
+  }),
+  // Password management
+  changeAdminPassword: adminProcedure2.input(z2.object({
+    currentPassword: z2.string().min(1),
+    newPassword: z2.string().min(6, "Nova senha deve ter pelo menos 6 caracteres")
+  })).mutation(async ({ input, ctx }) => {
+    const admin = await getAdminById(ctx.adminId);
+    if (!admin) throw new TRPCError3({ code: "NOT_FOUND" });
+    const valid = await bcrypt.compare(input.currentPassword, admin.passwordHash);
+    if (!valid) throw new TRPCError3({ code: "UNAUTHORIZED", message: "Senha atual incorreta" });
+    const newHash = await bcrypt.hash(input.newPassword, 10);
+    await updateAdminPassword(admin.id, newHash);
+    return { success: true };
+  }),
+  changeResellerPassword: adminProcedure2.input(z2.object({
+    resellerId: z2.number(),
+    newPassword: z2.string().min(6, "Nova senha deve ter pelo menos 6 caracteres")
+  })).mutation(async ({ input }) => {
+    const reseller = await getResellerById(input.resellerId);
+    if (!reseller) throw new TRPCError3({ code: "NOT_FOUND", message: "Reseller n\xE3o encontrado" });
+    const newHash = await bcrypt.hash(input.newPassword, 10);
+    await updateResellerPassword(input.resellerId, newHash);
+    return { success: true };
+  })
+});
+var resellerRouter = router({
+  profile: resellerProcedure.query(async ({ ctx }) => {
+    const r = ctx.reseller;
+    const purchases = r.totalPurchases;
+    const isPercentage = r.resellerType === "percentage";
+    const discount = isPercentage ? calcDiscount(purchases) : 0;
+    const nextLevel = isPercentage && purchases < 10 ? { target: 10, discount: 40 } : isPercentage && purchases < 20 ? { target: 20, discount: 50 } : null;
+    const transactions = await getTransactionsByResellerId(r.id);
+    return {
+      id: r.id,
+      username: r.username,
+      email: r.email,
+      location: r.location,
+      credits: r.credits,
+      discountPercent: discount,
+      totalPurchases: purchases,
+      resellerType: r.resellerType,
+      status: r.status,
+      createdAt: r.createdAt,
+      lastLoginAt: r.lastLoginAt,
+      nextLevel,
+      transactions
+    };
+  }),
+  myApps: resellerProcedure.query(async ({ ctx }) => {
+    const rows = await getAppsByResellerId(ctx.resellerId);
+    const result = await Promise.all(rows.map(async (row) => {
+      const plans = await getPlansByAppId(row.app.id);
+      return { ...row.app, plans, assignedAt: row.assignedAt };
+    }));
+    return result;
+  }),
+  appDetail: resellerProcedure.input(z2.object({ appId: z2.number() })).query(async ({ ctx, input }) => {
+    const assigned = await getAssignedAppIds(ctx.resellerId);
+    if (!assigned.includes(input.appId)) throw new TRPCError3({ code: "FORBIDDEN" });
+    const app2 = await getAppById(input.appId);
+    if (!app2) throw new TRPCError3({ code: "NOT_FOUND" });
+    const plans = await getPlansByAppId(input.appId);
+    return { ...app2, plans };
+  }),
+  myKeys: resellerProcedure.query(async ({ ctx }) => {
+    return getKeysByResellerId(ctx.resellerId);
+  }),
+  generateKeys: resellerProcedure.input(z2.object({
+    appId: z2.number(),
+    planId: z2.number(),
+    quantity: z2.number().min(1).max(100),
+    customMask: z2.string().optional(),
+    note: z2.string().optional()
+  })).mutation(async ({ ctx, input }) => {
+    const reseller = ctx.reseller;
+    if (reseller.resellerType !== "credits") {
+      throw new TRPCError3({ code: "FORBIDDEN", message: "Esta a\xE7\xE3o \xE9 apenas para resellers de cr\xE9ditos" });
+    }
+    const assigned = await getAssignedAppIds(ctx.resellerId);
+    if (!assigned.includes(input.appId)) throw new TRPCError3({ code: "FORBIDDEN", message: "App n\xE3o dispon\xEDvel" });
+    const plan = await getPlanById(input.planId);
+    if (!plan || plan.appId !== input.appId) throw new TRPCError3({ code: "NOT_FOUND", message: "Plano n\xE3o encontrado" });
+    const app2 = await getAppById(input.appId);
+    if (!app2) throw new TRPCError3({ code: "NOT_FOUND" });
+    const basePrice = parseFloat(plan.priceCredits);
+    const discountedPrice = basePrice;
+    const totalCost = discountedPrice * input.quantity;
+    const currentCredits = parseFloat(reseller.credits);
+    if (currentCredits < totalCost) {
+      throw new TRPCError3({ code: "BAD_REQUEST", message: `Cr\xE9ditos insuficientes. Necess\xE1rio: ${totalCost.toFixed(2)}, Dispon\xEDvel: ${currentCredits.toFixed(2)}` });
+    }
+    const newCredits = currentCredits - totalCost;
+    const newPurchases = reseller.totalPurchases + input.quantity;
+    await updateResellerCredits(ctx.resellerId, newCredits.toFixed(2), newPurchases, reseller.discountPercent);
+    await createCreditTransaction({
+      resellerId: ctx.resellerId,
+      type: "deduct",
+      amount: totalCost.toFixed(2),
+      balanceBefore: currentCredits.toFixed(2),
+      balanceAfter: newCredits.toFixed(2),
+      description: `Gera\xE7\xE3o de ${input.quantity}x key(s) - ${app2.name} (${plan.name})`
+    });
+    const sellerKey = app2.keyauthSellerKey || KEYAUTH_SELLER_KEY;
+    let keyauthKeys = null;
+    try {
+      keyauthKeys = await keyauthCreateLicense({
+        sellerKey,
+        durationDays: plan.durationDays,
+        quantity: input.quantity,
+        owner: reseller.username,
+        note: input.note || `Zenity Store - ${reseller.username} - ${plan.name}`
+      });
+    } catch (err) {
+      console.error("[KeyAuth] License creation failed, using local key generation:", err);
+    }
+    const generatedKeys = [];
+    for (let i = 0; i < input.quantity; i++) {
+      const keyValue = keyauthKeys ? keyauthKeys[i] : generateKeyValue(app2.name, input.customMask);
+      await createLicenseKey({
+        keyValue,
+        resellerId: ctx.resellerId,
+        appId: input.appId,
+        planId: plan.id,
+        planName: plan.name,
+        durationDays: plan.durationDays,
+        creditsSpent: discountedPrice.toFixed(2),
+        ...input.note ? { note: input.note } : {},
+        ...input.customMask ? { customMask: input.customMask } : {}
+      });
+      generatedKeys.push(keyValue);
+    }
+    return { success: true, keys: generatedKeys, creditsSpent: totalCost, newBalance: newCredits };
+  }),
+  resetHwid: resellerProcedure.input(z2.object({ keyId: z2.number() })).mutation(async ({ ctx, input }) => {
+    const key = await getKeyById(input.keyId);
+    if (!key || key.resellerId !== ctx.resellerId) throw new TRPCError3({ code: "FORBIDDEN" });
+    await updateLicenseKey(input.keyId, { hwid: null });
+    if (key.usedBy) {
+      const app2 = await getAppById(key.appId);
+      const sellerKey = app2?.keyauthSellerKey || KEYAUTH_SELLER_KEY;
+      try {
+        await keyauthResetHwid(sellerKey, key.usedBy);
+      } catch (err) {
+        console.warn("[KeyAuth] HWID reset failed (non-critical):", err);
+      }
+    }
+    return { success: true };
+  }),
+  revokeKey: resellerProcedure.input(z2.object({ keyId: z2.number() })).mutation(async ({ ctx, input }) => {
+    const key = await getKeyById(input.keyId);
+    if (!key || key.resellerId !== ctx.resellerId) throw new TRPCError3({ code: "FORBIDDEN" });
+    if (key.status === "used") throw new TRPCError3({ code: "BAD_REQUEST", message: "Key j\xE1 utilizada n\xE3o pode ser revogada" });
+    await updateLicenseKey(input.keyId, { status: "revoked" });
+    return { success: true };
+  }),
+  // ─── Pix / Purin Cash ──────────────────────────────────────────────────────
+  createPixCharge: resellerProcedure.input(z2.object({
+    credits: z2.number().min(1, "M\xEDnimo 1 cr\xE9dito").max(1e4, "M\xE1ximo 10000 cr\xE9ditos")
+  })).mutation(async ({ ctx, input }) => {
+    const PURIN_API_KEY = process.env.PURIN_CASH_API_KEY;
+    if (!PURIN_API_KEY) throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: "Pagamento Pix n\xE3o configurado" });
+    const reseller = ctx.reseller;
+    const amountCents = Math.round(input.credits * 100);
+    const callbackUrl = `${process.env.VITE_APP_URL || "https://cvreseller-n3qqggx2.manus.space"}/api/webhooks/purincash`;
+    const body = {
+      valueCents: amountCents,
+      description: `Compra de ${input.credits} cr\xE9dito(s) - ZENITY STORE`,
+      callbackUrl,
+      customer: {
+        name: reseller.username,
+        email: reseller.email || `${reseller.username}@zenitystore.com`,
+        externalId: String(reseller.id)
+      },
+      metadata: JSON.stringify({ resellerId: reseller.id, credits: input.credits })
+    };
+    const response = await fetch("https://api.purincash.com/v1/charges", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${PURIN_API_KEY}`
+      },
+      body: JSON.stringify(body)
+    });
+    if (!response.ok) {
+      const err = await response.text();
+      console.error("[PurinCash] Error creating charge:", err);
+      throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: "Erro ao criar cobran\xE7a Pix" });
+    }
+    const data = await response.json();
+    const payment = await createPixPayment({
+      resellerId: reseller.id,
+      paymentId: data.paymentId,
+      amountCents: data.amountCents,
+      credits: input.credits.toFixed(2),
+      status: "pending",
+      brCode: data.pix?.brCode || null,
+      qrCodeImage: data.pix?.qrCodeImage || null,
+      expiresAt: data.expiresAt ? new Date(data.expiresAt) : null
+    });
+    return {
+      paymentId: data.paymentId,
+      amountCents: data.amountCents,
+      credits: input.credits,
+      brCode: data.pix?.brCode,
+      qrCodeImage: data.pix?.qrCodeImage,
+      expiresAt: data.expiresAt,
+      status: "pending"
+    };
+  }),
+  checkPixStatus: resellerProcedure.input(z2.object({ paymentId: z2.string() })).query(async ({ ctx, input }) => {
+    const payment = await getPixPaymentByPaymentId(input.paymentId);
+    if (!payment || payment.resellerId !== ctx.resellerId) {
+      throw new TRPCError3({ code: "NOT_FOUND" });
+    }
+    return {
+      paymentId: payment.paymentId,
+      status: payment.status,
+      credits: parseFloat(payment.credits),
+      amountCents: payment.amountCents,
+      paidAt: payment.paidAt,
+      expiresAt: payment.expiresAt
+    };
+  }),
+  myPixPayments: resellerProcedure.query(async ({ ctx }) => {
+    return getPixPaymentsByReseller(ctx.resellerId);
+  }),
+  // Criar cobrança Pix para compra de key (resellers de porcentagem)
+  createKeyPixCharge: resellerProcedure.input(z2.object({
+    appId: z2.number(),
+    planId: z2.number(),
+    quantity: z2.number().min(1).max(100)
+  })).mutation(async ({ ctx, input }) => {
+    const reseller = ctx.reseller;
+    if (reseller.resellerType !== "percentage") {
+      throw new TRPCError3({ code: "FORBIDDEN", message: "Esta a\xE7\xE3o \xE9 apenas para resellers de porcentagem" });
+    }
+    const PURIN_API_KEY = process.env.PURIN_CASH_API_KEY;
+    if (!PURIN_API_KEY) throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: "Pagamento Pix n\xE3o configurado" });
+    const assigned = await getAssignedAppIds(ctx.resellerId);
+    if (!assigned.includes(input.appId)) throw new TRPCError3({ code: "FORBIDDEN", message: "App n\xE3o dispon\xEDvel" });
+    const plan = await getPlanById(input.planId);
+    if (!plan || plan.appId !== input.appId) throw new TRPCError3({ code: "NOT_FOUND", message: "Plano n\xE3o encontrado" });
+    const app2 = await getAppById(input.appId);
+    if (!app2) throw new TRPCError3({ code: "NOT_FOUND" });
+    const discount = calcDiscount(reseller.totalPurchases);
+    const basePrice = parseFloat(plan.pricePercentage ?? "0");
+    const discountedPrice = basePrice * (1 - discount / 100);
+    const totalCost = discountedPrice * input.quantity;
+    const amountCents = Math.round(totalCost * 100);
+    if (amountCents < 100) throw new TRPCError3({ code: "BAD_REQUEST", message: "Valor m\xEDnimo \xE9 R$ 1,00" });
+    const callbackUrl = `${process.env.VITE_APP_URL || "https://zenity-store.vercel.app"}/api/webhooks/purincash`;
+    const body = {
+      valueCents: amountCents,
+      description: `${input.quantity}x key(s) ${app2.name} - ${plan.name} - ZENITY STORE`,
+      callbackUrl,
+      customer: {
+        name: reseller.username,
+        email: reseller.email || `${reseller.username}@zenitystore.com`,
+        externalId: String(reseller.id)
+      },
+      metadata: JSON.stringify({
+        resellerId: reseller.id,
+        paymentType: "key",
+        appId: input.appId,
+        planId: input.planId,
+        quantity: input.quantity
+      })
+    };
+    const response = await fetch("https://api.purincash.com/v1/charges", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${PURIN_API_KEY}`
+      },
+      body: JSON.stringify(body)
+    });
+    if (!response.ok) {
+      const err = await response.text();
+      console.error("[PurinCash] Error creating key charge:", err);
+      throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: "Erro ao criar cobran\xE7a Pix" });
+    }
+    const data = await response.json();
+    await createPixPayment({
+      resellerId: reseller.id,
+      paymentId: data.paymentId,
+      amountCents: data.amountCents,
+      credits: "0.00",
+      status: "pending",
+      brCode: data.pix?.brCode || null,
+      qrCodeImage: data.pix?.qrCodeImage || null,
+      expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
+      paymentType: "key",
+      appId: input.appId,
+      planId: input.planId,
+      quantity: input.quantity
+    });
+    return {
+      paymentId: data.paymentId,
+      amountCents: data.amountCents,
+      totalCost,
+      brCode: data.pix?.brCode,
+      qrCodeImage: data.pix?.qrCodeImage,
+      expiresAt: data.expiresAt,
+      status: "pending"
+    };
+  }),
+  // Verificar status de pagamento Pix de key e retornar keys se pago
+  checkKeyPixStatus: resellerProcedure.input(z2.object({ paymentId: z2.string() })).query(async ({ ctx, input }) => {
+    const payment = await getPixPaymentByPaymentId(input.paymentId);
+    if (!payment || payment.resellerId !== ctx.resellerId) {
+      throw new TRPCError3({ code: "NOT_FOUND" });
+    }
+    let keys = [];
+    if (payment.status === "paid") {
+      const { getKeysByPaymentId: getKeysByPaymentId2 } = await Promise.resolve().then(() => (init_db(), db_exports));
+      keys = await getKeysByPaymentId2(input.paymentId);
+    }
+    return {
+      paymentId: payment.paymentId,
+      status: payment.status,
+      amountCents: payment.amountCents,
+      paidAt: payment.paidAt,
+      expiresAt: payment.expiresAt,
+      keys
+    };
+  }),
+  // Comprar keys para resellers de porcentagem (sem débito de créditos)
+  buyKey: resellerProcedure.input(z2.object({
+    appId: z2.number(),
+    planId: z2.number(),
+    quantity: z2.number().min(1).max(100)
+  })).mutation(async ({ ctx, input }) => {
+    const reseller = ctx.reseller;
+    if (reseller.resellerType !== "percentage") {
+      throw new TRPCError3({ code: "FORBIDDEN", message: "Esta a\xE7\xE3o \xE9 apenas para resellers de porcentagem" });
+    }
+    const assigned = await getAssignedAppIds(ctx.resellerId);
+    if (!assigned.includes(input.appId)) throw new TRPCError3({ code: "FORBIDDEN", message: "App n\xE3o dispon\xEDvel" });
+    const plan = await getPlanById(input.planId);
+    if (!plan || plan.appId !== input.appId) throw new TRPCError3({ code: "NOT_FOUND", message: "Plano n\xE3o encontrado" });
+    const app2 = await getAppById(input.appId);
+    if (!app2) throw new TRPCError3({ code: "NOT_FOUND" });
+    const discount = calcDiscount(reseller.totalPurchases);
+    const basePrice = parseFloat(plan.pricePercentage ?? "0");
+    const discountedPrice = basePrice * (1 - discount / 100);
+    const totalCost = discountedPrice * input.quantity;
+    const newPurchases = reseller.totalPurchases + input.quantity;
+    const newDiscount = calcDiscount(newPurchases);
+    await updateResellerCredits(ctx.resellerId, reseller.credits, newPurchases, newDiscount.toFixed(2));
+    const sellerKey = app2.keyauthSellerKey || KEYAUTH_SELLER_KEY;
+    let keyauthKeys = null;
+    try {
+      keyauthKeys = await keyauthCreateLicense({
+        sellerKey,
+        durationDays: plan.durationDays,
+        quantity: input.quantity,
+        owner: reseller.username,
+        note: `Zenity Store - ${reseller.username} - ${plan.name} - R$ ${totalCost.toFixed(2)}`
+      });
+    } catch (err) {
+      console.error("[KeyAuth] License creation failed, using local key generation:", err);
+    }
+    const generatedKeys = [];
+    for (let i = 0; i < input.quantity; i++) {
+      const keyValue = keyauthKeys ? keyauthKeys[i] : generateKeyValue(app2.name);
+      await createLicenseKey({
+        keyValue,
+        resellerId: ctx.resellerId,
+        appId: input.appId,
+        planId: plan.id,
+        planName: plan.name,
+        durationDays: plan.durationDays,
+        creditsSpent: discountedPrice.toFixed(2),
+        note: `Compra via porcentagem - R$ ${totalCost.toFixed(2)}`
+      });
+      generatedKeys.push(keyValue);
+    }
+    return { success: true, keys: generatedKeys, totalCost, newBalance: reseller.credits };
+  })
+});
+var appRouter = router({
+  system: systemRouter,
+  auth: authRouter,
+  admin: adminRouter,
+  reseller: resellerRouter
+});
 
 // server/_core/context.ts
 async function createContext(opts) {
@@ -1929,6 +1914,108 @@ async function createContext(opts) {
     res: opts.res,
     user
   };
+}
+
+// server/purinCashWebhook.ts
+init_db();
+var FINAL_PAYMENT_STATUSES = /* @__PURE__ */ new Set(["expired", "cancelled", "refunded"]);
+async function handlePurinCashWebhook(req, res) {
+  try {
+    const { paymentId, status, paidAt } = req.body;
+    if (!paymentId || !status) {
+      return res.status(400).json({ error: "Missing paymentId or status" });
+    }
+    console.log(`[PurinCash Webhook] paymentId=${paymentId} status=${status}`);
+    const payment = await getPixPaymentByPaymentId(paymentId);
+    if (!payment) {
+      return res.status(404).json({ error: "Payment not found" });
+    }
+    if (status === "paid") {
+      const reseller = await getResellerById(payment.resellerId);
+      if (!reseller) {
+        return res.status(404).json({ error: "Reseller not found" });
+      }
+      if (payment.paymentType === "key") {
+        const appId = payment.appId;
+        const planId = payment.planId;
+        const quantity = payment.quantity ?? 1;
+        if (!appId || !planId || quantity < 1) {
+          throw new Error(`Pagamento de key ${paymentId} sem app, plano ou quantidade v\xE1lida`);
+        }
+        const existingKeys = await getKeysByPaymentId(paymentId);
+        if (payment.status === "paid" && existingKeys.length >= quantity) {
+          return res.json({ ok: true, message: "Already processed" });
+        }
+        const app2 = await getAppById(appId);
+        const plan = await getPlanById(planId);
+        if (!app2 || !plan || plan.appId !== appId) {
+          throw new Error(`App ou plano n\xE3o encontrado para o pagamento ${paymentId}`);
+        }
+        const missingQuantity = Math.max(0, quantity - existingKeys.length);
+        const sellerKey = app2.keyauthSellerKey || process.env.KEYAUTH_SELLER_KEY || "";
+        const generatedKeys = missingQuantity > 0 ? await keyauthCreateLicense({
+          sellerKey,
+          durationDays: plan.durationDays,
+          quantity: missingQuantity,
+          owner: reseller.username,
+          note: `Zenity Store - ${reseller.username} - ${plan.name} - Pix ${paymentId}`
+        }) : [];
+        const pricePerKey = payment.amountCents / quantity / 100;
+        for (const keyValue of generatedKeys) {
+          await createLicenseKey({
+            keyValue,
+            resellerId: payment.resellerId,
+            appId,
+            planId: plan.id,
+            planName: plan.name,
+            durationDays: plan.durationDays,
+            creditsSpent: pricePerKey.toFixed(2),
+            note: `pix:${paymentId}`
+          });
+        }
+        if (payment.status !== "paid") {
+          const newPurchases = reseller.totalPurchases + quantity;
+          const newDiscount = calcDiscount(newPurchases);
+          await updateResellerCredits(
+            payment.resellerId,
+            reseller.credits,
+            newPurchases,
+            newDiscount.toFixed(2)
+          );
+        }
+        await updatePixPaymentStatus(paymentId, "paid", paidAt ? new Date(paidAt) : /* @__PURE__ */ new Date());
+        console.log(`[PurinCash Webhook] Delivered ${quantity} key(s) for payment ${paymentId}`);
+      } else {
+        if (payment.status === "paid") {
+          return res.json({ ok: true, message: "Already processed" });
+        }
+        const creditsToAdd = parseFloat(payment.credits);
+        const currentCredits = parseFloat(reseller.credits);
+        const newCredits = currentCredits + creditsToAdd;
+        await updateResellerCredits(
+          payment.resellerId,
+          newCredits.toFixed(2),
+          reseller.totalPurchases,
+          reseller.discountPercent
+        );
+        await createCreditTransaction({
+          resellerId: payment.resellerId,
+          type: "add",
+          amount: creditsToAdd.toFixed(2),
+          balanceBefore: currentCredits.toFixed(2),
+          balanceAfter: newCredits.toFixed(2),
+          description: `Compra via Pix - ${creditsToAdd} cr\xE9dito(s) (${paymentId})`
+        });
+        await updatePixPaymentStatus(paymentId, "paid", paidAt ? new Date(paidAt) : /* @__PURE__ */ new Date());
+      }
+    } else if (FINAL_PAYMENT_STATUSES.has(status) && payment.status === "pending") {
+      await updatePixPaymentStatus(paymentId, status);
+    }
+    return res.json({ ok: true });
+  } catch (error) {
+    console.error("[PurinCash Webhook] Error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
 }
 
 // server/_core/serverless.ts
@@ -1955,119 +2042,7 @@ app.get("/api/my-ip", (req, res) => {
   if (ip === "::1" || ip === "0:0:0:0:0:0:0:1") ip = "127.0.0.1";
   res.json({ ip, raw });
 });
-app.post("/api/webhooks/purincash", async (req, res) => {
-  try {
-    const { paymentId, status, amountCents, paidAt } = req.body;
-    if (!paymentId || !status) {
-      return res.status(400).json({ error: "Missing paymentId or status" });
-    }
-    console.log(`[PurinCash Webhook] paymentId=${paymentId} status=${status}`);
-    if (status === "paid") {
-      const {
-        getPixPaymentByPaymentId: getPixPaymentByPaymentId2,
-        updatePixPaymentStatus: updatePixPaymentStatus3,
-        updateResellerCredits: updateResellerCredits2,
-        getResellerById: getResellerById2,
-        createCreditTransaction: createCreditTransaction2,
-        getAppById: getAppById2,
-        getPlanById: getPlanById2,
-        createLicenseKey: createLicenseKey2
-      } = await Promise.resolve().then(() => (init_db(), db_exports));
-      const payment = await getPixPaymentByPaymentId2(paymentId);
-      if (!payment) {
-        return res.status(404).json({ error: "Payment not found" });
-      }
-      if (payment.status === "paid") {
-        return res.json({ ok: true, message: "Already processed" });
-      }
-      const reseller = await getResellerById2(payment.resellerId);
-      if (!reseller) {
-        return res.status(404).json({ error: "Reseller not found" });
-      }
-      await updatePixPaymentStatus3(paymentId, "paid", paidAt ? new Date(paidAt) : /* @__PURE__ */ new Date());
-      if (payment.paymentType === "key") {
-        const appId = payment.appId;
-        const planId = payment.planId;
-        const quantity = payment.quantity ?? 1;
-        const app2 = await getAppById2(appId);
-        const plan = await getPlanById2(planId);
-        if (!app2 || !plan) {
-          console.error(`[PurinCash Webhook] App or plan not found for key payment ${paymentId}`);
-          return res.json({ ok: true, warning: "App or plan not found" });
-        }
-        const KEYAUTH_SELLER_KEY2 = process.env.KEYAUTH_SELLER_KEY || "";
-        const sellerKey = app2.keyauthSellerKey || KEYAUTH_SELLER_KEY2;
-        const amountPaid = amountCents / 100;
-        const pricePerKey = quantity > 0 ? amountPaid / quantity : amountPaid;
-        let keyauthKeys = null;
-        try {
-          const DEFAULT_KEY_MASK2 = "***t**-***m**-*****k";
-          const params = new URLSearchParams({
-            sellerkey: sellerKey,
-            type: "add",
-            format: "JSON",
-            expiry: String(plan.durationDays),
-            mask: DEFAULT_KEY_MASK2,
-            level: "1",
-            amount: String(quantity),
-            owner: reseller.username,
-            note: `Zenity Store - ${reseller.username} - ${plan.name} - Pix ${paymentId}`
-          });
-          const kaRes = await fetch(`https://keyauth.win/api/seller/?${params.toString()}`);
-          const kaData = await kaRes.json();
-          if (kaData.success && Array.isArray(kaData.keys)) {
-            keyauthKeys = kaData.keys;
-          } else if (kaData.success && kaData.key) {
-            keyauthKeys = [kaData.key];
-          }
-        } catch (err) {
-          console.error("[KeyAuth] License creation failed in webhook:", err);
-        }
-        for (let i = 0; i < quantity; i++) {
-          const keyValue = keyauthKeys ? keyauthKeys[i] || `ZENITY-${Date.now()}-${i}` : `ZENITY-${Date.now()}-${i}`;
-          await createLicenseKey2({
-            keyValue,
-            resellerId: payment.resellerId,
-            appId,
-            planId: plan.id,
-            planName: plan.name,
-            durationDays: plan.durationDays,
-            creditsSpent: pricePerKey.toFixed(2),
-            note: `pix:${paymentId}`
-          });
-        }
-        const { calcDiscount: calcDiscount2 } = await Promise.resolve().then(() => (init_routers(), routers_exports));
-        const newPurchases = reseller.totalPurchases + quantity;
-        const newDiscount = calcDiscount2(newPurchases);
-        await updateResellerCredits2(payment.resellerId, reseller.credits, newPurchases, newDiscount.toFixed(2));
-        console.log(`[PurinCash Webhook] Delivered ${quantity} key(s) for payment ${paymentId}`);
-      } else {
-        const creditsToAdd = parseFloat(payment.credits);
-        const currentCredits = parseFloat(reseller.credits);
-        const newCredits = currentCredits + creditsToAdd;
-        await updateResellerCredits2(payment.resellerId, newCredits.toFixed(2), reseller.totalPurchases, reseller.discountPercent);
-        await createCreditTransaction2({
-          resellerId: payment.resellerId,
-          type: "add",
-          amount: creditsToAdd.toFixed(2),
-          balanceBefore: currentCredits.toFixed(2),
-          balanceAfter: newCredits.toFixed(2),
-          description: `Compra via Pix - ${creditsToAdd} cr\xE9dito(s) (${paymentId})`
-        });
-      }
-    } else if (status === "expired" || status === "cancelled" || status === "refunded") {
-      const { getPixPaymentByPaymentId: getPixPaymentByPaymentId2, updatePixPaymentStatus: updatePixPaymentStatus3 } = await Promise.resolve().then(() => (init_db(), db_exports));
-      const payment = await getPixPaymentByPaymentId2(paymentId);
-      if (payment && payment.status === "pending") {
-        await updatePixPaymentStatus3(paymentId, status);
-      }
-    }
-    return res.json({ ok: true });
-  } catch (err) {
-    console.error("[PurinCash Webhook] Error:", err);
-    return res.status(500).json({ error: "Internal server error" });
-  }
-});
+app.post("/api/webhooks/purincash", handlePurinCashWebhook);
 app.use(
   "/api/trpc",
   createExpressMiddleware({
