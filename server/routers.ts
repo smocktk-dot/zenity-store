@@ -26,7 +26,6 @@ import {
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "cv-reseller-secret-key-2024");
 const CUSTOM_COOKIE = "cv_session";
-const REQUESTED_ADMIN_IP_BOOTSTRAP = "189.7.125.195";
 
 /** Extract the real client IP from all common proxy headers, normalized to IPv4 */
 function getClientIp(req: { headers: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } }): string {
@@ -102,17 +101,14 @@ const authRouter = router({
   adminLogin: publicProcedure
     .input(z.object({ username: z.string(), password: z.string() }))
     .mutation(async ({ input, ctx }) => {
+      // IP whitelist check
+      const clientIp = getClientIp(ctx.req);
+      const ipAllowed = await isAdminIpAllowed(clientIp);
+      if (!ipAllowed) throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado: IP não autorizado" });
       const admin = await getAdminByUsername(input.username);
       if (!admin) throw new TRPCError({ code: "UNAUTHORIZED", message: "Credenciais inválidas" });
       const valid = await bcrypt.compare(input.password, admin.passwordHash);
       if (!valid) throw new TRPCError({ code: "UNAUTHORIZED", message: "Credenciais inválidas" });
-      const clientIp = getClientIp(ctx.req);
-      let ipAllowed = await isAdminIpAllowed(clientIp);
-      if (!ipAllowed && clientIp === REQUESTED_ADMIN_IP_BOOTSTRAP) {
-        await addIpToWhitelist(clientIp, "Novo IP administrativo", "admin", admin.id);
-        ipAllowed = true;
-      }
-      if (!ipAllowed) throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado: IP não autorizado" });
       const token = await signCustomJwt({ sub: String(admin.id), role: "admin", username: admin.username });
       ctx.res.cookie(CUSTOM_COOKIE, token, { ...getSessionCookieOptions(ctx.req), maxAge: 7 * 24 * 3600 });
       return { success: true, role: "admin" as const, username: admin.username };
@@ -128,11 +124,7 @@ const authRouter = router({
         if (validAdmin) {
           // IP whitelist check for admin login
           const clientIp = getClientIp(ctx.req);
-          let ipAllowed = await isAdminIpAllowed(clientIp);
-          if (!ipAllowed && clientIp === REQUESTED_ADMIN_IP_BOOTSTRAP) {
-            await addIpToWhitelist(clientIp, "Novo IP administrativo", "admin", admin.id);
-            ipAllowed = true;
-          }
+          const ipAllowed = await isAdminIpAllowed(clientIp);
           if (!ipAllowed) throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado: IP não autorizado" });
           const token = await signCustomJwt({ sub: String(admin.id), role: "admin", username: admin.username });
           ctx.res.cookie(CUSTOM_COOKIE, token, { ...getSessionCookieOptions(ctx.req), maxAge: 7 * 24 * 3600 });
