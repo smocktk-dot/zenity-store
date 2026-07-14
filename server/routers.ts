@@ -803,6 +803,133 @@ const resellerRouter = router({
       };
     }),
 
+  // Criar cobrança LTC para compra de key (resellers de porcentagem)
+  createKeyLtcCharge: resellerProcedure
+    .input(z.object({
+      appId: z.number(), planId: z.number(), quantity: z.number().min(1).max(100),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const reseller = ctx.reseller;
+      if (reseller.resellerType !== "percentage") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Esta ação é apenas para resellers de porcentagem" });
+      }
+
+      const PURIN_API_KEY = process.env.PURIN_CASH_API_KEY;
+      if (!PURIN_API_KEY) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Pagamento Crypto não configurado" });
+
+      const assigned = await getAssignedAppIds(ctx.resellerId);
+      if (!assigned.includes(input.appId)) throw new TRPCError({ code: "FORBIDDEN", message: "App não disponível" });
+
+      const plan = await getPlanById(input.planId);
+      if (!plan || plan.appId !== input.appId) throw new TRPCError({ code: "NOT_FOUND", message: "Plano não encontrado" });
+
+      const app = await getAppById(input.appId);
+      if (!app) throw new TRPCError({ code: "NOT_FOUND" });
+
+      // Calcular preço com desconto progressivo
+      const discount = calcDiscount(reseller.totalPurchases);
+      const basePrice = parseFloat((plan as any).pricePercentage ?? "0");
+      const discountedPrice = basePrice * (1 - discount / 100);
+      const totalCost = discountedPrice * input.quantity;
+      const amountCents = Math.round(totalCost * 100);
+
+      if (amountCents < 100) throw new TRPCError({ code: "BAD_REQUEST", message: "Valor mínimo é R$ 1,00" });
+
+      const callbackUrl = `${process.env.VITE_APP_URL || "https://zenity-store.vercel.app"}/api/webhooks/purincash`;
+
+      const body = {
+        valueCents: amountCents,
+        description: `${input.quantity}x key(s) ${app.name} - ${plan.name} - ZENITY STORE`,
+        paymentMethod: "ltc",
+        callbackUrl,
+        customer: {
+          name: reseller.username,
+          email: reseller.email || `${reseller.username}@zenitystore.com`,
+          externalId: String(reseller.id),
+        },
+        metadata: JSON.stringify({
+          resellerId: reseller.id,
+          paymentType: "key",
+          appId: input.appId,
+          planId: input.planId,
+          quantity: input.quantity,
+        }),
+      };
+
+      const response = await fetch("https://api.purincash.com/v1/payments", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${PURIN_API_KEY}`,
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const err = await response.text();
+        console.error("[PurinCash LTC] Error creating charge:", err);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Erro ao criar cobrança LTC: ${err}` });
+      }
+
+      const data = await response.json() as {
+        paymentId: string;
+        status: string;
+        amountCents: number;
+        ltc: { address: string; amount: number; amountBrl: number; ltcPriceBrl: number };
+        expiresAt: string;
+      };
+
+      await createPixPayment({
+        resellerId: reseller.id,
+        paymentId: data.paymentId,
+        amountCents: data.amountCents,
+        credits: "0.00",
+        status: "pending",
+        brCode: null,
+        qrCodeImage: null,
+        expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
+        paymentType: "key",
+        paymentMethod: "ltc",
+        appId: input.appId,
+        planId: input.planId,
+        quantity: input.quantity,
+      } as any);
+
+      return {
+        paymentId: data.paymentId,
+        amountCents: data.amountCents,
+        totalCost,
+        ltcAddress: data.ltc?.address || "",
+        ltcAmount: data.ltc?.amount || 0,
+        ltcPriceBrl: data.ltc?.ltcPriceBrl || 0,
+        expiresAt: data.expiresAt,
+        status: "pending" as const,
+      };
+    }),
+
+  // Verificar status de pagamento LTC de key e retornar keys se pago
+  checkKeyLtcStatus: resellerProcedure
+    .input(z.object({ paymentId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const payment = await getPixPaymentByPaymentId(input.paymentId);
+      if (!payment || payment.resellerId !== ctx.resellerId) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
+      let keys: string[] = [];
+      if (payment.status === "paid") {
+        const { getKeysByPaymentId } = await import("./db");
+        keys = await getKeysByPaymentId(input.paymentId);
+      }
+      return {
+        paymentId: payment.paymentId,
+        status: payment.status,
+        amountCents: payment.amountCents,
+        paidAt: payment.paidAt,
+        expiresAt: payment.expiresAt,
+        keys,
+      };
+    }),
+
   // Comprar keys para resellers de porcentagem (sem débito de créditos)
   buyKey: resellerProcedure
     .input(z.object({

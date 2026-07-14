@@ -4,21 +4,24 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { User, AppWindow, Key, LogOut, Shield } from "lucide-react";
 import InteractiveStars from "@/components/InteractiveStars";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 const LOGO_URL = "/logo.png";
-
-const navItems = [
-  { href: "/reseller", icon: User, label: "Perfil" },
-  { href: "/reseller/apps", icon: AppWindow, label: "Apps" },
-  { href: "/reseller/keys", icon: Key, label: "Minhas Keys" },
-];
 
 export default function ResellerLayout({ children }: { children: React.ReactNode }) {
   const [location, navigate] = useLocation();
   const { data: session, isLoading } = trpc.auth.session.useQuery(undefined, { retry: false });
+  const { t } = useLanguage();
   const logout = trpc.auth.logout.useMutation({
-    onSuccess: () => { toast.success("Logout realizado"); navigate("/"); },
+    onSuccess: () => { toast.success(t.nav_logout_success); navigate("/"); },
   });
+
+  const navItems = [
+    { href: "/reseller", icon: User, label: t.nav_profile },
+    { href: "/reseller/apps", icon: AppWindow, label: t.nav_apps },
+    { href: "/reseller/keys", icon: Key, label: t.nav_my_keys },
+  ];
 
   // Allow both resellers and admins to access the reseller panel
   useEffect(() => {
@@ -33,7 +36,7 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
         <div className="galaxy-bg"><div className="galaxy-stars" /></div>
         <div className="relative z-10 flex items-center gap-3 text-gray-400">
           <div className="w-5 h-5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
-          Carregando...
+          {t.nav_loading}
         </div>
       </div>
     );
@@ -114,15 +117,18 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
                     onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = "rgba(124,58,237,0.12)"; (e.currentTarget as HTMLDivElement).style.color = "#a78bfa"; }}
                   >
                     <Shield className="w-3.5 h-3.5" />
-                    Admin Panel
+                    {t.nav_admin_panel}
                   </div>
                 </Link>
               )}
             </nav>
           </div>
 
-          {/* Right: badges + user */}
+          {/* Right: language + badges + user */}
           <div className="flex items-center gap-2">
+            {/* Language Switcher */}
+            <LanguageSwitcher />
+
             {/* Admin badge */}
             {isAdmin && (
               <div
@@ -147,7 +153,7 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
                 style={{ background: "rgba(124,58,237,0.08)", border: "1px solid rgba(124,58,237,0.2)", color: "#a78bfa" }}
               >
-                {parseFloat((resellerSession as any).discountPercent ?? "35").toFixed(0)}% desc
+                {parseFloat((resellerSession as any).discountPercent ?? "35").toFixed(0)}% {t.general_discount}
               </div>
             )}
 
@@ -171,7 +177,7 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
               onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#6b7280"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
             >
               <LogOut className="w-3.5 h-3.5" />
-              Logout
+              {t.nav_logout}
             </button>
           </div>
         </div>

@@ -1,4 +1,4 @@
-import { eq, and, desc, sql, inArray } from "drizzle-orm";
+import { eq, and, desc, sql, inArray, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { InsertUser, users, admins, resellers, categories, apps, subscriptionPlans, resellerApps, licenseKeys, creditTransactions, ipWhitelist, pixPayments } from "../drizzle/schema";
@@ -42,6 +42,7 @@ export async function ensurePixPaymentSchema(): Promise<void> {
   if (!_pixPaymentSchemaReady) {
     _pixPaymentSchemaReady = _sqlClient.begin(async sql => {
       await sql.unsafe(`ALTER TABLE "pix_payments" ADD COLUMN IF NOT EXISTS "paymentType" varchar(32) DEFAULT 'credits' NOT NULL`);
+      await sql.unsafe(`ALTER TABLE "pix_payments" ADD COLUMN IF NOT EXISTS "paymentMethod" varchar(16) DEFAULT 'pix'`);
       await sql.unsafe(`ALTER TABLE "pix_payments" ADD COLUMN IF NOT EXISTS "appId" integer`);
       await sql.unsafe(`ALTER TABLE "pix_payments" ADD COLUMN IF NOT EXISTS "planId" integer`);
       await sql.unsafe(`ALTER TABLE "pix_payments" ADD COLUMN IF NOT EXISTS "quantity" integer DEFAULT 1`);
@@ -470,9 +471,15 @@ export async function getPixPaymentsByReseller(resellerId: number) {
 export async function getKeysByPaymentId(paymentId: string): Promise<string[]> {
   const db = await getDb();
   if (!db) return [];
+  // Support both pix: and ltc: prefixes for payment notes
   const rows = await db.select({ keyValue: licenseKeys.keyValue })
     .from(licenseKeys)
-    .where(eq(licenseKeys.note, `pix:${paymentId}`));
+    .where(
+      or(
+        eq(licenseKeys.note, `pix:${paymentId}`),
+        eq(licenseKeys.note, `ltc:${paymentId}`)
+      )
+    );
   return rows.map(r => r.keyValue);
 }
 

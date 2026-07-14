@@ -5,6 +5,8 @@ import { toast } from "sonner";
 import { Eye, EyeOff, LogIn } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import InteractiveStars from "@/components/InteractiveStars";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 const LOGO_URL = "/logo.png";
 
@@ -13,11 +15,12 @@ export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
+  const { t } = useLanguage();
 
   // Unified login: tries reseller first, then admin (admin gets redirected to /admin)
   const resellerLogin = trpc.auth.resellerLogin.useMutation({
     onSuccess: (data) => {
-      toast.success("Login realizado com sucesso!");
+      toast.success(t.login_success);
       // If admin logged in via reseller flow, go to admin panel
       if (data.role === "admin") {
         navigate("/admin");
@@ -30,7 +33,7 @@ export default function LoginPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!username || !password) { toast.error("Preencha todos os campos"); return; }
+    if (!username || !password) { toast.error(t.login_fill_fields); return; }
     resellerLogin.mutate({ username, password });
   };
 
@@ -45,6 +48,11 @@ export default function LoginPage() {
         <div className="galaxy-shooting-star" style={{ animationDelay: "13s", top: "65%" }} />
       </div>
       <InteractiveStars />
+
+      {/* Language switcher top right */}
+      <div className="absolute top-4 right-4 z-20">
+        <LanguageSwitcher />
+      </div>
 
       {/* Glow orbs */}
       <div className="absolute inset-0 z-0 pointer-events-none">
@@ -78,7 +86,7 @@ export default function LoginPage() {
               <p className="text-sm font-bold tracking-[0.4em] mt-0.5" style={{ color: "#a78bfa" }}>STORE</p>
             </div>
           </div>
-          <p className="text-gray-500 text-sm">Reseller Management Panel</p>
+          <p className="text-gray-500 text-sm">{t.login_title}</p>
         </div>
 
         {/* Card */}
@@ -98,18 +106,18 @@ export default function LoginPage() {
                 <LogIn className="w-4 h-4" style={{ color: "#a78bfa" }} />
               </div>
               <div>
-                <h2 className="text-white font-bold text-lg leading-none">Reseller Access</h2>
-                <p className="text-gray-600 text-xs mt-0.5">Sign in to your reseller account</p>
+                <h2 className="text-white font-bold text-lg leading-none">{t.login_reseller_access}</h2>
+                <p className="text-gray-600 text-xs mt-0.5">{t.login_sign_in_desc}</p>
               </div>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-gray-400 text-xs font-semibold uppercase tracking-wider">Username</label>
+                <label className="text-gray-400 text-xs font-semibold uppercase tracking-wider">{t.login_username}</label>
                 <Input
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Digite seu usuário"
+                  placeholder={t.login_username_placeholder}
                   autoComplete="username"
                   className="h-11 text-white placeholder:text-gray-600 transition-all"
                   style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
@@ -118,7 +126,7 @@ export default function LoginPage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-gray-400 text-xs font-semibold uppercase tracking-wider">Password</label>
+                <label className="text-gray-400 text-xs font-semibold uppercase tracking-wider">{t.login_password}</label>
                 <div className="relative">
                   <Input
                     type={showPass ? "text" : "password"}
@@ -155,25 +163,25 @@ export default function LoginPage() {
                 {isLoading ? (
                   <>
                     <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Entrando...
+                    {t.login_signing_in}
                   </>
                 ) : (
                   <>
                     <LogIn className="w-4 h-4" />
-                    Sign In
+                    {t.login_sign_in}
                   </>
                 )}
               </button>
             </form>
 
             <p className="text-center text-gray-700 text-xs mt-5">
-              Secure reseller access for ZENITY STORE
+              {t.login_secure_access}
             </p>
           </div>
         </div>
 
         <p className="text-center text-gray-700 text-xs mt-6">
-          © 2025 ZENITY STORE. All rights reserved.
+          {t.login_copyright}
         </p>
       </div>
     </div>

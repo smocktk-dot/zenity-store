@@ -62,17 +62,23 @@ export async function handlePurinCashWebhook(req: Request, res: Response) {
 
         const missingQuantity = Math.max(0, quantity - existingKeys.length);
         const sellerKey = app.keyauthSellerKey || process.env.KEYAUTH_SELLER_KEY || "";
+
+        // Detect if this is an LTC payment using the stored paymentMethod field
+        const isLtcPayment = (payment as any).paymentMethod === "ltc";
+
         const generatedKeys = missingQuantity > 0
           ? await keyauthCreateLicense({
               sellerKey,
               durationDays: plan.durationDays,
               quantity: missingQuantity,
               owner: reseller.username,
-              note: `Zenity Store - ${reseller.username} - ${plan.name} - Pix ${paymentId}`,
+              note: `Zenity Store - ${reseller.username} - ${plan.name} - ${isLtcPayment ? "LTC" : "Pix"} ${paymentId}`,
             })
           : [];
 
         const pricePerKey = payment.amountCents / quantity / 100;
+        // Use note prefix based on stored paymentMethod
+        const notePrefix = isLtcPayment ? "ltc" : "pix";
         for (const keyValue of generatedKeys) {
           await createLicenseKey({
             keyValue,
@@ -82,7 +88,7 @@ export async function handlePurinCashWebhook(req: Request, res: Response) {
             planName: plan.name,
             durationDays: plan.durationDays,
             creditsSpent: pricePerKey.toFixed(2),
-            note: `pix:${paymentId}`,
+            note: `${notePrefix}:${paymentId}`,
           });
         }
 

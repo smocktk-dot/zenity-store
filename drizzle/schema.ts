@@ -176,6 +176,7 @@ export const pixPayments = pgTable("pix_payments", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   // Key purchase fields (null for credit purchases)
   paymentType: varchar("paymentType", { length: 32 }).default("credits").notNull(), // 'credits' | 'key'
+  paymentMethod: varchar("paymentMethod", { length: 16 }).default("pix"), // 'pix' | 'ltc'
   appId: integer("appId").references(() => apps.id),
   planId: integer("planId").references(() => subscriptionPlans.id),
   quantity: integer("quantity").default(1),
