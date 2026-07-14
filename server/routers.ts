@@ -835,6 +835,29 @@ const resellerRouter = router({
 
       if (amountCents < 100) throw new TRPCError({ code: "BAD_REQUEST", message: "Valor mínimo é R$ 1,00" });
 
+      // Buscar cotação LTC/BRL ANTES de criar a cobrança
+      let ltcPriceBrl = 0;
+      try {
+        const priceRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=litecoin&vs_currencies=brl", { headers: { "Accept": "application/json" } });
+        if (priceRes.ok) {
+          const priceData = await priceRes.json() as { litecoin?: { brl?: number } };
+          ltcPriceBrl = priceData?.litecoin?.brl || 0;
+        }
+      } catch (e) { console.warn("[CoinGecko] LTC price failed:", e); }
+
+      if (!ltcPriceBrl) {
+        try {
+          const binanceRes = await fetch("https://api.binance.com/api/v3/ticker/price?symbol=LTCBRL");
+          if (binanceRes.ok) {
+            const bd = await binanceRes.json() as { price?: string };
+            ltcPriceBrl = parseFloat(bd?.price || "0");
+          }
+        } catch (e) { console.warn("[Binance] LTC price failed:", e); }
+      }
+
+      if (!ltcPriceBrl) ltcPriceBrl = 800; // fallback fixo ~R$800/LTC
+      const ltcAmountCalc = parseFloat((totalCost / ltcPriceBrl).toFixed(8));
+
       const callbackUrl = `${process.env.VITE_APP_URL || "https://zenity-store.vercel.app"}/api/webhooks/purincash`;
 
       const body = {
@@ -883,17 +906,9 @@ const resellerRouter = router({
 
       console.log("[PurinCash LTC] Response:", JSON.stringify(data));
 
-      // Fallback: buscar cotação LTC/BRL se a API não retornar
-      let ltcPriceBrl = data.ltc?.ltcPriceBrl || data.crypto?.ltcPriceBrl || 0;
-      if (!ltcPriceBrl) {
-        try {
-          const priceRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=litecoin&vs_currencies=brl");
-          const priceData = await priceRes.json() as { litecoin?: { brl?: number } };
-          ltcPriceBrl = priceData?.litecoin?.brl || 0;
-        } catch { ltcPriceBrl = 0; }
-      }
+      // Usar endereço da Purin Cash se disponivel, senão usar o fixo
       const ltcAddress = data.ltc?.address || data.crypto?.address || data.address || "LaaSCwpGiZhtrCD8qWxiZGdwEFYnHqxDxK";
-      const ltcAmountCalc = ltcPriceBrl > 0 ? totalCost / ltcPriceBrl : (data.ltc?.amount || data.crypto?.amount || 0);
+      // ltcAmountCalc e ltcPriceBrl já calculados antes da chamada à API
 
       await createPixPayment({
         resellerId: reseller.id,

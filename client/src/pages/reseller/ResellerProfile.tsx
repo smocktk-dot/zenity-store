@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useCurrency } from "@/hooks/useCurrency";
 
 function formatDate(d: Date | null | undefined, lang: "pt" | "en") {
   if (!d) return "—";
@@ -34,6 +35,7 @@ function BuyCreditsModal({ open, onClose, currentCredits, onSuccess }: PixModalP
   const [step, setStep] = useState<PixStep>("select");
   const [amount, setAmount] = useState("");
   const [copied, setCopied] = useState(false);
+  const { fmt, fmtCents } = useCurrency();
   const [pixData, setPixData] = useState<{
     paymentId: string;
     brCode: string;
@@ -185,7 +187,7 @@ function BuyCreditsModal({ open, onClose, currentCredits, onSuccess }: PixModalP
                 {amount && parseInt(amount) > 0 && (
                   <p className="text-violet-400 text-xs mt-1.5 flex items-center gap-1">
                     <Zap className="w-3 h-3" />
-                    {language === "en" ? "Amount to pay:" : "Valor a pagar:"} <span className="font-mono font-bold">R$ {parseInt(amount).toFixed(2)}</span>
+                    {language === "en" ? "Amount to pay:" : "Valor a pagar:"} <span className="font-mono font-bold">{fmt(parseInt(amount))}</span>
                   </p>
                 )}
               </div>
@@ -220,7 +222,7 @@ function BuyCreditsModal({ open, onClose, currentCredits, onSuccess }: PixModalP
             <div className="p-6 space-y-5">
               <div className="text-center">
                 <p className="text-gray-500 text-xs mb-1">{t.buy_credits_amount_to_pay}</p>
-                <p className="text-white text-4xl font-bold font-mono">R$ {(pixData.amountCents / 100).toFixed(2)}</p>
+                <p className="text-white text-4xl font-bold font-mono">{fmtCents(pixData.amountCents)}</p>
                 <p className="text-violet-400 text-sm mt-1">+{pixData.credits} {t.buy_credits_will_add}</p>
               </div>
 
@@ -296,6 +298,7 @@ function BuyCreditsModal({ open, onClose, currentCredits, onSuccess }: PixModalP
 // ─── Credits Profile ──────────────────────────────────────────────────────────
 function CreditsProfile({ profile, refetch }: { profile: any; refetch: () => void }) {
   const { t, language } = useLanguage();
+  const { fmt } = useCurrency();
   const [showBuy, setShowBuy] = useState(false);
   const credits = parseFloat(String(profile.credits ?? "0"));
 
@@ -385,9 +388,9 @@ function CreditsProfile({ profile, refetch }: { profile: any; refetch: () => voi
               </div>
               <div className="text-right">
                 <p className={`font-mono font-bold text-sm ${tx.type === "add" ? "text-green-400" : "text-red-400"}`}>
-                  {tx.type === "add" ? "+" : "-"}{parseFloat(tx.amount).toFixed(2)}
+                  {tx.type === "add" ? "+" : "-"}{parseFloat(tx.amount).toFixed(2)} cr
                 </p>
-                <p className="text-gray-600 text-xs font-mono">{language === "en" ? "Balance:" : "Saldo:"} {parseFloat(tx.balanceAfter).toFixed(2)}</p>
+                <p className="text-gray-600 text-xs font-mono">{language === "en" ? "Balance:" : "Saldo:"} {parseFloat(tx.balanceAfter).toFixed(2)} cr</p>
               </div>
             </div>
           ))}

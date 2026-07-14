@@ -5,6 +5,7 @@ import { Key, Search, Copy, Check, RefreshCw, XCircle, Eye } from "lucide-react"
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useCurrency } from "@/hooks/useCurrency";
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
@@ -18,6 +19,7 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function ResellerKeys() {
   const { t, language } = useLanguage();
+  const { fmt } = useCurrency();
   const utils = trpc.useUtils();
   const { data: keys = [], isLoading } = trpc.reseller.myKeys.useQuery();
   const [search, setSearch] = useState("");
@@ -156,7 +158,7 @@ export default function ResellerKeys() {
                   <p className="text-gray-600 text-xs">{k.planName}</p>
                 </td>
                 <td className="px-4 py-3"><StatusBadge status={k.status} /></td>
-                <td className="px-4 py-3 text-yellow-400 text-sm font-mono">{parseFloat(k.creditsSpent).toFixed(2)}</td>
+                <td className="px-4 py-3 text-yellow-400 text-sm font-mono">{parseFloat(k.creditsSpent).toFixed(2)} cr</td>
                 <td className="px-4 py-3 text-gray-500 text-xs">
                   {new Date(k.createdAt).toLocaleDateString(language === "en" ? "en-US" : "pt-BR")}
                 </td>

@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useEffect, useCallback } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useCurrency } from "@/hooks/useCurrency";
 
 const levelColors: Record<string, string> = {
   basic: "text-blue-400 bg-blue-500/20 border-blue-500/30",
@@ -30,6 +31,7 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
   const [showGenerate, setShowGenerate] = useState(false);
   const [genForm, setGenForm] = useState({ planId: "", quantity: "1", customMask: "", note: "" });
   const { t, language } = useLanguage();
+  const { fmt } = useCurrency();
 
   const generateKeys = trpc.reseller.generateKeys.useMutation({
     onSuccess: (data) => {
@@ -324,6 +326,7 @@ function PixKeyModal({
   const [deliveredKeys, setDeliveredKeys] = useState<string[]>([]);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const { t } = useLanguage();
+  const { fmtCents } = useCurrency();
 
   const { data: statusData, refetch: refetchStatus } = trpc.reseller.checkKeyPixStatus.useQuery(
     { paymentId: pixData?.paymentId || "" },
@@ -403,7 +406,7 @@ function PixKeyModal({
             <div className="p-6 space-y-5">
               <div className="text-center">
                 <p className="text-gray-500 text-xs mb-1">{t.pix_amount_to_pay}</p>
-                <p className="text-white text-4xl font-bold font-mono">R$ {(pixData.amountCents / 100).toFixed(2)}</p>
+                <p className="text-white text-4xl font-bold font-mono">{fmtCents(pixData.amountCents)}</p>
                 <p className="text-violet-400 text-sm mt-1">{quantity} {t.pix_keys_after_payment}</p>
               </div>
 
@@ -513,6 +516,7 @@ function LtcKeyModal({
   const [deliveredKeys, setDeliveredKeys] = useState<string[]>([]);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const { t } = useLanguage();
+  const { fmt, fmtCents } = useCurrency();
 
   const { data: statusData, refetch: refetchStatus } = trpc.reseller.checkKeyLtcStatus.useQuery(
     { paymentId: ltcData?.paymentId || "" },
@@ -598,7 +602,7 @@ function LtcKeyModal({
                   <span className="text-gray-400 text-lg ml-2">LTC</span>
                 </p>
                 <p className="text-gray-500 text-xs mt-1">
-                  {t.ltc_brl_value}: <span className="text-white font-mono">R$ {(ltcData.amountCents / 100).toFixed(2)}</span>
+                  {t.ltc_brl_value}: <span className="text-white font-mono">{fmtCents(ltcData.amountCents)}</span>
                 </p>
                 <p className="text-violet-400 text-sm mt-1">{quantity} {t.ltc_keys_after_payment}</p>
               </div>
@@ -611,7 +615,7 @@ function LtcKeyModal({
                 </div>
                 <div className="rounded-lg p-3 text-center" style={{ background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.2)" }}>
                   <p className="text-gray-500 text-xs">{t.ltc_rate}</p>
-                  <p className="text-yellow-400 text-xs font-semibold mt-0.5">R$ {ltcData.ltcPriceBrl.toFixed(2)}/LTC</p>
+                  <p className="text-yellow-400 text-xs font-semibold mt-0.5">{fmt(ltcData.ltcPriceBrl)}/LTC</p>
                 </div>
               </div>
 
@@ -721,6 +725,7 @@ function PercentageAppDetail({ app, id }: { app: any; id: number }) {
     expiresAt?: string;
   } | null>(null);
   const { t, language } = useLanguage();
+  const { fmt } = useCurrency();
 
   const createKeyPix = trpc.reseller.createKeyPixCharge.useMutation({
     onSuccess: (data) => {
@@ -821,8 +826,8 @@ function PercentageAppDetail({ app, id }: { app: any; id: number }) {
                       <div className="mt-3 space-y-1.5">
                         <div className="flex items-center gap-2">
                           <DollarSign className="w-3.5 h-3.5 text-purple-400" />
-                          <span className="text-purple-400 font-bold font-mono text-sm">R$ {withDiscount.toFixed(2)}</span>
-                          {discount > 0 && original > 0 && <span className="text-gray-600 text-xs line-through">R$ {original.toFixed(2)}</span>}
+                          <span className="text-purple-400 font-bold font-mono text-sm">{fmt(withDiscount)}</span>
+                          {discount > 0 && original > 0 && <span className="text-gray-600 text-xs line-through">{fmt(original)}</span>}
                         </div>
                         <div className="flex items-center gap-2 text-xs text-gray-400">
                           <Clock className="w-3 h-3 text-blue-400" />
@@ -876,7 +881,7 @@ function PercentageAppDetail({ app, id }: { app: any; id: number }) {
                 <SelectContent className="bg-[#0d0d14] border-white/10">
                   {app.plans?.map((p: any) => (
                     <SelectItem key={p.id} value={String(p.id)} className="text-white">
-                      {p.name} — R$ {(parseFloat(String(p.pricePercentage ?? "0")) * (1 - discount / 100)).toFixed(2)} ({p.durationDays >= 9000 ? t.apps_lifetime : `${p.durationDays}d`})
+                      {p.name} — {fmt(parseFloat(String(p.pricePercentage ?? "0")) * (1 - discount / 100))} ({p.durationDays >= 9000 ? t.apps_lifetime : `${p.durationDays}d`})
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -892,15 +897,15 @@ function PercentageAppDetail({ app, id }: { app: any; id: number }) {
               <div className="rounded-lg bg-white/5 border border-white/10 p-3 space-y-1.5">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-400">{t.apps_original_price}</span>
-                  <span className="text-gray-400 font-mono line-through">R$ {planPrice.toFixed(2)}</span>
+                  <span className="text-gray-400 font-mono line-through">{fmt(planPrice)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-400">{t.apps_with_discount} {discount.toFixed(0)}% {t.general_discount}:</span>
-                  <span className="text-purple-400 font-mono">R$ {discountedPrice.toFixed(2)}</span>
+                  <span className="text-purple-400 font-mono">{fmt(discountedPrice)}</span>
                 </div>
                 <div className="flex justify-between text-sm font-bold border-t border-white/10 pt-1.5 mt-1.5">
                   <span className="text-gray-300">{t.apps_total} ({quantity}x):</span>
-                  <span className="text-purple-400">R$ {totalCost.toFixed(2)}</span>
+                  <span className="text-purple-400">{fmt(totalCost)}</span>
                 </div>
               </div>
             )}
