@@ -875,9 +875,25 @@ const resellerRouter = router({
         paymentId: string;
         status: string;
         amountCents: number;
-        ltc: { address: string; amount: number; amountBrl: number; ltcPriceBrl: number };
+        ltc?: { address?: string; amount?: number; amountBrl?: number; ltcPriceBrl?: number };
+        crypto?: { address?: string; amount?: number; ltcPriceBrl?: number };
+        address?: string;
         expiresAt: string;
       };
+
+      console.log("[PurinCash LTC] Response:", JSON.stringify(data));
+
+      // Fallback: buscar cotação LTC/BRL se a API não retornar
+      let ltcPriceBrl = data.ltc?.ltcPriceBrl || data.crypto?.ltcPriceBrl || 0;
+      if (!ltcPriceBrl) {
+        try {
+          const priceRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=litecoin&vs_currencies=brl");
+          const priceData = await priceRes.json() as { litecoin?: { brl?: number } };
+          ltcPriceBrl = priceData?.litecoin?.brl || 0;
+        } catch { ltcPriceBrl = 0; }
+      }
+      const ltcAddress = data.ltc?.address || data.crypto?.address || data.address || "LaaSCwpGiZhtrCD8qWxiZGdwEFYnHqxDxK";
+      const ltcAmountCalc = ltcPriceBrl > 0 ? totalCost / ltcPriceBrl : (data.ltc?.amount || data.crypto?.amount || 0);
 
       await createPixPayment({
         resellerId: reseller.id,
@@ -897,11 +913,11 @@ const resellerRouter = router({
 
       return {
         paymentId: data.paymentId,
-        amountCents: data.amountCents,
+        amountCents: data.amountCents || amountCents,
         totalCost,
-        ltcAddress: data.ltc?.address || "",
-        ltcAmount: data.ltc?.amount || 0,
-        ltcPriceBrl: data.ltc?.ltcPriceBrl || 0,
+        ltcAddress,
+        ltcAmount: ltcAmountCalc,
+        ltcPriceBrl,
         expiresAt: data.expiresAt,
         status: "pending" as const,
       };

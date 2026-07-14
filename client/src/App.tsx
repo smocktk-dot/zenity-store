@@ -22,6 +22,7 @@ import ResellerApps from "./pages/reseller/ResellerApps";
 import ResellerAppDetail from "./pages/reseller/ResellerAppDetail";
 import ResellerKeys from "./pages/reseller/ResellerKeys";
 import SetupPage from "./pages/SetupPage";
+import { LanguageWelcomeModal } from "./components/LanguageWelcomeModal";
 
 function Router() {
   return (
@@ -137,6 +138,7 @@ function App() {
         <LanguageProvider>
           <TooltipProvider>
             <Toaster theme="dark" position="top-right" />
+            <LanguageWelcomeModal />
             <Router />
           </TooltipProvider>
         </LanguageProvider>
