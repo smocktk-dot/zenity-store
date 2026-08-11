@@ -1565,7 +1565,7 @@ var authRouter = router({
     }
     const row = await createResellerApplication({
       ...input,
-      status: "pending",
+      status: "pre_approved",
       ip
     });
     return { id: row.id, status: row.status };

@@ -34,7 +34,6 @@ export default function LoginPage() {
   const [showChat, setShowChat] = useState(false);
   const [applicationId, setApplicationId] = useState<number | null>(null);
   const [chatText, setChatText] = useState("");
-  const [submitted, setSubmitted] = useState(false);
   const [form, setForm] = useState({
     discordLink: "",
     discordId: "",
@@ -61,9 +60,9 @@ export default function LoginPage() {
     onSuccess: (data) => {
       localStorage.setItem(APP_STORAGE_KEY, String(data.id));
       setApplicationId(data.id);
-      setSubmitted(true);
       setShowApply(false);
-      toast.success("Aplicação enviada!");
+      setShowChat(true);
+      toast.success("Pré-aprovado!");
       utils.auth.getMyApplication.invalidate({ id: data.id });
     },
     onError: (e) => toast.error(e.message),
@@ -114,8 +113,17 @@ export default function LoginPage() {
   };
 
   const isLoading = resellerLogin.isPending;
-  const hasApplication = !!applicationId;
+  const activeStatus = ["pending", "pre_approved", "approved"];
+  const hasApplication = !!applicationId && (isLoadingApp || (!!application && activeStatus.includes(application.status)));
   const isPreApproved = application?.status === "pre_approved";
+
+  useEffect(() => {
+    if (application && !activeStatus.includes(application.status)) {
+      localStorage.removeItem(APP_STORAGE_KEY);
+      setApplicationId(null);
+      setShowChat(false);
+    }
+  }, [application]);
 
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
@@ -259,7 +267,7 @@ export default function LoginPage() {
         </div>
 
         {/* Apply button */}
-        {!hasApplication && !submitted && (
+        {!hasApplication && (
           <div className="mt-5 text-center">
             <Button
               onClick={() => setShowApply(true)}
@@ -271,10 +279,10 @@ export default function LoginPage() {
           </div>
         )}
 
-        {submitted && application?.status === "pending" && (
+        {hasApplication && application?.status === "pre_approved" && (
           <div className="mt-5 text-center">
-            <p className="text-yellow-400 text-sm font-medium flex items-center justify-center gap-2">
-              <CheckCircle2 className="w-4 h-4" /> Aplicação enviada! Aguarde análise.
+            <p className="text-green-400 text-sm font-medium flex items-center justify-center gap-2">
+              <CheckCircle2 className="w-4 h-4" /> Pré-aprovado! Clique no chat flutuante.
             </p>
           </div>
         )}
