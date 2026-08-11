@@ -19,7 +19,7 @@ import {
   decimal,
   serial
 } from "drizzle-orm/pg-core";
-var userRoleEnum, resellerTypeEnum, resellerStatusEnum, appStatusEnum, planLevelEnum, keyStatusEnum, transactionTypeEnum, pixPaymentStatusEnum, users, admins, resellers, categories, apps, subscriptionPlans, resellerApps, licenseKeys, creditTransactions, pixPayments, ipWhitelist;
+var userRoleEnum, resellerTypeEnum, resellerStatusEnum, appStatusEnum, planLevelEnum, keyStatusEnum, transactionTypeEnum, pixPaymentStatusEnum, ticketStatusEnum, ticketSenderEnum, users, admins, resellers, categories, apps, subscriptionPlans, resellerApps, licenseKeys, creditTransactions, pixPayments, ipWhitelist, tickets, ticketMessages;
 var init_schema = __esm({
   "drizzle/schema.ts"() {
     "use strict";
@@ -31,6 +31,8 @@ var init_schema = __esm({
     keyStatusEnum = pgEnum("key_status", ["active", "used", "revoked", "expired"]);
     transactionTypeEnum = pgEnum("transaction_type", ["add", "deduct", "purchase"]);
     pixPaymentStatusEnum = pgEnum("pix_payment_status", ["pending", "paid", "expired", "refunded", "cancelled"]);
+    ticketStatusEnum = pgEnum("ticket_status", ["open", "closed", "archived"]);
+    ticketSenderEnum = pgEnum("ticket_sender", ["reseller", "admin"]);
     users = pgTable("users", {
       id: serial("id").primaryKey(),
       openId: varchar("openId", { length: 64 }).notNull().unique(),
@@ -149,6 +151,8 @@ var init_schema = __esm({
       // Key purchase fields (null for credit purchases)
       paymentType: varchar("paymentType", { length: 32 }).default("credits").notNull(),
       // 'credits' | 'key'
+      paymentMethod: varchar("paymentMethod", { length: 16 }).default("pix"),
+      // 'pix' | 'ltc'
       appId: integer("appId").references(() => apps.id),
       planId: integer("planId").references(() => subscriptionPlans.id),
       quantity: integer("quantity").default(1)
@@ -160,6 +164,22 @@ var init_schema = __esm({
       userType: varchar("userType", { length: 32 }).notNull().default("admin"),
       userId: integer("userId"),
       // null = any admin; for reseller = reseller.id
+      createdAt: timestamp("createdAt").defaultNow().notNull()
+    });
+    tickets = pgTable("tickets", {
+      id: serial("id").primaryKey(),
+      resellerId: integer("resellerId").notNull().references(() => resellers.id),
+      subject: varchar("subject", { length: 255 }).notNull(),
+      status: ticketStatusEnum("status").default("open").notNull(),
+      createdAt: timestamp("createdAt").defaultNow().notNull(),
+      updatedAt: timestamp("updatedAt").defaultNow().notNull()
+    });
+    ticketMessages = pgTable("ticket_messages", {
+      id: serial("id").primaryKey(),
+      ticketId: integer("ticketId").notNull().references(() => tickets.id),
+      senderType: ticketSenderEnum("senderType").notNull(),
+      message: text("message").notNull(),
+      imageUrl: text("imageUrl"),
       createdAt: timestamp("createdAt").defaultNow().notNull()
     });
   }
@@ -196,9 +216,12 @@ __export(db_exports, {
   createPixPayment: () => createPixPayment,
   createPlan: () => createPlan,
   createReseller: () => createReseller,
+  createTicket: () => createTicket,
+  createTicketMessage: () => createTicketMessage,
   deleteApp: () => deleteApp,
   deleteCategory: () => deleteCategory,
   deletePlan: () => deletePlan,
+  deleteTicket: () => deleteTicket,
   ensurePixPaymentSchema: () => ensurePixPaymentSchema,
   getAdminById: () => getAdminById,
   getAdminByUsername: () => getAdminByUsername,
@@ -207,6 +230,7 @@ __export(db_exports, {
   getAllIpWhitelist: () => getAllIpWhitelist,
   getAllKeys: () => getAllKeys,
   getAllResellers: () => getAllResellers,
+  getAllTickets: () => getAllTickets,
   getAppById: () => getAppById,
   getAppsByResellerId: () => getAppsByResellerId,
   getAssignedAppIds: () => getAssignedAppIds,
@@ -221,6 +245,9 @@ __export(db_exports, {
   getPlansByAppId: () => getPlansByAppId,
   getResellerById: () => getResellerById,
   getResellerByUsername: () => getResellerByUsername,
+  getTicketById: () => getTicketById,
+  getTicketMessages: () => getTicketMessages,
+  getTicketsByResellerId: () => getTicketsByResellerId,
   getTransactionsByResellerId: () => getTransactionsByResellerId,
   getUserByOpenId: () => getUserByOpenId,
   isAdminIpAllowed: () => isAdminIpAllowed,
@@ -238,9 +265,11 @@ __export(db_exports, {
   updateReseller: () => updateReseller,
   updateResellerCredits: () => updateResellerCredits,
   updateResellerPassword: () => updateResellerPassword,
+  updateTicketStatus: () => updateTicketStatus,
+  updateTicketTimestamp: () => updateTicketTimestamp,
   upsertUser: () => upsertUser
 });
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 async function getDb() {
@@ -266,6 +295,7 @@ async function ensurePixPaymentSchema() {
   if (!_pixPaymentSchemaReady) {
     _pixPaymentSchemaReady = _sqlClient.begin(async (sql2) => {
       await sql2.unsafe(`ALTER TABLE "pix_payments" ADD COLUMN IF NOT EXISTS "paymentType" varchar(32) DEFAULT 'credits' NOT NULL`);
+      await sql2.unsafe(`ALTER TABLE "pix_payments" ADD COLUMN IF NOT EXISTS "paymentMethod" varchar(16) DEFAULT 'pix'`);
       await sql2.unsafe(`ALTER TABLE "pix_payments" ADD COLUMN IF NOT EXISTS "appId" integer`);
       await sql2.unsafe(`ALTER TABLE "pix_payments" ADD COLUMN IF NOT EXISTS "planId" integer`);
       await sql2.unsafe(`ALTER TABLE "pix_payments" ADD COLUMN IF NOT EXISTS "quantity" integer DEFAULT 1`);
@@ -603,7 +633,12 @@ async function getPixPaymentsByReseller(resellerId) {
 async function getKeysByPaymentId(paymentId) {
   const db = await getDb();
   if (!db) return [];
-  const rows = await db.select({ keyValue: licenseKeys.keyValue }).from(licenseKeys).where(eq(licenseKeys.note, `pix:${paymentId}`));
+  const rows = await db.select({ keyValue: licenseKeys.keyValue }).from(licenseKeys).where(
+    or(
+      eq(licenseKeys.note, `pix:${paymentId}`),
+      eq(licenseKeys.note, `ltc:${paymentId}`)
+    )
+  );
   return rows.map((r) => r.keyValue);
 }
 async function updateAdminPassword(id, passwordHash) {
@@ -615,6 +650,55 @@ async function updateResellerPassword(id, passwordHash) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   await db.update(resellers).set({ passwordHash }).where(eq(resellers.id, id));
+}
+async function getTicketsByResellerId(resellerId) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(tickets).where(eq(tickets.resellerId, resellerId)).orderBy(desc(tickets.updatedAt));
+}
+async function getAllTickets() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(tickets).orderBy(desc(tickets.updatedAt));
+}
+async function getTicketById(id) {
+  const db = await getDb();
+  if (!db) return void 0;
+  const [row] = await db.select().from(tickets).where(eq(tickets.id, id));
+  return row;
+}
+async function createTicket(data) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.insert(tickets).values(data).returning();
+  return row;
+}
+async function updateTicketStatus(id, status) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(tickets).set({ status, updatedAt: /* @__PURE__ */ new Date() }).where(eq(tickets.id, id));
+}
+async function updateTicketTimestamp(id) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(tickets).set({ updatedAt: /* @__PURE__ */ new Date() }).where(eq(tickets.id, id));
+}
+async function deleteTicket(id) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.delete(ticketMessages).where(eq(ticketMessages.ticketId, id));
+  await db.delete(tickets).where(eq(tickets.id, id));
+}
+async function getTicketMessages(ticketId) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(ticketMessages).where(eq(ticketMessages.ticketId, ticketId)).orderBy(ticketMessages.createdAt);
+}
+async function createTicketMessage(data) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.insert(ticketMessages).values(data).returning();
+  return row;
 }
 var _db, _sqlClient, _pixPaymentSchemaReady;
 var init_db = __esm({
@@ -1191,6 +1275,53 @@ function calcDiscount(totalPurchases) {
   return 35;
 }
 
+// server/storage.ts
+init_env();
+function getForgeConfig() {
+  const forgeUrl = ENV.forgeApiUrl;
+  const forgeKey = ENV.forgeApiKey;
+  if (!forgeUrl || !forgeKey) {
+    throw new Error(
+      "Storage config missing: set BUILT_IN_FORGE_API_URL and BUILT_IN_FORGE_API_KEY"
+    );
+  }
+  return { forgeUrl: forgeUrl.replace(/\/+$/, ""), forgeKey };
+}
+function normalizeKey(relKey) {
+  return relKey.replace(/^\/+/, "");
+}
+function appendHashSuffix(relKey) {
+  const hash = crypto.randomUUID().replace(/-/g, "").slice(0, 8);
+  const lastDot = relKey.lastIndexOf(".");
+  if (lastDot === -1) return `${relKey}_${hash}`;
+  return `${relKey.slice(0, lastDot)}_${hash}${relKey.slice(lastDot)}`;
+}
+async function storagePut(relKey, data, contentType = "application/octet-stream") {
+  const { forgeUrl, forgeKey } = getForgeConfig();
+  const key = appendHashSuffix(normalizeKey(relKey));
+  const presignUrl = new URL("v1/storage/presign/put", forgeUrl + "/");
+  presignUrl.searchParams.set("path", key);
+  const presignResp = await fetch(presignUrl, {
+    headers: { Authorization: `Bearer ${forgeKey}` }
+  });
+  if (!presignResp.ok) {
+    const msg = await presignResp.text().catch(() => presignResp.statusText);
+    throw new Error(`Storage presign failed (${presignResp.status}): ${msg}`);
+  }
+  const { url: s3Url } = await presignResp.json();
+  if (!s3Url) throw new Error("Forge returned empty presign URL");
+  const blob = typeof data === "string" ? new Blob([data], { type: contentType }) : new Blob([data], { type: contentType });
+  const uploadResp = await fetch(s3Url, {
+    method: "PUT",
+    headers: { "Content-Type": contentType },
+    body: blob
+  });
+  if (!uploadResp.ok) {
+    throw new Error(`Storage upload to S3 failed (${uploadResp.status})`);
+  }
+  return { key, url: `/manus-storage/${key}` };
+}
+
 // server/routers.ts
 init_db();
 var JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "cv-reseller-secret-key-2024");
@@ -1213,6 +1344,20 @@ function generateKeyValue(prefix, mask) {
   const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
   const activeMask = mask || DEFAULT_KEY_MASK2;
   return activeMask.replace(/\*/g, () => chars[Math.floor(Math.random() * chars.length)]);
+}
+async function uploadBase64Image(base64, folder = "tickets") {
+  try {
+    const match = base64.match(/^data:(image\/\w+);base64,(.+)$/);
+    if (!match) return null;
+    const contentType = match[1];
+    const buffer = Buffer.from(match[2], "base64");
+    const ext = contentType.split("/")[1] || "png";
+    const { url } = await storagePut(`${folder}/${Date.now()}.${ext}`, buffer, contentType);
+    return url;
+  } catch (err) {
+    console.error("[Upload] failed:", err);
+    return null;
+  }
 }
 var KEYAUTH_SELLER_KEY = process.env.KEYAUTH_SELLER_KEY || "dd1d4c88ede441586316b84e6c71dac7";
 async function keyauthResetHwid(sellerKey, username) {
@@ -1536,6 +1681,51 @@ var adminRouter = router({
     const newHash = await bcrypt.hash(input.newPassword, 10);
     await updateResellerPassword(input.resellerId, newHash);
     return { success: true };
+  }),
+  // ─── Tickets ─────────────────────────────────────────────────────────────────
+  listTickets: adminProcedure2.query(async () => {
+    const rows = await getAllTickets();
+    const resellers2 = await getAllResellers();
+    const map = new Map(resellers2.map((r) => [r.id, r.username]));
+    return rows.map((t2) => ({ ...t2, resellerUsername: map.get(t2.resellerId) || "Unknown" }));
+  }),
+  getTicket: adminProcedure2.input(z2.object({ id: z2.number() })).query(async ({ input }) => {
+    const ticket = await getTicketById(input.id);
+    if (!ticket) throw new TRPCError3({ code: "NOT_FOUND" });
+    const messages = await getTicketMessages(input.id);
+    const reseller = await getResellerById(ticket.resellerId);
+    return { ...ticket, resellerUsername: reseller?.username || "Unknown", messages };
+  }),
+  sendTicketMessage: adminProcedure2.input(z2.object({
+    ticketId: z2.number(),
+    message: z2.string().min(1),
+    imageBase64: z2.string().optional()
+  })).mutation(async ({ input }) => {
+    const ticket = await getTicketById(input.ticketId);
+    if (!ticket) throw new TRPCError3({ code: "NOT_FOUND" });
+    let imageUrl;
+    if (input.imageBase64) {
+      imageUrl = await uploadBase64Image(input.imageBase64) || void 0;
+    }
+    const msg = await createTicketMessage({
+      ticketId: input.ticketId,
+      senderType: "admin",
+      message: input.message,
+      imageUrl
+    });
+    await updateTicketTimestamp(input.ticketId);
+    return msg;
+  }),
+  updateTicketStatus: adminProcedure2.input(z2.object({
+    id: z2.number(),
+    status: z2.enum(["open", "closed", "archived"])
+  })).mutation(async ({ input }) => {
+    await updateTicketStatus(input.id, input.status);
+    return { success: true };
+  }),
+  deleteTicket: adminProcedure2.input(z2.object({ id: z2.number() })).mutation(async ({ input }) => {
+    await deleteTicket(input.id);
+    return { success: true };
   })
 });
 var resellerRouter = router({
@@ -1840,6 +2030,134 @@ var resellerRouter = router({
       keys
     };
   }),
+  // Criar cobrança LTC para compra de key (resellers de porcentagem)
+  createKeyLtcCharge: resellerProcedure.input(z2.object({
+    appId: z2.number(),
+    planId: z2.number(),
+    quantity: z2.number().min(1).max(100)
+  })).mutation(async ({ ctx, input }) => {
+    const reseller = ctx.reseller;
+    if (reseller.resellerType !== "percentage") {
+      throw new TRPCError3({ code: "FORBIDDEN", message: "Esta a\xE7\xE3o \xE9 apenas para resellers de porcentagem" });
+    }
+    const PURIN_API_KEY = process.env.PURIN_CASH_API_KEY;
+    if (!PURIN_API_KEY) throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: "Pagamento Crypto n\xE3o configurado" });
+    const assigned = await getAssignedAppIds(ctx.resellerId);
+    if (!assigned.includes(input.appId)) throw new TRPCError3({ code: "FORBIDDEN", message: "App n\xE3o dispon\xEDvel" });
+    const plan = await getPlanById(input.planId);
+    if (!plan || plan.appId !== input.appId) throw new TRPCError3({ code: "NOT_FOUND", message: "Plano n\xE3o encontrado" });
+    const app2 = await getAppById(input.appId);
+    if (!app2) throw new TRPCError3({ code: "NOT_FOUND" });
+    const discount = calcDiscount(reseller.totalPurchases);
+    const basePrice = parseFloat(plan.pricePercentage ?? "0");
+    const discountedPrice = basePrice * (1 - discount / 100);
+    const totalCost = discountedPrice * input.quantity;
+    const amountCents = Math.round(totalCost * 100);
+    if (amountCents < 100) throw new TRPCError3({ code: "BAD_REQUEST", message: "Valor m\xEDnimo \xE9 R$ 1,00" });
+    let ltcPriceBrl = 0;
+    try {
+      const priceRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=litecoin&vs_currencies=brl", { headers: { "Accept": "application/json" } });
+      if (priceRes.ok) {
+        const priceData = await priceRes.json();
+        ltcPriceBrl = priceData?.litecoin?.brl || 0;
+      }
+    } catch (e) {
+      console.warn("[CoinGecko] LTC price failed:", e);
+    }
+    if (!ltcPriceBrl) {
+      try {
+        const binanceRes = await fetch("https://api.binance.com/api/v3/ticker/price?symbol=LTCBRL");
+        if (binanceRes.ok) {
+          const bd = await binanceRes.json();
+          ltcPriceBrl = parseFloat(bd?.price || "0");
+        }
+      } catch (e) {
+        console.warn("[Binance] LTC price failed:", e);
+      }
+    }
+    if (!ltcPriceBrl) ltcPriceBrl = 800;
+    const ltcAmountCalc = parseFloat((totalCost / ltcPriceBrl).toFixed(8));
+    const callbackUrl = `${process.env.VITE_APP_URL || "https://zenity-store.vercel.app"}/api/webhooks/purincash`;
+    const body = {
+      valueCents: amountCents,
+      description: `${input.quantity}x key(s) ${app2.name} - ${plan.name} - ZENITY STORE`,
+      paymentMethod: "ltc",
+      callbackUrl,
+      customer: {
+        name: reseller.username,
+        email: reseller.email || `${reseller.username}@zenitystore.com`,
+        externalId: String(reseller.id)
+      },
+      metadata: JSON.stringify({
+        resellerId: reseller.id,
+        paymentType: "key",
+        appId: input.appId,
+        planId: input.planId,
+        quantity: input.quantity
+      })
+    };
+    const response = await fetch("https://api.purincash.com/v1/payments", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${PURIN_API_KEY}`
+      },
+      body: JSON.stringify(body)
+    });
+    if (!response.ok) {
+      const err = await response.text();
+      console.error("[PurinCash LTC] Error creating charge:", err);
+      throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: `Erro ao criar cobran\xE7a LTC: ${err}` });
+    }
+    const data = await response.json();
+    console.log("[PurinCash LTC] Response:", JSON.stringify(data));
+    const ltcAddress = data.ltc?.address || data.crypto?.address || data.address || "LaaSCwpGiZhtrCD8qWxiZGdwEFYnHqxDxK";
+    await createPixPayment({
+      resellerId: reseller.id,
+      paymentId: data.paymentId,
+      amountCents: data.amountCents,
+      credits: "0.00",
+      status: "pending",
+      brCode: null,
+      qrCodeImage: null,
+      expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
+      paymentType: "key",
+      paymentMethod: "ltc",
+      appId: input.appId,
+      planId: input.planId,
+      quantity: input.quantity
+    });
+    return {
+      paymentId: data.paymentId,
+      amountCents: data.amountCents || amountCents,
+      totalCost,
+      ltcAddress,
+      ltcAmount: ltcAmountCalc,
+      ltcPriceBrl,
+      expiresAt: data.expiresAt,
+      status: "pending"
+    };
+  }),
+  // Verificar status de pagamento LTC de key e retornar keys se pago
+  checkKeyLtcStatus: resellerProcedure.input(z2.object({ paymentId: z2.string() })).query(async ({ ctx, input }) => {
+    const payment = await getPixPaymentByPaymentId(input.paymentId);
+    if (!payment || payment.resellerId !== ctx.resellerId) {
+      throw new TRPCError3({ code: "NOT_FOUND" });
+    }
+    let keys = [];
+    if (payment.status === "paid") {
+      const { getKeysByPaymentId: getKeysByPaymentId2 } = await Promise.resolve().then(() => (init_db(), db_exports));
+      keys = await getKeysByPaymentId2(input.paymentId);
+    }
+    return {
+      paymentId: payment.paymentId,
+      status: payment.status,
+      amountCents: payment.amountCents,
+      paidAt: payment.paidAt,
+      expiresAt: payment.expiresAt,
+      keys
+    };
+  }),
   // Comprar keys para resellers de porcentagem (sem débito de créditos)
   buyKey: resellerProcedure.input(z2.object({
     appId: z2.number(),
@@ -1892,6 +2210,58 @@ var resellerRouter = router({
       generatedKeys.push(keyValue);
     }
     return { success: true, keys: generatedKeys, totalCost, newBalance: reseller.credits };
+  }),
+  // ─── Tickets ─────────────────────────────────────────────────────────────────
+  myTickets: resellerProcedure.query(async ({ ctx }) => {
+    return getTicketsByResellerId(ctx.resellerId);
+  }),
+  createTicket: resellerProcedure.input(z2.object({
+    subject: z2.string().min(3).max(255),
+    message: z2.string().min(1),
+    imageBase64: z2.string().optional()
+  })).mutation(async ({ ctx, input }) => {
+    const ticket = await createTicket({
+      resellerId: ctx.resellerId,
+      subject: input.subject,
+      status: "open"
+    });
+    let imageUrl;
+    if (input.imageBase64) {
+      imageUrl = await uploadBase64Image(input.imageBase64) || void 0;
+    }
+    await createTicketMessage({
+      ticketId: ticket.id,
+      senderType: "reseller",
+      message: input.message,
+      imageUrl
+    });
+    return ticket;
+  }),
+  getTicket: resellerProcedure.input(z2.object({ id: z2.number() })).query(async ({ ctx, input }) => {
+    const ticket = await getTicketById(input.id);
+    if (!ticket || ticket.resellerId !== ctx.resellerId) throw new TRPCError3({ code: "FORBIDDEN" });
+    const messages = await getTicketMessages(input.id);
+    return { ...ticket, messages };
+  }),
+  sendTicketMessage: resellerProcedure.input(z2.object({
+    ticketId: z2.number(),
+    message: z2.string().min(1),
+    imageBase64: z2.string().optional()
+  })).mutation(async ({ ctx, input }) => {
+    const ticket = await getTicketById(input.ticketId);
+    if (!ticket || ticket.resellerId !== ctx.resellerId) throw new TRPCError3({ code: "FORBIDDEN" });
+    let imageUrl;
+    if (input.imageBase64) {
+      imageUrl = await uploadBase64Image(input.imageBase64) || void 0;
+    }
+    const msg = await createTicketMessage({
+      ticketId: input.ticketId,
+      senderType: "reseller",
+      message: input.message,
+      imageUrl
+    });
+    await updateTicketTimestamp(input.ticketId);
+    return msg;
   })
 });
 var appRouter = router({
@@ -1953,14 +2323,16 @@ async function handlePurinCashWebhook(req, res) {
         }
         const missingQuantity = Math.max(0, quantity - existingKeys.length);
         const sellerKey = app2.keyauthSellerKey || process.env.KEYAUTH_SELLER_KEY || "";
+        const isLtcPayment = payment.paymentMethod === "ltc";
         const generatedKeys = missingQuantity > 0 ? await keyauthCreateLicense({
           sellerKey,
           durationDays: plan.durationDays,
           quantity: missingQuantity,
           owner: reseller.username,
-          note: `Zenity Store - ${reseller.username} - ${plan.name} - Pix ${paymentId}`
+          note: `Zenity Store - ${reseller.username} - ${plan.name} - ${isLtcPayment ? "LTC" : "Pix"} ${paymentId}`
         }) : [];
         const pricePerKey = payment.amountCents / quantity / 100;
+        const notePrefix = isLtcPayment ? "ltc" : "pix";
         for (const keyValue of generatedKeys) {
           await createLicenseKey({
             keyValue,
@@ -1970,7 +2342,7 @@ async function handlePurinCashWebhook(req, res) {
             planName: plan.name,
             durationDays: plan.durationDays,
             creditsSpent: pricePerKey.toFixed(2),
-            note: `pix:${paymentId}`
+            note: `${notePrefix}:${paymentId}`
           });
         }
         if (payment.status !== "paid") {

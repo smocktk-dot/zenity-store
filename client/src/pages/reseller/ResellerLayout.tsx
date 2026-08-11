@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useLocation, Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { User, AppWindow, Key, LogOut, Shield } from "lucide-react";
+import { User, AppWindow, Key, LogOut, Shield, Ticket } from "lucide-react";
 import InteractiveStars from "@/components/InteractiveStars";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -21,6 +21,7 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
     { href: "/reseller", icon: User, label: t.nav_profile },
     { href: "/reseller/apps", icon: AppWindow, label: t.nav_apps },
     { href: "/reseller/keys", icon: Key, label: t.nav_my_keys },
+    { href: "/reseller/tickets", icon: Ticket, label: "Tickets" },
   ];
 
   // Allow both resellers and admins to access the reseller panel

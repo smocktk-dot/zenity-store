@@ -19,6 +19,8 @@ export const planLevelEnum = pgEnum("plan_level", ["basic", "premium", "lifetime
 export const keyStatusEnum = pgEnum("key_status", ["active", "used", "revoked", "expired"]);
 export const transactionTypeEnum = pgEnum("transaction_type", ["add", "deduct", "purchase"]);
 export const pixPaymentStatusEnum = pgEnum("pix_payment_status", ["pending", "paid", "expired", "refunded", "cancelled"]);
+export const ticketStatusEnum = pgEnum("ticket_status", ["open", "closed", "archived"]);
+export const ticketSenderEnum = pgEnum("ticket_sender", ["reseller", "admin"]);
 
 // ─── Core users table (Manus OAuth, kept for compatibility) ───────────────────
 export const users = pgTable("users", {
@@ -197,3 +199,28 @@ export const ipWhitelist = pgTable("ip_whitelist", {
 
 export type IpWhitelist = typeof ipWhitelist.$inferSelect;
 export type InsertIpWhitelist = typeof ipWhitelist.$inferInsert;
+
+// ─── Tickets ──────────────────────────────────────────────────────────────────
+export const tickets = pgTable("tickets", {
+  id: serial("id").primaryKey(),
+  resellerId: integer("resellerId").notNull().references(() => resellers.id),
+  subject: varchar("subject", { length: 255 }).notNull(),
+  status: ticketStatusEnum("status").default("open").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
+export type Ticket = typeof tickets.$inferSelect;
+export type InsertTicket = typeof tickets.$inferInsert;
+
+export const ticketMessages = pgTable("ticket_messages", {
+  id: serial("id").primaryKey(),
+  ticketId: integer("ticketId").notNull().references(() => tickets.id),
+  senderType: ticketSenderEnum("senderType").notNull(),
+  message: text("message").notNull(),
+  imageUrl: text("imageUrl"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type TicketMessage = typeof ticketMessages.$inferSelect;
+export type InsertTicketMessage = typeof ticketMessages.$inferInsert;

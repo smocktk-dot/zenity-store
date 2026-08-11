@@ -8,6 +8,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { keyauthCreateLicense } from "./keyauth";
 import { calcDiscount } from "./resellerPricing";
+import { storagePut } from "./storage";
 import {
   getAdminByUsername, getAdminById, createAdmin,
   getResellerByUsername, getResellerById, getAllResellers, createReseller, updateReseller, updateResellerCredits,
@@ -22,6 +23,8 @@ import {
   updateAdminPassword, updateResellerPassword,
   createPixPayment, getPixPaymentByPaymentId, updatePixPaymentStatus,
   getPendingPixPaymentsByReseller, getPixPaymentsByReseller,
+  getTicketsByResellerId, getAllTickets, getTicketById, createTicket, updateTicketStatus, updateTicketTimestamp, deleteTicket,
+  getTicketMessages, createTicketMessage,
 } from "./db";
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "cv-reseller-secret-key-2024");
@@ -54,6 +57,21 @@ function generateKeyValue(prefix: string, mask?: string): string {
   const activeMask = mask || DEFAULT_KEY_MASK;
   // Substitui apenas os asteriscos por caracteres aleatórios, mantendo letras fixas
   return activeMask.replace(/\*/g, () => chars[Math.floor(Math.random() * chars.length)]);
+}
+
+async function uploadBase64Image(base64: string, folder = "tickets"): Promise<string | null> {
+  try {
+    const match = base64.match(/^data:(image\/\w+);base64,(.+)$/);
+    if (!match) return null;
+    const contentType = match[1];
+    const buffer = Buffer.from(match[2], "base64");
+    const ext = contentType.split("/")[1] || "png";
+    const { url } = await storagePut(`${folder}/${Date.now()}.${ext}`, buffer, contentType);
+    return url;
+  } catch (err) {
+    console.error("[Upload] failed:", err);
+    return null;
+  }
 }
 
 // ─── KeyAuth Seller API ───────────────────────────────────────────────────────
@@ -433,6 +451,64 @@ const adminRouter = router({
       if (!reseller) throw new TRPCError({ code: "NOT_FOUND", message: "Reseller não encontrado" });
       const newHash = await bcrypt.hash(input.newPassword, 10);
       await updateResellerPassword(input.resellerId, newHash);
+      return { success: true };
+    }),
+
+  // ─── Tickets ─────────────────────────────────────────────────────────────────
+  listTickets: adminProcedure.query(async () => {
+    const rows = await getAllTickets();
+    const resellers = await getAllResellers();
+    const map = new Map(resellers.map(r => [r.id, r.username]));
+    return rows.map(t => ({ ...t, resellerUsername: map.get(t.resellerId) || "Unknown" }));
+  }),
+
+  getTicket: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ input }) => {
+      const ticket = await getTicketById(input.id);
+      if (!ticket) throw new TRPCError({ code: "NOT_FOUND" });
+      const messages = await getTicketMessages(input.id);
+      const reseller = await getResellerById(ticket.resellerId);
+      return { ...ticket, resellerUsername: reseller?.username || "Unknown", messages };
+    }),
+
+  sendTicketMessage: adminProcedure
+    .input(z.object({
+      ticketId: z.number(),
+      message: z.string().min(1),
+      imageBase64: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const ticket = await getTicketById(input.ticketId);
+      if (!ticket) throw new TRPCError({ code: "NOT_FOUND" });
+      let imageUrl: string | undefined;
+      if (input.imageBase64) {
+        imageUrl = (await uploadBase64Image(input.imageBase64)) || undefined;
+      }
+      const msg = await createTicketMessage({
+        ticketId: input.ticketId,
+        senderType: "admin",
+        message: input.message,
+        imageUrl,
+      });
+      await updateTicketTimestamp(input.ticketId);
+      return msg;
+    }),
+
+  updateTicketStatus: adminProcedure
+    .input(z.object({
+      id: z.number(),
+      status: z.enum(["open", "closed", "archived"]),
+    }))
+    .mutation(async ({ input }) => {
+      await updateTicketStatus(input.id, input.status);
+      return { success: true };
+    }),
+
+  deleteTicket: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      await deleteTicket(input.id);
       return { success: true };
     }),
 });
@@ -1021,6 +1097,68 @@ const resellerRouter = router({
       }
 
       return { success: true, keys: generatedKeys, totalCost, newBalance: reseller.credits };
+    }),
+
+  // ─── Tickets ─────────────────────────────────────────────────────────────────
+  myTickets: resellerProcedure.query(async ({ ctx }) => {
+    return getTicketsByResellerId(ctx.resellerId);
+  }),
+
+  createTicket: resellerProcedure
+    .input(z.object({
+      subject: z.string().min(3).max(255),
+      message: z.string().min(1),
+      imageBase64: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const ticket = await createTicket({
+        resellerId: ctx.resellerId,
+        subject: input.subject,
+        status: "open",
+      });
+      let imageUrl: string | undefined;
+      if (input.imageBase64) {
+        imageUrl = (await uploadBase64Image(input.imageBase64)) || undefined;
+      }
+      await createTicketMessage({
+        ticketId: ticket.id,
+        senderType: "reseller",
+        message: input.message,
+        imageUrl,
+      });
+      return ticket;
+    }),
+
+  getTicket: resellerProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ ctx, input }) => {
+      const ticket = await getTicketById(input.id);
+      if (!ticket || ticket.resellerId !== ctx.resellerId) throw new TRPCError({ code: "FORBIDDEN" });
+      const messages = await getTicketMessages(input.id);
+      return { ...ticket, messages };
+    }),
+
+  sendTicketMessage: resellerProcedure
+    .input(z.object({
+      ticketId: z.number(),
+      message: z.string().min(1),
+      imageBase64: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const ticket = await getTicketById(input.ticketId);
+      if (!ticket || ticket.resellerId !== ctx.resellerId) throw new TRPCError({ code: "FORBIDDEN" });
+      let imageUrl: string | undefined;
+      if (input.imageBase64) {
+        imageUrl = (await uploadBase64Image(input.imageBase64)) || undefined;
+      }
+      const msg = await createTicketMessage({
+        ticketId: input.ticketId,
+        senderType: "reseller",
+        message: input.message,
+        imageUrl,
+      });
+      await updateTicketTimestamp(input.ticketId);
+      return msg;
     }),
 });
 

@@ -1,8 +1,8 @@
 import { eq, and, desc, sql, inArray, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { InsertUser, users, admins, resellers, categories, apps, subscriptionPlans, resellerApps, licenseKeys, creditTransactions, ipWhitelist, pixPayments } from "../drizzle/schema";
-import type { InsertAdmin, InsertReseller, InsertCategory, InsertApp, InsertSubscriptionPlan, InsertResellerApp, InsertLicenseKey, InsertCreditTransaction, InsertPixPayment } from "../drizzle/schema";
+import { InsertUser, users, admins, resellers, categories, apps, subscriptionPlans, resellerApps, licenseKeys, creditTransactions, ipWhitelist, pixPayments, tickets, ticketMessages } from "../drizzle/schema";
+import type { InsertAdmin, InsertReseller, InsertCategory, InsertApp, InsertSubscriptionPlan, InsertResellerApp, InsertLicenseKey, InsertCreditTransaction, InsertPixPayment, InsertTicket, InsertTicketMessage } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -494,4 +494,63 @@ export async function updateResellerPassword(id: number, passwordHash: string) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   await db.update(resellers).set({ passwordHash }).where(eq(resellers.id, id));
+}
+
+// ─── Tickets ──────────────────────────────────────────────────────────────────
+export async function getTicketsByResellerId(resellerId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(tickets).where(eq(tickets.resellerId, resellerId)).orderBy(desc(tickets.updatedAt));
+}
+
+export async function getAllTickets() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(tickets).orderBy(desc(tickets.updatedAt));
+}
+
+export async function getTicketById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const [row] = await db.select().from(tickets).where(eq(tickets.id, id));
+  return row;
+}
+
+export async function createTicket(data: InsertTicket) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.insert(tickets).values(data).returning();
+  return row;
+}
+
+export async function updateTicketStatus(id: number, status: "open" | "closed" | "archived") {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(tickets).set({ status, updatedAt: new Date() }).where(eq(tickets.id, id));
+}
+
+export async function updateTicketTimestamp(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(tickets).set({ updatedAt: new Date() }).where(eq(tickets.id, id));
+}
+
+export async function deleteTicket(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.delete(ticketMessages).where(eq(ticketMessages.ticketId, id));
+  await db.delete(tickets).where(eq(tickets.id, id));
+}
+
+export async function getTicketMessages(ticketId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(ticketMessages).where(eq(ticketMessages.ticketId, ticketId)).orderBy(ticketMessages.createdAt);
+}
+
+export async function createTicketMessage(data: InsertTicketMessage) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.insert(ticketMessages).values(data).returning();
+  return row;
 }

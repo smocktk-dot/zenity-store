@@ -16,11 +16,13 @@ import AdminResellerDetail from "./pages/admin/AdminResellerDetail";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminIpWhitelist from "./pages/admin/AdminIpWhitelist";
 import AdminSecurity from "./pages/admin/AdminSecurity";
+import AdminTickets from "./pages/admin/AdminTickets";
 import ResellerLayout from "./pages/reseller/ResellerLayout";
 import ResellerProfile from "./pages/reseller/ResellerProfile";
 import ResellerApps from "./pages/reseller/ResellerApps";
 import ResellerAppDetail from "./pages/reseller/ResellerAppDetail";
 import ResellerKeys from "./pages/reseller/ResellerKeys";
+import ResellerTickets from "./pages/reseller/ResellerTickets";
 import SetupPage from "./pages/SetupPage";
 import { LanguageWelcomeModal } from "./components/LanguageWelcomeModal";
 
@@ -94,6 +96,13 @@ function Router() {
           </AdminLayout>
         )}
       </Route>
+      <Route path="/admin/tickets">
+        {() => (
+          <AdminLayout>
+            <AdminTickets />
+          </AdminLayout>
+        )}
+      </Route>
 
       {/* Reseller routes */}
       <Route path="/reseller">
@@ -121,6 +130,13 @@ function Router() {
         {() => (
           <ResellerLayout>
             <ResellerKeys />
+          </ResellerLayout>
+        )}
+      </Route>
+      <Route path="/reseller/tickets">
+        {() => (
+          <ResellerLayout>
+            <ResellerTickets />
           </ResellerLayout>
         )}
       </Route>

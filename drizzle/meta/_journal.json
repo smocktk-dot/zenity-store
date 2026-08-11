@@ -29,6 +29,13 @@
       "when": 1783566632686,
       "tag": "0003_add_key_purchase_fields_to_pix_payments",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1784501234567,
+      "tag": "0004_add_tickets",
+      "breakpoints": true
     }
   ]
 }
