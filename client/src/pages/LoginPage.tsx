@@ -1,14 +1,26 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Eye, EyeOff, LogIn } from "lucide-react";
+import { Eye, EyeOff, LogIn, Send, MessageCircle, X, UserPlus, CheckCircle2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import InteractiveStars from "@/components/InteractiveStars";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useLanguage } from "@/contexts/LanguageContext";
 
 const LOGO_URL = "/logo.png";
+const APP_STORAGE_KEY = "zenity_application_id";
+
+function formatDate(d: Date | string | null | undefined) {
+  if (!d) return "—";
+  return new Date(d).toLocaleDateString("pt-BR", {
+    day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
+  });
+}
 
 export default function LoginPage() {
   const [, navigate] = useLocation();
@@ -17,11 +29,63 @@ export default function LoginPage() {
   const [showPass, setShowPass] = useState(false);
   const { t } = useLanguage();
 
-  // Unified login: tries reseller first, then admin (admin gets redirected to /admin)
+  // Application state
+  const [showApply, setShowApply] = useState(false);
+  const [showChat, setShowChat] = useState(false);
+  const [applicationId, setApplicationId] = useState<number | null>(null);
+  const [chatText, setChatText] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  const [form, setForm] = useState({
+    discordLink: "",
+    discordId: "",
+    email: "",
+    reason: "",
+  });
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const utils = trpc.useUtils();
+
+  useEffect(() => {
+    const saved = localStorage.getItem(APP_STORAGE_KEY);
+    if (saved) {
+      const id = parseInt(saved, 10);
+      if (!isNaN(id)) setApplicationId(id);
+    }
+  }, []);
+
+  const { data: application, isLoading: isLoadingApp } = trpc.auth.getMyApplication.useQuery(
+    { id: applicationId || 0 },
+    { enabled: !!applicationId }
+  );
+
+  const submit = trpc.auth.submitResellerApplication.useMutation({
+    onSuccess: (data) => {
+      localStorage.setItem(APP_STORAGE_KEY, String(data.id));
+      setApplicationId(data.id);
+      setSubmitted(true);
+      setShowApply(false);
+      toast.success("Aplicação enviada!");
+      utils.auth.getMyApplication.invalidate({ id: data.id });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const sendMessage = trpc.auth.sendApplicationMessage.useMutation({
+    onSuccess: () => {
+      setChatText("");
+      utils.auth.getMyApplication.invalidate({ id: applicationId || 0 });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [application?.messages]);
+
   const resellerLogin = trpc.auth.resellerLogin.useMutation({
     onSuccess: (data) => {
       toast.success(t.login_success);
-      // If admin logged in via reseller flow, go to admin panel
       if (data.role === "admin") {
         navigate("/admin");
       } else {
@@ -31,13 +95,27 @@ export default function LoginPage() {
     onError: (e) => toast.error(e.message),
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (!username || !password) { toast.error(t.login_fill_fields); return; }
     resellerLogin.mutate({ username, password });
   };
 
+  const handleApply = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.discordLink || !form.discordId || !form.email || !form.reason) return;
+    submit.mutate(form);
+  };
+
+  const handleChatSend = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chatText.trim() || !applicationId) return;
+    sendMessage.mutate({ applicationId, message: chatText.trim() });
+  };
+
   const isLoading = resellerLogin.isPending;
+  const hasApplication = !!applicationId;
+  const isPreApproved = application?.status === "pre_approved";
 
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
@@ -111,7 +189,7 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-1.5">
                 <label className="text-gray-400 text-xs font-semibold uppercase tracking-wider">{t.login_username}</label>
                 <Input
@@ -180,10 +258,201 @@ export default function LoginPage() {
           </div>
         </div>
 
+        {/* Apply button */}
+        {!hasApplication && !submitted && (
+          <div className="mt-5 text-center">
+            <Button
+              onClick={() => setShowApply(true)}
+              className="gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white"
+              style={{ background: "linear-gradient(135deg, #22c55e, #16a34a)", boxShadow: "0 4px 20px rgba(34,197,94,0.35)" }}
+            >
+              <UserPlus className="w-4 h-4" /> Quero me tornar Reseller
+            </Button>
+          </div>
+        )}
+
+        {submitted && application?.status === "pending" && (
+          <div className="mt-5 text-center">
+            <p className="text-yellow-400 text-sm font-medium flex items-center justify-center gap-2">
+              <CheckCircle2 className="w-4 h-4" /> Aplicação enviada! Aguarde análise.
+            </p>
+          </div>
+        )}
+
         <p className="text-center text-gray-700 text-xs mt-6">
           {t.login_copyright}
         </p>
       </div>
+
+      {/* Apply Modal */}
+      <Dialog open={showApply} onOpenChange={setShowApply}>
+        <DialogContent
+          className="text-white max-w-md border-0"
+          style={{
+            background: "linear-gradient(145deg, rgba(18,12,35,0.98) 0%, rgba(10,8,25,0.98) 100%)",
+            boxShadow: "0 0 0 1px rgba(139,92,246,0.2), 0 25px 60px rgba(0,0,0,0.7)",
+            backdropFilter: "blur(20px)",
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle className="text-white text-lg font-semibold">Quero me tornar Reseller</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleApply} className="space-y-4 mt-2">
+            <div>
+              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Link do Discord</Label>
+              <Input
+                value={form.discordLink}
+                onChange={(e) => setForm(f => ({ ...f, discordLink: e.target.value }))}
+                placeholder="https://discord.gg/..."
+                className="mt-1.5 text-white border-white/10 focus:border-violet-500/60 bg-white/5"
+                required
+              />
+            </div>
+            <div>
+              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">ID do Discord</Label>
+              <Input
+                value={form.discordId}
+                onChange={(e) => setForm(f => ({ ...f, discordId: e.target.value }))}
+                placeholder="123456789012345678"
+                className="mt-1.5 text-white border-white/10 focus:border-violet-500/60 bg-white/5"
+                required
+              />
+            </div>
+            <div>
+              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Seu Email</Label>
+              <Input
+                type="email"
+                value={form.email}
+                onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))}
+                placeholder="seu@email.com"
+                className="mt-1.5 text-white border-white/10 focus:border-violet-500/60 bg-white/5"
+                required
+              />
+            </div>
+            <div>
+              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Por que quer se tornar reseller?</Label>
+              <Textarea
+                value={form.reason}
+                onChange={(e) => setForm(f => ({ ...f, reason: e.target.value }))}
+                placeholder="Conte um pouco sobre você e como pretende vender..."
+                className="mt-1.5 text-white border-white/10 focus:border-violet-500/60 bg-white/5 min-h-[100px]"
+                required
+              />
+            </div>
+            <div className="flex gap-3 pt-2">
+              <Button
+                type="button"
+                onClick={() => setShowApply(false)}
+                className="flex-1 text-gray-300 bg-white/5 border border-white/10 hover:text-white"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={submit.isPending}
+                className="flex-1 text-white"
+                style={{ background: "linear-gradient(135deg, #7c3aed, #8b5cf6)" }}
+              >
+                {submit.isPending ? "Enviando..." : "Enviar aplicação"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Floating chat button */}
+      {hasApplication && (
+        <button
+          onClick={() => setShowChat(true)}
+          className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full flex items-center justify-center text-white shadow-2xl transition-transform hover:scale-110"
+          style={{
+            background: isPreApproved ? "linear-gradient(135deg, #22c55e, #16a34a)" : "linear-gradient(135deg, #7c3aed, #8b5cf6)",
+            boxShadow: isPreApproved ? "0 4px 24px rgba(34,197,94,0.45)" : "0 4px 24px rgba(124,58,237,0.45)",
+          }}
+          title="Meu chat com a administração"
+        >
+          <MessageCircle className="w-6 h-6" />
+        </button>
+      )}
+
+      {/* Chat Dialog for applicant */}
+      <Dialog open={showChat} onOpenChange={setShowChat}>
+        <DialogContent
+          className="text-white max-w-lg border-0"
+          style={{
+            background: "linear-gradient(145deg, rgba(18,12,35,0.98) 0%, rgba(10,8,25,0.98) 100%)",
+            boxShadow: "0 0 0 1px rgba(139,92,246,0.2), 0 25px 60px rgba(0,0,0,0.7)",
+            backdropFilter: "blur(20px)",
+          }}
+        >
+          <DialogHeader className="border-b border-white/10 pb-3">
+            <DialogTitle className="text-white text-lg font-semibold flex items-center gap-2">
+              <MessageCircle className="w-5 h-5 text-violet-400" /> Chat com a Admin
+            </DialogTitle>
+          </DialogHeader>
+
+          {application?.status === "pre_approved" && (
+            <div className="mb-3 rounded-lg p-3 text-sm" style={{ background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)" }}>
+              <p className="text-green-400 font-semibold flex items-center gap-2"><CheckCircle2 className="w-4 h-4" /> Pré-aprovado!</p>
+              <p className="text-gray-400 text-xs mt-1">Você está no processo de aprovação final. Fique atento ao chat.</p>
+            </div>
+          )}
+
+          <div
+            ref={scrollRef}
+            className="h-[320px] overflow-y-auto space-y-3 pr-1 my-3"
+          >
+            {isLoadingApp ? (
+              <p className="text-center text-gray-500 text-sm py-10">Carregando...</p>
+            ) : application?.messages?.length === 0 ? (
+              <p className="text-center text-gray-500 text-sm py-10">Aguarde a resposta da administração.</p>
+            ) : (
+              application?.messages?.map((msg: any) => {
+                const isApplicant = msg.senderType === "applicant";
+                return (
+                  <div key={msg.id} className={`flex ${isApplicant ? "justify-end" : "justify-start"}`}>
+                    <div
+                      className={`max-w-[80%] rounded-2xl px-4 py-3 ${isApplicant ? "rounded-tr-sm" : "rounded-tl-sm"}`}
+                      style={{
+                        background: isApplicant ? "linear-gradient(135deg, rgba(124,58,237,0.25), rgba(139,92,246,0.1))" : "rgba(255,255,255,0.05)",
+                        border: isApplicant ? "1px solid rgba(124,58,237,0.3)" : "1px solid rgba(255,255,255,0.08)",
+                      }}
+                    >
+                      <p className="text-[10px] text-gray-500 mb-0.5 font-semibold uppercase">{isApplicant ? "Você" : "Admin"}</p>
+                      <p className="text-white text-sm whitespace-pre-wrap">{msg.message}</p>
+                      <p className="text-[10px] text-gray-500 mt-1 text-right">{formatDate(msg.createdAt)}</p>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {application && application.status !== "archived" && application.status !== "rejected" ? (
+            <form onSubmit={handleChatSend} className="border-t border-white/10 pt-3">
+              <div className="flex items-end gap-2">
+                <Textarea
+                  value={chatText}
+                  onChange={(e) => setChatText(e.target.value)}
+                  placeholder="Escreva uma mensagem..."
+                  className="flex-1 bg-white/5 border-white/10 text-white placeholder:text-gray-600 min-h-[60px] resize-none"
+                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleChatSend(e as any); } }}
+                />
+                <Button
+                  type="submit"
+                  disabled={sendMessage.isPending || !chatText.trim()}
+                  className="h-[60px] w-12 p-0 text-white"
+                  style={{ background: "linear-gradient(135deg, #7c3aed, #8b5cf6)" }}
+                >
+                  <Send className="w-4 h-4" />
+                </Button>
+              </div>
+            </form>
+          ) : (
+            <p className="text-center text-gray-500 text-sm py-2 border-t border-white/10">Este chat está encerrado.</p>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

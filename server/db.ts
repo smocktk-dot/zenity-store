@@ -1,8 +1,8 @@
 import { eq, and, desc, sql, inArray, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { InsertUser, users, admins, resellers, categories, apps, subscriptionPlans, resellerApps, licenseKeys, creditTransactions, ipWhitelist, pixPayments, tickets, ticketMessages } from "../drizzle/schema";
-import type { InsertAdmin, InsertReseller, InsertCategory, InsertApp, InsertSubscriptionPlan, InsertResellerApp, InsertLicenseKey, InsertCreditTransaction, InsertPixPayment, InsertTicket, InsertTicketMessage } from "../drizzle/schema";
+import { InsertUser, users, admins, resellers, categories, apps, subscriptionPlans, resellerApps, licenseKeys, creditTransactions, ipWhitelist, pixPayments, tickets, ticketMessages, resellerApplications, applicationMessages } from "../drizzle/schema";
+import type { InsertAdmin, InsertReseller, InsertCategory, InsertApp, InsertSubscriptionPlan, InsertResellerApp, InsertLicenseKey, InsertCreditTransaction, InsertPixPayment, InsertTicket, InsertTicketMessage, InsertResellerApplication, InsertApplicationMessage } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -552,5 +552,65 @@ export async function createTicketMessage(data: InsertTicketMessage) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const [row] = await db.insert(ticketMessages).values(data).returning();
+  return row;
+}
+
+// ─── Reseller Applications ────────────────────────────────────────────────────
+export async function createResellerApplication(data: InsertResellerApplication) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.insert(resellerApplications).values(data).returning();
+  return row;
+}
+
+export async function getResellerApplicationById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const [row] = await db.select().from(resellerApplications).where(eq(resellerApplications.id, id));
+  return row;
+}
+
+export async function getResellerApplicationByEmail(email: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const [row] = await db.select().from(resellerApplications).where(eq(resellerApplications.email, email)).orderBy(desc(resellerApplications.createdAt)).limit(1);
+  return row;
+}
+
+export async function getAllResellerApplications() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(resellerApplications).orderBy(desc(resellerApplications.updatedAt));
+}
+
+export async function updateResellerApplicationStatus(id: number, status: "pending" | "pre_approved" | "approved" | "rejected" | "archived") {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(resellerApplications).set({ status, updatedAt: new Date() }).where(eq(resellerApplications.id, id));
+}
+
+export async function updateResellerApplicationTimestamp(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(resellerApplications).set({ updatedAt: new Date() }).where(eq(resellerApplications.id, id));
+}
+
+export async function deleteResellerApplication(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.delete(applicationMessages).where(eq(applicationMessages.applicationId, id));
+  await db.delete(resellerApplications).where(eq(resellerApplications.id, id));
+}
+
+export async function getApplicationMessages(applicationId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(applicationMessages).where(eq(applicationMessages.applicationId, applicationId)).orderBy(applicationMessages.createdAt);
+}
+
+export async function createApplicationMessage(data: InsertApplicationMessage) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.insert(applicationMessages).values(data).returning();
   return row;
 }

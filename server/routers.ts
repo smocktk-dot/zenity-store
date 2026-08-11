@@ -25,6 +25,9 @@ import {
   getPendingPixPaymentsByReseller, getPixPaymentsByReseller,
   getTicketsByResellerId, getAllTickets, getTicketById, createTicket, updateTicketStatus, updateTicketTimestamp, deleteTicket,
   getTicketMessages, createTicketMessage,
+  createResellerApplication, getResellerApplicationById, getResellerApplicationByEmail, getAllResellerApplications,
+  updateResellerApplicationStatus, updateResellerApplicationTimestamp, deleteResellerApplication,
+  getApplicationMessages, createApplicationMessage,
 } from "./db";
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "cv-reseller-secret-key-2024");
@@ -209,6 +212,57 @@ const authRouter = router({
       const passwordHash = await bcrypt.hash(input.password, 10);
       await createAdmin({ username: input.username, passwordHash });
       return { success: true };
+    }),
+
+  // ─── Reseller Applications (public) ───────────────────────────────────────────
+  submitResellerApplication: publicProcedure
+    .input(z.object({
+      discordLink: z.string().min(1),
+      discordId: z.string().min(1),
+      email: z.string().email(),
+      reason: z.string().min(1),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const ip = getClientIp(ctx.req);
+      const existing = await getResellerApplicationByEmail(input.email);
+      if (existing && ["pending", "pre_approved"].includes(existing.status)) {
+        throw new TRPCError({ code: "CONFLICT", message: "Você já possui uma aplicação em andamento" });
+      }
+      const row = await createResellerApplication({
+        ...input,
+        status: "pending",
+        ip,
+      });
+      return { id: row.id, status: row.status };
+    }),
+
+  getMyApplication: publicProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ input }) => {
+      const app = await getResellerApplicationById(input.id);
+      if (!app) throw new TRPCError({ code: "NOT_FOUND" });
+      const messages = await getApplicationMessages(input.id);
+      return { ...app, messages };
+    }),
+
+  sendApplicationMessage: publicProcedure
+    .input(z.object({
+      applicationId: z.number(),
+      message: z.string().min(1),
+    }))
+    .mutation(async ({ input }) => {
+      const app = await getResellerApplicationById(input.applicationId);
+      if (!app) throw new TRPCError({ code: "NOT_FOUND" });
+      if (app.status === "archived" || app.status === "rejected") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Aplicação arquivada ou rejeitada" });
+      }
+      const msg = await createApplicationMessage({
+        applicationId: input.applicationId,
+        senderType: "applicant",
+        message: input.message,
+      });
+      await updateResellerApplicationTimestamp(input.applicationId);
+      return msg;
     }),
 });
 
@@ -509,6 +563,52 @@ const adminRouter = router({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       await deleteTicket(input.id);
+      return { success: true };
+    }),
+
+  // ─── Reseller Applications ───────────────────────────────────────────────────
+  listResellerApplications: adminProcedure.query(() => getAllResellerApplications()),
+
+  getResellerApplication: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ input }) => {
+      const app = await getResellerApplicationById(input.id);
+      if (!app) throw new TRPCError({ code: "NOT_FOUND" });
+      const messages = await getApplicationMessages(input.id);
+      return { ...app, messages };
+    }),
+
+  sendApplicationMessageAdmin: adminProcedure
+    .input(z.object({
+      applicationId: z.number(),
+      message: z.string().min(1),
+    }))
+    .mutation(async ({ input }) => {
+      const app = await getResellerApplicationById(input.applicationId);
+      if (!app) throw new TRPCError({ code: "NOT_FOUND" });
+      const msg = await createApplicationMessage({
+        applicationId: input.applicationId,
+        senderType: "admin",
+        message: input.message,
+      });
+      await updateResellerApplicationTimestamp(input.applicationId);
+      return msg;
+    }),
+
+  updateResellerApplicationStatus: adminProcedure
+    .input(z.object({
+      id: z.number(),
+      status: z.enum(["pending", "pre_approved", "approved", "rejected", "archived"]),
+    }))
+    .mutation(async ({ input }) => {
+      await updateResellerApplicationStatus(input.id, input.status);
+      return { success: true };
+    }),
+
+  deleteResellerApplication: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      await deleteResellerApplication(input.id);
       return { success: true };
     }),
 });

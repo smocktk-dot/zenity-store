@@ -19,7 +19,7 @@ import {
   decimal,
   serial
 } from "drizzle-orm/pg-core";
-var userRoleEnum, resellerTypeEnum, resellerStatusEnum, appStatusEnum, planLevelEnum, keyStatusEnum, transactionTypeEnum, pixPaymentStatusEnum, ticketStatusEnum, ticketSenderEnum, users, admins, resellers, categories, apps, subscriptionPlans, resellerApps, licenseKeys, creditTransactions, pixPayments, ipWhitelist, tickets, ticketMessages;
+var userRoleEnum, resellerTypeEnum, resellerStatusEnum, appStatusEnum, planLevelEnum, keyStatusEnum, transactionTypeEnum, pixPaymentStatusEnum, ticketStatusEnum, ticketSenderEnum, applicationStatusEnum, applicationSenderEnum, users, admins, resellers, categories, apps, subscriptionPlans, resellerApps, licenseKeys, creditTransactions, pixPayments, ipWhitelist, tickets, ticketMessages, resellerApplications, applicationMessages;
 var init_schema = __esm({
   "drizzle/schema.ts"() {
     "use strict";
@@ -33,6 +33,8 @@ var init_schema = __esm({
     pixPaymentStatusEnum = pgEnum("pix_payment_status", ["pending", "paid", "expired", "refunded", "cancelled"]);
     ticketStatusEnum = pgEnum("ticket_status", ["open", "closed", "archived"]);
     ticketSenderEnum = pgEnum("ticket_sender", ["reseller", "admin"]);
+    applicationStatusEnum = pgEnum("application_status", ["pending", "pre_approved", "approved", "rejected", "archived"]);
+    applicationSenderEnum = pgEnum("application_sender", ["applicant", "admin"]);
     users = pgTable("users", {
       id: serial("id").primaryKey(),
       openId: varchar("openId", { length: 64 }).notNull().unique(),
@@ -182,6 +184,24 @@ var init_schema = __esm({
       imageUrl: text("imageUrl"),
       createdAt: timestamp("createdAt").defaultNow().notNull()
     });
+    resellerApplications = pgTable("reseller_applications", {
+      id: serial("id").primaryKey(),
+      discordLink: text("discordLink").notNull(),
+      discordId: text("discordId").notNull(),
+      email: varchar("email", { length: 320 }).notNull(),
+      reason: text("reason").notNull(),
+      status: applicationStatusEnum("status").default("pending").notNull(),
+      ip: varchar("ip", { length: 64 }),
+      createdAt: timestamp("createdAt").defaultNow().notNull(),
+      updatedAt: timestamp("updatedAt").defaultNow().notNull()
+    });
+    applicationMessages = pgTable("application_messages", {
+      id: serial("id").primaryKey(),
+      applicationId: integer("applicationId").notNull().references(() => resellerApplications.id),
+      senderType: applicationSenderEnum("senderType").notNull(),
+      message: text("message").notNull(),
+      createdAt: timestamp("createdAt").defaultNow().notNull()
+    });
   }
 });
 
@@ -210,17 +230,20 @@ __export(db_exports, {
   assignAppToReseller: () => assignAppToReseller,
   createAdmin: () => createAdmin,
   createApp: () => createApp,
+  createApplicationMessage: () => createApplicationMessage,
   createCategory: () => createCategory,
   createCreditTransaction: () => createCreditTransaction,
   createLicenseKey: () => createLicenseKey,
   createPixPayment: () => createPixPayment,
   createPlan: () => createPlan,
   createReseller: () => createReseller,
+  createResellerApplication: () => createResellerApplication,
   createTicket: () => createTicket,
   createTicketMessage: () => createTicketMessage,
   deleteApp: () => deleteApp,
   deleteCategory: () => deleteCategory,
   deletePlan: () => deletePlan,
+  deleteResellerApplication: () => deleteResellerApplication,
   deleteTicket: () => deleteTicket,
   ensurePixPaymentSchema: () => ensurePixPaymentSchema,
   getAdminById: () => getAdminById,
@@ -229,9 +252,11 @@ __export(db_exports, {
   getAllCategories: () => getAllCategories,
   getAllIpWhitelist: () => getAllIpWhitelist,
   getAllKeys: () => getAllKeys,
+  getAllResellerApplications: () => getAllResellerApplications,
   getAllResellers: () => getAllResellers,
   getAllTickets: () => getAllTickets,
   getAppById: () => getAppById,
+  getApplicationMessages: () => getApplicationMessages,
   getAppsByResellerId: () => getAppsByResellerId,
   getAssignedAppIds: () => getAssignedAppIds,
   getDb: () => getDb,
@@ -243,6 +268,8 @@ __export(db_exports, {
   getPixPaymentsByReseller: () => getPixPaymentsByReseller,
   getPlanById: () => getPlanById,
   getPlansByAppId: () => getPlansByAppId,
+  getResellerApplicationByEmail: () => getResellerApplicationByEmail,
+  getResellerApplicationById: () => getResellerApplicationById,
   getResellerById: () => getResellerById,
   getResellerByUsername: () => getResellerByUsername,
   getTicketById: () => getTicketById,
@@ -263,6 +290,8 @@ __export(db_exports, {
   updatePixPaymentStatus: () => updatePixPaymentStatus,
   updatePlan: () => updatePlan,
   updateReseller: () => updateReseller,
+  updateResellerApplicationStatus: () => updateResellerApplicationStatus,
+  updateResellerApplicationTimestamp: () => updateResellerApplicationTimestamp,
   updateResellerCredits: () => updateResellerCredits,
   updateResellerPassword: () => updateResellerPassword,
   updateTicketStatus: () => updateTicketStatus,
@@ -698,6 +727,56 @@ async function createTicketMessage(data) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const [row] = await db.insert(ticketMessages).values(data).returning();
+  return row;
+}
+async function createResellerApplication(data) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.insert(resellerApplications).values(data).returning();
+  return row;
+}
+async function getResellerApplicationById(id) {
+  const db = await getDb();
+  if (!db) return void 0;
+  const [row] = await db.select().from(resellerApplications).where(eq(resellerApplications.id, id));
+  return row;
+}
+async function getResellerApplicationByEmail(email) {
+  const db = await getDb();
+  if (!db) return void 0;
+  const [row] = await db.select().from(resellerApplications).where(eq(resellerApplications.email, email)).orderBy(desc(resellerApplications.createdAt)).limit(1);
+  return row;
+}
+async function getAllResellerApplications() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(resellerApplications).orderBy(desc(resellerApplications.updatedAt));
+}
+async function updateResellerApplicationStatus(id, status) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(resellerApplications).set({ status, updatedAt: /* @__PURE__ */ new Date() }).where(eq(resellerApplications.id, id));
+}
+async function updateResellerApplicationTimestamp(id) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(resellerApplications).set({ updatedAt: /* @__PURE__ */ new Date() }).where(eq(resellerApplications.id, id));
+}
+async function deleteResellerApplication(id) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.delete(applicationMessages).where(eq(applicationMessages.applicationId, id));
+  await db.delete(resellerApplications).where(eq(resellerApplications.id, id));
+}
+async function getApplicationMessages(applicationId) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(applicationMessages).where(eq(applicationMessages.applicationId, applicationId)).orderBy(applicationMessages.createdAt);
+}
+async function createApplicationMessage(data) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.insert(applicationMessages).values(data).returning();
   return row;
 }
 var _db, _sqlClient, _pixPaymentSchemaReady;
@@ -1471,6 +1550,48 @@ var authRouter = router({
     const passwordHash = await bcrypt.hash(input.password, 10);
     await createAdmin({ username: input.username, passwordHash });
     return { success: true };
+  }),
+  // ─── Reseller Applications (public) ───────────────────────────────────────────
+  submitResellerApplication: publicProcedure.input(z2.object({
+    discordLink: z2.string().min(1),
+    discordId: z2.string().min(1),
+    email: z2.string().email(),
+    reason: z2.string().min(1)
+  })).mutation(async ({ input, ctx }) => {
+    const ip = getClientIp(ctx.req);
+    const existing = await getResellerApplicationByEmail(input.email);
+    if (existing && ["pending", "pre_approved"].includes(existing.status)) {
+      throw new TRPCError3({ code: "CONFLICT", message: "Voc\xEA j\xE1 possui uma aplica\xE7\xE3o em andamento" });
+    }
+    const row = await createResellerApplication({
+      ...input,
+      status: "pending",
+      ip
+    });
+    return { id: row.id, status: row.status };
+  }),
+  getMyApplication: publicProcedure.input(z2.object({ id: z2.number() })).query(async ({ input }) => {
+    const app2 = await getResellerApplicationById(input.id);
+    if (!app2) throw new TRPCError3({ code: "NOT_FOUND" });
+    const messages = await getApplicationMessages(input.id);
+    return { ...app2, messages };
+  }),
+  sendApplicationMessage: publicProcedure.input(z2.object({
+    applicationId: z2.number(),
+    message: z2.string().min(1)
+  })).mutation(async ({ input }) => {
+    const app2 = await getResellerApplicationById(input.applicationId);
+    if (!app2) throw new TRPCError3({ code: "NOT_FOUND" });
+    if (app2.status === "archived" || app2.status === "rejected") {
+      throw new TRPCError3({ code: "FORBIDDEN", message: "Aplica\xE7\xE3o arquivada ou rejeitada" });
+    }
+    const msg = await createApplicationMessage({
+      applicationId: input.applicationId,
+      senderType: "applicant",
+      message: input.message
+    });
+    await updateResellerApplicationTimestamp(input.applicationId);
+    return msg;
   })
 });
 var adminProcedure2 = publicProcedure.use(async ({ ctx, next }) => {
@@ -1725,6 +1846,39 @@ var adminRouter = router({
   }),
   deleteTicket: adminProcedure2.input(z2.object({ id: z2.number() })).mutation(async ({ input }) => {
     await deleteTicket(input.id);
+    return { success: true };
+  }),
+  // ─── Reseller Applications ───────────────────────────────────────────────────
+  listResellerApplications: adminProcedure2.query(() => getAllResellerApplications()),
+  getResellerApplication: adminProcedure2.input(z2.object({ id: z2.number() })).query(async ({ input }) => {
+    const app2 = await getResellerApplicationById(input.id);
+    if (!app2) throw new TRPCError3({ code: "NOT_FOUND" });
+    const messages = await getApplicationMessages(input.id);
+    return { ...app2, messages };
+  }),
+  sendApplicationMessageAdmin: adminProcedure2.input(z2.object({
+    applicationId: z2.number(),
+    message: z2.string().min(1)
+  })).mutation(async ({ input }) => {
+    const app2 = await getResellerApplicationById(input.applicationId);
+    if (!app2) throw new TRPCError3({ code: "NOT_FOUND" });
+    const msg = await createApplicationMessage({
+      applicationId: input.applicationId,
+      senderType: "admin",
+      message: input.message
+    });
+    await updateResellerApplicationTimestamp(input.applicationId);
+    return msg;
+  }),
+  updateResellerApplicationStatus: adminProcedure2.input(z2.object({
+    id: z2.number(),
+    status: z2.enum(["pending", "pre_approved", "approved", "rejected", "archived"])
+  })).mutation(async ({ input }) => {
+    await updateResellerApplicationStatus(input.id, input.status);
+    return { success: true };
+  }),
+  deleteResellerApplication: adminProcedure2.input(z2.object({ id: z2.number() })).mutation(async ({ input }) => {
+    await deleteResellerApplication(input.id);
     return { success: true };
   })
 });

@@ -21,6 +21,8 @@ export const transactionTypeEnum = pgEnum("transaction_type", ["add", "deduct", 
 export const pixPaymentStatusEnum = pgEnum("pix_payment_status", ["pending", "paid", "expired", "refunded", "cancelled"]);
 export const ticketStatusEnum = pgEnum("ticket_status", ["open", "closed", "archived"]);
 export const ticketSenderEnum = pgEnum("ticket_sender", ["reseller", "admin"]);
+export const applicationStatusEnum = pgEnum("application_status", ["pending", "pre_approved", "approved", "rejected", "archived"]);
+export const applicationSenderEnum = pgEnum("application_sender", ["applicant", "admin"]);
 
 // ─── Core users table (Manus OAuth, kept for compatibility) ───────────────────
 export const users = pgTable("users", {
@@ -224,3 +226,30 @@ export const ticketMessages = pgTable("ticket_messages", {
 
 export type TicketMessage = typeof ticketMessages.$inferSelect;
 export type InsertTicketMessage = typeof ticketMessages.$inferInsert;
+
+// ─── Reseller Applications ────────────────────────────────────────────────────
+export const resellerApplications = pgTable("reseller_applications", {
+  id: serial("id").primaryKey(),
+  discordLink: text("discordLink").notNull(),
+  discordId: text("discordId").notNull(),
+  email: varchar("email", { length: 320 }).notNull(),
+  reason: text("reason").notNull(),
+  status: applicationStatusEnum("status").default("pending").notNull(),
+  ip: varchar("ip", { length: 64 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
+export type ResellerApplication = typeof resellerApplications.$inferSelect;
+export type InsertResellerApplication = typeof resellerApplications.$inferInsert;
+
+export const applicationMessages = pgTable("application_messages", {
+  id: serial("id").primaryKey(),
+  applicationId: integer("applicationId").notNull().references(() => resellerApplications.id),
+  senderType: applicationSenderEnum("senderType").notNull(),
+  message: text("message").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ApplicationMessage = typeof applicationMessages.$inferSelect;
+export type InsertApplicationMessage = typeof applicationMessages.$inferInsert;

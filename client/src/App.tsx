@@ -17,6 +17,7 @@ import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminIpWhitelist from "./pages/admin/AdminIpWhitelist";
 import AdminSecurity from "./pages/admin/AdminSecurity";
 import AdminTickets from "./pages/admin/AdminTickets";
+import AdminApplications from "./pages/admin/AdminApplications";
 import ResellerLayout from "./pages/reseller/ResellerLayout";
 import ResellerProfile from "./pages/reseller/ResellerProfile";
 import ResellerApps from "./pages/reseller/ResellerApps";
@@ -100,6 +101,13 @@ function Router() {
         {() => (
           <AdminLayout>
             <AdminTickets />
+          </AdminLayout>
+        )}
+      </Route>
+      <Route path="/admin/applications">
+        {() => (
+          <AdminLayout>
+            <AdminApplications />
           </AdminLayout>
         )}
       </Route>
