@@ -763,10 +763,8 @@ const resellerRouter = router({
   profile: resellerProcedure.query(async ({ ctx }) => {
     const r = ctx.reseller;
     const purchases = r.totalPurchases;
-    // Desconto progressivo só se aplica a resellers de porcentagem
-    const isPercentage = r.resellerType === "percentage";
-    const discount = isPercentage ? calcDiscount(purchases) : 0;
-    const nextLevel = isPercentage && purchases < 10 ? { target: 10, discount: 40 } : isPercentage && purchases < 20 ? { target: 20, discount: 50 } : null;
+    const discount = parseFloat(r.discountPercent as string) || 0;
+    const nextLevel = r.resellerType === "percentage" && purchases < 10 ? { target: 10, discount: 40 } : r.resellerType === "percentage" && purchases < 20 ? { target: 20, discount: 50 } : null;
     const transactions = await getTransactionsByResellerId(r.id);
     return {
       id: r.id, username: r.username, email: r.email, location: r.location,
