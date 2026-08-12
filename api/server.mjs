@@ -1476,13 +1476,6 @@ async function keyauthCreateLicense(opts) {
   return keys;
 }
 
-// server/resellerPricing.ts
-function calcDiscount(totalPurchases) {
-  if (totalPurchases >= 20) return 50;
-  if (totalPurchases >= 10) return 40;
-  return 35;
-}
-
 // server/storage.ts
 init_env();
 function getForgeConfig() {
@@ -2331,7 +2324,7 @@ var resellerRouter = router({
     if (!plan || plan.appId !== input.appId) throw new TRPCError3({ code: "NOT_FOUND", message: "Plano n\xE3o encontrado" });
     const app2 = await getAppById(input.appId);
     if (!app2) throw new TRPCError3({ code: "NOT_FOUND" });
-    const discount = calcDiscount(reseller.totalPurchases);
+    const discount = parseFloat(reseller.discountPercent) || 0;
     const basePrice = parseFloat(plan.pricePercentage ?? "0");
     const discountedPrice = basePrice * (1 - discount / 100);
     const totalCost = discountedPrice * input.quantity;
@@ -2431,7 +2424,7 @@ var resellerRouter = router({
     if (!plan || plan.appId !== input.appId) throw new TRPCError3({ code: "NOT_FOUND", message: "Plano n\xE3o encontrado" });
     const app2 = await getAppById(input.appId);
     if (!app2) throw new TRPCError3({ code: "NOT_FOUND" });
-    const discount = calcDiscount(reseller.totalPurchases);
+    const discount = parseFloat(reseller.discountPercent) || 0;
     const basePrice = parseFloat(plan.pricePercentage ?? "0");
     const discountedPrice = basePrice * (1 - discount / 100);
     const totalCost = discountedPrice * input.quantity;
@@ -2557,13 +2550,12 @@ var resellerRouter = router({
     if (!plan || plan.appId !== input.appId) throw new TRPCError3({ code: "NOT_FOUND", message: "Plano n\xE3o encontrado" });
     const app2 = await getAppById(input.appId);
     if (!app2) throw new TRPCError3({ code: "NOT_FOUND" });
-    const discount = calcDiscount(reseller.totalPurchases);
+    const discount = parseFloat(reseller.discountPercent) || 0;
     const basePrice = parseFloat(plan.pricePercentage ?? "0");
     const discountedPrice = basePrice * (1 - discount / 100);
     const totalCost = discountedPrice * input.quantity;
     const newPurchases = reseller.totalPurchases + input.quantity;
-    const newDiscount = calcDiscount(newPurchases);
-    await updateResellerCredits(ctx.resellerId, reseller.credits, newPurchases, newDiscount.toFixed(2));
+    await updateResellerCredits(ctx.resellerId, reseller.credits, newPurchases, reseller.discountPercent);
     const sellerKey = app2.keyauthSellerKey || KEYAUTH_SELLER_KEY;
     let keyauthKeys = null;
     try {
@@ -2671,6 +2663,15 @@ async function createContext(opts) {
 
 // server/purinCashWebhook.ts
 init_db();
+
+// server/resellerPricing.ts
+function calcDiscount(totalPurchases) {
+  if (totalPurchases >= 20) return 50;
+  if (totalPurchases >= 10) return 40;
+  return 35;
+}
+
+// server/purinCashWebhook.ts
 var FINAL_PAYMENT_STATUSES = /* @__PURE__ */ new Set(["expired", "cancelled", "refunded"]);
 async function handlePurinCashWebhook(req, res) {
   try {

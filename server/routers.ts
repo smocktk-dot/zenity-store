@@ -1012,8 +1012,8 @@ const resellerRouter = router({
       const app = await getAppById(input.appId);
       if (!app) throw new TRPCError({ code: "NOT_FOUND" });
 
-      // Calcular preço com desconto progressivo
-      const discount = calcDiscount(reseller.totalPurchases);
+      // Calcular preço com o desconto configurado pelo admin
+      const discount = parseFloat(reseller.discountPercent as string) || 0;
       const basePrice = parseFloat((plan as any).pricePercentage ?? "0");
       const discountedPrice = basePrice * (1 - discount / 100);
       const totalCost = discountedPrice * input.quantity;
@@ -1137,8 +1137,8 @@ const resellerRouter = router({
       const app = await getAppById(input.appId);
       if (!app) throw new TRPCError({ code: "NOT_FOUND" });
 
-      // Calcular preço com desconto progressivo
-      const discount = calcDiscount(reseller.totalPurchases);
+      // Calcular preço com o desconto configurado pelo admin
+      const discount = parseFloat(reseller.discountPercent as string) || 0;
       const basePrice = parseFloat((plan as any).pricePercentage ?? "0");
       const discountedPrice = basePrice * (1 - discount / 100);
       const totalCost = discountedPrice * input.quantity;
@@ -1292,15 +1292,14 @@ const resellerRouter = router({
       const app = await getAppById(input.appId);
       if (!app) throw new TRPCError({ code: "NOT_FOUND" });
 
-      // Resellers de porcentagem usam desconto progressivo baseado em totalPurchases
-      const discount = calcDiscount(reseller.totalPurchases);
+      // Resellers de porcentagem usam o desconto configurado pelo admin
+      const discount = parseFloat(reseller.discountPercent as string) || 0;
       const basePrice = parseFloat((plan as any).pricePercentage ?? "0");
       const discountedPrice = basePrice * (1 - discount / 100);
       const totalCost = discountedPrice * input.quantity;
 
       const newPurchases = reseller.totalPurchases + input.quantity;
-      const newDiscount = calcDiscount(newPurchases);
-      await updateResellerCredits(ctx.resellerId, reseller.credits as string, newPurchases, newDiscount.toFixed(2));
+      await updateResellerCredits(ctx.resellerId, reseller.credits as string, newPurchases, reseller.discountPercent as string);
 
       // Gerar licenças via KeyAuth se o app tiver seller key configurada
       const sellerKey = (app as any).keyauthSellerKey || KEYAUTH_SELLER_KEY;
