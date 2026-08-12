@@ -1805,11 +1805,13 @@ var adminRouter = router({
     location: z2.string().optional().nullable(),
     status: z2.enum(["active", "inactive", "banned"]).optional(),
     password: z2.string().min(6).optional(),
-    resellerType: z2.enum(["credits", "percentage"]).optional()
+    resellerType: z2.enum(["credits", "percentage"]).optional(),
+    discountPercent: z2.number().min(0).max(100).optional()
   })).mutation(async ({ input }) => {
-    const { id, password, ...rest } = input;
+    const { id, password, discountPercent, ...rest } = input;
     const data = { ...rest };
     if (password) data.passwordHash = await bcrypt.hash(password, 10);
+    if (discountPercent !== void 0) data.discountPercent = discountPercent.toFixed(2);
     await updateReseller(id, data);
     return { success: true };
   }),

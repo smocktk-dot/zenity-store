@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -6,6 +7,7 @@ import {
   CheckCircle2, Circle, User, Calendar, CreditCard, ShoppingBag
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 export default function AdminResellerDetail({ id }: { id: number }) {
   const [, navigate] = useLocation();
@@ -14,6 +16,8 @@ export default function AdminResellerDetail({ id }: { id: number }) {
   const { data: resellerApps, isLoading } = trpc.admin.getResellerApps.useQuery({ resellerId: id });
   const { data: resellers = [] } = trpc.admin.listResellers.useQuery();
   const reseller = resellers.find((r: any) => r.id === id);
+
+  const [discount, setDiscount] = useState<string>("");
 
   const assignApp = trpc.admin.assignApp.useMutation({
     onSuccess: () => {
@@ -31,6 +35,14 @@ export default function AdminResellerDetail({ id }: { id: number }) {
     onError: e => toast.error(e.message),
   });
 
+  const updateReseller = trpc.admin.updateReseller.useMutation({
+    onSuccess: () => {
+      toast.success("Desconto atualizado!");
+      utils.admin.listResellers.invalidate();
+    },
+    onError: e => toast.error(e.message),
+  });
+
   if (isLoading) return (
     <div className="p-6 flex items-center justify-center h-64">
       <div className="w-6 h-6 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
@@ -43,6 +55,8 @@ export default function AdminResellerDetail({ id }: { id: number }) {
   const availableApps = allApps.filter(a => !assigned.includes(a.id));
 
   const isCredits = !reseller?.resellerType || reseller?.resellerType === "credits";
+  const currentDiscount = parseFloat(reseller?.discountPercent ?? "35");
+  const discountValue = discount === "" ? currentDiscount.toFixed(0) : discount;
 
   return (
     <div className="p-6 space-y-6">
@@ -117,6 +131,45 @@ export default function AdminResellerDetail({ id }: { id: number }) {
           </>
         )}
       </div>
+
+      {/* Configurar desconto */}
+      {reseller && (
+        <div className="rounded-xl border border-white/10 p-4" style={{ background: "rgba(255,255,255,0.02)" }}>
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <h3 className="text-white font-semibold text-sm">Desconto do reseller</h3>
+              <p className="text-gray-500 text-xs mt-0.5">Modifique o percentual de desconto aplicado nas compras deste reseller.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                min="0"
+                max="100"
+                step="1"
+                value={discountValue}
+                onChange={(e) => setDiscount(e.target.value)}
+                className="w-24 bg-white/5 border-white/10 text-white text-center"
+              />
+              <span className="text-gray-400 text-sm">%</span>
+              <Button
+                onClick={() => {
+                  const value = parseFloat(discountValue);
+                  if (isNaN(value) || value < 0 || value > 100) {
+                    toast.error("Desconto deve ser entre 0 e 100");
+                    return;
+                  }
+                  updateReseller.mutate({ id, discountPercent: value });
+                }}
+                disabled={updateReseller.isPending}
+                className="text-white"
+                style={{ background: "linear-gradient(135deg, #7c3aed, #8b5cf6)" }}
+              >
+                {updateReseller.isPending ? "Salvando..." : "Salvar"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 

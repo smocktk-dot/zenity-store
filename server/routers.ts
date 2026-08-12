@@ -372,11 +372,13 @@ const adminRouter = router({
       status: z.enum(["active", "inactive", "banned"]).optional(),
       password: z.string().min(6).optional(),
       resellerType: z.enum(["credits", "percentage"]).optional(),
+      discountPercent: z.number().min(0).max(100).optional(),
     }))
     .mutation(async ({ input }) => {
-      const { id, password, ...rest } = input;
+      const { id, password, discountPercent, ...rest } = input;
       const data: Record<string, unknown> = { ...rest };
       if (password) data.passwordHash = await bcrypt.hash(password, 10);
+      if (discountPercent !== undefined) data.discountPercent = discountPercent.toFixed(2);
       await updateReseller(id, data as any);
       return { success: true };
     }),
