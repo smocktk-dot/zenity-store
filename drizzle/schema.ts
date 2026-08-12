@@ -262,6 +262,7 @@ export const supportTickets = pgTable("support_tickets", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 128 }).notNull(),
   email: varchar("email", { length: 320 }).notNull(),
+  subject: varchar("subject", { length: 256 }).notNull(),
   question: text("question").notNull(),
   status: supportTicketStatusEnum("status").default("open").notNull(),
   ip: varchar("ip", { length: 64 }),

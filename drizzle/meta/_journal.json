@@ -50,6 +50,13 @@
       "when": 1784503456789,
       "tag": "0006_add_support_tickets_and_product",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1784504567890,
+      "tag": "0007_add_subject_to_support_tickets",
+      "breakpoints": true
     }
   ]
 }

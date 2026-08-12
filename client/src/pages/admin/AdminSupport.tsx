@@ -161,6 +161,10 @@ export default function AdminSupport() {
         </div>
 
         <div className="rounded-xl border border-white/5 p-4 mb-4" style={{ background: "rgba(255,255,255,0.02)" }}>
+          <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Motivo</p>
+          <p className="text-white text-sm leading-relaxed font-semibold">{detail.subject}</p>
+        </div>
+        <div className="rounded-xl border border-white/5 p-4 mb-4" style={{ background: "rgba(255,255,255,0.02)" }}>
           <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Dúvida</p>
           <p className="text-white text-sm leading-relaxed">{detail.question}</p>
         </div>
@@ -261,7 +265,7 @@ export default function AdminSupport() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-white/5">
-                {["ID", "Nome", "Email", "Status", "Data", "Ações"].map((h) => (
+                {["ID", "Nome", "Motivo", "Email", "Status", "Data", "Ações"].map((h) => (
                   <th key={h} className="text-left px-4 py-3 text-gray-500 text-xs font-medium uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
@@ -271,6 +275,7 @@ export default function AdminSupport() {
                 <tr key={t.id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition-colors">
                   <td className="px-4 py-3 text-white text-sm font-medium">#{t.id}</td>
                   <td className="px-4 py-3 text-gray-300 text-sm">{t.name}</td>
+                  <td className="px-4 py-3 text-gray-300 text-sm max-w-[180px] truncate" title={t.subject}>{t.subject}</td>
                   <td className="px-4 py-3 text-gray-400 text-sm">{t.email}</td>
                   <td className="px-4 py-3">
                     <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${statusColor[t.status]}`}>

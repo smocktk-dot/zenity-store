@@ -274,6 +274,7 @@ const authRouter = router({
     .input(z.object({
       name: z.string().min(1).max(128),
       email: z.string().email(),
+      subject: z.string().min(1).max(256),
       question: z.string().min(1),
     }))
     .mutation(async ({ input, ctx }) => {

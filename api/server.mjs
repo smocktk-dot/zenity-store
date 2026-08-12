@@ -209,6 +209,7 @@ var init_schema = __esm({
       id: serial("id").primaryKey(),
       name: varchar("name", { length: 128 }).notNull(),
       email: varchar("email", { length: 320 }).notNull(),
+      subject: varchar("subject", { length: 256 }).notNull(),
       question: text("question").notNull(),
       status: supportTicketStatusEnum("status").default("open").notNull(),
       ip: varchar("ip", { length: 64 }),
@@ -1670,6 +1671,7 @@ var authRouter = router({
   submitSupportTicket: publicProcedure.input(z2.object({
     name: z2.string().min(1).max(128),
     email: z2.string().email(),
+    subject: z2.string().min(1).max(256),
     question: z2.string().min(1)
   })).mutation(async ({ input, ctx }) => {
     const ip = getClientIp(ctx.req);
