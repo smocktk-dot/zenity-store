@@ -8,6 +8,7 @@ import { createContext } from "./context";
 import { handlePurinCashWebhook } from "../purinCashWebhook";
 
 const app = express();
+// Build bust: 3917dcf
 
 // Trust proxy headers (Vercel, Cloudflare, etc.) so req.protocol and IP headers work correctly
 app.set("trust proxy", true);
