@@ -1,8 +1,8 @@
 import { eq, and, desc, sql, inArray, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { InsertUser, users, admins, resellers, categories, apps, subscriptionPlans, resellerApps, licenseKeys, creditTransactions, ipWhitelist, pixPayments, tickets, ticketMessages, resellerApplications, applicationMessages } from "../drizzle/schema";
-import type { InsertAdmin, InsertReseller, InsertCategory, InsertApp, InsertSubscriptionPlan, InsertResellerApp, InsertLicenseKey, InsertCreditTransaction, InsertPixPayment, InsertTicket, InsertTicketMessage, InsertResellerApplication, InsertApplicationMessage } from "../drizzle/schema";
+import { InsertUser, users, admins, resellers, categories, apps, subscriptionPlans, resellerApps, licenseKeys, creditTransactions, ipWhitelist, pixPayments, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages } from "../drizzle/schema";
+import type { InsertAdmin, InsertReseller, InsertCategory, InsertApp, InsertSubscriptionPlan, InsertResellerApp, InsertLicenseKey, InsertCreditTransaction, InsertPixPayment, InsertTicket, InsertTicketMessage, InsertResellerApplication, InsertApplicationMessage, InsertSupportTicket, InsertSupportMessage } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -612,5 +612,58 @@ export async function createApplicationMessage(data: InsertApplicationMessage) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const [row] = await db.insert(applicationMessages).values(data).returning();
+  return row;
+}
+
+// ─── Public Support Tickets (dúvidas) ─────────────────────────────────────────
+export async function createSupportTicket(data: InsertSupportTicket) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.insert(supportTickets).values(data).returning();
+  return row;
+}
+
+export async function getSupportTicketById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const [row] = await db.select().from(supportTickets).where(eq(supportTickets.id, id));
+  return row;
+}
+
+export async function getAllSupportTickets() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(supportTickets).orderBy(desc(supportTickets.updatedAt));
+}
+
+export async function updateSupportTicketStatus(id: number, status: "open" | "closed" | "archived") {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(supportTickets).set({ status, updatedAt: new Date() }).where(eq(supportTickets.id, id));
+}
+
+export async function updateSupportTicketTimestamp(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(supportTickets).set({ updatedAt: new Date() }).where(eq(supportTickets.id, id));
+}
+
+export async function deleteSupportTicket(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.delete(supportMessages).where(eq(supportMessages.ticketId, id));
+  await db.delete(supportTickets).where(eq(supportTickets.id, id));
+}
+
+export async function getSupportMessages(ticketId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(supportMessages).where(eq(supportMessages.ticketId, ticketId)).orderBy(supportMessages.createdAt);
+}
+
+export async function createSupportMessage(data: InsertSupportMessage) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.insert(supportMessages).values(data).returning();
   return row;
 }

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Eye, EyeOff, LogIn, Send, MessageCircle, X, UserPlus, CheckCircle2 } from "lucide-react";
+import { Eye, EyeOff, LogIn, Send, MessageCircle, X, UserPlus, CheckCircle2, HelpCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 
 const LOGO_URL = "/logo.png";
 const APP_STORAGE_KEY = "zenity_application_id";
+const SUPPORT_STORAGE_KEY = "zenity_support_id";
 
 function formatDate(d: Date | string | null | undefined) {
   if (!d) return "—";
@@ -31,23 +32,42 @@ export default function LoginPage() {
 
   // Application state
   const [showApply, setShowApply] = useState(false);
-  const [showChat, setShowChat] = useState(false);
+  const [showAppChat, setShowAppChat] = useState(false);
   const [applicationId, setApplicationId] = useState<number | null>(null);
-  const [chatText, setChatText] = useState("");
+  const [appChatText, setAppChatText] = useState("");
   const [form, setForm] = useState({
     discordLink: "",
     discordId: "",
     email: "",
+    product: "",
     reason: "",
   });
-  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Support ticket state
+  const [showSupport, setShowSupport] = useState(false);
+  const [showSupportChat, setShowSupportChat] = useState(false);
+  const [supportId, setSupportId] = useState<number | null>(null);
+  const [supportChatText, setSupportChatText] = useState("");
+  const [supportForm, setSupportForm] = useState({
+    name: "",
+    email: "",
+    question: "",
+  });
+
+  const appScrollRef = useRef<HTMLDivElement>(null);
+  const supportScrollRef = useRef<HTMLDivElement>(null);
   const utils = trpc.useUtils();
 
   useEffect(() => {
-    const saved = localStorage.getItem(APP_STORAGE_KEY);
-    if (saved) {
-      const id = parseInt(saved, 10);
+    const savedApp = localStorage.getItem(APP_STORAGE_KEY);
+    if (savedApp) {
+      const id = parseInt(savedApp, 10);
       if (!isNaN(id)) setApplicationId(id);
+    }
+    const savedSupport = localStorage.getItem(SUPPORT_STORAGE_KEY);
+    if (savedSupport) {
+      const id = parseInt(savedSupport, 10);
+      if (!isNaN(id)) setSupportId(id);
     }
   }, []);
 
@@ -56,31 +76,58 @@ export default function LoginPage() {
     { enabled: !!applicationId }
   );
 
+  const { data: supportTicket, isLoading: isLoadingSupport } = trpc.auth.getMySupportTicket.useQuery(
+    { id: supportId || 0 },
+    { enabled: !!supportId }
+  );
+
   const submit = trpc.auth.submitResellerApplication.useMutation({
     onSuccess: (data) => {
       localStorage.setItem(APP_STORAGE_KEY, String(data.id));
       setApplicationId(data.id);
       setShowApply(false);
-      setShowChat(true);
+      setShowAppChat(true);
       toast.success("Pré-aprovado!");
       utils.auth.getMyApplication.invalidate({ id: data.id });
     },
     onError: (e) => toast.error(e.message),
   });
 
-  const sendMessage = trpc.auth.sendApplicationMessage.useMutation({
+  const sendAppMessage = trpc.auth.sendApplicationMessage.useMutation({
     onSuccess: () => {
-      setChatText("");
+      setAppChatText("");
       utils.auth.getMyApplication.invalidate({ id: applicationId || 0 });
     },
     onError: (e) => toast.error(e.message),
   });
 
+  const submitSupport = trpc.auth.submitSupportTicket.useMutation({
+    onSuccess: (data) => {
+      localStorage.setItem(SUPPORT_STORAGE_KEY, String(data.id));
+      setSupportId(data.id);
+      setShowSupport(false);
+      setShowSupportChat(true);
+      toast.success("Dúvida enviada!");
+      utils.auth.getMySupportTicket.invalidate({ id: data.id });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const sendSupportMessage = trpc.auth.sendSupportMessage.useMutation({
+    onSuccess: () => {
+      setSupportChatText("");
+      utils.auth.getMySupportTicket.invalidate({ id: supportId || 0 });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    if (appScrollRef.current) appScrollRef.current.scrollTop = appScrollRef.current.scrollHeight;
   }, [application?.messages]);
+
+  useEffect(() => {
+    if (supportScrollRef.current) supportScrollRef.current.scrollTop = supportScrollRef.current.scrollHeight;
+  }, [supportTicket?.messages]);
 
   const resellerLogin = trpc.auth.resellerLogin.useMutation({
     onSuccess: (data) => {
@@ -102,28 +149,52 @@ export default function LoginPage() {
 
   const handleApply = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.discordLink || !form.discordId || !form.email || !form.reason) return;
+    if (!form.discordLink || !form.discordId || !form.email || !form.product || !form.reason) return;
     submit.mutate(form);
   };
 
-  const handleChatSend = (e: React.FormEvent) => {
+  const handleAppChatSend = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!chatText.trim() || !applicationId) return;
-    sendMessage.mutate({ applicationId, message: chatText.trim() });
+    if (!appChatText.trim() || !applicationId) return;
+    sendAppMessage.mutate({ applicationId, message: appChatText.trim() });
+  };
+
+  const handleSupport = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!supportForm.name || !supportForm.email || !supportForm.question) return;
+    submitSupport.mutate(supportForm);
+  };
+
+  const handleSupportChatSend = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!supportChatText.trim() || !supportId) return;
+    sendSupportMessage.mutate({ ticketId: supportId, message: supportChatText.trim() });
   };
 
   const isLoading = resellerLogin.isPending;
-  const activeStatus = ["pending", "pre_approved", "approved"];
-  const hasApplication = !!applicationId && (isLoadingApp || (!!application && activeStatus.includes(application.status)));
+
+  const activeAppStatus = ["pending", "pre_approved", "approved"];
+  const hasApplication = !!applicationId && (isLoadingApp || (!!application && activeAppStatus.includes(application.status)));
   const isPreApproved = application?.status === "pre_approved";
 
   useEffect(() => {
-    if (application && !activeStatus.includes(application.status)) {
+    if (application && !activeAppStatus.includes(application.status)) {
       localStorage.removeItem(APP_STORAGE_KEY);
       setApplicationId(null);
-      setShowChat(false);
+      setShowAppChat(false);
     }
   }, [application]);
+
+  const activeSupportStatus = ["open"];
+  const hasSupport = !!supportId && (isLoadingSupport || (!!supportTicket && activeSupportStatus.includes(supportTicket.status)));
+
+  useEffect(() => {
+    if (supportTicket && !activeSupportStatus.includes(supportTicket.status)) {
+      localStorage.removeItem(SUPPORT_STORAGE_KEY);
+      setSupportId(null);
+      setShowSupportChat(false);
+    }
+  }, [supportTicket]);
 
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
@@ -338,6 +409,16 @@ export default function LoginPage() {
               />
             </div>
             <div>
+              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Qual produto quer revender?</Label>
+              <Input
+                value={form.product}
+                onChange={(e) => setForm(f => ({ ...f, product: e.target.value }))}
+                placeholder="Ex: Cheats, Contas, Keys..."
+                className="mt-1.5 text-white border-white/10 focus:border-violet-500/60 bg-white/5"
+                required
+              />
+            </div>
+            <div>
               <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Por que quer se tornar reseller?</Label>
               <Textarea
                 value={form.reason}
@@ -368,10 +449,107 @@ export default function LoginPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Floating chat button */}
+      {/* Support Modal */}
+      <Dialog open={showSupport} onOpenChange={setShowSupport}>
+        <DialogContent
+          className="text-white max-w-md border-0"
+          style={{
+            background: "linear-gradient(145deg, rgba(18,12,35,0.98) 0%, rgba(10,8,25,0.98) 100%)",
+            boxShadow: "0 0 0 1px rgba(139,92,246,0.2), 0 25px 60px rgba(0,0,0,0.7)",
+            backdropFilter: "blur(20px)",
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle className="text-white text-lg font-semibold">Tire sua dúvida</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSupport} className="space-y-4 mt-2">
+            <div>
+              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Seu Nome</Label>
+              <Input
+                value={supportForm.name}
+                onChange={(e) => setSupportForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="Como podemos te chamar?"
+                className="mt-1.5 text-white border-white/10 focus:border-violet-500/60 bg-white/5"
+                required
+              />
+            </div>
+            <div>
+              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Seu Email</Label>
+              <Input
+                type="email"
+                value={supportForm.email}
+                onChange={(e) => setSupportForm(f => ({ ...f, email: e.target.value }))}
+                placeholder="seu@email.com"
+                className="mt-1.5 text-white border-white/10 focus:border-violet-500/60 bg-white/5"
+                required
+              />
+            </div>
+            <div>
+              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Sua dúvida</Label>
+              <Textarea
+                value={supportForm.question}
+                onChange={(e) => setSupportForm(f => ({ ...f, question: e.target.value }))}
+                placeholder="Descreva sua dúvida..."
+                className="mt-1.5 text-white border-white/10 focus:border-violet-500/60 bg-white/5 min-h-[120px]"
+                required
+              />
+            </div>
+            <div className="flex gap-3 pt-2">
+              <Button
+                type="button"
+                onClick={() => setShowSupport(false)}
+                className="flex-1 text-gray-300 bg-white/5 border border-white/10 hover:text-white"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={submitSupport.isPending}
+                className="flex-1 text-white"
+                style={{ background: "linear-gradient(135deg, #7c3aed, #8b5cf6)" }}
+              >
+                {submitSupport.isPending ? "Enviando..." : "Abrir ticket"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Floating support button */}
+      <button
+        onClick={() => setShowSupportChat(true)}
+        className={`fixed bottom-6 left-6 z-50 flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium text-white shadow-2xl transition-transform hover:scale-105 ${
+          hasSupport ? "hidden" : ""
+        }`}
+        style={{
+          background: "rgba(255,255,255,0.05)",
+          border: "1px solid rgba(255,255,255,0.1)",
+          backdropFilter: "blur(10px)",
+        }}
+        title="Dúvidas"
+      >
+        <HelpCircle className="w-4 h-4" /> Dúvidas
+      </button>
+
+      {/* Support chat floating button (when active) */}
+      {hasSupport && (
+        <button
+          onClick={() => setShowSupportChat(true)}
+          className="fixed bottom-6 left-6 z-50 w-14 h-14 rounded-full flex items-center justify-center text-white shadow-2xl transition-transform hover:scale-110"
+          style={{
+            background: "linear-gradient(135deg, #3b82f6, #2563eb)",
+            boxShadow: "0 4px 24px rgba(59,130,246,0.45)",
+          }}
+          title="Minha dúvida"
+        >
+          <HelpCircle className="w-6 h-6" />
+        </button>
+      )}
+
+      {/* Application chat floating button */}
       {hasApplication && (
         <button
-          onClick={() => setShowChat(true)}
+          onClick={() => setShowAppChat(true)}
           className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full flex items-center justify-center text-white shadow-2xl transition-transform hover:scale-110"
           style={{
             background: isPreApproved ? "linear-gradient(135deg, #22c55e, #16a34a)" : "linear-gradient(135deg, #7c3aed, #8b5cf6)",
@@ -383,8 +561,8 @@ export default function LoginPage() {
         </button>
       )}
 
-      {/* Chat Dialog for applicant */}
-      <Dialog open={showChat} onOpenChange={setShowChat}>
+      {/* Application Chat Dialog */}
+      <Dialog open={showAppChat} onOpenChange={setShowAppChat}>
         <DialogContent
           className="text-white max-w-lg border-0"
           style={{
@@ -407,7 +585,7 @@ export default function LoginPage() {
           )}
 
           <div
-            ref={scrollRef}
+            ref={appScrollRef}
             className="h-[320px] overflow-y-auto space-y-3 pr-1 my-3"
           >
             {isLoadingApp ? (
@@ -437,18 +615,18 @@ export default function LoginPage() {
           </div>
 
           {application && application.status !== "archived" && application.status !== "rejected" ? (
-            <form onSubmit={handleChatSend} className="border-t border-white/10 pt-3">
+            <form onSubmit={handleAppChatSend} className="border-t border-white/10 pt-3">
               <div className="flex items-end gap-2">
                 <Textarea
-                  value={chatText}
-                  onChange={(e) => setChatText(e.target.value)}
+                  value={appChatText}
+                  onChange={(e) => setAppChatText(e.target.value)}
                   placeholder="Escreva uma mensagem..."
                   className="flex-1 bg-white/5 border-white/10 text-white placeholder:text-gray-600 min-h-[60px] resize-none"
-                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleChatSend(e as any); } }}
+                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleAppChatSend(e as any); } }}
                 />
                 <Button
                   type="submit"
-                  disabled={sendMessage.isPending || !chatText.trim()}
+                  disabled={sendAppMessage.isPending || !appChatText.trim()}
                   className="h-[60px] w-12 p-0 text-white"
                   style={{ background: "linear-gradient(135deg, #7c3aed, #8b5cf6)" }}
                 >
@@ -458,6 +636,78 @@ export default function LoginPage() {
             </form>
           ) : (
             <p className="text-center text-gray-500 text-sm py-2 border-t border-white/10">Este chat está encerrado.</p>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Support Chat Dialog */}
+      <Dialog open={showSupportChat} onOpenChange={setShowSupportChat}>
+        <DialogContent
+          className="text-white max-w-lg border-0"
+          style={{
+            background: "linear-gradient(145deg, rgba(18,12,35,0.98) 0%, rgba(10,8,25,0.98) 100%)",
+            boxShadow: "0 0 0 1px rgba(139,92,246,0.2), 0 25px 60px rgba(0,0,0,0.7)",
+            backdropFilter: "blur(20px)",
+          }}
+        >
+          <DialogHeader className="border-b border-white/10 pb-3">
+            <DialogTitle className="text-white text-lg font-semibold flex items-center gap-2">
+              <HelpCircle className="w-5 h-5 text-blue-400" /> Dúvida #{supportTicket?.id}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div
+            ref={supportScrollRef}
+            className="h-[320px] overflow-y-auto space-y-3 pr-1 my-3"
+          >
+            {isLoadingSupport ? (
+              <p className="text-center text-gray-500 text-sm py-10">Carregando...</p>
+            ) : supportTicket?.messages?.length === 0 ? (
+              <p className="text-center text-gray-500 text-sm py-10">Aguarde a resposta da administração.</p>
+            ) : (
+              supportTicket?.messages?.map((msg: any) => {
+                const isUser = msg.senderType === "user";
+                return (
+                  <div key={msg.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+                    <div
+                      className={`max-w-[80%] rounded-2xl px-4 py-3 ${isUser ? "rounded-tr-sm" : "rounded-tl-sm"}`}
+                      style={{
+                        background: isUser ? "linear-gradient(135deg, rgba(59,130,246,0.25), rgba(37,99,235,0.1))" : "rgba(255,255,255,0.05)",
+                        border: isUser ? "1px solid rgba(59,130,246,0.3)" : "1px solid rgba(255,255,255,0.08)",
+                      }}
+                    >
+                      <p className="text-[10px] text-gray-500 mb-0.5 font-semibold uppercase">{isUser ? "Você" : "Admin"}</p>
+                      <p className="text-white text-sm whitespace-pre-wrap">{msg.message}</p>
+                      <p className="text-[10px] text-gray-500 mt-1 text-right">{formatDate(msg.createdAt)}</p>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {supportTicket && supportTicket.status === "open" ? (
+            <form onSubmit={handleSupportChatSend} className="border-t border-white/10 pt-3">
+              <div className="flex items-end gap-2">
+                <Textarea
+                  value={supportChatText}
+                  onChange={(e) => setSupportChatText(e.target.value)}
+                  placeholder="Escreva uma mensagem..."
+                  className="flex-1 bg-white/5 border-white/10 text-white placeholder:text-gray-600 min-h-[60px] resize-none"
+                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSupportChatSend(e as any); } }}
+                />
+                <Button
+                  type="submit"
+                  disabled={sendSupportMessage.isPending || !supportChatText.trim()}
+                  className="h-[60px] w-12 p-0 text-white"
+                  style={{ background: "linear-gradient(135deg, #3b82f6, #2563eb)" }}
+                >
+                  <Send className="w-4 h-4" />
+                </Button>
+              </div>
+            </form>
+          ) : (
+            <p className="text-center text-gray-500 text-sm py-2 border-t border-white/10">Este ticket foi fechado. Caso ainda tenha dúvidas, abra um novo.</p>
           )}
         </DialogContent>
       </Dialog>

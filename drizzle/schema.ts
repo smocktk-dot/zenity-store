@@ -23,6 +23,8 @@ export const ticketStatusEnum = pgEnum("ticket_status", ["open", "closed", "arch
 export const ticketSenderEnum = pgEnum("ticket_sender", ["reseller", "admin"]);
 export const applicationStatusEnum = pgEnum("application_status", ["pending", "pre_approved", "approved", "rejected", "archived"]);
 export const applicationSenderEnum = pgEnum("application_sender", ["applicant", "admin"]);
+export const supportTicketStatusEnum = pgEnum("support_ticket_status", ["open", "closed", "archived"]);
+export const supportMessageSenderEnum = pgEnum("support_message_sender", ["user", "admin"]);
 
 // ─── Core users table (Manus OAuth, kept for compatibility) ───────────────────
 export const users = pgTable("users", {
@@ -233,6 +235,7 @@ export const resellerApplications = pgTable("reseller_applications", {
   discordLink: text("discordLink").notNull(),
   discordId: text("discordId").notNull(),
   email: varchar("email", { length: 320 }).notNull(),
+  product: text("product").notNull(),
   reason: text("reason").notNull(),
   status: applicationStatusEnum("status").default("pending").notNull(),
   ip: varchar("ip", { length: 64 }),
@@ -253,3 +256,29 @@ export const applicationMessages = pgTable("application_messages", {
 
 export type ApplicationMessage = typeof applicationMessages.$inferSelect;
 export type InsertApplicationMessage = typeof applicationMessages.$inferInsert;
+
+// ─── Public Support Tickets (dúvidas) ─────────────────────────────────────────
+export const supportTickets = pgTable("support_tickets", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 128 }).notNull(),
+  email: varchar("email", { length: 320 }).notNull(),
+  question: text("question").notNull(),
+  status: supportTicketStatusEnum("status").default("open").notNull(),
+  ip: varchar("ip", { length: 64 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
+export type SupportTicket = typeof supportTickets.$inferSelect;
+export type InsertSupportTicket = typeof supportTickets.$inferInsert;
+
+export const supportMessages = pgTable("support_messages", {
+  id: serial("id").primaryKey(),
+  ticketId: integer("ticketId").notNull().references(() => supportTickets.id),
+  senderType: supportMessageSenderEnum("senderType").notNull(),
+  message: text("message").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type SupportMessage = typeof supportMessages.$inferSelect;
+export type InsertSupportMessage = typeof supportMessages.$inferInsert;

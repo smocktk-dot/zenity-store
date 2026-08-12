@@ -19,7 +19,7 @@ import {
   decimal,
   serial
 } from "drizzle-orm/pg-core";
-var userRoleEnum, resellerTypeEnum, resellerStatusEnum, appStatusEnum, planLevelEnum, keyStatusEnum, transactionTypeEnum, pixPaymentStatusEnum, ticketStatusEnum, ticketSenderEnum, applicationStatusEnum, applicationSenderEnum, users, admins, resellers, categories, apps, subscriptionPlans, resellerApps, licenseKeys, creditTransactions, pixPayments, ipWhitelist, tickets, ticketMessages, resellerApplications, applicationMessages;
+var userRoleEnum, resellerTypeEnum, resellerStatusEnum, appStatusEnum, planLevelEnum, keyStatusEnum, transactionTypeEnum, pixPaymentStatusEnum, ticketStatusEnum, ticketSenderEnum, applicationStatusEnum, applicationSenderEnum, supportTicketStatusEnum, supportMessageSenderEnum, users, admins, resellers, categories, apps, subscriptionPlans, resellerApps, licenseKeys, creditTransactions, pixPayments, ipWhitelist, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages;
 var init_schema = __esm({
   "drizzle/schema.ts"() {
     "use strict";
@@ -35,6 +35,8 @@ var init_schema = __esm({
     ticketSenderEnum = pgEnum("ticket_sender", ["reseller", "admin"]);
     applicationStatusEnum = pgEnum("application_status", ["pending", "pre_approved", "approved", "rejected", "archived"]);
     applicationSenderEnum = pgEnum("application_sender", ["applicant", "admin"]);
+    supportTicketStatusEnum = pgEnum("support_ticket_status", ["open", "closed", "archived"]);
+    supportMessageSenderEnum = pgEnum("support_message_sender", ["user", "admin"]);
     users = pgTable("users", {
       id: serial("id").primaryKey(),
       openId: varchar("openId", { length: 64 }).notNull().unique(),
@@ -189,6 +191,7 @@ var init_schema = __esm({
       discordLink: text("discordLink").notNull(),
       discordId: text("discordId").notNull(),
       email: varchar("email", { length: 320 }).notNull(),
+      product: text("product").notNull(),
       reason: text("reason").notNull(),
       status: applicationStatusEnum("status").default("pending").notNull(),
       ip: varchar("ip", { length: 64 }),
@@ -199,6 +202,23 @@ var init_schema = __esm({
       id: serial("id").primaryKey(),
       applicationId: integer("applicationId").notNull().references(() => resellerApplications.id),
       senderType: applicationSenderEnum("senderType").notNull(),
+      message: text("message").notNull(),
+      createdAt: timestamp("createdAt").defaultNow().notNull()
+    });
+    supportTickets = pgTable("support_tickets", {
+      id: serial("id").primaryKey(),
+      name: varchar("name", { length: 128 }).notNull(),
+      email: varchar("email", { length: 320 }).notNull(),
+      question: text("question").notNull(),
+      status: supportTicketStatusEnum("status").default("open").notNull(),
+      ip: varchar("ip", { length: 64 }),
+      createdAt: timestamp("createdAt").defaultNow().notNull(),
+      updatedAt: timestamp("updatedAt").defaultNow().notNull()
+    });
+    supportMessages = pgTable("support_messages", {
+      id: serial("id").primaryKey(),
+      ticketId: integer("ticketId").notNull().references(() => supportTickets.id),
+      senderType: supportMessageSenderEnum("senderType").notNull(),
       message: text("message").notNull(),
       createdAt: timestamp("createdAt").defaultNow().notNull()
     });
@@ -238,12 +258,15 @@ __export(db_exports, {
   createPlan: () => createPlan,
   createReseller: () => createReseller,
   createResellerApplication: () => createResellerApplication,
+  createSupportMessage: () => createSupportMessage,
+  createSupportTicket: () => createSupportTicket,
   createTicket: () => createTicket,
   createTicketMessage: () => createTicketMessage,
   deleteApp: () => deleteApp,
   deleteCategory: () => deleteCategory,
   deletePlan: () => deletePlan,
   deleteResellerApplication: () => deleteResellerApplication,
+  deleteSupportTicket: () => deleteSupportTicket,
   deleteTicket: () => deleteTicket,
   ensurePixPaymentSchema: () => ensurePixPaymentSchema,
   getAdminById: () => getAdminById,
@@ -254,6 +277,7 @@ __export(db_exports, {
   getAllKeys: () => getAllKeys,
   getAllResellerApplications: () => getAllResellerApplications,
   getAllResellers: () => getAllResellers,
+  getAllSupportTickets: () => getAllSupportTickets,
   getAllTickets: () => getAllTickets,
   getAppById: () => getAppById,
   getApplicationMessages: () => getApplicationMessages,
@@ -272,6 +296,8 @@ __export(db_exports, {
   getResellerApplicationById: () => getResellerApplicationById,
   getResellerById: () => getResellerById,
   getResellerByUsername: () => getResellerByUsername,
+  getSupportMessages: () => getSupportMessages,
+  getSupportTicketById: () => getSupportTicketById,
   getTicketById: () => getTicketById,
   getTicketMessages: () => getTicketMessages,
   getTicketsByResellerId: () => getTicketsByResellerId,
@@ -294,6 +320,8 @@ __export(db_exports, {
   updateResellerApplicationTimestamp: () => updateResellerApplicationTimestamp,
   updateResellerCredits: () => updateResellerCredits,
   updateResellerPassword: () => updateResellerPassword,
+  updateSupportTicketStatus: () => updateSupportTicketStatus,
+  updateSupportTicketTimestamp: () => updateSupportTicketTimestamp,
   updateTicketStatus: () => updateTicketStatus,
   updateTicketTimestamp: () => updateTicketTimestamp,
   upsertUser: () => upsertUser
@@ -777,6 +805,50 @@ async function createApplicationMessage(data) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const [row] = await db.insert(applicationMessages).values(data).returning();
+  return row;
+}
+async function createSupportTicket(data) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.insert(supportTickets).values(data).returning();
+  return row;
+}
+async function getSupportTicketById(id) {
+  const db = await getDb();
+  if (!db) return void 0;
+  const [row] = await db.select().from(supportTickets).where(eq(supportTickets.id, id));
+  return row;
+}
+async function getAllSupportTickets() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(supportTickets).orderBy(desc(supportTickets.updatedAt));
+}
+async function updateSupportTicketStatus(id, status) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(supportTickets).set({ status, updatedAt: /* @__PURE__ */ new Date() }).where(eq(supportTickets.id, id));
+}
+async function updateSupportTicketTimestamp(id) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(supportTickets).set({ updatedAt: /* @__PURE__ */ new Date() }).where(eq(supportTickets.id, id));
+}
+async function deleteSupportTicket(id) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.delete(supportMessages).where(eq(supportMessages.ticketId, id));
+  await db.delete(supportTickets).where(eq(supportTickets.id, id));
+}
+async function getSupportMessages(ticketId) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(supportMessages).where(eq(supportMessages.ticketId, ticketId)).orderBy(supportMessages.createdAt);
+}
+async function createSupportMessage(data) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.insert(supportMessages).values(data).returning();
   return row;
 }
 var _db, _sqlClient, _pixPaymentSchemaReady;
@@ -1556,6 +1628,7 @@ var authRouter = router({
     discordLink: z2.string().min(1),
     discordId: z2.string().min(1),
     email: z2.string().email(),
+    product: z2.string().min(1),
     reason: z2.string().min(1)
   })).mutation(async ({ input, ctx }) => {
     const ip = getClientIp(ctx.req);
@@ -1591,6 +1664,44 @@ var authRouter = router({
       message: input.message
     });
     await updateResellerApplicationTimestamp(input.applicationId);
+    return msg;
+  }),
+  // ─── Public Support Tickets (dúvidas) ─────────────────────────────────────────
+  submitSupportTicket: publicProcedure.input(z2.object({
+    name: z2.string().min(1).max(128),
+    email: z2.string().email(),
+    question: z2.string().min(1)
+  })).mutation(async ({ input, ctx }) => {
+    const ip = getClientIp(ctx.req);
+    const row = await createSupportTicket({ ...input, status: "open", ip });
+    await createSupportMessage({
+      ticketId: row.id,
+      senderType: "user",
+      message: input.question
+    });
+    return { id: row.id, status: row.status };
+  }),
+  getMySupportTicket: publicProcedure.input(z2.object({ id: z2.number() })).query(async ({ input }) => {
+    const ticket = await getSupportTicketById(input.id);
+    if (!ticket) throw new TRPCError3({ code: "NOT_FOUND" });
+    const messages = await getSupportMessages(input.id);
+    return { ...ticket, messages };
+  }),
+  sendSupportMessage: publicProcedure.input(z2.object({
+    ticketId: z2.number(),
+    message: z2.string().min(1)
+  })).mutation(async ({ input }) => {
+    const ticket = await getSupportTicketById(input.ticketId);
+    if (!ticket) throw new TRPCError3({ code: "NOT_FOUND" });
+    if (ticket.status === "archived" || ticket.status === "closed") {
+      throw new TRPCError3({ code: "FORBIDDEN", message: "Ticket fechado ou arquivado" });
+    }
+    const msg = await createSupportMessage({
+      ticketId: input.ticketId,
+      senderType: "user",
+      message: input.message
+    });
+    await updateSupportTicketTimestamp(input.ticketId);
     return msg;
   })
 });
@@ -1879,6 +1990,39 @@ var adminRouter = router({
   }),
   deleteResellerApplication: adminProcedure2.input(z2.object({ id: z2.number() })).mutation(async ({ input }) => {
     await deleteResellerApplication(input.id);
+    return { success: true };
+  }),
+  // ─── Public Support Tickets (dúvidas) ─────────────────────────────────────────
+  listSupportTickets: adminProcedure2.query(() => getAllSupportTickets()),
+  getSupportTicket: adminProcedure2.input(z2.object({ id: z2.number() })).query(async ({ input }) => {
+    const ticket = await getSupportTicketById(input.id);
+    if (!ticket) throw new TRPCError3({ code: "NOT_FOUND" });
+    const messages = await getSupportMessages(input.id);
+    return { ...ticket, messages };
+  }),
+  sendSupportMessageAdmin: adminProcedure2.input(z2.object({
+    ticketId: z2.number(),
+    message: z2.string().min(1)
+  })).mutation(async ({ input }) => {
+    const ticket = await getSupportTicketById(input.ticketId);
+    if (!ticket) throw new TRPCError3({ code: "NOT_FOUND" });
+    const msg = await createSupportMessage({
+      ticketId: input.ticketId,
+      senderType: "admin",
+      message: input.message
+    });
+    await updateSupportTicketTimestamp(input.ticketId);
+    return msg;
+  }),
+  updateSupportTicketStatus: adminProcedure2.input(z2.object({
+    id: z2.number(),
+    status: z2.enum(["open", "closed", "archived"])
+  })).mutation(async ({ input }) => {
+    await updateSupportTicketStatus(input.id, input.status);
+    return { success: true };
+  }),
+  deleteSupportTicket: adminProcedure2.input(z2.object({ id: z2.number() })).mutation(async ({ input }) => {
+    await deleteSupportTicket(input.id);
     return { success: true };
   })
 });

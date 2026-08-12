@@ -43,6 +43,13 @@
       "when": 1784502345678,
       "tag": "0005_add_reseller_applications",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1784503456789,
+      "tag": "0006_add_support_tickets_and_product",
+      "breakpoints": true
     }
   ]
 }

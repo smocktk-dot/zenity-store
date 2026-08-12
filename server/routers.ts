@@ -28,6 +28,9 @@ import {
   createResellerApplication, getResellerApplicationById, getResellerApplicationByEmail, getAllResellerApplications,
   updateResellerApplicationStatus, updateResellerApplicationTimestamp, deleteResellerApplication,
   getApplicationMessages, createApplicationMessage,
+  createSupportTicket, getSupportTicketById, getAllSupportTickets,
+  updateSupportTicketStatus, updateSupportTicketTimestamp, deleteSupportTicket,
+  getSupportMessages, createSupportMessage,
 } from "./db";
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "cv-reseller-secret-key-2024");
@@ -220,6 +223,7 @@ const authRouter = router({
       discordLink: z.string().min(1),
       discordId: z.string().min(1),
       email: z.string().email(),
+      product: z.string().min(1),
       reason: z.string().min(1),
     }))
     .mutation(async ({ input, ctx }) => {
@@ -262,6 +266,53 @@ const authRouter = router({
         message: input.message,
       });
       await updateResellerApplicationTimestamp(input.applicationId);
+      return msg;
+    }),
+
+  // ─── Public Support Tickets (dúvidas) ─────────────────────────────────────────
+  submitSupportTicket: publicProcedure
+    .input(z.object({
+      name: z.string().min(1).max(128),
+      email: z.string().email(),
+      question: z.string().min(1),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const ip = getClientIp(ctx.req);
+      const row = await createSupportTicket({ ...input, status: "open", ip });
+      await createSupportMessage({
+        ticketId: row.id,
+        senderType: "user",
+        message: input.question,
+      });
+      return { id: row.id, status: row.status };
+    }),
+
+  getMySupportTicket: publicProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ input }) => {
+      const ticket = await getSupportTicketById(input.id);
+      if (!ticket) throw new TRPCError({ code: "NOT_FOUND" });
+      const messages = await getSupportMessages(input.id);
+      return { ...ticket, messages };
+    }),
+
+  sendSupportMessage: publicProcedure
+    .input(z.object({
+      ticketId: z.number(),
+      message: z.string().min(1),
+    }))
+    .mutation(async ({ input }) => {
+      const ticket = await getSupportTicketById(input.ticketId);
+      if (!ticket) throw new TRPCError({ code: "NOT_FOUND" });
+      if (ticket.status === "archived" || ticket.status === "closed") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Ticket fechado ou arquivado" });
+      }
+      const msg = await createSupportMessage({
+        ticketId: input.ticketId,
+        senderType: "user",
+        message: input.message,
+      });
+      await updateSupportTicketTimestamp(input.ticketId);
       return msg;
     }),
 });
@@ -609,6 +660,52 @@ const adminRouter = router({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       await deleteResellerApplication(input.id);
+      return { success: true };
+    }),
+
+  // ─── Public Support Tickets (dúvidas) ─────────────────────────────────────────
+  listSupportTickets: adminProcedure.query(() => getAllSupportTickets()),
+
+  getSupportTicket: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ input }) => {
+      const ticket = await getSupportTicketById(input.id);
+      if (!ticket) throw new TRPCError({ code: "NOT_FOUND" });
+      const messages = await getSupportMessages(input.id);
+      return { ...ticket, messages };
+    }),
+
+  sendSupportMessageAdmin: adminProcedure
+    .input(z.object({
+      ticketId: z.number(),
+      message: z.string().min(1),
+    }))
+    .mutation(async ({ input }) => {
+      const ticket = await getSupportTicketById(input.ticketId);
+      if (!ticket) throw new TRPCError({ code: "NOT_FOUND" });
+      const msg = await createSupportMessage({
+        ticketId: input.ticketId,
+        senderType: "admin",
+        message: input.message,
+      });
+      await updateSupportTicketTimestamp(input.ticketId);
+      return msg;
+    }),
+
+  updateSupportTicketStatus: adminProcedure
+    .input(z.object({
+      id: z.number(),
+      status: z.enum(["open", "closed", "archived"]),
+    }))
+    .mutation(async ({ input }) => {
+      await updateSupportTicketStatus(input.id, input.status);
+      return { success: true };
+    }),
+
+  deleteSupportTicket: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      await deleteSupportTicket(input.id);
       return { success: true };
     }),
 });
