@@ -32,7 +32,7 @@ function TypeBadge({ type }: { type: string }) {
 }
 
 const emptyCreate = { username: "", password: "", email: "", location: "", resellerType: "credits" as "credits" | "percentage" };
-const emptyEdit = { email: "", location: "", status: "active" as string, password: "", resellerType: "credits" as "credits" | "percentage" };
+const emptyEdit = { email: "", location: "", status: "active" as string, password: "", resellerType: "credits" as "credits" | "percentage", discountPercent: "35" };
 
 export default function AdminResellers() {
   const [, navigate] = useLocation();
@@ -69,7 +69,14 @@ export default function AdminResellers() {
 
   const openEdit = (r: Reseller) => {
     setEditReseller(r);
-    setEf({ email: r.email || "", location: r.location || "", status: r.status, password: "", resellerType: (r.resellerType as "credits" | "percentage") || "credits" });
+    setEf({
+      email: r.email || "",
+      location: r.location || "",
+      status: r.status,
+      password: "",
+      resellerType: (r.resellerType as "credits" | "percentage") || "credits",
+      discountPercent: String(parseFloat(String(r.discountPercent ?? 35))),
+    });
   };
 
   const ResellerTable = ({ list, type }: { list: Reseller[]; type: "credits" | "percentage" }) => (
@@ -298,7 +305,18 @@ export default function AdminResellers() {
           <div className="h-px w-full my-1" style={{ background: "linear-gradient(90deg, transparent, rgba(139,92,246,0.3), transparent)" }} />
           <form onSubmit={e => {
             e.preventDefault();
-            if (editReseller) update.mutate({ id: editReseller.id, email: ef.email || undefined, location: ef.location || undefined, status: ef.status as "active" | "inactive" | "banned", password: ef.password || undefined, resellerType: ef.resellerType });
+            if (editReseller) {
+              const discount = parseFloat(ef.discountPercent);
+              update.mutate({
+                id: editReseller.id,
+                email: ef.email || undefined,
+                location: ef.location || undefined,
+                status: ef.status as "active" | "inactive" | "banned",
+                password: ef.password || undefined,
+                resellerType: ef.resellerType,
+                discountPercent: !isNaN(discount) && discount >= 0 && discount <= 100 ? discount : undefined,
+              });
+            }
           }} className="space-y-4 mt-3">
             <div><Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Email</Label><Input type="email" value={ef.email} onChange={e => setEf(f => ({...f, email: e.target.value}))} className="mt-1.5 text-white border-white/10 focus:border-purple-500/60 transition-colors" style={{ background: "rgba(255,255,255,0.05)" }} /></div>
             <div><Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Localização</Label><Input value={ef.location} onChange={e => setEf(f => ({...f, location: e.target.value}))} className="mt-1.5 text-white border-white/10 focus:border-purple-500/60 transition-colors" style={{ background: "rgba(255,255,255,0.05)" }} /></div>
@@ -322,6 +340,20 @@ export default function AdminResellers() {
                   <SelectItem value="banned" className="text-white focus:bg-purple-500/20">Banido</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div>
+              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Desconto (%)</Label>
+              <Input
+                type="number"
+                min="0"
+                max="100"
+                step="1"
+                value={ef.discountPercent}
+                onChange={e => setEf(f => ({...f, discountPercent: e.target.value}))}
+                className="mt-1.5 text-white border-white/10 focus:border-purple-500/60 transition-colors"
+                style={{ background: "rgba(255,255,255,0.05)" }}
+              />
+              <p className="text-gray-600 text-xs mt-1">Ex: 35, 40, 50. Usado para resellers de porcentagem e progressão de créditos.</p>
             </div>
             <div><Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Nova Senha (opcional)</Label><Input type="password" value={ef.password} onChange={e => setEf(f => ({...f, password: e.target.value}))} placeholder="Deixe vazio para manter" className="mt-1.5 text-white border-white/10 focus:border-purple-500/60 transition-colors" style={{ background: "rgba(255,255,255,0.05)" }} /></div>
             <div className="flex gap-3 pt-2">
