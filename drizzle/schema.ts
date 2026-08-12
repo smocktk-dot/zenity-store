@@ -104,6 +104,8 @@ export type App = typeof apps.$inferSelect;
 export type InsertApp = typeof apps.$inferInsert;
 
 // ─── Subscription Plans (per app) ────────────────────────────────────────────
+export const stockStatusEnum = pgEnum("stock_status", ["available", "sold"]);
+
 export const subscriptionPlans = pgTable("subscription_plans", {
   id: serial("id").primaryKey(),
   appId: integer("appId").notNull().references(() => apps.id),
@@ -111,6 +113,7 @@ export const subscriptionPlans = pgTable("subscription_plans", {
   durationDays: integer("durationDays").notNull(), // 1, 7, 30, 9999
   priceCredits: decimal("priceCredits", { precision: 10, scale: 2 }).notNull(),
   pricePercentage: decimal("pricePercentage", { precision: 10, scale: 2 }).default("0.00").notNull(),
+  resellerSellingPrice: decimal("resellerSellingPrice", { precision: 10, scale: 2 }).default("0.00").notNull(),
   level: planLevelEnum("level").default("basic").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
@@ -151,6 +154,21 @@ export const licenseKeys = pgTable("license_keys", {
 
 export type LicenseKey = typeof licenseKeys.$inferSelect;
 export type InsertLicenseKey = typeof licenseKeys.$inferInsert;
+
+// ─── App Stock (pre-added license keys) ───────────────────────────────────────
+export const appStock = pgTable("app_stock", {
+  id: serial("id").primaryKey(),
+  appId: integer("appId").notNull().references(() => apps.id),
+  planId: integer("planId").notNull().references(() => subscriptionPlans.id),
+  keyValue: varchar("keyValue", { length: 128 }).notNull().unique(),
+  status: stockStatusEnum("status").default("available").notNull(),
+  resellerId: integer("resellerId").references(() => resellers.id),
+  soldAt: timestamp("soldAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type AppStock = typeof appStock.$inferSelect;
+export type InsertAppStock = typeof appStock.$inferInsert;
 
 // ─── Credit Transactions ──────────────────────────────────────────────────────
 export const creditTransactions = pgTable("credit_transactions", {

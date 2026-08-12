@@ -19,7 +19,7 @@ import {
   decimal,
   serial
 } from "drizzle-orm/pg-core";
-var userRoleEnum, resellerTypeEnum, resellerStatusEnum, appStatusEnum, planLevelEnum, keyStatusEnum, transactionTypeEnum, pixPaymentStatusEnum, ticketStatusEnum, ticketSenderEnum, applicationStatusEnum, applicationSenderEnum, supportTicketStatusEnum, supportMessageSenderEnum, users, admins, resellers, categories, apps, subscriptionPlans, resellerApps, licenseKeys, creditTransactions, pixPayments, ipWhitelist, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages;
+var userRoleEnum, resellerTypeEnum, resellerStatusEnum, appStatusEnum, planLevelEnum, keyStatusEnum, transactionTypeEnum, pixPaymentStatusEnum, ticketStatusEnum, ticketSenderEnum, applicationStatusEnum, applicationSenderEnum, supportTicketStatusEnum, supportMessageSenderEnum, users, admins, resellers, categories, apps, stockStatusEnum, subscriptionPlans, resellerApps, licenseKeys, appStock, creditTransactions, pixPayments, ipWhitelist, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages;
 var init_schema = __esm({
   "drizzle/schema.ts"() {
     "use strict";
@@ -91,6 +91,7 @@ var init_schema = __esm({
       createdAt: timestamp("createdAt").defaultNow().notNull(),
       updatedAt: timestamp("updatedAt").defaultNow().notNull()
     });
+    stockStatusEnum = pgEnum("stock_status", ["available", "sold"]);
     subscriptionPlans = pgTable("subscription_plans", {
       id: serial("id").primaryKey(),
       appId: integer("appId").notNull().references(() => apps.id),
@@ -100,6 +101,7 @@ var init_schema = __esm({
       // 1, 7, 30, 9999
       priceCredits: decimal("priceCredits", { precision: 10, scale: 2 }).notNull(),
       pricePercentage: decimal("pricePercentage", { precision: 10, scale: 2 }).default("0.00").notNull(),
+      resellerSellingPrice: decimal("resellerSellingPrice", { precision: 10, scale: 2 }).default("0.00").notNull(),
       level: planLevelEnum("level").default("basic").notNull(),
       createdAt: timestamp("createdAt").defaultNow().notNull()
     });
@@ -126,6 +128,16 @@ var init_schema = __esm({
       expiresAt: timestamp("expiresAt"),
       note: text("note"),
       customMask: varchar("customMask", { length: 128 }),
+      createdAt: timestamp("createdAt").defaultNow().notNull()
+    });
+    appStock = pgTable("app_stock", {
+      id: serial("id").primaryKey(),
+      appId: integer("appId").notNull().references(() => apps.id),
+      planId: integer("planId").notNull().references(() => subscriptionPlans.id),
+      keyValue: varchar("keyValue", { length: 128 }).notNull().unique(),
+      status: stockStatusEnum("status").default("available").notNull(),
+      resellerId: integer("resellerId").references(() => resellers.id),
+      soldAt: timestamp("soldAt"),
       createdAt: timestamp("createdAt").defaultNow().notNull()
     });
     creditTransactions = pgTable("credit_transactions", {
@@ -248,6 +260,7 @@ var init_env = __esm({
 var db_exports = {};
 __export(db_exports, {
   addIpToWhitelist: () => addIpToWhitelist,
+  addStockBatch: () => addStockBatch,
   assignAppToReseller: () => assignAppToReseller,
   createAdmin: () => createAdmin,
   createApp: () => createApp,
@@ -267,6 +280,7 @@ __export(db_exports, {
   deleteCategory: () => deleteCategory,
   deletePlan: () => deletePlan,
   deleteResellerApplication: () => deleteResellerApplication,
+  deleteStock: () => deleteStock,
   deleteSupportTicket: () => deleteSupportTicket,
   deleteTicket: () => deleteTicket,
   ensurePixPaymentSchema: () => ensurePixPaymentSchema,
@@ -284,6 +298,7 @@ __export(db_exports, {
   getApplicationMessages: () => getApplicationMessages,
   getAppsByResellerId: () => getAppsByResellerId,
   getAssignedAppIds: () => getAssignedAppIds,
+  getAvailableStockForPlan: () => getAvailableStockForPlan,
   getDb: () => getDb,
   getKeyById: () => getKeyById,
   getKeysByPaymentId: () => getKeysByPaymentId,
@@ -297,6 +312,8 @@ __export(db_exports, {
   getResellerApplicationById: () => getResellerApplicationById,
   getResellerById: () => getResellerById,
   getResellerByUsername: () => getResellerByUsername,
+  getStockByApp: () => getStockByApp,
+  getStockCountsByApp: () => getStockCountsByApp,
   getSupportMessages: () => getSupportMessages,
   getSupportTicketById: () => getSupportTicketById,
   getTicketById: () => getTicketById,
@@ -310,6 +327,7 @@ __export(db_exports, {
   normalizeIp: () => normalizeIp,
   removeAppFromReseller: () => removeAppFromReseller,
   removeIpFromWhitelist: () => removeIpFromWhitelist,
+  reserveStockForReseller: () => reserveStockForReseller,
   updateAdminPassword: () => updateAdminPassword,
   updateApp: () => updateApp,
   updateCategory: () => updateCategory,
@@ -327,7 +345,7 @@ __export(db_exports, {
   updateTicketTimestamp: () => updateTicketTimestamp,
   upsertUser: () => upsertUser
 });
-import { eq, and, desc, or } from "drizzle-orm";
+import { eq, and, desc, sql, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 async function getDb() {
@@ -851,6 +869,44 @@ async function createSupportMessage(data) {
   if (!db) throw new Error("DB not available");
   const [row] = await db.insert(supportMessages).values(data).returning();
   return row;
+}
+async function getAvailableStockForPlan(appId, planId, limit) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(appStock).where(
+    and(eq(appStock.appId, appId), eq(appStock.planId, planId), eq(appStock.status, "available"))
+  ).orderBy(appStock.createdAt).limit(limit);
+}
+async function reserveStockForReseller(id, resellerId) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.update(appStock).set({ status: "sold", resellerId, soldAt: /* @__PURE__ */ new Date() }).where(eq(appStock.id, id)).returning();
+  return row;
+}
+async function addStockBatch(data) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  if (data.length === 0) return [];
+  return db.insert(appStock).values(data).returning();
+}
+async function getStockByApp(appId) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(appStock).where(eq(appStock.appId, appId)).orderBy(desc(appStock.createdAt));
+}
+async function getStockCountsByApp(appId) {
+  const db = await getDb();
+  if (!db) return { available: 0, sold: 0 };
+  const rows = await db.select({ status: appStock.status, count: sql`count(*)` }).from(appStock).where(eq(appStock.appId, appId)).groupBy(appStock.status);
+  return {
+    available: rows.find((r) => r.status === "available")?.count ?? 0,
+    sold: rows.find((r) => r.status === "sold")?.count ?? 0
+  };
+}
+async function deleteStock(id) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.delete(appStock).where(eq(appStock.id, id));
 }
 var _db, _sqlClient, _pixPaymentSchemaReady;
 var init_db = __esm({
@@ -1834,12 +1890,14 @@ var adminRouter = router({
     durationDays: z2.number().positive(),
     priceCredits: z2.number().positive(),
     pricePercentage: z2.number().min(0).optional(),
+    resellerSellingPrice: z2.number().min(0).optional(),
     level: z2.enum(["basic", "premium", "lifetime"]).optional()
   })).mutation(async ({ input }) => {
     await createPlan({
       ...input,
       priceCredits: input.priceCredits.toFixed(2),
-      pricePercentage: (input.pricePercentage ?? 0).toFixed(2)
+      pricePercentage: (input.pricePercentage ?? 0).toFixed(2),
+      resellerSellingPrice: (input.resellerSellingPrice ?? 0).toFixed(2)
     });
     return { success: true };
   }),
@@ -1849,17 +1907,47 @@ var adminRouter = router({
     durationDays: z2.number().optional(),
     priceCredits: z2.number().optional(),
     pricePercentage: z2.number().min(0).optional(),
+    resellerSellingPrice: z2.number().min(0).optional(),
     level: z2.enum(["basic", "premium", "lifetime"]).optional()
   })).mutation(async ({ input }) => {
-    const { id, priceCredits, pricePercentage, ...rest } = input;
+    const { id, priceCredits, pricePercentage, resellerSellingPrice, ...rest } = input;
     const data = { ...rest };
     if (priceCredits !== void 0) data.priceCredits = priceCredits.toFixed(2);
     if (pricePercentage !== void 0) data.pricePercentage = pricePercentage.toFixed(2);
+    if (resellerSellingPrice !== void 0) data.resellerSellingPrice = resellerSellingPrice.toFixed(2);
     await updatePlan(id, data);
     return { success: true };
   }),
   deletePlan: adminProcedure2.input(z2.object({ id: z2.number() })).mutation(async ({ input }) => {
     await deletePlan(input.id);
+    return { success: true };
+  }),
+  // ─── App Stock ────────────────────────────────────────────────────────────────
+  addStock: adminProcedure2.input(z2.object({
+    appId: z2.number(),
+    planId: z2.number(),
+    keys: z2.string().min(1)
+  })).mutation(async ({ input }) => {
+    const lines = input.keys.split("\n").map((k) => k.trim()).filter((k) => k.length > 0);
+    if (lines.length === 0) throw new TRPCError3({ code: "BAD_REQUEST", message: "Nenhuma key informada" });
+    const batch = lines.map((keyValue) => ({
+      appId: input.appId,
+      planId: input.planId,
+      keyValue,
+      status: "available"
+    }));
+    const rows = await addStockBatch(batch);
+    return { added: rows.length };
+  }),
+  getStockByApp: adminProcedure2.input(z2.object({ appId: z2.number() })).query(async ({ input }) => {
+    const [items, counts] = await Promise.all([
+      getStockByApp(input.appId),
+      getStockCountsByApp(input.appId)
+    ]);
+    return { items, ...counts };
+  }),
+  deleteStock: adminProcedure2.input(z2.object({ id: z2.number() })).mutation(async ({ input }) => {
+    await deleteStock(input.id);
     return { success: true };
   }),
   // Assign apps to resellers
@@ -2106,24 +2194,18 @@ var resellerRouter = router({
       balanceAfter: newCredits.toFixed(2),
       description: `Gera\xE7\xE3o de ${input.quantity}x key(s) - ${app2.name} (${plan.name})`
     });
-    const sellerKey = app2.keyauthSellerKey || KEYAUTH_SELLER_KEY;
-    let keyauthKeys = null;
-    try {
-      keyauthKeys = await keyauthCreateLicense({
-        sellerKey,
-        durationDays: plan.durationDays,
-        quantity: input.quantity,
-        owner: reseller.username,
-        note: input.note || `Zenity Store - ${reseller.username} - ${plan.name}`
+    const reserved = await getAvailableStockForPlan(input.appId, input.planId, input.quantity);
+    if (reserved.length < input.quantity) {
+      throw new TRPCError3({
+        code: "BAD_REQUEST",
+        message: `Estoque insuficiente. Dispon\xEDvel: ${reserved.length}, Solicitado: ${input.quantity}`
       });
-    } catch (err) {
-      console.error("[KeyAuth] License creation failed, using local key generation:", err);
     }
     const generatedKeys = [];
-    for (let i = 0; i < input.quantity; i++) {
-      const keyValue = keyauthKeys ? keyauthKeys[i] : generateKeyValue(app2.name, input.customMask);
+    for (const stock of reserved) {
+      await reserveStockForReseller(stock.id, ctx.resellerId);
       await createLicenseKey({
-        keyValue,
+        keyValue: stock.keyValue,
         resellerId: ctx.resellerId,
         appId: input.appId,
         planId: plan.id,
@@ -2133,7 +2215,7 @@ var resellerRouter = router({
         ...input.note ? { note: input.note } : {},
         ...input.customMask ? { customMask: input.customMask } : {}
       });
-      generatedKeys.push(keyValue);
+      generatedKeys.push(stock.keyValue);
     }
     return { success: true, keys: generatedKeys, creditsSpent: totalCost, newBalance: newCredits };
   }),

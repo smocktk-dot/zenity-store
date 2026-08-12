@@ -25,6 +25,7 @@ import {
   getPendingPixPaymentsByReseller, getPixPaymentsByReseller,
   getTicketsByResellerId, getAllTickets, getTicketById, createTicket, updateTicketStatus, updateTicketTimestamp, deleteTicket,
   getTicketMessages, createTicketMessage,
+  getAvailableStockForPlan, reserveStockForReseller, addStockBatch, getStockByApp, getStockCountsByApp, deleteStock,
   createResellerApplication, getResellerApplicationById, getResellerApplicationByEmail, getAllResellerApplications,
   updateResellerApplicationStatus, updateResellerApplicationTimestamp, deleteResellerApplication,
   getApplicationMessages, createApplicationMessage,
@@ -452,6 +453,7 @@ const adminRouter = router({
       appId: z.number(), name: z.string(), durationDays: z.number().positive(),
       priceCredits: z.number().positive(),
       pricePercentage: z.number().min(0).optional(),
+      resellerSellingPrice: z.number().min(0).optional(),
       level: z.enum(["basic", "premium", "lifetime"]).optional(),
     }))
     .mutation(async ({ input }) => {
@@ -459,6 +461,7 @@ const adminRouter = router({
         ...input,
         priceCredits: input.priceCredits.toFixed(2),
         pricePercentage: (input.pricePercentage ?? 0).toFixed(2),
+        resellerSellingPrice: (input.resellerSellingPrice ?? 0).toFixed(2),
       } as any);
       return { success: true };
     }),
@@ -468,13 +471,15 @@ const adminRouter = router({
       id: z.number(), name: z.string().optional(), durationDays: z.number().optional(),
       priceCredits: z.number().optional(),
       pricePercentage: z.number().min(0).optional(),
+      resellerSellingPrice: z.number().min(0).optional(),
       level: z.enum(["basic", "premium", "lifetime"]).optional(),
     }))
     .mutation(async ({ input }) => {
-      const { id, priceCredits, pricePercentage, ...rest } = input;
+      const { id, priceCredits, pricePercentage, resellerSellingPrice, ...rest } = input;
       const data: any = { ...rest };
       if (priceCredits !== undefined) data.priceCredits = priceCredits.toFixed(2);
       if (pricePercentage !== undefined) data.pricePercentage = pricePercentage.toFixed(2);
+      if (resellerSellingPrice !== undefined) data.resellerSellingPrice = resellerSellingPrice.toFixed(2);
       await updatePlan(id, data);
       return { success: true };
     }),
@@ -482,6 +487,46 @@ const adminRouter = router({
   deletePlan: adminProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => { await deletePlan(input.id); return { success: true }; }),
+
+  // ─── App Stock ────────────────────────────────────────────────────────────────
+  addStock: adminProcedure
+    .input(z.object({
+      appId: z.number(),
+      planId: z.number(),
+      keys: z.string().min(1),
+    }))
+    .mutation(async ({ input }) => {
+      const lines = input.keys
+        .split("\n")
+        .map(k => k.trim())
+        .filter(k => k.length > 0);
+      if (lines.length === 0) throw new TRPCError({ code: "BAD_REQUEST", message: "Nenhuma key informada" });
+      const batch = lines.map(keyValue => ({
+        appId: input.appId,
+        planId: input.planId,
+        keyValue,
+        status: "available" as const,
+      }));
+      const rows = await addStockBatch(batch);
+      return { added: rows.length };
+    }),
+
+  getStockByApp: adminProcedure
+    .input(z.object({ appId: z.number() }))
+    .query(async ({ input }) => {
+      const [items, counts] = await Promise.all([
+        getStockByApp(input.appId),
+        getStockCountsByApp(input.appId),
+      ]);
+      return { items, ...counts };
+    }),
+
+  deleteStock: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      await deleteStock(input.id);
+      return { success: true };
+    }),
 
   // Assign apps to resellers
   assignApp: adminProcedure
@@ -797,34 +842,26 @@ const resellerRouter = router({
         description: `Geração de ${input.quantity}x key(s) - ${app.name} (${plan.name})`,
       });
 
-      // Gerar licenças via KeyAuth se o app tiver seller key configurada
-      const sellerKey = (app as any).keyauthSellerKey || KEYAUTH_SELLER_KEY;
-      let keyauthKeys: string[] | null = null;
-      try {
-        keyauthKeys = await keyauthCreateLicense({
-          sellerKey,
-          durationDays: plan.durationDays,
-          quantity: input.quantity,
-          owner: reseller.username,
-          note: input.note || `Zenity Store - ${reseller.username} - ${plan.name}`,
+      // Try to pull from pre-loaded stock first
+      const reserved = await getAvailableStockForPlan(input.appId, input.planId, input.quantity);
+      if (reserved.length < input.quantity) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Estoque insuficiente. Disponível: ${reserved.length}, Solicitado: ${input.quantity}`,
         });
-      } catch (err) {
-        console.error("[KeyAuth] License creation failed, using local key generation:", err);
       }
 
       const generatedKeys: string[] = [];
-      for (let i = 0; i < input.quantity; i++) {
-        // Usar a key do KeyAuth se disponível, senão gerar localmente
-        const keyValue = keyauthKeys ? keyauthKeys[i] : generateKeyValue(app.name, input.customMask);
-        // expiresAt é null: a contagem começa apenas quando a key for usada pela primeira vez
+      for (const stock of reserved) {
+        await reserveStockForReseller(stock.id, ctx.resellerId);
         await createLicenseKey({
-          keyValue, resellerId: ctx.resellerId, appId: input.appId,
+          keyValue: stock.keyValue, resellerId: ctx.resellerId, appId: input.appId,
           planId: plan.id, planName: plan.name, durationDays: plan.durationDays,
           creditsSpent: discountedPrice.toFixed(2),
           ...(input.note ? { note: input.note } : {}),
           ...(input.customMask ? { customMask: input.customMask } : {}),
         } as any);
-        generatedKeys.push(keyValue);
+        generatedKeys.push(stock.keyValue);
       }
 
       return { success: true, keys: generatedKeys, creditsSpent: totalCost, newBalance: newCredits };

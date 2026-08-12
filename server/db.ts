@@ -1,8 +1,8 @@
 import { eq, and, desc, sql, inArray, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { InsertUser, users, admins, resellers, categories, apps, subscriptionPlans, resellerApps, licenseKeys, creditTransactions, ipWhitelist, pixPayments, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages } from "../drizzle/schema";
-import type { InsertAdmin, InsertReseller, InsertCategory, InsertApp, InsertSubscriptionPlan, InsertResellerApp, InsertLicenseKey, InsertCreditTransaction, InsertPixPayment, InsertTicket, InsertTicketMessage, InsertResellerApplication, InsertApplicationMessage, InsertSupportTicket, InsertSupportMessage } from "../drizzle/schema";
+import { InsertUser, users, admins, resellers, categories, apps, subscriptionPlans, resellerApps, licenseKeys, appStock, creditTransactions, ipWhitelist, pixPayments, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages } from "../drizzle/schema";
+import type { InsertAdmin, InsertReseller, InsertCategory, InsertApp, InsertSubscriptionPlan, InsertResellerApp, InsertLicenseKey, InsertAppStock, InsertCreditTransaction, InsertPixPayment, InsertTicket, InsertTicketMessage, InsertResellerApplication, InsertApplicationMessage, InsertSupportTicket, InsertSupportMessage } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -666,4 +666,55 @@ export async function createSupportMessage(data: InsertSupportMessage) {
   if (!db) throw new Error("DB not available");
   const [row] = await db.insert(supportMessages).values(data).returning();
   return row;
+}
+
+// ─── App Stock ────────────────────────────────────────────────────────────────
+export async function getAvailableStockForPlan(appId: number, planId: number, limit: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(appStock).where(
+    and(eq(appStock.appId, appId), eq(appStock.planId, planId), eq(appStock.status, "available"))
+  ).orderBy(appStock.createdAt).limit(limit);
+}
+
+export async function reserveStockForReseller(id: number, resellerId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.update(appStock)
+    .set({ status: "sold", resellerId, soldAt: new Date() })
+    .where(eq(appStock.id, id))
+    .returning();
+  return row;
+}
+
+export async function addStockBatch(data: InsertAppStock[]) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  if (data.length === 0) return [];
+  return db.insert(appStock).values(data).returning();
+}
+
+export async function getStockByApp(appId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(appStock).where(eq(appStock.appId, appId)).orderBy(desc(appStock.createdAt));
+}
+
+export async function getStockCountsByApp(appId: number) {
+  const db = await getDb();
+  if (!db) return { available: 0, sold: 0 };
+  const rows = await db.select({ status: appStock.status, count: sql<number>`count(*)` })
+    .from(appStock)
+    .where(eq(appStock.appId, appId))
+    .groupBy(appStock.status);
+  return {
+    available: rows.find(r => r.status === "available")?.count ?? 0,
+    sold: rows.find(r => r.status === "sold")?.count ?? 0,
+  };
+}
+
+export async function deleteStock(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.delete(appStock).where(eq(appStock.id, id));
 }

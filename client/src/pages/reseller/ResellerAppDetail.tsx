@@ -90,6 +90,10 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
                         <span className="text-yellow-400 font-bold font-mono text-sm">{price.toFixed(2)}</span>
                         <span className="text-gray-600 text-xs">cr</span>
                       </div>
+                      <div className="flex items-center gap-2 text-xs text-green-400">
+                        <span className="text-gray-500">Preço final:</span>
+                        <span className="font-mono font-bold">R$ {parseFloat(String(plan.resellerSellingPrice ?? "0")).toFixed(2)}</span>
+                      </div>
                       <div className="flex items-center gap-2 text-xs text-gray-400">
                         <Clock className="w-3 h-3 text-blue-400" />
                         {plan.durationDays >= 9000 ? t.apps_lifetime : `${plan.durationDays} ${t.apps_days}`}
@@ -828,6 +832,10 @@ function PercentageAppDetail({ app, id }: { app: any; id: number }) {
                           <DollarSign className="w-3.5 h-3.5 text-purple-400" />
                           <span className="text-purple-400 font-bold font-mono text-sm">{fmt(withDiscount)}</span>
                           {discount > 0 && original > 0 && <span className="text-gray-600 text-xs line-through">{fmt(original)}</span>}
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-green-400">
+                          <span className="text-gray-500">Preço final:</span>
+                          <span className="font-mono font-bold">R$ {parseFloat(String(plan.resellerSellingPrice ?? "0")).toFixed(2)}</span>
                         </div>
                         <div className="flex items-center gap-2 text-xs text-gray-400">
                           <Clock className="w-3 h-3 text-blue-400" />

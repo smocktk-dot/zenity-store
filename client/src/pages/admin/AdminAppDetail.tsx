@@ -21,7 +21,7 @@ export default function AdminAppDetail({ id }: { id: number }) {
   const [editingPlan, setEditingPlan] = useState<any>(null);
   const [planForm, setPlanForm] = useState({
     name: "", durationDays: "30",
-    priceCredits: "", pricePercentage: "",
+    priceCredits: "", pricePercentage: "", resellerSellingPrice: "",
     level: "basic" as "basic" | "premium" | "lifetime"
   });
   const [selectedReseller, setSelectedReseller] = useState("");
@@ -44,7 +44,7 @@ export default function AdminAppDetail({ id }: { id: number }) {
   });
 
   function resetForm() {
-    setPlanForm({ name: "", durationDays: "30", priceCredits: "", pricePercentage: "", level: "basic" });
+    setPlanForm({ name: "", durationDays: "30", priceCredits: "", pricePercentage: "", resellerSellingPrice: "", level: "basic" });
   }
 
   function openEdit(plan: any) {
@@ -54,6 +54,7 @@ export default function AdminAppDetail({ id }: { id: number }) {
       durationDays: String(plan.durationDays),
       priceCredits: parseFloat(plan.priceCredits).toFixed(2),
       pricePercentage: parseFloat(plan.pricePercentage ?? "0").toFixed(2),
+      resellerSellingPrice: parseFloat(plan.resellerSellingPrice ?? "0").toFixed(2),
       level: plan.level,
     });
   }
@@ -206,6 +207,9 @@ export default function AdminAppDetail({ id }: { id: number }) {
                         Com 35% desc → <span className="text-purple-400">R$ {(parseFloat(plan.pricePercentage ?? "0") * 0.65).toFixed(2)}</span>
                         {" · "}50% desc → <span className="text-purple-400">R$ {(parseFloat(plan.pricePercentage ?? "0") * 0.50).toFixed(2)}</span>
                       </p>
+                      <p className="text-green-400 text-xs mt-1">
+                        Preço final de venda: <span className="font-bold">R$ {parseFloat(plan.resellerSellingPrice ?? "0").toFixed(2)}</span>
+                      </p>
                     </div>
                   ))}
                 </div>
@@ -299,6 +303,7 @@ export default function AdminAppDetail({ id }: { id: number }) {
                 durationDays: parseInt(planForm.durationDays),
                 priceCredits: parseFloat(planForm.priceCredits) || 0,
                 pricePercentage: parseFloat(planForm.pricePercentage) || 0,
+                resellerSellingPrice: parseFloat(planForm.resellerSellingPrice) || 0,
                 level: planForm.level,
               };
               if (editingPlan) {
@@ -362,6 +367,19 @@ export default function AdminAppDetail({ id }: { id: number }) {
                     35% desc → R$ {(parseFloat(planForm.pricePercentage) * 0.65).toFixed(2)} · 50% desc → R$ {(parseFloat(planForm.pricePercentage) * 0.50).toFixed(2)}
                   </p>
                 )}
+              </div>
+              <div>
+                <Label className="text-gray-300 text-sm">Preço final de venda (R$)</Label>
+                <Input
+                  type="number" step="0.01" min="0"
+                  value={planForm.resellerSellingPrice}
+                  onChange={e => setPlanForm(f => ({ ...f, resellerSellingPrice: e.target.value }))}
+                  placeholder="Ex: 50.00"
+                  className="bg-black/30 border-green-500/20 text-white mt-1 focus:border-green-500/50"
+                />
+                <p className="text-green-400 text-xs mt-1">
+                  Valor que os resellers devem cobrar do cliente final
+                </p>
               </div>
             </div>
 

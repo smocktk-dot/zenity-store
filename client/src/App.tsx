@@ -19,6 +19,7 @@ import AdminSecurity from "./pages/admin/AdminSecurity";
 import AdminTickets from "./pages/admin/AdminTickets";
 import AdminApplications from "./pages/admin/AdminApplications";
 import AdminSupport from "./pages/admin/AdminSupport";
+import AdminStock from "./pages/admin/AdminStock";
 import ResellerLayout from "./pages/reseller/ResellerLayout";
 import ResellerProfile from "./pages/reseller/ResellerProfile";
 import ResellerApps from "./pages/reseller/ResellerApps";
@@ -116,6 +117,13 @@ function Router() {
         {() => (
           <AdminLayout>
             <AdminSupport />
+          </AdminLayout>
+        )}
+      </Route>
+      <Route path="/admin/stock">
+        {() => (
+          <AdminLayout>
+            <AdminStock />
           </AdminLayout>
         )}
       </Route>
