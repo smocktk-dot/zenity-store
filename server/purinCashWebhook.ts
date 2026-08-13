@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import crypto from "crypto";
 import {
   createCreditTransaction,
   createLicenseKey,
@@ -16,20 +17,47 @@ import { calcDiscount } from "./resellerPricing";
 
 const FINAL_PAYMENT_STATUSES = new Set(["expired", "cancelled", "refunded"]);
 const PURIN_API_KEY = process.env.PURIN_CASH_API_KEY;
+const PURIN_WEBHOOK_SECRET = process.env.PURINCASH_WEBHOOK_SECRET;
+
+function isValidHmac(rawBody: Buffer, signature: string | string[] | undefined, secret: string): boolean {
+  if (!signature || !secret) return false;
+  const sig = Array.isArray(signature) ? signature[0] : signature;
+  const expected = crypto
+    .createHmac("sha256", secret)
+    .update(rawBody)
+    .digest("hex");
+  if (sig.length !== expected.length) return false;
+  try {
+    return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
+  } catch {
+    return false;
+  }
+}
 
 export async function handlePurinCashWebhook(req: Request, res: Response) {
   try {
+    const rawBody = req.body as Buffer;
+    const signature = req.headers["x-webhook-signature"];
+    const webhookId = req.headers["x-webhook-id"] as string | undefined;
+
     console.log("[PurinCash Webhook] hit", {
       method: req.method,
       url: req.url,
       host: req.headers.host,
       forwardedHost: req.headers["x-forwarded-host"],
       contentType: req.headers["content-type"],
-      webhookId: req.headers["x-webhook-id"],
-      body: req.body,
+      webhookId,
+      hasSecret: !!PURIN_WEBHOOK_SECRET,
+      bodyLength: rawBody?.length,
     });
 
-    const { event, paymentId, status, paidAt } = req.body as {
+    if (PURIN_WEBHOOK_SECRET && !isValidHmac(rawBody, signature, PURIN_WEBHOOK_SECRET)) {
+      console.warn("[PurinCash Webhook] invalid signature");
+      return res.status(401).json({ error: "Assinatura inválida" });
+    }
+
+    const payload = rawBody ? JSON.parse(rawBody.toString("utf8")) : {};
+    const { event, paymentId, status, paidAt } = payload as {
       event?: string;
       paymentId?: string;
       status?: string;

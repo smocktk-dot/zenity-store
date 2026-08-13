@@ -897,7 +897,7 @@ async function getAvailableStockForPlan(appId, planId, limit) {
 async function reserveStockForReseller(id, resellerId) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  const [row] = await db.update(appStock).set({ status: "sold", resellerId, soldAt: /* @__PURE__ */ new Date() }).where(eq(appStock.id, id)).returning();
+  const [row] = await db.update(appStock).set({ status: "sold", resellerId, soldAt: /* @__PURE__ */ new Date() }).where(and(eq(appStock.id, id), eq(appStock.status, "available"))).returning();
   return row;
 }
 async function addStockBatch(data) {
@@ -1511,6 +1511,7 @@ var systemRouter = router({
 
 // server/purinCashWebhook.ts
 init_db();
+import crypto2 from "crypto";
 
 // server/resellerPricing.ts
 function calcDiscount(totalPurchases) {
@@ -1522,18 +1523,39 @@ function calcDiscount(totalPurchases) {
 // server/purinCashWebhook.ts
 var FINAL_PAYMENT_STATUSES = /* @__PURE__ */ new Set(["expired", "cancelled", "refunded"]);
 var PURIN_API_KEY = process.env.PURIN_CASH_API_KEY;
+var PURIN_WEBHOOK_SECRET = process.env.PURINCASH_WEBHOOK_SECRET;
+function isValidHmac(rawBody, signature, secret) {
+  if (!signature || !secret) return false;
+  const sig = Array.isArray(signature) ? signature[0] : signature;
+  const expected = crypto2.createHmac("sha256", secret).update(rawBody).digest("hex");
+  if (sig.length !== expected.length) return false;
+  try {
+    return crypto2.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
+  } catch {
+    return false;
+  }
+}
 async function handlePurinCashWebhook(req, res) {
   try {
+    const rawBody = req.body;
+    const signature = req.headers["x-webhook-signature"];
+    const webhookId = req.headers["x-webhook-id"];
     console.log("[PurinCash Webhook] hit", {
       method: req.method,
       url: req.url,
       host: req.headers.host,
       forwardedHost: req.headers["x-forwarded-host"],
       contentType: req.headers["content-type"],
-      webhookId: req.headers["x-webhook-id"],
-      body: req.body
+      webhookId,
+      hasSecret: !!PURIN_WEBHOOK_SECRET,
+      bodyLength: rawBody?.length
     });
-    const { event, paymentId, status, paidAt } = req.body;
+    if (PURIN_WEBHOOK_SECRET && !isValidHmac(rawBody, signature, PURIN_WEBHOOK_SECRET)) {
+      console.warn("[PurinCash Webhook] invalid signature");
+      return res.status(401).json({ error: "Assinatura inv\xE1lida" });
+    }
+    const payload = rawBody ? JSON.parse(rawBody.toString("utf8")) : {};
+    const { event, paymentId, status, paidAt } = payload;
     if (!paymentId || !status) {
       console.warn("[PurinCash Webhook] missing paymentId or status", { event, paymentId, status });
       return res.status(400).json({ error: "Missing paymentId or status" });
@@ -2935,6 +2957,7 @@ async function createContext(opts) {
 // server/_core/serverless.ts
 var app = express();
 app.set("trust proxy", true);
+app.post("/api/webhooks/purincash", express.raw({ type: "application/json" }), handlePurinCashWebhook);
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 registerStorageProxy(app);
@@ -2956,7 +2979,6 @@ app.get("/api/my-ip", (req, res) => {
   if (ip === "::1" || ip === "0:0:0:0:0:0:0:1") ip = "127.0.0.1";
   res.json({ ip, raw });
 });
-app.post("/api/webhooks/purincash", handlePurinCashWebhook);
 app.use(
   "/api/trpc",
   createExpressMiddleware({

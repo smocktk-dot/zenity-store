@@ -682,7 +682,7 @@ export async function reserveStockForReseller(id: number, resellerId: number) {
   if (!db) throw new Error("DB not available");
   const [row] = await db.update(appStock)
     .set({ status: "sold", resellerId, soldAt: new Date() })
-    .where(eq(appStock.id, id))
+    .where(and(eq(appStock.id, id), eq(appStock.status, "available")))
     .returning();
   return row;
 }

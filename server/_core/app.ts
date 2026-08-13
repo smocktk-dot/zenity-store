@@ -13,6 +13,9 @@ const app = express();
 // Trust proxy headers (Vercel, Cloudflare, etc.) so req.protocol and IP headers work correctly
 app.set("trust proxy", true);
 
+// Webhook must use express.raw BEFORE the global json parser so we can validate HMAC
+app.post("/api/webhooks/purincash", express.raw({ type: "application/json" }), handlePurinCashWebhook);
+
 // Configure body parser with larger size limit for file uploads
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
@@ -38,9 +41,6 @@ app.get("/api/my-ip", (req, res) => {
   if (ip === "::1" || ip === "0:0:0:0:0:0:0:1") ip = "127.0.0.1";
   res.json({ ip, raw });
 });
-
-// Webhook Purin Cash (Pix payment confirmation)
-app.post("/api/webhooks/purincash", handlePurinCashWebhook);
 
 // tRPC API
 app.use(
