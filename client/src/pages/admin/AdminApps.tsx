@@ -17,7 +17,7 @@ export default function AdminApps() {
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [editApp, setEditApp] = useState<any>(null);
-  const [form, setForm] = useState({ name: "", description: "", version: "v1.0", categoryId: "" as string, maxUsers: "5000", features: "" });
+  const [form, setForm] = useState({ name: "", description: "", version: "v1.0", categoryId: "" as string, maxUsers: "5000", features: "", keyauthSellerKey: "" });
 
   const create = trpc.admin.createApp.useMutation({
     onSuccess: () => { toast.success("App criado!"); utils.admin.listApps.invalidate(); setShowCreate(false); resetForm(); },
@@ -32,16 +32,18 @@ export default function AdminApps() {
     onError: e => toast.error(e.message),
   });
 
-  const resetForm = () => setForm({ name: "", description: "", version: "v1.0", categoryId: "", maxUsers: "5000", features: "" });
+  const resetForm = () => setForm({ name: "", description: "", version: "v1.0", categoryId: "", maxUsers: "5000", features: "", keyauthSellerKey: "" });
 
   const filtered = apps.filter((a: any) => a.name?.toLowerCase().includes(search.toLowerCase()));
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const keyauthSellerKey = form.keyauthSellerKey.trim() || undefined;
     const payload = {
       name: form.name, description: form.description, version: form.version,
       categoryId: form.categoryId ? parseInt(form.categoryId) : undefined,
       maxUsers: parseInt(form.maxUsers) || 5000, features: form.features,
+      keyauthSellerKey,
     };
     if (editApp) update.mutate({ id: editApp.id, ...payload });
     else create.mutate(payload);
@@ -49,7 +51,15 @@ export default function AdminApps() {
 
   const openEdit = (app: any) => {
     setEditApp(app);
-    setForm({ name: app.name, description: app.description || "", version: app.version || "v1.0", categoryId: app.categoryId ? String(app.categoryId) : "", maxUsers: String(app.maxUsers || 5000), features: app.features || "" });
+    setForm({
+      name: app.name,
+      description: app.description || "",
+      version: app.version || "v1.0",
+      categoryId: app.categoryId ? String(app.categoryId) : "",
+      maxUsers: String(app.maxUsers || 5000),
+      features: app.features || "",
+      keyauthSellerKey: app.keyauthSellerKey || "",
+    });
   };
 
   const getCategoryName = (id: number | null) => categories.find((c: any) => c.id === id)?.name || "—";
@@ -142,6 +152,10 @@ export default function AdminApps() {
 
           <form onSubmit={handleSubmit} className="space-y-4 mt-3">
             <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Seller Key (KeyAuth) — 32 caracteres</Label>
+                <Input value={form.keyauthSellerKey} onChange={e => setForm(f => ({...f, keyauthSellerKey: e.target.value}))} maxLength={32} className="mt-1.5 text-white border-white/10 focus:border-purple-500/60 focus:ring-purple-500/20 transition-colors" style={{ background: "rgba(255,255,255,0.05)" }} placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+              </div>
               <div className="col-span-2">
                 <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Nome *</Label>
                 <Input value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} className="mt-1.5 text-white border-white/10 focus:border-purple-500/60 focus:ring-purple-500/20 transition-colors" style={{ background: "rgba(255,255,255,0.05)" }} required />
