@@ -1,8 +1,8 @@
 import { eq, and, desc, sql, inArray, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { InsertUser, users, admins, resellers, categories, apps, subscriptionPlans, resellerApps, licenseKeys, appStock, creditTransactions, ipWhitelist, pixPayments, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages } from "../drizzle/schema";
-import type { InsertAdmin, InsertReseller, InsertCategory, InsertApp, InsertSubscriptionPlan, InsertResellerApp, InsertLicenseKey, InsertAppStock, InsertCreditTransaction, InsertPixPayment, InsertTicket, InsertTicketMessage, InsertResellerApplication, InsertApplicationMessage, InsertSupportTicket, InsertSupportMessage } from "../drizzle/schema";
+import { InsertUser, users, admins, resellers, categories, apps, subscriptionPlans, resellerApps, licenseKeys, appStock, appDownloads, creditTransactions, ipWhitelist, pixPayments, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages } from "../drizzle/schema";
+import type { InsertAdmin, InsertReseller, InsertCategory, InsertApp, InsertSubscriptionPlan, InsertResellerApp, InsertLicenseKey, InsertAppStock, InsertAppDownload, InsertCreditTransaction, InsertPixPayment, InsertTicket, InsertTicketMessage, InsertResellerApplication, InsertApplicationMessage, InsertSupportTicket, InsertSupportMessage } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -717,4 +717,38 @@ export async function deleteStock(id: number) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   await db.delete(appStock).where(eq(appStock.id, id));
+}
+
+// ─── App Downloads ─────────────────────────────────────────────────────────────
+export async function getDownloadsByAppId(appId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(appDownloads).where(eq(appDownloads.appId, appId)).orderBy(appDownloads.sortOrder, appDownloads.createdAt);
+}
+
+export async function getDownloadById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db.select().from(appDownloads).where(eq(appDownloads.id, id));
+  return row ?? null;
+}
+
+export async function createAppDownload(data: InsertAppDownload) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.insert(appDownloads).values(data).returning();
+  return row;
+}
+
+export async function updateAppDownload(id: number, data: Partial<InsertAppDownload>) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.update(appDownloads).set(data).where(eq(appDownloads.id, id)).returning();
+  return row;
+}
+
+export async function deleteAppDownload(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.delete(appDownloads).where(eq(appDownloads.id, id));
 }

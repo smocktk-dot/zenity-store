@@ -19,7 +19,7 @@ import {
   decimal,
   serial
 } from "drizzle-orm/pg-core";
-var userRoleEnum, resellerTypeEnum, resellerStatusEnum, appStatusEnum, planLevelEnum, keyStatusEnum, transactionTypeEnum, pixPaymentStatusEnum, ticketStatusEnum, ticketSenderEnum, applicationStatusEnum, applicationSenderEnum, supportTicketStatusEnum, supportMessageSenderEnum, users, admins, resellers, categories, apps, stockStatusEnum, subscriptionPlans, resellerApps, licenseKeys, appStock, creditTransactions, pixPayments, ipWhitelist, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages;
+var userRoleEnum, resellerTypeEnum, resellerStatusEnum, appStatusEnum, planLevelEnum, keyStatusEnum, transactionTypeEnum, pixPaymentStatusEnum, ticketStatusEnum, ticketSenderEnum, applicationStatusEnum, applicationSenderEnum, supportTicketStatusEnum, supportMessageSenderEnum, appDownloadTypeEnum, users, admins, resellers, categories, apps, stockStatusEnum, subscriptionPlans, resellerApps, licenseKeys, appStock, creditTransactions, pixPayments, ipWhitelist, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages, appDownloads;
 var init_schema = __esm({
   "drizzle/schema.ts"() {
     "use strict";
@@ -37,6 +37,7 @@ var init_schema = __esm({
     applicationSenderEnum = pgEnum("application_sender", ["applicant", "admin"]);
     supportTicketStatusEnum = pgEnum("support_ticket_status", ["open", "closed", "archived"]);
     supportMessageSenderEnum = pgEnum("support_message_sender", ["user", "admin"]);
+    appDownloadTypeEnum = pgEnum("app_download_type", ["download", "tutorial"]);
     users = pgTable("users", {
       id: serial("id").primaryKey(),
       openId: varchar("openId", { length: 64 }).notNull().unique(),
@@ -235,6 +236,17 @@ var init_schema = __esm({
       message: text("message").notNull(),
       createdAt: timestamp("createdAt").defaultNow().notNull()
     });
+    appDownloads = pgTable("app_downloads", {
+      id: serial("id").primaryKey(),
+      appId: integer("appId").notNull().references(() => apps.id),
+      type: appDownloadTypeEnum("type").notNull(),
+      title: varchar("title", { length: 128 }).notNull(),
+      url: text("url").notNull(),
+      videoUrl: text("videoUrl"),
+      sortOrder: integer("sortOrder").default(0).notNull(),
+      createdAt: timestamp("createdAt").defaultNow().notNull(),
+      updatedAt: timestamp("updatedAt").defaultNow().notNull()
+    });
   }
 });
 
@@ -264,6 +276,7 @@ __export(db_exports, {
   assignAppToReseller: () => assignAppToReseller,
   createAdmin: () => createAdmin,
   createApp: () => createApp,
+  createAppDownload: () => createAppDownload,
   createApplicationMessage: () => createApplicationMessage,
   createCategory: () => createCategory,
   createCreditTransaction: () => createCreditTransaction,
@@ -277,6 +290,7 @@ __export(db_exports, {
   createTicket: () => createTicket,
   createTicketMessage: () => createTicketMessage,
   deleteApp: () => deleteApp,
+  deleteAppDownload: () => deleteAppDownload,
   deleteCategory: () => deleteCategory,
   deletePlan: () => deletePlan,
   deleteResellerApplication: () => deleteResellerApplication,
@@ -300,6 +314,8 @@ __export(db_exports, {
   getAssignedAppIds: () => getAssignedAppIds,
   getAvailableStockForPlan: () => getAvailableStockForPlan,
   getDb: () => getDb,
+  getDownloadById: () => getDownloadById,
+  getDownloadsByAppId: () => getDownloadsByAppId,
   getKeyById: () => getKeyById,
   getKeysByPaymentId: () => getKeysByPaymentId,
   getKeysByResellerId: () => getKeysByResellerId,
@@ -330,6 +346,7 @@ __export(db_exports, {
   reserveStockForReseller: () => reserveStockForReseller,
   updateAdminPassword: () => updateAdminPassword,
   updateApp: () => updateApp,
+  updateAppDownload: () => updateAppDownload,
   updateCategory: () => updateCategory,
   updateLicenseKey: () => updateLicenseKey,
   updatePixPaymentStatus: () => updatePixPaymentStatus,
@@ -907,6 +924,34 @@ async function deleteStock(id) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   await db.delete(appStock).where(eq(appStock.id, id));
+}
+async function getDownloadsByAppId(appId) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(appDownloads).where(eq(appDownloads.appId, appId)).orderBy(appDownloads.sortOrder, appDownloads.createdAt);
+}
+async function getDownloadById(id) {
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db.select().from(appDownloads).where(eq(appDownloads.id, id));
+  return row ?? null;
+}
+async function createAppDownload(data) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.insert(appDownloads).values(data).returning();
+  return row;
+}
+async function updateAppDownload(id, data) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.update(appDownloads).set(data).where(eq(appDownloads.id, id)).returning();
+  return row;
+}
+async function deleteAppDownload(id) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.delete(appDownloads).where(eq(appDownloads.id, id));
 }
 var _db, _sqlClient, _pixPaymentSchemaReady;
 var init_db = __esm({
@@ -2088,6 +2133,37 @@ var adminRouter = router({
     await deleteStock(input.id);
     return { success: true };
   }),
+  // ─── App Downloads ───────────────────────────────────────────────────────────
+  getDownloadsByApp: adminProcedure2.input(z2.object({ appId: z2.number() })).query(async ({ input }) => {
+    return getDownloadsByAppId(input.appId);
+  }),
+  createAppDownload: adminProcedure2.input(z2.object({
+    appId: z2.number(),
+    type: z2.enum(["download", "tutorial"]),
+    title: z2.string().min(1),
+    url: z2.string().min(1),
+    videoUrl: z2.string().optional(),
+    sortOrder: z2.number().default(0)
+  })).mutation(async ({ input }) => {
+    await createAppDownload(input);
+    return { success: true };
+  }),
+  updateAppDownload: adminProcedure2.input(z2.object({
+    id: z2.number(),
+    type: z2.enum(["download", "tutorial"]).optional(),
+    title: z2.string().min(1).optional(),
+    url: z2.string().min(1).optional(),
+    videoUrl: z2.string().optional().nullable(),
+    sortOrder: z2.number().optional()
+  })).mutation(async ({ input }) => {
+    const { id, ...data } = input;
+    await updateAppDownload(id, data);
+    return { success: true };
+  }),
+  deleteAppDownload: adminProcedure2.input(z2.object({ id: z2.number() })).mutation(async ({ input }) => {
+    await deleteAppDownload(input.id);
+    return { success: true };
+  }),
   getAvailableStockForPlan: adminProcedure2.input(z2.object({ appId: z2.number(), planId: z2.number() })).query(async ({ input }) => {
     return getAvailableStockForPlan(input.appId, input.planId, 1);
   }),
@@ -2329,6 +2405,9 @@ var resellerRouter = router({
   }),
   myKeys: resellerProcedure.query(async ({ ctx }) => {
     return getKeysByResellerId(ctx.resellerId);
+  }),
+  getDownloadsByApp: resellerProcedure.input(z2.object({ appId: z2.number() })).query(async ({ input }) => {
+    return getDownloadsByAppId(input.appId);
   }),
   generateKeys: resellerProcedure.input(z2.object({
     appId: z2.number(),

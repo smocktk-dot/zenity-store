@@ -25,6 +25,7 @@ export const applicationStatusEnum = pgEnum("application_status", ["pending", "p
 export const applicationSenderEnum = pgEnum("application_sender", ["applicant", "admin"]);
 export const supportTicketStatusEnum = pgEnum("support_ticket_status", ["open", "closed", "archived"]);
 export const supportMessageSenderEnum = pgEnum("support_message_sender", ["user", "admin"]);
+export const appDownloadTypeEnum = pgEnum("app_download_type", ["download", "tutorial"]);
 
 // ─── Core users table (Manus OAuth, kept for compatibility) ───────────────────
 export const users = pgTable("users", {
@@ -301,3 +302,19 @@ export const supportMessages = pgTable("support_messages", {
 
 export type SupportMessage = typeof supportMessages.$inferSelect;
 export type InsertSupportMessage = typeof supportMessages.$inferInsert;
+
+// ─── App Downloads (download links + tutorials per app) ────────────────────────
+export const appDownloads = pgTable("app_downloads", {
+  id: serial("id").primaryKey(),
+  appId: integer("appId").notNull().references(() => apps.id),
+  type: appDownloadTypeEnum("type").notNull(),
+  title: varchar("title", { length: 128 }).notNull(),
+  url: text("url").notNull(),
+  videoUrl: text("videoUrl"),
+  sortOrder: integer("sortOrder").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
+export type AppDownload = typeof appDownloads.$inferSelect;
+export type InsertAppDownload = typeof appDownloads.$inferInsert;

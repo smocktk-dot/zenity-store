@@ -64,6 +64,13 @@
       "when": 1784505678901,
       "tag": "0008_add_app_stock_and_selling_price",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1784515678901,
+      "tag": "0009_add_app_downloads",
+      "breakpoints": true
     }
   ]
 }

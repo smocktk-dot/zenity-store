@@ -21,6 +21,7 @@ import AdminApplications from "./pages/admin/AdminApplications";
 import AdminSupport from "./pages/admin/AdminSupport";
 import AdminStock from "./pages/admin/AdminStock";
 import AdminManualDelivery from "./pages/admin/AdminManualDelivery";
+import AdminDownloads from "./pages/admin/AdminDownloads";
 import ResellerLayout from "./pages/reseller/ResellerLayout";
 import ResellerProfile from "./pages/reseller/ResellerProfile";
 import ResellerApps from "./pages/reseller/ResellerApps";
@@ -132,6 +133,13 @@ function Router() {
         {() => (
           <AdminLayout>
             <AdminManualDelivery />
+          </AdminLayout>
+        )}
+      </Route>
+      <Route path="/admin/downloads">
+        {() => (
+          <AdminLayout>
+            <AdminDownloads />
           </AdminLayout>
         )}
       </Route>

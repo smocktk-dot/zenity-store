@@ -27,6 +27,7 @@ import {
   getTicketsByResellerId, getAllTickets, getTicketById, createTicket, updateTicketStatus, updateTicketTimestamp, deleteTicket,
   getTicketMessages, createTicketMessage,
   getAvailableStockForPlan, reserveStockForReseller, addStockBatch, getStockByApp, getStockCountsByApp, deleteStock,
+  getDownloadsByAppId, getDownloadById, createAppDownload, updateAppDownload, deleteAppDownload,
   createResellerApplication, getResellerApplicationById, getResellerApplicationByEmail, getAllResellerApplications,
   updateResellerApplicationStatus, updateResellerApplicationTimestamp, deleteResellerApplication,
   getApplicationMessages, createApplicationMessage,
@@ -538,6 +539,49 @@ const adminRouter = router({
       return { success: true };
     }),
 
+  // ─── App Downloads ───────────────────────────────────────────────────────────
+  getDownloadsByApp: adminProcedure
+    .input(z.object({ appId: z.number() }))
+    .query(async ({ input }) => {
+      return getDownloadsByAppId(input.appId);
+    }),
+
+  createAppDownload: adminProcedure
+    .input(z.object({
+      appId: z.number(),
+      type: z.enum(["download", "tutorial"]),
+      title: z.string().min(1),
+      url: z.string().min(1),
+      videoUrl: z.string().optional(),
+      sortOrder: z.number().default(0),
+    }))
+    .mutation(async ({ input }) => {
+      await createAppDownload(input);
+      return { success: true };
+    }),
+
+  updateAppDownload: adminProcedure
+    .input(z.object({
+      id: z.number(),
+      type: z.enum(["download", "tutorial"]).optional(),
+      title: z.string().min(1).optional(),
+      url: z.string().min(1).optional(),
+      videoUrl: z.string().optional().nullable(),
+      sortOrder: z.number().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { id, ...data } = input;
+      await updateAppDownload(id, data as any);
+      return { success: true };
+    }),
+
+  deleteAppDownload: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      await deleteAppDownload(input.id);
+      return { success: true };
+    }),
+
   getAvailableStockForPlan: adminProcedure
     .input(z.object({ appId: z.number(), planId: z.number() }))
     .query(async ({ input }) => {
@@ -849,6 +893,12 @@ const resellerRouter = router({
   myKeys: resellerProcedure.query(async ({ ctx }) => {
     return getKeysByResellerId(ctx.resellerId);
   }),
+
+  getDownloadsByApp: resellerProcedure
+    .input(z.object({ appId: z.number() }))
+    .query(async ({ input }) => {
+      return getDownloadsByAppId(input.appId);
+    }),
 
   generateKeys: resellerProcedure
     .input(z.object({

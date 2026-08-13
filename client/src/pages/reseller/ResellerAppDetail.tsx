@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   ArrowLeft, Key, DollarSign, Clock, Star, Plus, ShoppingCart, CreditCard,
   Percent, CheckCircle, QrCode, Copy, CheckCircle2, Loader2, RefreshCw, X,
-  Bitcoin, Wallet, AlertTriangle,
+  Bitcoin, Wallet, AlertTriangle, Download, Film,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -795,6 +795,9 @@ function PercentageAppDetail({ app, id }: { app: any; id: number }) {
           <TabsTrigger value="buy" className="data-[state=active]:bg-violet-600 data-[state=active]:text-white text-gray-400 gap-1.5 font-bold text-sm">
             <ShoppingCart className="w-3.5 h-3.5" /> {t.apps_buy_keys}
           </TabsTrigger>
+          <TabsTrigger value="downloads" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white text-gray-400 gap-1.5 font-bold text-sm">
+            <Download className="w-3.5 h-3.5" /> Downloads
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-4 space-y-4">
@@ -928,6 +931,10 @@ function PercentageAppDetail({ app, id }: { app: any; id: number }) {
             </Button>
           </div>
         </TabsContent>
+
+        <TabsContent value="downloads" className="mt-4">
+          <ResellerDownloads appId={id} />
+        </TabsContent>
       </Tabs>
 
       {/* Payment Method Selection Modal */}
@@ -989,6 +996,79 @@ function PercentageAppDetail({ app, id }: { app: any; id: number }) {
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+// ─── Downloads Tab ─────────────────────────────────────────────────────────────
+function ResellerDownloads({ appId }: { appId: number }) {
+  const { data: downloads = [], isLoading } = trpc.reseller.getDownloadsByApp.useQuery({ appId });
+  const downloadItems = downloads.filter((d: any) => d.type === "download");
+  const tutorialItems = downloads.filter((d: any) => d.type === "tutorial");
+
+  if (isLoading) return <p className="text-gray-500 text-sm">Carregando...</p>;
+
+  return (
+    <div className="space-y-5">
+      {downloadItems.length > 0 && (
+        <div>
+          <h3 className="text-white font-semibold text-sm mb-3 flex items-center gap-2">
+            <Download className="w-4 h-4 text-violet-400" /> Downloads
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {downloadItems.map((d: any) => (
+              <a
+                key={d.id}
+                href={d.url}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-xl border border-white/5 p-4 hover:border-violet-500/30 transition-all"
+                style={{ background: "rgba(255,255,255,0.02)" }}
+              >
+                <p className="text-white font-medium text-sm">{d.title}</p>
+                <p className="text-violet-400 text-xs mt-2 flex items-center gap-1">
+                  <Download className="w-3 h-3" /> Baixar
+                </p>
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {tutorialItems.length > 0 && (
+        <div>
+          <h3 className="text-white font-semibold text-sm mb-3 flex items-center gap-2">
+            <Film className="w-4 h-4 text-blue-400" /> Tutoriais
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {tutorialItems.map((d: any) => (
+              <div key={d.id} className="rounded-xl border border-white/5 p-4" style={{ background: "rgba(255,255,255,0.02)" }}>
+                <p className="text-white font-medium text-sm">{d.title}</p>
+                <a href={d.url} target="_blank" rel="noreferrer" className="text-blue-400 text-xs mt-2 flex items-center gap-1">
+                  <Film className="w-3 h-3" /> Ver tutorial
+                </a>
+                {d.videoUrl && (
+                  <div className="mt-3 rounded-lg overflow-hidden aspect-video bg-black/50">
+                    <iframe
+                      src={d.videoUrl}
+                      className="w-full h-full"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {downloads.length === 0 && (
+        <div className="text-center py-10">
+          <Download className="w-10 h-10 text-gray-700 mx-auto mb-3" />
+          <p className="text-gray-600 text-sm">Nenhum download ou tutorial disponível para este app.</p>
+        </div>
+      )}
+    </div>
   );
 }
 
