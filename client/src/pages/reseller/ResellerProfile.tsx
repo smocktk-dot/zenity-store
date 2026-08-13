@@ -411,7 +411,7 @@ function CreditsProfile({ profile, refetch }: { profile: any; refetch: () => voi
 function PercentageProfile({ profile }: { profile: any }) {
   const { t, language } = useLanguage();
   const purchases = profile.totalPurchases ?? 0;
-  const discount = parseFloat(String(profile.discountPercent ?? 35));
+  const discount = parseFloat(String(profile.discountPercent ?? 0));
 
   const levels = [
     { label: language === "en" ? "Level 1" : "Nível 1", discount: 35, from: 0, to: 10, color: "text-blue-400", bg: "bg-blue-500/20", border: "border-blue-500/30", activeBg: "bg-blue-500" },

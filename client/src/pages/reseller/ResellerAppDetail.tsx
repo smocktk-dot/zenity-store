@@ -782,7 +782,7 @@ function PercentageAppDetail({ app, id }: { app: any; id: number }) {
     createKeyLtc.mutate({ appId: id, planId: selectedPlan.id, quantity: parseInt(quantity) || 1 });
   };
 
-  const discount = parseFloat(String(profile?.discountPercent ?? "35"));
+  const discount = parseFloat(String(profile?.discountPercent ?? "0"));
   const planPrice = selectedPlan ? parseFloat(String(selectedPlan.pricePercentage ?? "0")) : 0;
   const discountedPrice = planPrice * (1 - discount / 100);
   const totalCost = discountedPrice * parseInt(quantity || "1");

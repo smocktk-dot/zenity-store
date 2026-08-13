@@ -5,6 +5,8 @@ export function useSession() {
   const { data: session, isLoading, refetch } = trpc.auth.session.useQuery(undefined, {
     retry: false,
     staleTime: 30000,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: "always",
   });
   return { session, isLoading, refetch };
 }

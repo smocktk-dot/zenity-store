@@ -154,7 +154,7 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
                 style={{ background: "rgba(124,58,237,0.08)", border: "1px solid rgba(124,58,237,0.2)", color: "#a78bfa" }}
               >
-                {parseFloat((resellerSession as any).discountPercent ?? "35").toFixed(0)}% {t.general_discount}
+                {parseFloat((resellerSession as any).discountPercent ?? "0").toFixed(0)}% {t.general_discount}
               </div>
             )}
 

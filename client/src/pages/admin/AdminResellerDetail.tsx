@@ -55,7 +55,7 @@ export default function AdminResellerDetail({ id }: { id: number }) {
   const availableApps = allApps.filter(a => !assigned.includes(a.id));
 
   const isCredits = !reseller?.resellerType || reseller?.resellerType === "credits";
-  const currentDiscount = parseFloat(reseller?.discountPercent ?? "35");
+  const currentDiscount = parseFloat(reseller?.discountPercent ?? "0");
   const discountValue = discount === "" ? currentDiscount.toFixed(0) : discount;
 
   return (
@@ -105,7 +105,7 @@ export default function AdminResellerDetail({ id }: { id: number }) {
             </div>
             <div className="text-right">
               <p className="text-gray-500 text-xs">Desconto</p>
-              <p className="text-green-400 font-bold">{reseller.discountPercent ?? 35}%</p>
+              <p className="text-green-400 font-bold">{reseller.discountPercent ?? 0}%</p>
             </div>
           </div>
         )}

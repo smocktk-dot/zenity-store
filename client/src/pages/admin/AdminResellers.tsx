@@ -32,7 +32,7 @@ function TypeBadge({ type }: { type: string }) {
 }
 
 const emptyCreate = { username: "", password: "", email: "", location: "", resellerType: "credits" as "credits" | "percentage" };
-const emptyEdit = { email: "", location: "", status: "active" as string, password: "", resellerType: "credits" as "credits" | "percentage", discountPercent: "35" };
+const emptyEdit = { email: "", location: "", status: "active" as string, password: "", resellerType: "credits" as "credits" | "percentage", discountPercent: "0" };
 
 export default function AdminResellers() {
   const [, navigate] = useLocation();
@@ -75,7 +75,7 @@ export default function AdminResellers() {
       status: r.status,
       password: "",
       resellerType: (r.resellerType as "credits" | "percentage") || "credits",
-      discountPercent: String(parseFloat(String(r.discountPercent ?? 35))),
+      discountPercent: String(parseFloat(String(r.discountPercent ?? 0))),
     });
   };
 
