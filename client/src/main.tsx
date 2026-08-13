@@ -8,6 +8,9 @@ import App from "./App";
 import { getLoginUrl } from "./const";
 import "./index.css";
 
+// Build bust: 2026-08-13 deploy-cache-1
+console.log("[Zenity] build deploy-cache-1");
+
 const queryClient = new QueryClient();
 
 const redirectToLoginIfUnauthorized = (error: unknown) => {
