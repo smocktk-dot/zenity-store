@@ -405,21 +405,28 @@ async function ensureAppDownloadsSchema() {
   await getDb();
   if (!_sqlClient) throw new Error("DB not available");
   if (!_appDownloadsSchemaReady) {
-    _appDownloadsSchemaReady = _sqlClient.begin(async (sql2) => {
-      await sql2.unsafe(`DO $$ BEGIN CREATE TYPE "app_download_type" AS ENUM('download', 'tutorial'); EXCEPTION WHEN duplicate_object THEN null; END $$;`);
-      await sql2.unsafe(`CREATE TABLE IF NOT EXISTS "app_downloads" (
-        "id" serial PRIMARY KEY,
-        "appId" integer NOT NULL,
-        "type" "app_download_type" NOT NULL,
-        "title" varchar(128) NOT NULL,
-        "url" text NOT NULL,
-        "videoUrl" text,
-        "sortOrder" integer DEFAULT 0 NOT NULL,
-        "createdAt" timestamp DEFAULT now() NOT NULL,
-        "updatedAt" timestamp DEFAULT now() NOT NULL
-      )`);
-      await sql2.unsafe(`ALTER TABLE "app_downloads" ADD CONSTRAINT IF NOT EXISTS "app_downloads_appId_apps_id_fk" FOREIGN KEY ("appId") REFERENCES "apps"("id") ON DELETE no action ON UPDATE no action`);
-    }).then(() => void 0).catch((error) => {
+    _appDownloadsSchemaReady = (async () => {
+      try {
+        await _sqlClient.unsafe(`DO $$ BEGIN CREATE TYPE "app_download_type" AS ENUM('download', 'tutorial'); EXCEPTION WHEN duplicate_object THEN null; END $$;`);
+      } catch (e) {
+      }
+      try {
+        await _sqlClient.unsafe(`CREATE TABLE IF NOT EXISTS "app_downloads" (
+          "id" serial PRIMARY KEY,
+          "appId" integer NOT NULL,
+          "type" "app_download_type" NOT NULL,
+          "title" varchar(128) NOT NULL,
+          "url" text NOT NULL,
+          "videoUrl" text,
+          "sortOrder" integer DEFAULT 0 NOT NULL,
+          "createdAt" timestamp DEFAULT now() NOT NULL,
+          "updatedAt" timestamp DEFAULT now() NOT NULL
+        )`);
+      } catch (e) {
+        console.error("[Database] Failed to create app_downloads table:", e);
+        throw e;
+      }
+    })().then(() => void 0).catch((error) => {
       _appDownloadsSchemaReady = null;
       console.error("[Database] Failed to ensure app downloads schema:", error);
       throw new Error("N\xE3o foi poss\xEDvel preparar o banco para downloads");
