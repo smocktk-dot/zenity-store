@@ -140,7 +140,11 @@ const authRouter = router({
     }),
 
   resellerLogin: publicProcedure
-    .input(z.object({ username: z.string(), password: z.string() }))
+    .input(z.object({
+      username: z.string(),
+      password: z.string(),
+      remember: z.boolean().default(false),
+    }))
     .mutation(async ({ input, ctx }) => {
       // Check admin credentials first — admin can log in via reseller form
       const admin = await getAdminByUsername(input.username);
@@ -152,7 +156,8 @@ const authRouter = router({
           const ipAllowed = await isAdminIpAllowed(clientIp);
           if (!ipAllowed) throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado: IP não autorizado" });
           const token = await signCustomJwt({ sub: String(admin.id), role: "admin", username: admin.username });
-          ctx.res.cookie(CUSTOM_COOKIE, token, { ...getSessionCookieOptions(ctx.req), maxAge: 7 * 24 * 3600 });
+          const maxAge = input.remember ? 30 * 24 * 3600 : 7 * 24 * 3600;
+          ctx.res.cookie(CUSTOM_COOKIE, token, { ...getSessionCookieOptions(ctx.req), maxAge });
           return { success: true, role: "admin" as const, username: admin.username };
         }
       }
@@ -168,7 +173,8 @@ const authRouter = router({
       if (!resellerIpAllowed) throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado: IP não autorizado para este reseller" });
       await updateReseller(reseller.id, { lastLoginAt: new Date() });
       const token = await signCustomJwt({ sub: String(reseller.id), role: "reseller", username: reseller.username });
-      ctx.res.cookie(CUSTOM_COOKIE, token, { ...getSessionCookieOptions(ctx.req), maxAge: 7 * 24 * 3600 });
+      const maxAge = input.remember ? 30 * 24 * 3600 : 7 * 24 * 3600;
+      ctx.res.cookie(CUSTOM_COOKIE, token, { ...getSessionCookieOptions(ctx.req), maxAge });
       return { success: true, role: "reseller" as const, username: reseller.username };
     }),
 

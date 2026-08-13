@@ -21,25 +21,28 @@ function isSecureRequest(req: Request) {
   return protoList.some(proto => proto.trim().toLowerCase() === "https");
 }
 
+function getCookieDomain(req: Request) {
+  const hostname = req.hostname || (req.headers["x-forwarded-host"] as string) || (req.headers.host as string);
+  if (!hostname) return undefined;
+  const host = hostname.split(":")[0].toLowerCase();
+
+  if (LOCAL_HOSTS.has(host) || isIpAddress(host)) {
+    return undefined;
+  }
+
+  // Share cookie across www and root domain
+  const parts = host.split(".");
+  if (parts.length <= 2) {
+    return host;
+  }
+  return `.${parts.slice(-2).join(".")}`;
+}
+
 export function getSessionCookieOptions(
   req: Request
 ): Pick<CookieOptions, "domain" | "httpOnly" | "path" | "sameSite" | "secure"> {
-  // const hostname = req.hostname;
-  // const shouldSetDomain =
-  //   hostname &&
-  //   !LOCAL_HOSTS.has(hostname) &&
-  //   !isIpAddress(hostname) &&
-  //   hostname !== "127.0.0.1" &&
-  //   hostname !== "::1";
-
-  // const domain =
-  //   shouldSetDomain && !hostname.startsWith(".")
-  //     ? `.${hostname}`
-  //     : shouldSetDomain
-  //       ? hostname
-  //       : undefined;
-
   return {
+    domain: getCookieDomain(req),
     httpOnly: true,
     path: "/",
     sameSite: "none",

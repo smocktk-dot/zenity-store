@@ -936,6 +936,11 @@ var NOT_ADMIN_ERR_MSG = "You do not have required permission (10002)";
 init_db();
 
 // server/_core/cookies.ts
+var LOCAL_HOSTS = /* @__PURE__ */ new Set(["localhost", "127.0.0.1", "::1"]);
+function isIpAddress(host) {
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return true;
+  return host.includes(":");
+}
 function isSecureRequest(req) {
   if (req.protocol === "https") return true;
   const forwardedProto = req.headers["x-forwarded-proto"];
@@ -943,8 +948,22 @@ function isSecureRequest(req) {
   const protoList = Array.isArray(forwardedProto) ? forwardedProto : forwardedProto.split(",");
   return protoList.some((proto) => proto.trim().toLowerCase() === "https");
 }
+function getCookieDomain(req) {
+  const hostname = req.hostname || req.headers["x-forwarded-host"] || req.headers.host;
+  if (!hostname) return void 0;
+  const host = hostname.split(":")[0].toLowerCase();
+  if (LOCAL_HOSTS.has(host) || isIpAddress(host)) {
+    return void 0;
+  }
+  const parts = host.split(".");
+  if (parts.length <= 2) {
+    return host;
+  }
+  return `.${parts.slice(-2).join(".")}`;
+}
 function getSessionCookieOptions(req) {
   return {
+    domain: getCookieDomain(req),
     httpOnly: true,
     path: "/",
     sameSite: "none",
@@ -1603,7 +1622,11 @@ var authRouter = router({
     ctx.res.cookie(CUSTOM_COOKIE, token, { ...getSessionCookieOptions(ctx.req), maxAge: 7 * 24 * 3600 });
     return { success: true, role: "admin", username: admin.username };
   }),
-  resellerLogin: publicProcedure.input(z2.object({ username: z2.string(), password: z2.string() })).mutation(async ({ input, ctx }) => {
+  resellerLogin: publicProcedure.input(z2.object({
+    username: z2.string(),
+    password: z2.string(),
+    remember: z2.boolean().default(false)
+  })).mutation(async ({ input, ctx }) => {
     const admin = await getAdminByUsername(input.username);
     if (admin) {
       const validAdmin = await bcrypt.compare(input.password, admin.passwordHash);
@@ -1612,7 +1635,8 @@ var authRouter = router({
         const ipAllowed = await isAdminIpAllowed(clientIp);
         if (!ipAllowed) throw new TRPCError3({ code: "FORBIDDEN", message: "Acesso negado: IP n\xE3o autorizado" });
         const token2 = await signCustomJwt({ sub: String(admin.id), role: "admin", username: admin.username });
-        ctx.res.cookie(CUSTOM_COOKIE, token2, { ...getSessionCookieOptions(ctx.req), maxAge: 7 * 24 * 3600 });
+        const maxAge2 = input.remember ? 30 * 24 * 3600 : 7 * 24 * 3600;
+        ctx.res.cookie(CUSTOM_COOKIE, token2, { ...getSessionCookieOptions(ctx.req), maxAge: maxAge2 });
         return { success: true, role: "admin", username: admin.username };
       }
     }
@@ -1626,7 +1650,8 @@ var authRouter = router({
     if (!resellerIpAllowed) throw new TRPCError3({ code: "FORBIDDEN", message: "Acesso negado: IP n\xE3o autorizado para este reseller" });
     await updateReseller(reseller.id, { lastLoginAt: /* @__PURE__ */ new Date() });
     const token = await signCustomJwt({ sub: String(reseller.id), role: "reseller", username: reseller.username });
-    ctx.res.cookie(CUSTOM_COOKIE, token, { ...getSessionCookieOptions(ctx.req), maxAge: 7 * 24 * 3600 });
+    const maxAge = input.remember ? 30 * 24 * 3600 : 7 * 24 * 3600;
+    ctx.res.cookie(CUSTOM_COOKIE, token, { ...getSessionCookieOptions(ctx.req), maxAge });
     return { success: true, role: "reseller", username: reseller.username };
   }),
   // Returns the real IP the server sees for this request (used by admin whitelist UI)

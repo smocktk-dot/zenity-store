@@ -28,6 +28,7 @@ export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
+  const [remember, setRemember] = useState(false);
   const { t } = useLanguage();
 
   // Application state
@@ -161,7 +162,7 @@ export default function LoginPage() {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (!username || !password) { toast.error(t.login_fill_fields); return; }
-    resellerLogin.mutate({ username, password });
+    resellerLogin.mutate({ username, password, remember });
   };
 
   const handleApply = (e: React.FormEvent) => {
@@ -321,6 +322,17 @@ export default function LoginPage() {
                     {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  id="remember"
+                  type="checkbox"
+                  checked={remember}
+                  onChange={(e) => setRemember(e.target.checked)}
+                  className="w-4 h-4 accent-violet-500 cursor-pointer"
+                />
+                <label htmlFor="remember" className="text-gray-400 text-xs cursor-pointer select-none">Lembrar de mim</label>
               </div>
 
               <button
