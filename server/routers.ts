@@ -530,6 +530,49 @@ const adminRouter = router({
       return { success: true };
     }),
 
+  getAvailableStockForPlan: adminProcedure
+    .input(z.object({ appId: z.number(), planId: z.number() }))
+    .query(async ({ input }) => {
+      return getAvailableStockForPlan(input.appId, input.planId, 1);
+    }),
+
+  manualDeliverKey: adminProcedure
+    .input(z.object({
+      resellerId: z.number(),
+      appId: z.number(),
+      planId: z.number(),
+      keyValue: z.string().min(1),
+      stockId: z.number().optional(),
+      note: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const reseller = await getResellerById(input.resellerId);
+      if (!reseller) throw new TRPCError({ code: "NOT_FOUND" });
+      const plan = await getPlanById(input.planId);
+      if (!plan) throw new TRPCError({ code: "NOT_FOUND" });
+      const app = await getAppById(input.appId);
+      if (!app) throw new TRPCError({ code: "NOT_FOUND" });
+
+      if (input.stockId) {
+        const stock = await reserveStockForReseller(input.stockId, input.resellerId);
+        if (!stock) throw new TRPCError({ code: "BAD_REQUEST", message: "Estoque não disponível" });
+      }
+
+      await createLicenseKey({
+        keyValue: input.keyValue,
+        resellerId: input.resellerId,
+        appId: input.appId,
+        planId: plan.id,
+        planName: plan.name,
+        durationDays: plan.durationDays,
+        creditsSpent: "0.00",
+        status: "active",
+        ...(input.note ? { note: input.note } : {}),
+      } as any);
+
+      return { success: true };
+    }),
+
   // Assign apps to resellers
   assignApp: adminProcedure
     .input(z.object({ resellerId: z.number(), appId: z.number() }))

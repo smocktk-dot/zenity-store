@@ -1945,6 +1945,40 @@ var adminRouter = router({
     await deleteStock(input.id);
     return { success: true };
   }),
+  getAvailableStockForPlan: adminProcedure2.input(z2.object({ appId: z2.number(), planId: z2.number() })).query(async ({ input }) => {
+    return getAvailableStockForPlan(input.appId, input.planId, 1);
+  }),
+  manualDeliverKey: adminProcedure2.input(z2.object({
+    resellerId: z2.number(),
+    appId: z2.number(),
+    planId: z2.number(),
+    keyValue: z2.string().min(1),
+    stockId: z2.number().optional(),
+    note: z2.string().optional()
+  })).mutation(async ({ input }) => {
+    const reseller = await getResellerById(input.resellerId);
+    if (!reseller) throw new TRPCError3({ code: "NOT_FOUND" });
+    const plan = await getPlanById(input.planId);
+    if (!plan) throw new TRPCError3({ code: "NOT_FOUND" });
+    const app2 = await getAppById(input.appId);
+    if (!app2) throw new TRPCError3({ code: "NOT_FOUND" });
+    if (input.stockId) {
+      const stock = await reserveStockForReseller(input.stockId, input.resellerId);
+      if (!stock) throw new TRPCError3({ code: "BAD_REQUEST", message: "Estoque n\xE3o dispon\xEDvel" });
+    }
+    await createLicenseKey({
+      keyValue: input.keyValue,
+      resellerId: input.resellerId,
+      appId: input.appId,
+      planId: plan.id,
+      planName: plan.name,
+      durationDays: plan.durationDays,
+      creditsSpent: "0.00",
+      status: "active",
+      ...input.note ? { note: input.note } : {}
+    });
+    return { success: true };
+  }),
   // Assign apps to resellers
   assignApp: adminProcedure2.input(z2.object({ resellerId: z2.number(), appId: z2.number() })).mutation(async ({ input }) => {
     await assignAppToReseller(input);

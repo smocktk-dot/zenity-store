@@ -12,13 +12,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Package, Trash2, Search, Boxes } from "lucide-react";
+import { Package, Trash2, Search, Boxes, ChevronDown, ChevronUp, Clock } from "lucide-react";
 
 export default function AdminStock() {
   const [appId, setAppId] = useState<number | null>(null);
   const [planId, setPlanId] = useState<number | null>(null);
   const [keys, setKeys] = useState("");
   const [search, setSearch] = useState("");
+  const [expandedPlans, setExpandedPlans] = useState<Record<number, boolean>>({});
   const utils = trpc.useUtils();
 
   const { data: apps = [] } = trpc.admin.listApps.useQuery();
@@ -58,13 +59,20 @@ export default function AdminStock() {
   const selectedApp = apps.find((a: any) => a.id === appId);
   const selectedPlan = plans.find((p: any) => p.id === planId);
 
-  const filteredItems = (stock?.items || []).filter((item: any) => {
-    const term = search.toLowerCase();
-    return (
-      item.keyValue.toLowerCase().includes(term) ||
-      (item.planName || "").toLowerCase().includes(term)
-    );
-  });
+  const searchTerm = search.toLowerCase();
+  const filteredItems = (stock?.items || []).filter((item: any) =>
+    item.keyValue.toLowerCase().includes(searchTerm) ||
+    (item.planName || "").toLowerCase().includes(searchTerm)
+  );
+
+  const grouped = plans.map((p: any) => {
+    const items = filteredItems.filter((item: any) => item.planId === p.id);
+    return { ...p, items, available: items.filter((i: any) => i.status === "available").length, sold: items.filter((i: any) => i.status === "sold").length };
+  }).filter((g: any) => g.items.length > 0 || searchTerm === "");
+
+  const togglePlan = (id: number) => {
+    setExpandedPlans(prev => ({ ...prev, [id]: !prev[id] }));
+  };
 
   return (
     <div className="p-6 space-y-5">
@@ -105,19 +113,6 @@ export default function AdminStock() {
         </div>
       </div>
 
-      {appId && stock && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="rounded-xl border border-white/5 p-4" style={{ background: "rgba(255,255,255,0.02)" }}>
-            <p className="text-gray-500 text-xs uppercase tracking-wider">Disponíveis</p>
-            <p className="text-green-400 text-2xl font-bold">{stock.available}</p>
-          </div>
-          <div className="rounded-xl border border-white/5 p-4" style={{ background: "rgba(255,255,255,0.02)" }}>
-            <p className="text-gray-500 text-xs uppercase tracking-wider">Vendidas</p>
-            <p className="text-blue-400 text-2xl font-bold">{stock.sold}</p>
-          </div>
-        </div>
-      )}
-
       {appId && planId && (
         <form onSubmit={handleAdd} className="rounded-xl border border-white/5 p-4 space-y-3" style={{ background: "rgba(255,255,255,0.02)" }}>
           <div>
@@ -156,48 +151,82 @@ export default function AdminStock() {
             />
           </div>
 
-          <div className="rounded-xl border border-white/5 overflow-hidden" style={{ background: "rgba(255,255,255,0.02)" }}>
-            {isLoadingStock ? (
-              <p className="text-center py-10 text-gray-500">Carregando...</p>
-            ) : filteredItems.length === 0 ? (
-              <p className="text-center py-10 text-gray-500">Nenhuma key no estoque</p>
-            ) : (
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-white/5">
-                    {["Key", "Plano", "Status", "Reseller", "Ações"].map((h) => (
-                      <th key={h} className="text-left px-4 py-3 text-gray-500 text-xs font-medium uppercase tracking-wider">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredItems.map((item: any) => (
-                    <tr key={item.id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
-                      <td className="px-4 py-3 text-gray-300 text-sm font-mono max-w-[200px] truncate" title={item.keyValue}>{item.keyValue}</td>
-                      <td className="px-4 py-3 text-gray-400 text-sm">{item.planName}</td>
-                      <td className="px-4 py-3">
-                        <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${
-                          item.status === "available" ? "bg-green-500/20 text-green-400 border-green-500/30" : "bg-blue-500/20 text-blue-400 border-blue-500/30"
-                        }`}>
-                          {item.status === "available" ? "Disponível" : "Vendida"}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-gray-400 text-sm">{item.resellerId ? `#${item.resellerId}` : "—"}</td>
-                      <td className="px-4 py-3">
-                        <button
-                          onClick={() => { if (confirm("Remover esta key do estoque?")) deleteStock.mutate({ id: item.id }); }}
-                          className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
-                          title="Remover"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
+          {isLoadingStock ? (
+            <p className="text-center py-10 text-gray-500">Carregando...</p>
+          ) : plans.length === 0 ? (
+            <p className="text-center py-10 text-gray-500">Nenhum plano para este app</p>
+          ) : grouped.length === 0 && searchTerm ? (
+            <p className="text-center py-10 text-gray-500">Nenhuma key encontrada</p>
+          ) : (
+            <div className="space-y-3">
+              {grouped.map((g: any) => (
+                <div key={g.id} className="rounded-xl border border-white/5 overflow-hidden" style={{ background: "rgba(255,255,255,0.02)" }}>
+                  <button
+                    onClick={() => togglePlan(g.id)}
+                    className="w-full flex items-center justify-between p-4 hover:bg-white/[0.02] transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Package className="w-4 h-4 text-violet-400" />
+                      <div className="text-left">
+                        <p className="text-white font-semibold text-sm">{g.name}</p>
+                        <p className="text-gray-500 text-xs flex items-center gap-1"><Clock className="w-3 h-3" /> {g.durationDays >= 9000 ? "Lifetime" : `${g.durationDays} dias`}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-1.5 text-xs">
+                        <span className="text-green-400 font-medium">{g.available} disp</span>
+                        <span className="text-gray-600">·</span>
+                        <span className="text-blue-400 font-medium">{g.sold} vend</span>
+                      </div>
+                      {expandedPlans[g.id] ? <ChevronUp className="w-4 h-4 text-gray-500" /> : <ChevronDown className="w-4 h-4 text-gray-500" />}
+                    </div>
+                  </button>
+
+                  {expandedPlans[g.id] && (
+                    <div className="border-t border-white/5">
+                      {g.items.length === 0 ? (
+                        <p className="text-center py-6 text-gray-500 text-sm">Nenhuma key neste plano</p>
+                      ) : (
+                        <table className="w-full">
+                          <thead>
+                            <tr className="border-b border-white/5">
+                              {["Key", "Status", "Reseller", "Ações"].map((h) => (
+                                <th key={h} className="text-left px-4 py-2 text-gray-500 text-xs font-medium uppercase tracking-wider">{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {g.items.map((item: any) => (
+                              <tr key={item.id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
+                                <td className="px-4 py-2 text-gray-300 text-sm font-mono max-w-[220px] truncate" title={item.keyValue}>{item.keyValue}</td>
+                                <td className="px-4 py-2">
+                                  <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${
+                                    item.status === "available" ? "bg-green-500/20 text-green-400 border-green-500/30" : "bg-blue-500/20 text-blue-400 border-blue-500/30"
+                                  }`}>
+                                    {item.status === "available" ? "Disponível" : "Vendida"}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-2 text-gray-400 text-sm">{item.resellerId ? `#${item.resellerId}` : "—"}</td>
+                                <td className="px-4 py-2">
+                                  <button
+                                    onClick={() => { if (confirm("Remover esta key do estoque?")) deleteStock.mutate({ id: item.id }); }}
+                                    className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                                    title="Remover"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
