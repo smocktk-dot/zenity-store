@@ -517,7 +517,8 @@ const adminRouter = router({
         status: "available" as const,
       }));
       const rows = await addStockBatch(batch);
-      return { added: rows.length };
+      const duplicates = lines.length - rows.length;
+      return { added: rows.length, duplicates };
     }),
 
   getStockByApp: adminProcedure

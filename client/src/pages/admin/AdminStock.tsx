@@ -35,7 +35,10 @@ export default function AdminStock() {
 
   const addStock = trpc.admin.addStock.useMutation({
     onSuccess: (data) => {
-      toast.success(`${data.added} keys adicionadas ao estoque`);
+      const msg = data.duplicates
+        ? `${data.added} keys adicionadas, ${data.duplicates} duplicada(s) ignorada(s)`
+        : `${data.added} keys adicionadas ao estoque`;
+      toast.success(msg);
       setKeys("");
       utils.admin.getStockByApp.invalidate({ appId: appId || 0 });
     },

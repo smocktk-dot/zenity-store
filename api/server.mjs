@@ -887,7 +887,7 @@ async function addStockBatch(data) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   if (data.length === 0) return [];
-  return db.insert(appStock).values(data).returning();
+  return db.insert(appStock).values(data).onConflictDoNothing({ target: appStock.keyValue }).returning();
 }
 async function getStockByApp(appId) {
   const db = await getDb();
@@ -2074,7 +2074,8 @@ var adminRouter = router({
       status: "available"
     }));
     const rows = await addStockBatch(batch);
-    return { added: rows.length };
+    const duplicates = lines.length - rows.length;
+    return { added: rows.length, duplicates };
   }),
   getStockByApp: adminProcedure2.input(z2.object({ appId: z2.number() })).query(async ({ input }) => {
     const [items, counts] = await Promise.all([

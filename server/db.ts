@@ -691,7 +691,7 @@ export async function addStockBatch(data: InsertAppStock[]) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   if (data.length === 0) return [];
-  return db.insert(appStock).values(data).returning();
+  return db.insert(appStock).values(data).onConflictDoNothing({ target: appStock.keyValue }).returning();
 }
 
 export async function getStockByApp(appId: number) {
