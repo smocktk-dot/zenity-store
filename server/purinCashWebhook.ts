@@ -3,14 +3,15 @@ import {
   createCreditTransaction,
   createLicenseKey,
   getAppById,
+  getAvailableStockForPlan,
   getKeysByPaymentId,
   getPixPaymentByPaymentId,
   getPlanById,
   getResellerById,
+  reserveStockForReseller,
   updatePixPaymentStatus,
   updateResellerCredits,
 } from "./db";
-import { keyauthCreateLicense } from "./keyauth";
 import { calcDiscount } from "./resellerPricing";
 
 const FINAL_PAYMENT_STATUSES = new Set(["expired", "cancelled", "refunded"]);
@@ -113,32 +114,30 @@ export async function processPurinPaymentUpdate(
       }
 
       const missingQuantity = Math.max(0, quantity - existingKeys.length);
-      const sellerKey = app.keyauthSellerKey || process.env.KEYAUTH_SELLER_KEY || "";
-      const isLtcPayment = (payment as any).paymentMethod === "ltc";
+      if (missingQuantity > 0) {
+        const stockItems = await getAvailableStockForPlan(appId, planId, missingQuantity);
+        if (stockItems.length < missingQuantity) {
+          throw new Error(`Estoque insuficiente para ${plan.name}: tem ${stockItems.length}, precisa ${missingQuantity}`);
+        }
 
-      const generatedKeys = missingQuantity > 0
-        ? await keyauthCreateLicense({
-            sellerKey,
+        const pricePerKey = payment.amountCents / quantity / 100;
+        const notePrefix = (payment as any).paymentMethod === "ltc" ? "ltc" : "pix";
+        for (const item of stockItems) {
+          const reserved = await reserveStockForReseller(item.id, payment.resellerId);
+          if (!reserved) {
+            throw new Error(`Falha ao reservar key do estoque: ${item.id}`);
+          }
+          await createLicenseKey({
+            keyValue: reserved.keyValue,
+            resellerId: payment.resellerId,
+            appId,
+            planId: plan.id,
+            planName: plan.name,
             durationDays: plan.durationDays,
-            quantity: missingQuantity,
-            owner: reseller.username,
-            note: `Zenity Store - ${reseller.username} - ${plan.name} - ${isLtcPayment ? "LTC" : "Pix"} ${paymentId}`,
-          })
-        : [];
-
-      const pricePerKey = payment.amountCents / quantity / 100;
-      const notePrefix = isLtcPayment ? "ltc" : "pix";
-      for (const keyValue of generatedKeys) {
-        await createLicenseKey({
-          keyValue,
-          resellerId: payment.resellerId,
-          appId,
-          planId: plan.id,
-          planName: plan.name,
-          durationDays: plan.durationDays,
-          creditsSpent: pricePerKey.toFixed(2),
-          note: `${notePrefix}:${paymentId}`,
-        });
+            creditsSpent: pricePerKey.toFixed(2),
+            note: `${notePrefix}:${paymentId}`,
+          });
+        }
       }
 
       if (payment.status !== "paid") {

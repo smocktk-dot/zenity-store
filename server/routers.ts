@@ -1377,33 +1377,30 @@ const resellerRouter = router({
       const newPurchases = reseller.totalPurchases + input.quantity;
       await updateResellerCredits(ctx.resellerId, reseller.credits as string, newPurchases, reseller.discountPercent as string);
 
-      // Gerar licenças via KeyAuth se o app tiver seller key configurada
-      const sellerKey = (app as any).keyauthSellerKey || KEYAUTH_SELLER_KEY;
-      let keyauthKeys: string[] | null = null;
-      try {
-        keyauthKeys = await keyauthCreateLicense({
-          sellerKey,
-          durationDays: plan.durationDays,
-          quantity: input.quantity,
-          owner: reseller.username,
-          note: `Zenity Store - ${reseller.username} - ${plan.name} - R$ ${totalCost.toFixed(2)}`,
+      // Reservar keys do estoque
+      const reserved = await getAvailableStockForPlan(input.appId, input.planId, input.quantity);
+      if (reserved.length < input.quantity) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Estoque insuficiente. Disponível: ${reserved.length}, Solicitado: ${input.quantity}`,
         });
-      } catch (err) {
-        console.error("[KeyAuth] License creation failed, using local key generation:", err);
       }
 
       const generatedKeys: string[] = [];
-      for (let i = 0; i < input.quantity; i++) {
-        // Usar a key do KeyAuth se disponível, senão gerar localmente
-        const keyValue = keyauthKeys ? keyauthKeys[i] : generateKeyValue(app.name);
-        // expiresAt é null: a contagem começa apenas quando a key for usada pela primeira vez
+      for (const stock of reserved) {
+        const row = await reserveStockForReseller(stock.id, ctx.resellerId);
+        if (!row) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Falha ao reservar stock" });
         await createLicenseKey({
-          keyValue, resellerId: ctx.resellerId, appId: input.appId,
-          planId: plan.id, planName: plan.name, durationDays: plan.durationDays,
+          keyValue: row.keyValue,
+          resellerId: ctx.resellerId,
+          appId: input.appId,
+          planId: plan.id,
+          planName: plan.name,
+          durationDays: plan.durationDays,
           creditsSpent: discountedPrice.toFixed(2),
           note: `Compra via porcentagem - R$ ${totalCost.toFixed(2)}`,
         } as any);
-        generatedKeys.push(keyValue);
+        generatedKeys.push(row.keyValue);
       }
 
       return { success: true, keys: generatedKeys, totalCost, newBalance: reseller.credits };

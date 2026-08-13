@@ -1464,37 +1464,6 @@ var systemRouter = router({
   })
 });
 
-// server/keyauth.ts
-var DEFAULT_KEY_MASK = "***t**-***m**-*****k";
-async function keyauthCreateLicense(opts) {
-  if (!opts.sellerKey) {
-    throw new Error("Seller key da KeyAuth n\xE3o configurada");
-  }
-  const expiry = opts.durationDays >= 9e3 ? 0 : opts.durationDays;
-  const url = new URL("https://keyauth.win/api/seller/");
-  url.searchParams.set("sellerkey", opts.sellerKey);
-  url.searchParams.set("type", "add");
-  url.searchParams.set("format", "json");
-  url.searchParams.set("expiry", String(expiry));
-  url.searchParams.set("mask", opts.mask || DEFAULT_KEY_MASK);
-  url.searchParams.set("amount", String(opts.quantity));
-  if (opts.owner) url.searchParams.set("owner", opts.owner);
-  if (opts.note) url.searchParams.set("note", opts.note);
-  const res = await fetch(url.toString(), { signal: AbortSignal.timeout(15e3) });
-  if (!res.ok) {
-    throw new Error(`KeyAuth respondeu HTTP ${res.status}`);
-  }
-  const data = await res.json();
-  if (!data.success) {
-    throw new Error(`KeyAuth: ${data.message || "falha ao criar licen\xE7a"}`);
-  }
-  const keys = Array.isArray(data.keys) ? data.keys : typeof data.key === "string" && data.key.length > 0 ? [data.key] : [];
-  if (keys.length !== opts.quantity || keys.some((key) => typeof key !== "string" || key.length === 0)) {
-    throw new Error(`KeyAuth retornou ${keys.length} de ${opts.quantity} licen\xE7a(s)`);
-  }
-  return keys;
-}
-
 // server/purinCashWebhook.ts
 init_db();
 
@@ -1580,28 +1549,29 @@ async function processPurinPaymentUpdate(paymentId, status, paidAt) {
         throw new Error(`App ou plano n\xE3o encontrado para o pagamento ${paymentId}`);
       }
       const missingQuantity = Math.max(0, quantity - existingKeys.length);
-      const sellerKey = app2.keyauthSellerKey || process.env.KEYAUTH_SELLER_KEY || "";
-      const isLtcPayment = payment.paymentMethod === "ltc";
-      const generatedKeys = missingQuantity > 0 ? await keyauthCreateLicense({
-        sellerKey,
-        durationDays: plan.durationDays,
-        quantity: missingQuantity,
-        owner: reseller.username,
-        note: `Zenity Store - ${reseller.username} - ${plan.name} - ${isLtcPayment ? "LTC" : "Pix"} ${paymentId}`
-      }) : [];
-      const pricePerKey = payment.amountCents / quantity / 100;
-      const notePrefix = isLtcPayment ? "ltc" : "pix";
-      for (const keyValue of generatedKeys) {
-        await createLicenseKey({
-          keyValue,
-          resellerId: payment.resellerId,
-          appId,
-          planId: plan.id,
-          planName: plan.name,
-          durationDays: plan.durationDays,
-          creditsSpent: pricePerKey.toFixed(2),
-          note: `${notePrefix}:${paymentId}`
-        });
+      if (missingQuantity > 0) {
+        const stockItems = await getAvailableStockForPlan(appId, planId, missingQuantity);
+        if (stockItems.length < missingQuantity) {
+          throw new Error(`Estoque insuficiente para ${plan.name}: tem ${stockItems.length}, precisa ${missingQuantity}`);
+        }
+        const pricePerKey = payment.amountCents / quantity / 100;
+        const notePrefix = payment.paymentMethod === "ltc" ? "ltc" : "pix";
+        for (const item of stockItems) {
+          const reserved = await reserveStockForReseller(item.id, payment.resellerId);
+          if (!reserved) {
+            throw new Error(`Falha ao reservar key do estoque: ${item.id}`);
+          }
+          await createLicenseKey({
+            keyValue: reserved.keyValue,
+            resellerId: payment.resellerId,
+            appId,
+            planId: plan.id,
+            planName: plan.name,
+            durationDays: plan.durationDays,
+            creditsSpent: pricePerKey.toFixed(2),
+            note: `${notePrefix}:${paymentId}`
+          });
+        }
       }
       if (payment.status !== "paid") {
         const newPurchases = reseller.totalPurchases + quantity;
@@ -1711,12 +1681,6 @@ function getClientIp(req) {
   ];
   const raw = candidates.find((c) => c && c.length > 0) || "";
   return normalizeIp(raw);
-}
-var DEFAULT_KEY_MASK2 = "***t**-***m**-*****k";
-function generateKeyValue(prefix, mask) {
-  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-  const activeMask = mask || DEFAULT_KEY_MASK2;
-  return activeMask.replace(/\*/g, () => chars[Math.floor(Math.random() * chars.length)]);
 }
 async function uploadBase64Image(base64, folder = "tickets") {
   try {
@@ -2788,24 +2752,19 @@ var resellerRouter = router({
     const totalCost = discountedPrice * input.quantity;
     const newPurchases = reseller.totalPurchases + input.quantity;
     await updateResellerCredits(ctx.resellerId, reseller.credits, newPurchases, reseller.discountPercent);
-    const sellerKey = app2.keyauthSellerKey || KEYAUTH_SELLER_KEY;
-    let keyauthKeys = null;
-    try {
-      keyauthKeys = await keyauthCreateLicense({
-        sellerKey,
-        durationDays: plan.durationDays,
-        quantity: input.quantity,
-        owner: reseller.username,
-        note: `Zenity Store - ${reseller.username} - ${plan.name} - R$ ${totalCost.toFixed(2)}`
+    const reserved = await getAvailableStockForPlan(input.appId, input.planId, input.quantity);
+    if (reserved.length < input.quantity) {
+      throw new TRPCError3({
+        code: "BAD_REQUEST",
+        message: `Estoque insuficiente. Dispon\xEDvel: ${reserved.length}, Solicitado: ${input.quantity}`
       });
-    } catch (err) {
-      console.error("[KeyAuth] License creation failed, using local key generation:", err);
     }
     const generatedKeys = [];
-    for (let i = 0; i < input.quantity; i++) {
-      const keyValue = keyauthKeys ? keyauthKeys[i] : generateKeyValue(app2.name);
+    for (const stock of reserved) {
+      const row = await reserveStockForReseller(stock.id, ctx.resellerId);
+      if (!row) throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: "Falha ao reservar stock" });
       await createLicenseKey({
-        keyValue,
+        keyValue: row.keyValue,
         resellerId: ctx.resellerId,
         appId: input.appId,
         planId: plan.id,
@@ -2814,7 +2773,7 @@ var resellerRouter = router({
         creditsSpent: discountedPrice.toFixed(2),
         note: `Compra via porcentagem - R$ ${totalCost.toFixed(2)}`
       });
-      generatedKeys.push(keyValue);
+      generatedKeys.push(row.keyValue);
     }
     return { success: true, keys: generatedKeys, totalCost, newBalance: reseller.credits };
   }),
