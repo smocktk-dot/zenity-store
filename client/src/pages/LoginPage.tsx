@@ -74,12 +74,28 @@ export default function LoginPage() {
 
   const { data: application, isLoading: isLoadingApp } = trpc.auth.getMyApplication.useQuery(
     { id: applicationId || 0 },
-    { enabled: !!applicationId }
+    {
+      enabled: !!applicationId,
+      onError: (e: any) => {
+        if (e?.data?.code === "NOT_FOUND") {
+          localStorage.removeItem(APP_STORAGE_KEY);
+          setApplicationId(null);
+        }
+      },
+    }
   );
 
   const { data: supportTicket, isLoading: isLoadingSupport } = trpc.auth.getMySupportTicket.useQuery(
     { id: supportId || 0 },
-    { enabled: !!supportId }
+    {
+      enabled: !!supportId,
+      onError: (e: any) => {
+        if (e?.data?.code === "NOT_FOUND") {
+          localStorage.removeItem(SUPPORT_STORAGE_KEY);
+          setSupportId(null);
+        }
+      },
+    }
   );
 
   const submit = trpc.auth.submitResellerApplication.useMutation({
