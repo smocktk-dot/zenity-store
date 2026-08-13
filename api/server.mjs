@@ -297,6 +297,7 @@ __export(db_exports, {
   deleteStock: () => deleteStock,
   deleteSupportTicket: () => deleteSupportTicket,
   deleteTicket: () => deleteTicket,
+  ensureAppDownloadsSchema: () => ensureAppDownloadsSchema,
   ensurePixPaymentSchema: () => ensurePixPaymentSchema,
   getAdminById: () => getAdminById,
   getAdminByUsername: () => getAdminByUsername,
@@ -399,6 +400,32 @@ async function ensurePixPaymentSchema() {
     });
   }
   return _pixPaymentSchemaReady;
+}
+async function ensureAppDownloadsSchema() {
+  await getDb();
+  if (!_sqlClient) throw new Error("DB not available");
+  if (!_appDownloadsSchemaReady) {
+    _appDownloadsSchemaReady = _sqlClient.begin(async (sql2) => {
+      await sql2.unsafe(`DO $$ BEGIN CREATE TYPE "app_download_type" AS ENUM('download', 'tutorial'); EXCEPTION WHEN duplicate_object THEN null; END $$;`);
+      await sql2.unsafe(`CREATE TABLE IF NOT EXISTS "app_downloads" (
+        "id" serial PRIMARY KEY,
+        "appId" integer NOT NULL,
+        "type" "app_download_type" NOT NULL,
+        "title" varchar(128) NOT NULL,
+        "url" text NOT NULL,
+        "videoUrl" text,
+        "sortOrder" integer DEFAULT 0 NOT NULL,
+        "createdAt" timestamp DEFAULT now() NOT NULL,
+        "updatedAt" timestamp DEFAULT now() NOT NULL
+      )`);
+      await sql2.unsafe(`ALTER TABLE "app_downloads" ADD CONSTRAINT IF NOT EXISTS "app_downloads_appId_apps_id_fk" FOREIGN KEY ("appId") REFERENCES "apps"("id") ON DELETE no action ON UPDATE no action`);
+    }).then(() => void 0).catch((error) => {
+      _appDownloadsSchemaReady = null;
+      console.error("[Database] Failed to ensure app downloads schema:", error);
+      throw new Error("N\xE3o foi poss\xEDvel preparar o banco para downloads");
+    });
+  }
+  return _appDownloadsSchemaReady;
 }
 async function upsertUser(user) {
   if (!user.openId) throw new Error("User openId is required for upsert");
@@ -926,34 +953,39 @@ async function deleteStock(id) {
   await db.delete(appStock).where(eq(appStock.id, id));
 }
 async function getDownloadsByAppId(appId) {
+  await ensureAppDownloadsSchema();
   const db = await getDb();
   if (!db) return [];
   return db.select().from(appDownloads).where(eq(appDownloads.appId, appId)).orderBy(appDownloads.sortOrder, appDownloads.createdAt);
 }
 async function getDownloadById(id) {
+  await ensureAppDownloadsSchema();
   const db = await getDb();
   if (!db) return null;
   const [row] = await db.select().from(appDownloads).where(eq(appDownloads.id, id));
   return row ?? null;
 }
 async function createAppDownload(data) {
+  await ensureAppDownloadsSchema();
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const [row] = await db.insert(appDownloads).values(data).returning();
   return row;
 }
 async function updateAppDownload(id, data) {
+  await ensureAppDownloadsSchema();
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const [row] = await db.update(appDownloads).set(data).where(eq(appDownloads.id, id)).returning();
   return row;
 }
 async function deleteAppDownload(id) {
+  await ensureAppDownloadsSchema();
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   await db.delete(appDownloads).where(eq(appDownloads.id, id));
 }
-var _db, _sqlClient, _pixPaymentSchemaReady;
+var _db, _sqlClient, _pixPaymentSchemaReady, _appDownloadsSchemaReady;
 var init_db = __esm({
   "server/db.ts"() {
     "use strict";
@@ -962,6 +994,7 @@ var init_db = __esm({
     _db = null;
     _sqlClient = null;
     _pixPaymentSchemaReady = null;
+    _appDownloadsSchemaReady = null;
   }
 });
 

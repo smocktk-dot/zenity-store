@@ -56,6 +56,37 @@ export async function ensurePixPaymentSchema(): Promise<void> {
   return _pixPaymentSchemaReady;
 }
 
+let _appDownloadsSchemaReady: Promise<void> | null = null;
+
+export async function ensureAppDownloadsSchema(): Promise<void> {
+  await getDb();
+  if (!_sqlClient) throw new Error("DB not available");
+
+  if (!_appDownloadsSchemaReady) {
+    _appDownloadsSchemaReady = _sqlClient.begin(async sql => {
+      await sql.unsafe(`DO $$ BEGIN CREATE TYPE "app_download_type" AS ENUM('download', 'tutorial'); EXCEPTION WHEN duplicate_object THEN null; END $$;`);
+      await sql.unsafe(`CREATE TABLE IF NOT EXISTS "app_downloads" (
+        "id" serial PRIMARY KEY,
+        "appId" integer NOT NULL,
+        "type" "app_download_type" NOT NULL,
+        "title" varchar(128) NOT NULL,
+        "url" text NOT NULL,
+        "videoUrl" text,
+        "sortOrder" integer DEFAULT 0 NOT NULL,
+        "createdAt" timestamp DEFAULT now() NOT NULL,
+        "updatedAt" timestamp DEFAULT now() NOT NULL
+      )`);
+      await sql.unsafe(`ALTER TABLE "app_downloads" ADD CONSTRAINT IF NOT EXISTS "app_downloads_appId_apps_id_fk" FOREIGN KEY ("appId") REFERENCES "apps"("id") ON DELETE no action ON UPDATE no action`);
+    }).then(() => undefined).catch(error => {
+      _appDownloadsSchemaReady = null;
+      console.error("[Database] Failed to ensure app downloads schema:", error);
+      throw new Error("Não foi possível preparar o banco para downloads");
+    });
+  }
+
+  return _appDownloadsSchemaReady;
+}
+
 // ─── Users (Manus OAuth) ─────────────────────────────────────────────────────
 export async function upsertUser(user: InsertUser): Promise<void> {
   if (!user.openId) throw new Error("User openId is required for upsert");
@@ -721,12 +752,14 @@ export async function deleteStock(id: number) {
 
 // ─── App Downloads ─────────────────────────────────────────────────────────────
 export async function getDownloadsByAppId(appId: number) {
+  await ensureAppDownloadsSchema();
   const db = await getDb();
   if (!db) return [];
   return db.select().from(appDownloads).where(eq(appDownloads.appId, appId)).orderBy(appDownloads.sortOrder, appDownloads.createdAt);
 }
 
 export async function getDownloadById(id: number) {
+  await ensureAppDownloadsSchema();
   const db = await getDb();
   if (!db) return null;
   const [row] = await db.select().from(appDownloads).where(eq(appDownloads.id, id));
@@ -734,6 +767,7 @@ export async function getDownloadById(id: number) {
 }
 
 export async function createAppDownload(data: InsertAppDownload) {
+  await ensureAppDownloadsSchema();
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const [row] = await db.insert(appDownloads).values(data).returning();
@@ -741,6 +775,7 @@ export async function createAppDownload(data: InsertAppDownload) {
 }
 
 export async function updateAppDownload(id: number, data: Partial<InsertAppDownload>) {
+  await ensureAppDownloadsSchema();
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const [row] = await db.update(appDownloads).set(data).where(eq(appDownloads.id, id)).returning();
@@ -748,6 +783,7 @@ export async function updateAppDownload(id: number, data: Partial<InsertAppDownl
 }
 
 export async function deleteAppDownload(id: number) {
+  await ensureAppDownloadsSchema();
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   await db.delete(appDownloads).where(eq(appDownloads.id, id));
