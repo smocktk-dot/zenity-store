@@ -951,7 +951,7 @@ const resellerRouter = router({
 
       const reseller = ctx.reseller;
       const amountCents = Math.round(input.credits * 100); // 1 crédito = R$ 1,00
-      const callbackUrl = `${process.env.VITE_APP_URL || "https://cvreseller-n3qqggx2.manus.space"}/api/webhooks/purincash`;
+      const callbackUrl = `${process.env.VITE_APP_URL || "https://vgsellers.lat"}/api/webhooks/purincash`;
 
       const body = {
         valueCents: amountCents,
@@ -1064,7 +1064,7 @@ const resellerRouter = router({
 
       if (amountCents < 100) throw new TRPCError({ code: "BAD_REQUEST", message: "Valor mínimo é R$ 1,00" });
 
-      const callbackUrl = `${process.env.VITE_APP_URL || "https://zenity-store.vercel.app"}/api/webhooks/purincash`;
+      const callbackUrl = `${process.env.VITE_APP_URL || "https://vgsellers.lat"}/api/webhooks/purincash`;
 
       const body = {
         valueCents: amountCents,
@@ -1212,7 +1212,7 @@ const resellerRouter = router({
       if (!ltcPriceBrl) ltcPriceBrl = 800; // fallback fixo ~R$800/LTC
       const ltcAmountCalc = parseFloat((totalCost / ltcPriceBrl).toFixed(8));
 
-      const callbackUrl = `${process.env.VITE_APP_URL || "https://zenity-store.vercel.app"}/api/webhooks/purincash`;
+      const callbackUrl = `${process.env.VITE_APP_URL || "https://vgsellers.lat"}/api/webhooks/purincash`;
 
       const body = {
         valueCents: amountCents,

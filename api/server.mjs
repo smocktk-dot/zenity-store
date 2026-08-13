@@ -2277,7 +2277,7 @@ var resellerRouter = router({
     if (!PURIN_API_KEY) throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: "Pagamento Pix n\xE3o configurado" });
     const reseller = ctx.reseller;
     const amountCents = Math.round(input.credits * 100);
-    const callbackUrl = `${process.env.VITE_APP_URL || "https://cvreseller-n3qqggx2.manus.space"}/api/webhooks/purincash`;
+    const callbackUrl = `${process.env.VITE_APP_URL || "https://vgsellers.lat"}/api/webhooks/purincash`;
     const body = {
       valueCents: amountCents,
       description: `Compra de ${input.credits} cr\xE9dito(s) - ZENITY STORE`,
@@ -2364,7 +2364,7 @@ var resellerRouter = router({
     const totalCost = discountedPrice * input.quantity;
     const amountCents = Math.round(totalCost * 100);
     if (amountCents < 100) throw new TRPCError3({ code: "BAD_REQUEST", message: "Valor m\xEDnimo \xE9 R$ 1,00" });
-    const callbackUrl = `${process.env.VITE_APP_URL || "https://zenity-store.vercel.app"}/api/webhooks/purincash`;
+    const callbackUrl = `${process.env.VITE_APP_URL || "https://vgsellers.lat"}/api/webhooks/purincash`;
     const body = {
       valueCents: amountCents,
       description: `${input.quantity}x key(s) ${app2.name} - ${plan.name} - ZENITY STORE`,
@@ -2487,7 +2487,7 @@ var resellerRouter = router({
     }
     if (!ltcPriceBrl) ltcPriceBrl = 800;
     const ltcAmountCalc = parseFloat((totalCost / ltcPriceBrl).toFixed(8));
-    const callbackUrl = `${process.env.VITE_APP_URL || "https://zenity-store.vercel.app"}/api/webhooks/purincash`;
+    const callbackUrl = `${process.env.VITE_APP_URL || "https://vgsellers.lat"}/api/webhooks/purincash`;
     const body = {
       valueCents: amountCents,
       description: `${input.quantity}x key(s) ${app2.name} - ${plan.name} - ZENITY STORE`,
@@ -2709,11 +2709,21 @@ function calcDiscount(totalPurchases) {
 var FINAL_PAYMENT_STATUSES = /* @__PURE__ */ new Set(["expired", "cancelled", "refunded"]);
 async function handlePurinCashWebhook(req, res) {
   try {
-    const { paymentId, status, paidAt } = req.body;
+    console.log("[PurinCash Webhook] hit", {
+      method: req.method,
+      url: req.url,
+      host: req.headers.host,
+      forwardedHost: req.headers["x-forwarded-host"],
+      contentType: req.headers["content-type"],
+      webhookId: req.headers["x-webhook-id"],
+      body: req.body
+    });
+    const { event, paymentId, status, paidAt } = req.body;
     if (!paymentId || !status) {
+      console.warn("[PurinCash Webhook] missing paymentId or status", { event, paymentId, status });
       return res.status(400).json({ error: "Missing paymentId or status" });
     }
-    console.log(`[PurinCash Webhook] paymentId=${paymentId} status=${status}`);
+    console.log(`[PurinCash Webhook] paymentId=${paymentId} status=${status} event=${event}`);
     const payment = await getPixPaymentByPaymentId(paymentId);
     if (!payment) {
       return res.status(404).json({ error: "Payment not found" });

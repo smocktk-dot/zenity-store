@@ -17,7 +17,18 @@ const FINAL_PAYMENT_STATUSES = new Set(["expired", "cancelled", "refunded"]);
 
 export async function handlePurinCashWebhook(req: Request, res: Response) {
   try {
-    const { paymentId, status, paidAt } = req.body as {
+    console.log("[PurinCash Webhook] hit", {
+      method: req.method,
+      url: req.url,
+      host: req.headers.host,
+      forwardedHost: req.headers["x-forwarded-host"],
+      contentType: req.headers["content-type"],
+      webhookId: req.headers["x-webhook-id"],
+      body: req.body,
+    });
+
+    const { event, paymentId, status, paidAt } = req.body as {
+      event?: string;
       paymentId?: string;
       status?: string;
       amountCents?: number;
@@ -25,10 +36,11 @@ export async function handlePurinCashWebhook(req: Request, res: Response) {
     };
 
     if (!paymentId || !status) {
+      console.warn("[PurinCash Webhook] missing paymentId or status", { event, paymentId, status });
       return res.status(400).json({ error: "Missing paymentId or status" });
     }
 
-    console.log(`[PurinCash Webhook] paymentId=${paymentId} status=${status}`);
+    console.log(`[PurinCash Webhook] paymentId=${paymentId} status=${status} event=${event}`);
 
     const payment = await getPixPaymentByPaymentId(paymentId);
     if (!payment) {
