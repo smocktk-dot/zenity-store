@@ -1495,6 +1495,159 @@ async function keyauthCreateLicense(opts) {
   return keys;
 }
 
+// server/purinCashWebhook.ts
+init_db();
+
+// server/resellerPricing.ts
+function calcDiscount(totalPurchases) {
+  if (totalPurchases >= 20) return 50;
+  if (totalPurchases >= 10) return 40;
+  return 35;
+}
+
+// server/purinCashWebhook.ts
+var FINAL_PAYMENT_STATUSES = /* @__PURE__ */ new Set(["expired", "cancelled", "refunded"]);
+var PURIN_API_KEY = process.env.PURIN_CASH_API_KEY;
+async function handlePurinCashWebhook(req, res) {
+  try {
+    console.log("[PurinCash Webhook] hit", {
+      method: req.method,
+      url: req.url,
+      host: req.headers.host,
+      forwardedHost: req.headers["x-forwarded-host"],
+      contentType: req.headers["content-type"],
+      webhookId: req.headers["x-webhook-id"],
+      body: req.body
+    });
+    const { event, paymentId, status, paidAt } = req.body;
+    if (!paymentId || !status) {
+      console.warn("[PurinCash Webhook] missing paymentId or status", { event, paymentId, status });
+      return res.status(400).json({ error: "Missing paymentId or status" });
+    }
+    console.log(`[PurinCash Webhook] paymentId=${paymentId} status=${status} event=${event}`);
+    const result = await processPurinPaymentUpdate(paymentId, status, paidAt ? new Date(paidAt) : /* @__PURE__ */ new Date());
+    return res.status(result.status).json(result.body);
+  } catch (error) {
+    console.error("[PurinCash Webhook] Error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+}
+async function checkPurinPaymentStatus(paymentId) {
+  if (!PURIN_API_KEY) return null;
+  const isCharge = paymentId.startsWith("psc_") || paymentId.startsWith("psplit_");
+  const url = isCharge ? `https://api.purincash.com/v1/charges/${paymentId}` : `https://api.purincash.com/v1/payments/${paymentId}`;
+  try {
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${PURIN_API_KEY}` }
+    });
+    if (!response.ok) {
+      console.error("[PurinCash Polling] HTTP", response.status, await response.text());
+      return null;
+    }
+    const data = await response.json();
+    console.log("[PurinCash Polling] paymentId=", paymentId, "status=", data.status);
+    return data;
+  } catch (e) {
+    console.error("[PurinCash Polling] Error:", e);
+    return null;
+  }
+}
+async function processPurinPaymentUpdate(paymentId, status, paidAt) {
+  const payment = await getPixPaymentByPaymentId(paymentId);
+  if (!payment) {
+    console.warn("[PurinCash] Payment not found:", paymentId);
+    return { status: 404, body: { error: "Payment not found" } };
+  }
+  if (status === "paid") {
+    const reseller = await getResellerById(payment.resellerId);
+    if (!reseller) {
+      return { status: 404, body: { error: "Reseller not found" } };
+    }
+    if (payment.paymentType === "key") {
+      const appId = payment.appId;
+      const planId = payment.planId;
+      const quantity = payment.quantity ?? 1;
+      if (!appId || !planId || quantity < 1) {
+        throw new Error(`Pagamento de key ${paymentId} sem app, plano ou quantidade v\xE1lida`);
+      }
+      const existingKeys = await getKeysByPaymentId(paymentId);
+      if (payment.status === "paid" && existingKeys.length >= quantity) {
+        return { status: 200, body: { ok: true, message: "Already processed" } };
+      }
+      const app2 = await getAppById(appId);
+      const plan = await getPlanById(planId);
+      if (!app2 || !plan || plan.appId !== appId) {
+        throw new Error(`App ou plano n\xE3o encontrado para o pagamento ${paymentId}`);
+      }
+      const missingQuantity = Math.max(0, quantity - existingKeys.length);
+      const sellerKey = app2.keyauthSellerKey || process.env.KEYAUTH_SELLER_KEY || "";
+      const isLtcPayment = payment.paymentMethod === "ltc";
+      const generatedKeys = missingQuantity > 0 ? await keyauthCreateLicense({
+        sellerKey,
+        durationDays: plan.durationDays,
+        quantity: missingQuantity,
+        owner: reseller.username,
+        note: `Zenity Store - ${reseller.username} - ${plan.name} - ${isLtcPayment ? "LTC" : "Pix"} ${paymentId}`
+      }) : [];
+      const pricePerKey = payment.amountCents / quantity / 100;
+      const notePrefix = isLtcPayment ? "ltc" : "pix";
+      for (const keyValue of generatedKeys) {
+        await createLicenseKey({
+          keyValue,
+          resellerId: payment.resellerId,
+          appId,
+          planId: plan.id,
+          planName: plan.name,
+          durationDays: plan.durationDays,
+          creditsSpent: pricePerKey.toFixed(2),
+          note: `${notePrefix}:${paymentId}`
+        });
+      }
+      if (payment.status !== "paid") {
+        const newPurchases = reseller.totalPurchases + quantity;
+        const newDiscount = calcDiscount(newPurchases);
+        await updateResellerCredits(
+          payment.resellerId,
+          reseller.credits,
+          newPurchases,
+          newDiscount.toFixed(2)
+        );
+      }
+      await updatePixPaymentStatus(paymentId, "paid", paidAt);
+      console.log(`[PurinCash] Delivered ${quantity} key(s) for payment ${paymentId}`);
+      return { status: 200, body: { ok: true } };
+    } else {
+      if (payment.status === "paid") {
+        return { status: 200, body: { ok: true, message: "Already processed" } };
+      }
+      const creditsToAdd = parseFloat(payment.credits);
+      const currentCredits = parseFloat(reseller.credits);
+      const newCredits = currentCredits + creditsToAdd;
+      await updateResellerCredits(
+        payment.resellerId,
+        newCredits.toFixed(2),
+        reseller.totalPurchases,
+        reseller.discountPercent
+      );
+      await createCreditTransaction({
+        resellerId: payment.resellerId,
+        type: "add",
+        amount: creditsToAdd.toFixed(2),
+        balanceBefore: currentCredits.toFixed(2),
+        balanceAfter: newCredits.toFixed(2),
+        description: `Compra via Pix - ${creditsToAdd} cr\xE9dito(s) (${paymentId})`
+      });
+      await updatePixPaymentStatus(paymentId, "paid", paidAt);
+      console.log(`[PurinCash] Added ${creditsToAdd} credits for payment ${paymentId}`);
+      return { status: 200, body: { ok: true } };
+    }
+  } else if (FINAL_PAYMENT_STATUSES.has(status) && payment.status === "pending") {
+    await updatePixPaymentStatus(paymentId, status);
+    return { status: 200, body: { ok: true } };
+  }
+  return { status: 200, body: { ok: true } };
+}
+
 // server/storage.ts
 init_env();
 function getForgeConfig() {
@@ -2298,8 +2451,8 @@ var resellerRouter = router({
   createPixCharge: resellerProcedure.input(z2.object({
     credits: z2.number().min(1, "M\xEDnimo 1 cr\xE9dito").max(1e4, "M\xE1ximo 10000 cr\xE9ditos")
   })).mutation(async ({ ctx, input }) => {
-    const PURIN_API_KEY = process.env.PURIN_CASH_API_KEY;
-    if (!PURIN_API_KEY) throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: "Pagamento Pix n\xE3o configurado" });
+    const PURIN_API_KEY2 = process.env.PURIN_CASH_API_KEY;
+    if (!PURIN_API_KEY2) throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: "Pagamento Pix n\xE3o configurado" });
     const reseller = ctx.reseller;
     const amountCents = Math.round(input.credits * 100);
     const callbackUrl = `${process.env.VITE_APP_URL || "https://vgsellers.lat"}/api/webhooks/purincash`;
@@ -2318,7 +2471,7 @@ var resellerRouter = router({
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${PURIN_API_KEY}`
+        "Authorization": `Bearer ${PURIN_API_KEY2}`
       },
       body: JSON.stringify(body)
     });
@@ -2349,9 +2502,19 @@ var resellerRouter = router({
     };
   }),
   checkPixStatus: resellerProcedure.input(z2.object({ paymentId: z2.string() })).query(async ({ ctx, input }) => {
-    const payment = await getPixPaymentByPaymentId(input.paymentId);
+    let payment = await getPixPaymentByPaymentId(input.paymentId);
     if (!payment || payment.resellerId !== ctx.resellerId) {
       throw new TRPCError3({ code: "NOT_FOUND" });
+    }
+    if (payment.status === "pending") {
+      const remote = await checkPurinPaymentStatus(input.paymentId);
+      if (remote?.status === "paid" && payment.status !== "paid") {
+        await processPurinPaymentUpdate(input.paymentId, "paid", remote.paidAt ? new Date(remote.paidAt) : /* @__PURE__ */ new Date());
+        payment = await getPixPaymentByPaymentId(input.paymentId);
+      } else if (remote?.status && ["expired", "cancelled", "refunded"].includes(remote.status) && payment.status === "pending") {
+        await processPurinPaymentUpdate(input.paymentId, remote.status, /* @__PURE__ */ new Date());
+        payment = await getPixPaymentByPaymentId(input.paymentId);
+      }
     }
     return {
       paymentId: payment.paymentId,
@@ -2375,8 +2538,8 @@ var resellerRouter = router({
     if (reseller.resellerType !== "percentage") {
       throw new TRPCError3({ code: "FORBIDDEN", message: "Esta a\xE7\xE3o \xE9 apenas para resellers de porcentagem" });
     }
-    const PURIN_API_KEY = process.env.PURIN_CASH_API_KEY;
-    if (!PURIN_API_KEY) throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: "Pagamento Pix n\xE3o configurado" });
+    const PURIN_API_KEY2 = process.env.PURIN_CASH_API_KEY;
+    if (!PURIN_API_KEY2) throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: "Pagamento Pix n\xE3o configurado" });
     const assigned = await getAssignedAppIds(ctx.resellerId);
     if (!assigned.includes(input.appId)) throw new TRPCError3({ code: "FORBIDDEN", message: "App n\xE3o dispon\xEDvel" });
     const plan = await getPlanById(input.planId);
@@ -2411,7 +2574,7 @@ var resellerRouter = router({
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${PURIN_API_KEY}`
+        "Authorization": `Bearer ${PURIN_API_KEY2}`
       },
       body: JSON.stringify(body)
     });
@@ -2447,9 +2610,19 @@ var resellerRouter = router({
   }),
   // Verificar status de pagamento Pix de key e retornar keys se pago
   checkKeyPixStatus: resellerProcedure.input(z2.object({ paymentId: z2.string() })).query(async ({ ctx, input }) => {
-    const payment = await getPixPaymentByPaymentId(input.paymentId);
+    let payment = await getPixPaymentByPaymentId(input.paymentId);
     if (!payment || payment.resellerId !== ctx.resellerId) {
       throw new TRPCError3({ code: "NOT_FOUND" });
+    }
+    if (payment.status === "pending") {
+      const remote = await checkPurinPaymentStatus(input.paymentId);
+      if (remote?.status === "paid" && payment.status !== "paid") {
+        await processPurinPaymentUpdate(input.paymentId, "paid", remote.paidAt ? new Date(remote.paidAt) : /* @__PURE__ */ new Date());
+        payment = await getPixPaymentByPaymentId(input.paymentId);
+      } else if (remote?.status && ["expired", "cancelled", "refunded"].includes(remote.status) && payment.status === "pending") {
+        await processPurinPaymentUpdate(input.paymentId, remote.status, /* @__PURE__ */ new Date());
+        payment = await getPixPaymentByPaymentId(input.paymentId);
+      }
     }
     let keys = [];
     if (payment.status === "paid") {
@@ -2475,8 +2648,8 @@ var resellerRouter = router({
     if (reseller.resellerType !== "percentage") {
       throw new TRPCError3({ code: "FORBIDDEN", message: "Esta a\xE7\xE3o \xE9 apenas para resellers de porcentagem" });
     }
-    const PURIN_API_KEY = process.env.PURIN_CASH_API_KEY;
-    if (!PURIN_API_KEY) throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: "Pagamento Crypto n\xE3o configurado" });
+    const PURIN_API_KEY2 = process.env.PURIN_CASH_API_KEY;
+    if (!PURIN_API_KEY2) throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: "Pagamento Crypto n\xE3o configurado" });
     const assigned = await getAssignedAppIds(ctx.resellerId);
     if (!assigned.includes(input.appId)) throw new TRPCError3({ code: "FORBIDDEN", message: "App n\xE3o dispon\xEDvel" });
     const plan = await getPlanById(input.planId);
@@ -2535,7 +2708,7 @@ var resellerRouter = router({
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${PURIN_API_KEY}`
+        "Authorization": `Bearer ${PURIN_API_KEY2}`
       },
       body: JSON.stringify(body)
     });
@@ -2718,129 +2891,6 @@ async function createContext(opts) {
     res: opts.res,
     user
   };
-}
-
-// server/purinCashWebhook.ts
-init_db();
-
-// server/resellerPricing.ts
-function calcDiscount(totalPurchases) {
-  if (totalPurchases >= 20) return 50;
-  if (totalPurchases >= 10) return 40;
-  return 35;
-}
-
-// server/purinCashWebhook.ts
-var FINAL_PAYMENT_STATUSES = /* @__PURE__ */ new Set(["expired", "cancelled", "refunded"]);
-async function handlePurinCashWebhook(req, res) {
-  try {
-    console.log("[PurinCash Webhook] hit", {
-      method: req.method,
-      url: req.url,
-      host: req.headers.host,
-      forwardedHost: req.headers["x-forwarded-host"],
-      contentType: req.headers["content-type"],
-      webhookId: req.headers["x-webhook-id"],
-      body: req.body
-    });
-    const { event, paymentId, status, paidAt } = req.body;
-    if (!paymentId || !status) {
-      console.warn("[PurinCash Webhook] missing paymentId or status", { event, paymentId, status });
-      return res.status(400).json({ error: "Missing paymentId or status" });
-    }
-    console.log(`[PurinCash Webhook] paymentId=${paymentId} status=${status} event=${event}`);
-    const payment = await getPixPaymentByPaymentId(paymentId);
-    if (!payment) {
-      return res.status(404).json({ error: "Payment not found" });
-    }
-    if (status === "paid") {
-      const reseller = await getResellerById(payment.resellerId);
-      if (!reseller) {
-        return res.status(404).json({ error: "Reseller not found" });
-      }
-      if (payment.paymentType === "key") {
-        const appId = payment.appId;
-        const planId = payment.planId;
-        const quantity = payment.quantity ?? 1;
-        if (!appId || !planId || quantity < 1) {
-          throw new Error(`Pagamento de key ${paymentId} sem app, plano ou quantidade v\xE1lida`);
-        }
-        const existingKeys = await getKeysByPaymentId(paymentId);
-        if (payment.status === "paid" && existingKeys.length >= quantity) {
-          return res.json({ ok: true, message: "Already processed" });
-        }
-        const app2 = await getAppById(appId);
-        const plan = await getPlanById(planId);
-        if (!app2 || !plan || plan.appId !== appId) {
-          throw new Error(`App ou plano n\xE3o encontrado para o pagamento ${paymentId}`);
-        }
-        const missingQuantity = Math.max(0, quantity - existingKeys.length);
-        const sellerKey = app2.keyauthSellerKey || process.env.KEYAUTH_SELLER_KEY || "";
-        const isLtcPayment = payment.paymentMethod === "ltc";
-        const generatedKeys = missingQuantity > 0 ? await keyauthCreateLicense({
-          sellerKey,
-          durationDays: plan.durationDays,
-          quantity: missingQuantity,
-          owner: reseller.username,
-          note: `Zenity Store - ${reseller.username} - ${plan.name} - ${isLtcPayment ? "LTC" : "Pix"} ${paymentId}`
-        }) : [];
-        const pricePerKey = payment.amountCents / quantity / 100;
-        const notePrefix = isLtcPayment ? "ltc" : "pix";
-        for (const keyValue of generatedKeys) {
-          await createLicenseKey({
-            keyValue,
-            resellerId: payment.resellerId,
-            appId,
-            planId: plan.id,
-            planName: plan.name,
-            durationDays: plan.durationDays,
-            creditsSpent: pricePerKey.toFixed(2),
-            note: `${notePrefix}:${paymentId}`
-          });
-        }
-        if (payment.status !== "paid") {
-          const newPurchases = reseller.totalPurchases + quantity;
-          const newDiscount = calcDiscount(newPurchases);
-          await updateResellerCredits(
-            payment.resellerId,
-            reseller.credits,
-            newPurchases,
-            newDiscount.toFixed(2)
-          );
-        }
-        await updatePixPaymentStatus(paymentId, "paid", paidAt ? new Date(paidAt) : /* @__PURE__ */ new Date());
-        console.log(`[PurinCash Webhook] Delivered ${quantity} key(s) for payment ${paymentId}`);
-      } else {
-        if (payment.status === "paid") {
-          return res.json({ ok: true, message: "Already processed" });
-        }
-        const creditsToAdd = parseFloat(payment.credits);
-        const currentCredits = parseFloat(reseller.credits);
-        const newCredits = currentCredits + creditsToAdd;
-        await updateResellerCredits(
-          payment.resellerId,
-          newCredits.toFixed(2),
-          reseller.totalPurchases,
-          reseller.discountPercent
-        );
-        await createCreditTransaction({
-          resellerId: payment.resellerId,
-          type: "add",
-          amount: creditsToAdd.toFixed(2),
-          balanceBefore: currentCredits.toFixed(2),
-          balanceAfter: newCredits.toFixed(2),
-          description: `Compra via Pix - ${creditsToAdd} cr\xE9dito(s) (${paymentId})`
-        });
-        await updatePixPaymentStatus(paymentId, "paid", paidAt ? new Date(paidAt) : /* @__PURE__ */ new Date());
-      }
-    } else if (FINAL_PAYMENT_STATUSES.has(status) && payment.status === "pending") {
-      await updatePixPaymentStatus(paymentId, status);
-    }
-    return res.json({ ok: true });
-  } catch (error) {
-    console.error("[PurinCash Webhook] Error:", error);
-    return res.status(500).json({ error: "Internal server error" });
-  }
 }
 
 // server/_core/serverless.ts

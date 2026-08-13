@@ -8,6 +8,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { keyauthCreateLicense } from "./keyauth";
 import { calcDiscount } from "./resellerPricing";
+import { checkPurinPaymentStatus, processPurinPaymentUpdate } from "./purinCashWebhook";
 import { storagePut } from "./storage";
 import {
   getAdminByUsername, getAdminById, createAdmin,
@@ -1020,10 +1021,23 @@ const resellerRouter = router({
   checkPixStatus: resellerProcedure
     .input(z.object({ paymentId: z.string() }))
     .query(async ({ ctx, input }) => {
-      const payment = await getPixPaymentByPaymentId(input.paymentId);
+      let payment = await getPixPaymentByPaymentId(input.paymentId);
       if (!payment || payment.resellerId !== ctx.resellerId) {
         throw new TRPCError({ code: "NOT_FOUND" });
       }
+
+      // Polling fallback: if webhook did not arrive, ask PurinCash directly
+      if (payment.status === "pending") {
+        const remote = await checkPurinPaymentStatus(input.paymentId);
+        if (remote?.status === "paid" && payment.status !== "paid") {
+          await processPurinPaymentUpdate(input.paymentId, "paid", remote.paidAt ? new Date(remote.paidAt) : new Date());
+          payment = await getPixPaymentByPaymentId(input.paymentId);
+        } else if (remote?.status && ["expired", "cancelled", "refunded"].includes(remote.status) && payment.status === "pending") {
+          await processPurinPaymentUpdate(input.paymentId, remote.status, new Date());
+          payment = await getPixPaymentByPaymentId(input.paymentId);
+        }
+      }
+
       return {
         paymentId: payment.paymentId,
         status: payment.status,
@@ -1143,10 +1157,23 @@ const resellerRouter = router({
   checkKeyPixStatus: resellerProcedure
     .input(z.object({ paymentId: z.string() }))
     .query(async ({ ctx, input }) => {
-      const payment = await getPixPaymentByPaymentId(input.paymentId);
+      let payment = await getPixPaymentByPaymentId(input.paymentId);
       if (!payment || payment.resellerId !== ctx.resellerId) {
         throw new TRPCError({ code: "NOT_FOUND" });
       }
+
+      // Polling fallback: if webhook did not arrive, ask PurinCash directly
+      if (payment.status === "pending") {
+        const remote = await checkPurinPaymentStatus(input.paymentId);
+        if (remote?.status === "paid" && payment.status !== "paid") {
+          await processPurinPaymentUpdate(input.paymentId, "paid", remote.paidAt ? new Date(remote.paidAt) : new Date());
+          payment = await getPixPaymentByPaymentId(input.paymentId);
+        } else if (remote?.status && ["expired", "cancelled", "refunded"].includes(remote.status) && payment.status === "pending") {
+          await processPurinPaymentUpdate(input.paymentId, remote.status, new Date());
+          payment = await getPixPaymentByPaymentId(input.paymentId);
+        }
+      }
+
       // Se já foi pago, buscar as keys geradas para esse pagamento
       let keys: string[] = [];
       if (payment.status === "paid") {
