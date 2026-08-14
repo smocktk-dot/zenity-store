@@ -206,6 +206,10 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
           </div>
         </DialogContent>
       </Dialog>
+
+      <div className="mt-6">
+        <ResellerDownloads appId={id} />
+      </div>
     </>
   );
 }
