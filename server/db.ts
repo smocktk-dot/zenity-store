@@ -56,6 +56,43 @@ export async function ensurePixPaymentSchema(): Promise<void> {
   return _pixPaymentSchemaReady;
 }
 
+let _appStockSchemaReady: Promise<void> | null = null;
+
+export async function ensureAppStockSchema(): Promise<void> {
+  await getDb();
+  if (!_sqlClient) throw new Error("DB not available");
+
+  if (!_appStockSchemaReady) {
+    _appStockSchemaReady = (async () => {
+      try {
+        await _sqlClient!.unsafe(`DO $$ BEGIN CREATE TYPE "stock_status" AS ENUM('available', 'sold'); EXCEPTION WHEN duplicate_object THEN null; END $$;`);
+      } catch (e) { /* ignore duplicate */ }
+
+      try {
+        await _sqlClient!.unsafe(`CREATE TABLE IF NOT EXISTS "app_stock" (
+          "id" serial PRIMARY KEY,
+          "appId" integer NOT NULL,
+          "planId" integer NOT NULL,
+          "keyValue" varchar(128) NOT NULL UNIQUE,
+          "status" "stock_status" DEFAULT 'available' NOT NULL,
+          "resellerId" integer,
+          "soldAt" timestamp,
+          "createdAt" timestamp DEFAULT now() NOT NULL
+        )`);
+      } catch (e) {
+        console.error("[Database] Failed to create app_stock table:", e);
+        throw e;
+      }
+    })().then(() => undefined).catch(error => {
+      _appStockSchemaReady = null;
+      console.error("[Database] Failed to ensure app stock schema:", error);
+      throw new Error("Não foi possível preparar o banco para estoque");
+    });
+  }
+
+  return _appStockSchemaReady;
+}
+
 let _appDownloadsSchemaReady: Promise<void> | null = null;
 
 export async function ensureAppDownloadsSchema(): Promise<void> {
@@ -708,6 +745,7 @@ export async function createSupportMessage(data: InsertSupportMessage) {
 
 // ─── App Stock ────────────────────────────────────────────────────────────────
 export async function getAvailableStockForPlan(appId: number, planId: number, limit: number) {
+  await ensureAppStockSchema();
   const db = await getDb();
   if (!db) return [];
   return db.select().from(appStock).where(
@@ -716,6 +754,7 @@ export async function getAvailableStockForPlan(appId: number, planId: number, li
 }
 
 export async function reserveStockForReseller(id: number, resellerId: number) {
+  await ensureAppStockSchema();
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const [row] = await db.update(appStock)
@@ -726,6 +765,7 @@ export async function reserveStockForReseller(id: number, resellerId: number) {
 }
 
 export async function addStockBatch(data: InsertAppStock[]) {
+  await ensureAppStockSchema();
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   if (data.length === 0) return [];
@@ -733,12 +773,14 @@ export async function addStockBatch(data: InsertAppStock[]) {
 }
 
 export async function getStockByApp(appId: number) {
+  await ensureAppStockSchema();
   const db = await getDb();
   if (!db) return [];
   return db.select().from(appStock).where(eq(appStock.appId, appId)).orderBy(desc(appStock.createdAt));
 }
 
 export async function getStockCountsByApp(appId: number) {
+  await ensureAppStockSchema();
   const db = await getDb();
   if (!db) return { available: 0, sold: 0 };
   const rows = await db.select({ status: appStock.status, count: sql<number>`count(*)` })
@@ -752,6 +794,7 @@ export async function getStockCountsByApp(appId: number) {
 }
 
 export async function deleteStock(id: number) {
+  await ensureAppStockSchema();
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   await db.delete(appStock).where(eq(appStock.id, id));

@@ -298,6 +298,7 @@ __export(db_exports, {
   deleteSupportTicket: () => deleteSupportTicket,
   deleteTicket: () => deleteTicket,
   ensureAppDownloadsSchema: () => ensureAppDownloadsSchema,
+  ensureAppStockSchema: () => ensureAppStockSchema,
   ensurePixPaymentSchema: () => ensurePixPaymentSchema,
   getAdminById: () => getAdminById,
   getAdminByUsername: () => getAdminByUsername,
@@ -400,6 +401,38 @@ async function ensurePixPaymentSchema() {
     });
   }
   return _pixPaymentSchemaReady;
+}
+async function ensureAppStockSchema() {
+  await getDb();
+  if (!_sqlClient) throw new Error("DB not available");
+  if (!_appStockSchemaReady) {
+    _appStockSchemaReady = (async () => {
+      try {
+        await _sqlClient.unsafe(`DO $$ BEGIN CREATE TYPE "stock_status" AS ENUM('available', 'sold'); EXCEPTION WHEN duplicate_object THEN null; END $$;`);
+      } catch (e) {
+      }
+      try {
+        await _sqlClient.unsafe(`CREATE TABLE IF NOT EXISTS "app_stock" (
+          "id" serial PRIMARY KEY,
+          "appId" integer NOT NULL,
+          "planId" integer NOT NULL,
+          "keyValue" varchar(128) NOT NULL UNIQUE,
+          "status" "stock_status" DEFAULT 'available' NOT NULL,
+          "resellerId" integer,
+          "soldAt" timestamp,
+          "createdAt" timestamp DEFAULT now() NOT NULL
+        )`);
+      } catch (e) {
+        console.error("[Database] Failed to create app_stock table:", e);
+        throw e;
+      }
+    })().then(() => void 0).catch((error) => {
+      _appStockSchemaReady = null;
+      console.error("[Database] Failed to ensure app stock schema:", error);
+      throw new Error("N\xE3o foi poss\xEDvel preparar o banco para estoque");
+    });
+  }
+  return _appStockSchemaReady;
 }
 async function ensureAppDownloadsSchema() {
   await getDb();
@@ -922,6 +955,7 @@ async function createSupportMessage(data) {
   return row;
 }
 async function getAvailableStockForPlan(appId, planId, limit) {
+  await ensureAppStockSchema();
   const db = await getDb();
   if (!db) return [];
   return db.select().from(appStock).where(
@@ -929,23 +963,27 @@ async function getAvailableStockForPlan(appId, planId, limit) {
   ).orderBy(appStock.createdAt).limit(limit);
 }
 async function reserveStockForReseller(id, resellerId) {
+  await ensureAppStockSchema();
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const [row] = await db.update(appStock).set({ status: "sold", resellerId, soldAt: /* @__PURE__ */ new Date() }).where(and(eq(appStock.id, id), eq(appStock.status, "available"))).returning();
   return row;
 }
 async function addStockBatch(data) {
+  await ensureAppStockSchema();
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   if (data.length === 0) return [];
   return db.insert(appStock).values(data).onConflictDoNothing({ target: appStock.keyValue }).returning();
 }
 async function getStockByApp(appId) {
+  await ensureAppStockSchema();
   const db = await getDb();
   if (!db) return [];
   return db.select().from(appStock).where(eq(appStock.appId, appId)).orderBy(desc(appStock.createdAt));
 }
 async function getStockCountsByApp(appId) {
+  await ensureAppStockSchema();
   const db = await getDb();
   if (!db) return { available: 0, sold: 0 };
   const rows = await db.select({ status: appStock.status, count: sql`count(*)` }).from(appStock).where(eq(appStock.appId, appId)).groupBy(appStock.status);
@@ -955,6 +993,7 @@ async function getStockCountsByApp(appId) {
   };
 }
 async function deleteStock(id) {
+  await ensureAppStockSchema();
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   await db.delete(appStock).where(eq(appStock.id, id));
@@ -992,7 +1031,7 @@ async function deleteAppDownload(id) {
   if (!db) throw new Error("DB not available");
   await db.delete(appDownloads).where(eq(appDownloads.id, id));
 }
-var _db, _sqlClient, _pixPaymentSchemaReady, _appDownloadsSchemaReady;
+var _db, _sqlClient, _pixPaymentSchemaReady, _appStockSchemaReady, _appDownloadsSchemaReady;
 var init_db = __esm({
   "server/db.ts"() {
     "use strict";
@@ -1001,6 +1040,7 @@ var init_db = __esm({
     _db = null;
     _sqlClient = null;
     _pixPaymentSchemaReady = null;
+    _appStockSchemaReady = null;
     _appDownloadsSchemaReady = null;
   }
 });
