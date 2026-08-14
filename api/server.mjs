@@ -121,6 +121,7 @@ var init_schema = __esm({
       planName: varchar("planName", { length: 64 }),
       durationDays: integer("durationDays").notNull(),
       creditsSpent: decimal("creditsSpent", { precision: 10, scale: 2 }).notNull(),
+      resellerCredits: decimal("resellerCredits", { precision: 12, scale: 2 }),
       status: keyStatusEnum("status").default("active").notNull(),
       usedBy: varchar("usedBy", { length: 128 }),
       // username who activated
@@ -299,6 +300,7 @@ __export(db_exports, {
   deleteTicket: () => deleteTicket,
   ensureAppDownloadsSchema: () => ensureAppDownloadsSchema,
   ensureAppStockSchema: () => ensureAppStockSchema,
+  ensureLicenseKeysSchema: () => ensureLicenseKeysSchema,
   ensurePixPaymentSchema: () => ensurePixPaymentSchema,
   getAdminById: () => getAdminById,
   getAdminByUsername: () => getAdminByUsername,
@@ -306,6 +308,7 @@ __export(db_exports, {
   getAllCategories: () => getAllCategories,
   getAllIpWhitelist: () => getAllIpWhitelist,
   getAllKeys: () => getAllKeys,
+  getAllKeysWithReseller: () => getAllKeysWithReseller,
   getAllResellerApplications: () => getAllResellerApplications,
   getAllResellers: () => getAllResellers,
   getAllSupportTickets: () => getAllSupportTickets,
@@ -433,6 +436,25 @@ async function ensureAppStockSchema() {
     });
   }
   return _appStockSchemaReady;
+}
+async function ensureLicenseKeysSchema() {
+  await getDb();
+  if (!_sqlClient) throw new Error("DB not available");
+  if (!_licenseKeysSchemaReady) {
+    _licenseKeysSchemaReady = (async () => {
+      try {
+        await _sqlClient.unsafe(`ALTER TABLE "license_keys" ADD COLUMN IF NOT EXISTS "resellerCredits" decimal(12, 2)`);
+      } catch (e) {
+        console.error("[Database] Failed to ensure license_keys schema:", e);
+        throw e;
+      }
+    })().then(() => void 0).catch((error) => {
+      _licenseKeysSchemaReady = null;
+      console.error("[Database] Failed to ensure license_keys schema:", error);
+      throw new Error("N\xE3o foi poss\xEDvel preparar o banco para license keys");
+    });
+  }
+  return _licenseKeysSchemaReady;
 }
 async function ensureAppDownloadsSchema() {
   await getDb();
@@ -660,22 +682,40 @@ async function getAssignedAppIds(resellerId) {
   return rows.map((r) => r.appId);
 }
 async function getKeysByResellerId(resellerId) {
+  await ensureLicenseKeysSchema();
   const db = await getDb();
   if (!db) return [];
   return db.select().from(licenseKeys).where(eq(licenseKeys.resellerId, resellerId)).orderBy(desc(licenseKeys.createdAt));
 }
 async function getAllKeys() {
+  await ensureLicenseKeysSchema();
   const db = await getDb();
   if (!db) return [];
   return db.select().from(licenseKeys).orderBy(desc(licenseKeys.createdAt));
 }
+async function getAllKeysWithReseller() {
+  await ensureLicenseKeysSchema();
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db.select({
+    key: licenseKeys,
+    reseller: resellers
+  }).from(licenseKeys).leftJoin(resellers, eq(licenseKeys.resellerId, resellers.id)).orderBy(desc(licenseKeys.createdAt));
+  return rows.map((r) => ({
+    ...r.key,
+    resellerName: r.reseller?.username ?? "\u2014",
+    resellerType: r.reseller?.resellerType ?? "credits"
+  }));
+}
 async function getKeyById(id) {
+  await ensureLicenseKeysSchema();
   const db = await getDb();
   if (!db) return void 0;
   const result = await db.select().from(licenseKeys).where(eq(licenseKeys.id, id)).limit(1);
   return result.length > 0 ? result[0] : void 0;
 }
 async function createLicenseKey(data) {
+  await ensureLicenseKeysSchema();
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const requiredValues = {
@@ -694,6 +734,7 @@ async function createLicenseKey(data) {
   await db.insert(licenseKeys).values({ ...requiredValues, ...optionalValues });
 }
 async function updateLicenseKey(id, data) {
+  await ensureLicenseKeysSchema();
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   await db.update(licenseKeys).set(data).where(eq(licenseKeys.id, id));
@@ -791,6 +832,7 @@ async function getPixPaymentsByReseller(resellerId) {
   return db.select().from(pixPayments).where(eq(pixPayments.resellerId, resellerId)).orderBy(desc(pixPayments.createdAt)).limit(20);
 }
 async function getKeysByPaymentId(paymentId) {
+  await ensureLicenseKeysSchema();
   const db = await getDb();
   if (!db) return [];
   const rows = await db.select({ keyValue: licenseKeys.keyValue }).from(licenseKeys).where(
@@ -1031,7 +1073,7 @@ async function deleteAppDownload(id) {
   if (!db) throw new Error("DB not available");
   await db.delete(appDownloads).where(eq(appDownloads.id, id));
 }
-var _db, _sqlClient, _pixPaymentSchemaReady, _appStockSchemaReady, _appDownloadsSchemaReady;
+var _db, _sqlClient, _pixPaymentSchemaReady, _appStockSchemaReady, _licenseKeysSchemaReady, _appDownloadsSchemaReady;
 var init_db = __esm({
   "server/db.ts"() {
     "use strict";
@@ -1041,6 +1083,7 @@ var init_db = __esm({
     _sqlClient = null;
     _pixPaymentSchemaReady = null;
     _appStockSchemaReady = null;
+    _licenseKeysSchemaReady = null;
     _appDownloadsSchemaReady = null;
   }
 });
@@ -1707,6 +1750,7 @@ async function processPurinPaymentUpdate(paymentId, status, paidAt) {
             planName: plan.name,
             durationDays: plan.durationDays,
             creditsSpent: pricePerKey.toFixed(2),
+            resellerCredits: reseller.credits,
             note: `${notePrefix}:${paymentId}`
           });
         }
@@ -2305,7 +2349,7 @@ var adminRouter = router({
     return { assigned, all };
   }),
   // All keys
-  listAllKeys: adminProcedure2.query(() => getAllKeys()),
+  listAllKeys: adminProcedure2.query(() => getAllKeysWithReseller()),
   // IP Whitelist management
   listIpWhitelist: adminProcedure2.query(() => getAllIpWhitelist()),
   addIp: adminProcedure2.input(z2.object({
@@ -2554,6 +2598,7 @@ var resellerRouter = router({
         planName: plan.name,
         durationDays: plan.durationDays,
         creditsSpent: discountedPrice.toFixed(2),
+        resellerCredits: newCredits.toFixed(2),
         ...input.note ? { note: input.note } : {},
         ...input.customMask ? { customMask: input.customMask } : {}
       });
@@ -2943,6 +2988,7 @@ var resellerRouter = router({
         planName: plan.name,
         durationDays: plan.durationDays,
         creditsSpent: discountedPrice.toFixed(2),
+        resellerCredits: reseller.credits,
         note: `Compra via porcentagem - R$ ${totalCost.toFixed(2)}`
       });
       generatedKeys.push(row.keyValue);

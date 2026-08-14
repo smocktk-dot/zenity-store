@@ -162,6 +162,7 @@ export async function processPurinPaymentUpdate(
             planName: plan.name,
             durationDays: plan.durationDays,
             creditsSpent: pricePerKey.toFixed(2),
+            resellerCredits: reseller.credits as string,
             note: `${notePrefix}:${paymentId}`,
           });
         }

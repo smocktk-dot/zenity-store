@@ -17,7 +17,7 @@ import {
   getAllApps, getAppById, createApp, updateApp, deleteApp,
   getPlansByAppId, getPlanById, createPlan, updatePlan, deletePlan,
   getAppsByResellerId, assignAppToReseller, removeAppFromReseller, getAssignedAppIds,
-  getKeysByResellerId, getAllKeys, getKeyById, createLicenseKey, updateLicenseKey,
+  getKeysByResellerId, getAllKeys, getAllKeysWithReseller, getKeyById, createLicenseKey, updateLicenseKey,
   getTransactionsByResellerId, createCreditTransaction,
   getAllIpWhitelist, addIpToWhitelist, removeIpFromWhitelist, isIpWhitelisted,
   isAdminIpAllowed, isResellerIpAllowed, normalizeIp,
@@ -649,7 +649,7 @@ const adminRouter = router({
     }),
 
   // All keys
-  listAllKeys: adminProcedure.query(() => getAllKeys()),
+  listAllKeys: adminProcedure.query(() => getAllKeysWithReseller()),
 
   // IP Whitelist management
   listIpWhitelist: adminProcedure.query(() => getAllIpWhitelist()),
@@ -959,6 +959,7 @@ const resellerRouter = router({
           keyValue: stock.keyValue, resellerId: ctx.resellerId, appId: input.appId,
           planId: plan.id, planName: plan.name, durationDays: plan.durationDays,
           creditsSpent: discountedPrice.toFixed(2),
+          resellerCredits: newCredits.toFixed(2),
           ...(input.note ? { note: input.note } : {}),
           ...(input.customMask ? { customMask: input.customMask } : {}),
         } as any);
@@ -1449,6 +1450,7 @@ const resellerRouter = router({
           planName: plan.name,
           durationDays: plan.durationDays,
           creditsSpent: discountedPrice.toFixed(2),
+          resellerCredits: reseller.credits as string,
           note: `Compra via porcentagem - R$ ${totalCost.toFixed(2)}`,
         } as any);
         generatedKeys.push(row.keyValue);

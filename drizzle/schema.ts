@@ -143,6 +143,7 @@ export const licenseKeys = pgTable("license_keys", {
   planName: varchar("planName", { length: 64 }),
   durationDays: integer("durationDays").notNull(),
   creditsSpent: decimal("creditsSpent", { precision: 10, scale: 2 }).notNull(),
+  resellerCredits: decimal("resellerCredits", { precision: 12, scale: 2 }),
   status: keyStatusEnum("status").default("active").notNull(),
   usedBy: varchar("usedBy", { length: 128 }), // username who activated
   hwid: varchar("hwid", { length: 255 }),

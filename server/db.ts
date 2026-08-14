@@ -93,6 +93,30 @@ export async function ensureAppStockSchema(): Promise<void> {
   return _appStockSchemaReady;
 }
 
+let _licenseKeysSchemaReady: Promise<void> | null = null;
+
+export async function ensureLicenseKeysSchema(): Promise<void> {
+  await getDb();
+  if (!_sqlClient) throw new Error("DB not available");
+
+  if (!_licenseKeysSchemaReady) {
+    _licenseKeysSchemaReady = (async () => {
+      try {
+        await _sqlClient!.unsafe(`ALTER TABLE "license_keys" ADD COLUMN IF NOT EXISTS "resellerCredits" decimal(12, 2)`);
+      } catch (e) {
+        console.error("[Database] Failed to ensure license_keys schema:", e);
+        throw e;
+      }
+    })().then(() => undefined).catch(error => {
+      _licenseKeysSchemaReady = null;
+      console.error("[Database] Failed to ensure license_keys schema:", error);
+      throw new Error("Não foi possível preparar o banco para license keys");
+    });
+  }
+
+  return _licenseKeysSchemaReady;
+}
+
 let _appDownloadsSchemaReady: Promise<void> | null = null;
 
 export async function ensureAppDownloadsSchema(): Promise<void> {
@@ -363,18 +387,39 @@ export async function getAssignedAppIds(resellerId: number): Promise<number[]> {
 
 // ─── License Keys ─────────────────────────────────────────────────────────────
 export async function getKeysByResellerId(resellerId: number) {
+  await ensureLicenseKeysSchema();
   const db = await getDb();
   if (!db) return [];
   return db.select().from(licenseKeys).where(eq(licenseKeys.resellerId, resellerId)).orderBy(desc(licenseKeys.createdAt));
 }
 
 export async function getAllKeys() {
+  await ensureLicenseKeysSchema();
   const db = await getDb();
   if (!db) return [];
   return db.select().from(licenseKeys).orderBy(desc(licenseKeys.createdAt));
 }
 
+export async function getAllKeysWithReseller() {
+  await ensureLicenseKeysSchema();
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db.select({
+    key: licenseKeys,
+    reseller: resellers,
+  })
+    .from(licenseKeys)
+    .leftJoin(resellers, eq(licenseKeys.resellerId, resellers.id))
+    .orderBy(desc(licenseKeys.createdAt));
+  return rows.map(r => ({
+    ...r.key,
+    resellerName: r.reseller?.username ?? "—",
+    resellerType: r.reseller?.resellerType ?? "credits",
+  }));
+}
+
 export async function getKeyById(id: number) {
+  await ensureLicenseKeysSchema();
   const db = await getDb();
   if (!db) return undefined;
   const result = await db.select().from(licenseKeys).where(eq(licenseKeys.id, id)).limit(1);
@@ -382,6 +427,7 @@ export async function getKeyById(id: number) {
 }
 
 export async function createLicenseKey(data: InsertLicenseKey) {
+  await ensureLicenseKeysSchema();
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   // Build INSERT with only the required + explicitly provided optional fields
@@ -405,6 +451,7 @@ export async function createLicenseKey(data: InsertLicenseKey) {
 }
 
 export async function updateLicenseKey(id: number, data: Partial<InsertLicenseKey>) {
+  await ensureLicenseKeysSchema();
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   await db.update(licenseKeys).set(data).where(eq(licenseKeys.id, id));
@@ -544,6 +591,7 @@ export async function getPixPaymentsByReseller(resellerId: number) {
 }
 
 export async function getKeysByPaymentId(paymentId: string): Promise<string[]> {
+  await ensureLicenseKeysSchema();
   const db = await getDb();
   if (!db) return [];
   // Support both pix: and ltc: prefixes for payment notes
