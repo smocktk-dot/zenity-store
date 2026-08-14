@@ -13,7 +13,6 @@ import {
   updatePixPaymentStatus,
   updateResellerCredits,
 } from "./db";
-import { calcDiscount } from "./resellerPricing";
 
 const FINAL_PAYMENT_STATUSES = new Set(["expired", "cancelled", "refunded"]);
 const PURIN_API_KEY = process.env.PURIN_CASH_API_KEY;
@@ -170,12 +169,11 @@ export async function processPurinPaymentUpdate(
 
       if (payment.status !== "paid") {
         const newPurchases = reseller.totalPurchases + quantity;
-        const newDiscount = calcDiscount(newPurchases);
         await updateResellerCredits(
           payment.resellerId,
           reseller.credits as string,
           newPurchases,
-          newDiscount.toFixed(2),
+          reseller.discountPercent as string,
         );
       }
       await updatePixPaymentStatus(paymentId, "paid", paidAt);

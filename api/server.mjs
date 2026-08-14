@@ -1552,15 +1552,6 @@ var systemRouter = router({
 // server/purinCashWebhook.ts
 init_db();
 import crypto2 from "crypto";
-
-// server/resellerPricing.ts
-function calcDiscount(totalPurchases) {
-  if (totalPurchases >= 20) return 50;
-  if (totalPurchases >= 10) return 40;
-  return 35;
-}
-
-// server/purinCashWebhook.ts
 var FINAL_PAYMENT_STATUSES = /* @__PURE__ */ new Set(["expired", "cancelled", "refunded"]);
 var PURIN_API_KEY = process.env.PURIN_CASH_API_KEY;
 var PURIN_WEBHOOK_SECRET = process.env.PURINCASH_WEBHOOK_SECRET;
@@ -1682,12 +1673,11 @@ async function processPurinPaymentUpdate(paymentId, status, paidAt) {
       }
       if (payment.status !== "paid") {
         const newPurchases = reseller.totalPurchases + quantity;
-        const newDiscount = calcDiscount(newPurchases);
         await updateResellerCredits(
           payment.resellerId,
           reseller.credits,
           newPurchases,
-          newDiscount.toFixed(2)
+          reseller.discountPercent
         );
       }
       await updatePixPaymentStatus(paymentId, "paid", paidAt);
