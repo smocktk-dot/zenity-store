@@ -5,26 +5,26 @@
 
 /* ─── Design Tokens ─── */
 @theme inline {
-  --color-background: oklch(0.06 0.01 280);
-  --color-foreground: oklch(0.95 0.01 280);
-  --color-card: oklch(0.09 0.015 280);
-  --color-card-foreground: oklch(0.95 0.01 280);
-  --color-popover: oklch(0.09 0.015 280);
-  --color-popover-foreground: oklch(0.95 0.01 280);
-  --color-primary: oklch(0.55 0.28 290);
-  --color-primary-foreground: oklch(1 0 0);
-  --color-secondary: oklch(0.13 0.02 280);
-  --color-secondary-foreground: oklch(0.85 0.01 280);
-  --color-muted: oklch(0.13 0.02 280);
-  --color-muted-foreground: oklch(0.55 0.02 280);
-  --color-accent: oklch(0.55 0.28 290);
-  --color-accent-foreground: oklch(1 0 0);
+  --color-background: oklch(0.045 0.005 160);
+  --color-foreground: oklch(0.96 0.005 160);
+  --color-card: oklch(0.07 0.01 160);
+  --color-card-foreground: oklch(0.96 0.005 160);
+  --color-popover: oklch(0.07 0.01 160);
+  --color-popover-foreground: oklch(0.96 0.005 160);
+  --color-primary: oklch(0.65 0.18 160);
+  --color-primary-foreground: oklch(0.08 0.005 160);
+  --color-secondary: oklch(0.10 0.01 160);
+  --color-secondary-foreground: oklch(0.80 0.01 160);
+  --color-muted: oklch(0.10 0.01 160);
+  --color-muted-foreground: oklch(0.55 0.01 160);
+  --color-accent: oklch(0.65 0.18 160);
+  --color-accent-foreground: oklch(0.08 0.005 160);
   --color-destructive: oklch(0.55 0.22 25);
   --color-destructive-foreground: oklch(1 0 0);
-  --color-border: oklch(0.18 0.02 280);
-  --color-input: oklch(0.13 0.02 280);
-  --color-ring: oklch(0.55 0.28 290);
-  --radius: 0.75rem;
+  --color-border: oklch(0.14 0.01 160);
+  --color-input: oklch(0.10 0.01 160);
+  --color-ring: oklch(0.65 0.18 160);
+  --radius: 0.875rem;
   --font-sans: 'Inter', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 }
@@ -56,12 +56,14 @@
   }
 }
 
-/* ─── Galaxy Background ─── */
+/* ─── Euphon-inspired starfield ─── */
 .galaxy-bg {
   position: fixed;
   inset: 0;
   z-index: 0;
-  background: #080810;
+  background:
+    radial-gradient(ellipse 120% 100% at 50% 0%, rgba(16, 185, 129, 0.08) 0%, transparent 45%),
+    #050505;
   overflow: hidden;
   pointer-events: none;
 }
@@ -72,11 +74,12 @@
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(ellipse 80% 60% at 20% 30%, rgba(120, 40, 220, 0.18) 0%, transparent 60%),
-    radial-gradient(ellipse 60% 50% at 80% 70%, rgba(80, 20, 180, 0.14) 0%, transparent 60%),
-    radial-gradient(ellipse 50% 40% at 50% 10%, rgba(160, 60, 255, 0.10) 0%, transparent 55%),
-    radial-gradient(ellipse 40% 30% at 10% 80%, rgba(60, 10, 140, 0.12) 0%, transparent 55%);
+    radial-gradient(ellipse 80% 60% at 20% 30%, rgba(16, 185, 129, 0.12) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 50% at 80% 70%, rgba(5, 150, 105, 0.08) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 40% at 50% 10%, rgba(16, 185, 129, 0.08) 0%, transparent 55%),
+    radial-gradient(ellipse 40% 30% at 10% 80%, rgba(52, 211, 153, 0.06) 0%, transparent 55%);
   animation: nebula-drift 20s ease-in-out infinite alternate;
+  filter: blur(2px);
 }
 
 /* Stars layer 1 - small */
@@ -193,21 +196,43 @@
 /* ─── Scrollbar ─── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(130, 60, 220, 0.4); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(150, 80, 255, 0.6); }
+::-webkit-scrollbar-thumb { background: rgba(16, 185, 129, 0.4); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(52, 211, 153, 0.6); }
 
-/* ─── Zenity brand colors ─── */
-.zenity-gradient {
-  background: linear-gradient(135deg, #7c3aed, #9333ea, #6d28d9);
+/* ─── Euphon brand colors ─── */
+.euphon-gradient {
+  background: linear-gradient(135deg, #10b981 0%, #059669 50%, #047857 100%);
 }
-.zenity-glow {
-  box-shadow: 0 0 20px rgba(124, 58, 237, 0.4), 0 0 40px rgba(124, 58, 237, 0.15);
+.euphon-glow {
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.35), 0 0 40px rgba(16, 185, 129, 0.12);
 }
-.zenity-text-gradient {
-  background: linear-gradient(135deg, #a78bfa, #c084fc, #818cf8);
+.euphon-glow-strong {
+  box-shadow: 0 0 30px rgba(16, 185, 129, 0.45), 0 0 60px rgba(16, 185, 129, 0.2);
+}
+.euphon-text-gradient {
+  background: linear-gradient(135deg, #34d399 0%, #10b981 50%, #6ee7b7 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+}
+.zenity-gradient {
+  background: linear-gradient(135deg, #10b981, #059669, #047857);
+}
+.zenity-glow {
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.35), 0 0 40px rgba(16, 185, 129, 0.12);
+}
+.zenity-text-gradient {
+  background: linear-gradient(135deg, #34d399, #10b981, #6ee7b7);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ─── Primary button glow ─── */
+[data-slot="button"].bg-primary,
+button.bg-primary,
+.bg-primary {
+  box-shadow: 0 0 18px rgba(16, 185, 129, 0.25), inset 0 1px 0 rgba(255,255,255,0.12);
 }
 
 /* ─── Button active scale ─── */

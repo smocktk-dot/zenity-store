@@ -233,7 +233,7 @@ export default function LoginPage() {
       <div className="absolute inset-0 z-0 pointer-events-none">
         <div
           className="absolute top-1/4 left-1/4 w-[500px] h-[500px] rounded-full"
-          style={{ background: "radial-gradient(circle, rgba(124,58,237,0.15) 0%, transparent 70%)", filter: "blur(80px)" }}
+          style={{ background: "radial-gradient(circle, rgba(16,185,129,0.15) 0%, transparent 70%)", filter: "blur(80px)" }}
         />
         <div
           className="absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full"
@@ -254,11 +254,11 @@ export default function LoginPage() {
               src={LOGO_URL}
               alt="Zenity Store"
               className="w-16 h-16 object-contain"
-              style={{ filter: "drop-shadow(0 0 20px rgba(124,58,237,0.6))" }}
+              style={{ filter: "drop-shadow(0 0 20px rgba(16,185,129,0.6))" }}
             />
             <div className="text-left">
               <h1 className="text-4xl font-black tracking-tight text-white leading-none">ZENITY</h1>
-              <p className="text-sm font-bold tracking-[0.4em] mt-0.5" style={{ color: "#a78bfa" }}>STORE</p>
+              <p className="text-sm font-bold tracking-[0.4em] mt-0.5" style={{ color: "#34d399" }}>STORE</p>
             </div>
           </div>
           <p className="text-gray-500 text-sm">{t.login_title}</p>
@@ -270,15 +270,15 @@ export default function LoginPage() {
           style={{
             background: "rgba(10,8,20,0.88)",
             backdropFilter: "blur(24px)",
-            borderColor: "rgba(124,58,237,0.2)",
-            boxShadow: "0 0 80px rgba(124,58,237,0.1), 0 30px 60px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.05)",
+            borderColor: "rgba(16,185,129,0.2)",
+            boxShadow: "0 0 80px rgba(16,185,129,0.1), 0 30px 60px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.05)",
           }}
         >
           {/* Form */}
           <div className="p-8">
             <div className="flex items-center gap-2.5 mb-7">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(124,58,237,0.2)", border: "1px solid rgba(124,58,237,0.3)" }}>
-                <LogIn className="w-4 h-4" style={{ color: "#a78bfa" }} />
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(16,185,129,0.2)", border: "1px solid rgba(16,185,129,0.3)" }}>
+                <LogIn className="w-4 h-4" style={{ color: "#34d399" }} />
               </div>
               <div>
                 <h2 className="text-white font-bold text-lg leading-none">{t.login_reseller_access}</h2>
@@ -296,7 +296,7 @@ export default function LoginPage() {
                   autoComplete="username"
                   className="h-11 text-white placeholder:text-gray-600 transition-all"
                   style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
-                  onFocus={e => { e.currentTarget.style.borderColor = "rgba(124,58,237,0.5)"; }}
+                  onFocus={e => { e.currentTarget.style.borderColor = "rgba(16,185,129,0.5)"; }}
                   onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"; }}
                 />
               </div>
@@ -311,7 +311,7 @@ export default function LoginPage() {
                     autoComplete="current-password"
                     className="h-11 text-white placeholder:text-gray-600 pr-10 transition-all"
                     style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
-                    onFocus={e => { e.currentTarget.style.borderColor = "rgba(124,58,237,0.5)"; }}
+                    onFocus={e => { e.currentTarget.style.borderColor = "rgba(16,185,129,0.5)"; }}
                     onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"; }}
                   />
                   <button
@@ -340,8 +340,8 @@ export default function LoginPage() {
                 disabled={isLoading}
                 className="w-full h-11 rounded-lg font-semibold text-sm text-white mt-2 flex items-center justify-center gap-2 transition-all"
                 style={{
-                  background: isLoading ? "rgba(124,58,237,0.4)" : "linear-gradient(135deg, #7c3aed 0%, #9333ea 100%)",
-                  boxShadow: isLoading ? "none" : "0 4px 24px rgba(124,58,237,0.45), 0 1px 0 rgba(255,255,255,0.1) inset",
+                  background: isLoading ? "rgba(16,185,129,0.4)" : "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+                  boxShadow: isLoading ? "none" : "0 4px 24px rgba(16,185,129,0.45), 0 1px 0 rgba(255,255,255,0.1) inset",
                   border: "none",
                   cursor: isLoading ? "not-allowed" : "pointer",
                 }}
@@ -469,7 +469,7 @@ export default function LoginPage() {
                 type="submit"
                 disabled={submit.isPending}
                 className="flex-1 text-white"
-                style={{ background: "linear-gradient(135deg, #7c3aed, #8b5cf6)" }}
+                style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}
               >
                 {submit.isPending ? "Enviando..." : "Enviar aplicação"}
               </Button>
@@ -545,7 +545,7 @@ export default function LoginPage() {
                 type="submit"
                 disabled={submitSupport.isPending}
                 className="flex-1 text-white"
-                style={{ background: "linear-gradient(135deg, #7c3aed, #8b5cf6)" }}
+                style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}
               >
                 {submitSupport.isPending ? "Enviando..." : "Abrir ticket"}
               </Button>
@@ -581,8 +581,8 @@ export default function LoginPage() {
           onClick={() => setShowAppChat(true)}
           className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full flex items-center justify-center text-white shadow-2xl transition-transform hover:scale-110"
           style={{
-            background: isPreApproved ? "linear-gradient(135deg, #22c55e, #16a34a)" : "linear-gradient(135deg, #7c3aed, #8b5cf6)",
-            boxShadow: isPreApproved ? "0 4px 24px rgba(34,197,94,0.45)" : "0 4px 24px rgba(124,58,237,0.45)",
+            background: isPreApproved ? "linear-gradient(135deg, #22c55e, #16a34a)" : "linear-gradient(135deg, #10b981, #059669)",
+            boxShadow: isPreApproved ? "0 4px 24px rgba(34,197,94,0.45)" : "0 4px 24px rgba(16,185,129,0.45)",
           }}
           title="Meu chat com a administração"
         >
@@ -629,8 +629,8 @@ export default function LoginPage() {
                     <div
                       className={`max-w-[80%] rounded-2xl px-4 py-3 ${isApplicant ? "rounded-tr-sm" : "rounded-tl-sm"}`}
                       style={{
-                        background: isApplicant ? "linear-gradient(135deg, rgba(124,58,237,0.25), rgba(139,92,246,0.1))" : "rgba(255,255,255,0.05)",
-                        border: isApplicant ? "1px solid rgba(124,58,237,0.3)" : "1px solid rgba(255,255,255,0.08)",
+                        background: isApplicant ? "linear-gradient(135deg, rgba(16,185,129,0.25), rgba(139,92,246,0.1))" : "rgba(255,255,255,0.05)",
+                        border: isApplicant ? "1px solid rgba(16,185,129,0.3)" : "1px solid rgba(255,255,255,0.08)",
                       }}
                     >
                       <p className="text-[10px] text-gray-500 mb-0.5 font-semibold uppercase">{isApplicant ? "Você" : "Admin"}</p>
@@ -657,7 +657,7 @@ export default function LoginPage() {
                   type="submit"
                   disabled={sendAppMessage.isPending || !appChatText.trim()}
                   className="h-[60px] w-12 p-0 text-white"
-                  style={{ background: "linear-gradient(135deg, #7c3aed, #8b5cf6)" }}
+                  style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}
                 >
                   <Send className="w-4 h-4" />
                 </Button>
