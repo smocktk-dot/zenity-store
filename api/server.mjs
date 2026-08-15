@@ -2697,6 +2697,89 @@ var resellerRouter = router({
       status: "pending"
     };
   }),
+  // Criar cobrança LTC para compra de créditos
+  createLtcCreditsCharge: resellerProcedure.input(z2.object({
+    credits: z2.number().min(1, "M\xEDnimo 1 cr\xE9dito").max(1e4, "M\xE1ximo 10000 cr\xE9ditos")
+  })).mutation(async ({ ctx, input }) => {
+    const PURIN_API_KEY2 = process.env.PURIN_CASH_API_KEY;
+    if (!PURIN_API_KEY2) throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: "Pagamento Crypto n\xE3o configurado" });
+    const reseller = ctx.reseller;
+    const totalCost = input.credits;
+    const amountCents = Math.round(input.credits * 100);
+    if (amountCents < 100) throw new TRPCError3({ code: "BAD_REQUEST", message: "Valor m\xEDnimo \xE9 R$ 1,00" });
+    let ltcPriceBrl = 0;
+    try {
+      const priceRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=litecoin&vs_currencies=brl", { headers: { "Accept": "application/json" } });
+      if (priceRes.ok) {
+        const priceData = await priceRes.json();
+        ltcPriceBrl = priceData?.litecoin?.brl || 0;
+      }
+    } catch (e) {
+      console.warn("[CoinGecko] LTC price failed:", e);
+    }
+    if (!ltcPriceBrl) {
+      try {
+        const binanceRes = await fetch("https://api.binance.com/api/v3/ticker/price?symbol=LTCBRL");
+        if (binanceRes.ok) {
+          const bd = await binanceRes.json();
+          ltcPriceBrl = parseFloat(bd?.price || "0");
+        }
+      } catch (e) {
+        console.warn("[Binance] LTC price failed:", e);
+      }
+    }
+    if (!ltcPriceBrl) ltcPriceBrl = 800;
+    const ltcAmountCalc = parseFloat((totalCost / ltcPriceBrl).toFixed(8));
+    const callbackUrl = `${process.env.VITE_APP_URL || "https://vgsellers.lat"}/api/webhooks/purincash`;
+    const body = {
+      valueCents: amountCents,
+      description: `Compra de ${input.credits} cr\xE9dito(s) - VG SELLERS`,
+      paymentMethod: "ltc",
+      callbackUrl,
+      customer: {
+        name: reseller.username,
+        email: reseller.email || `${reseller.username}@zenitystore.com`,
+        externalId: String(reseller.id)
+      },
+      metadata: JSON.stringify({ resellerId: reseller.id, credits: input.credits })
+    };
+    const response = await fetch("https://api.purincash.com/v1/payments", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${PURIN_API_KEY2}`
+      },
+      body: JSON.stringify(body)
+    });
+    if (!response.ok) {
+      const err = await response.text();
+      console.error("[PurinCash LTC Credits] Error creating charge:", err);
+      throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: `Erro ao criar cobran\xE7a LTC: ${err}` });
+    }
+    const data = await response.json();
+    const ltcAddress = data.ltc?.address || data.crypto?.address || data.address || "LaaSCwpGiZhtrCD8qWxiZGdwEFYnHqxDxK";
+    await createPixPayment({
+      resellerId: reseller.id,
+      paymentId: data.paymentId,
+      amountCents: data.amountCents,
+      credits: input.credits.toFixed(2),
+      status: "pending",
+      brCode: null,
+      qrCodeImage: null,
+      expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
+      paymentMethod: "ltc"
+    });
+    return {
+      paymentId: data.paymentId,
+      amountCents: data.amountCents || amountCents,
+      credits: input.credits,
+      ltcAddress,
+      ltcAmount: ltcAmountCalc,
+      ltcPriceBrl,
+      expiresAt: data.expiresAt,
+      status: "pending"
+    };
+  }),
   checkPixStatus: resellerProcedure.input(z2.object({ paymentId: z2.string() })).query(async ({ ctx, input }) => {
     let payment = await getPixPaymentByPaymentId(input.paymentId);
     if (!payment || payment.resellerId !== ctx.resellerId) {

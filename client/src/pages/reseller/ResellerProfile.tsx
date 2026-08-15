@@ -1,9 +1,10 @@
 import { trpc } from "@/lib/trpc";
 import {
   CreditCard, Percent, TrendingUp, ShoppingBag, Calendar, MapPin, Clock,
-  ArrowUpRight, ArrowDownRight, Plus, User, Mail, QrCode, Copy, CheckCircle2,
-  Loader2, RefreshCw, X, Zap,
+  ArrowUpRight, ArrowDownRight, ArrowRight, Plus, User, Mail, QrCode, Copy, CheckCircle2,
+  Loader2, RefreshCw, X, Zap, Bitcoin,
 } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,12 +31,16 @@ interface PixModalProps {
   onSuccess: () => void;
 }
 
+type BuyStep = "select" | "method" | "pending-pix" | "pending-ltc" | "paid";
+
 function BuyCreditsModal({ open, onClose, currentCredits, onSuccess }: PixModalProps) {
   const { t, language } = useLanguage();
-  const [step, setStep] = useState<PixStep>("select");
+  const [step, setStep] = useState<BuyStep>("select");
   const [amount, setAmount] = useState("");
   const [copied, setCopied] = useState(false);
+  const [copiedLtc, setCopiedLtc] = useState(false);
   const { fmt, fmtCents } = useCurrency();
+  const [paymentId, setPaymentId] = useState("");
   const [pixData, setPixData] = useState<{
     paymentId: string;
     brCode: string;
@@ -44,8 +49,20 @@ function BuyCreditsModal({ open, onClose, currentCredits, onSuccess }: PixModalP
     amountCents: number;
     expiresAt?: string;
   } | null>(null);
+  const [ltcData, setLtcData] = useState<{
+    paymentId: string;
+    credits: number;
+    amountCents: number;
+    totalCost: number;
+    ltcAddress: string;
+    ltcAmount: number;
+    ltcPriceBrl: number;
+    expiresAt?: string;
+  } | null>(null);
 
-  const createCharge = trpc.reseller.createPixCharge.useMutation({
+  const activePaymentId = pixData?.paymentId || ltcData?.paymentId || "";
+
+  const createPix = trpc.reseller.createPixCharge.useMutation({
     onSuccess: (data) => {
       setPixData({
         paymentId: data.paymentId,
@@ -55,23 +72,40 @@ function BuyCreditsModal({ open, onClose, currentCredits, onSuccess }: PixModalP
         amountCents: data.amountCents,
         expiresAt: data.expiresAt,
       });
-      setStep("pending");
+      setPaymentId(data.paymentId);
+      setStep("pending-pix");
     },
-    onError: (err) => {
-      toast.error(err.message || t.buy_credits_error);
+    onError: (err) => toast.error(err.message || t.buy_credits_error),
+  });
+
+  const createLtc = trpc.reseller.createLtcCreditsCharge.useMutation({
+    onSuccess: (data) => {
+      setLtcData({
+        paymentId: data.paymentId,
+        credits: data.credits,
+        amountCents: data.amountCents,
+        totalCost: data.credits,
+        ltcAddress: data.ltcAddress,
+        ltcAmount: data.ltcAmount,
+        ltcPriceBrl: data.ltcPriceBrl,
+        expiresAt: data.expiresAt,
+      });
+      setPaymentId(data.paymentId);
+      setStep("pending-ltc");
     },
+    onError: (err) => toast.error(err.message || t.buy_credits_error),
   });
 
   const { data: statusData, refetch: refetchStatus } = trpc.reseller.checkPixStatus.useQuery(
-    { paymentId: pixData?.paymentId || "" },
+    { paymentId: activePaymentId },
     {
-      enabled: step === "pending" && !!pixData?.paymentId,
-      refetchInterval: step === "pending" ? 4000 : false,
+      enabled: (step === "pending-pix" || step === "pending-ltc") && !!activePaymentId,
+      refetchInterval: (step === "pending-pix" || step === "pending-ltc") ? 4000 : false,
     }
   );
 
   useEffect(() => {
-    if (statusData?.status === "paid" && step === "pending") {
+    if (statusData?.status === "paid" && (step === "pending-pix" || step === "pending-ltc")) {
       setStep("paid");
       toast.success(t.buy_credits_confirmed_title);
       onSuccess();
@@ -82,7 +116,10 @@ function BuyCreditsModal({ open, onClose, currentCredits, onSuccess }: PixModalP
     setStep("select");
     setAmount("");
     setPixData(null);
+    setLtcData(null);
+    setPaymentId("");
     setCopied(false);
+    setCopiedLtc(false);
     onClose();
   }, [onClose]);
 
@@ -95,10 +132,29 @@ function BuyCreditsModal({ open, onClose, currentCredits, onSuccess }: PixModalP
     });
   };
 
-  const handleGenerate = () => {
+  const handleCopyLtc = () => {
+    if (!ltcData?.ltcAddress) return;
+    navigator.clipboard.writeText(ltcData.ltcAddress).then(() => {
+      setCopiedLtc(true);
+      toast.success(language === "en" ? "LTC address copied!" : "Endereço LTC copiado!");
+      setTimeout(() => setCopiedLtc(false), 2500);
+    });
+  };
+
+  const handleContinue = () => {
     const n = parseInt(amount);
     if (!n || n < 1) { toast.error(t.buy_credits_invalid_amount); return; }
-    createCharge.mutate({ credits: n });
+    setStep("method");
+  };
+
+  const handlePix = () => {
+    const n = parseInt(amount);
+    createPix.mutate({ credits: n });
+  };
+
+  const handleLtc = () => {
+    const n = parseInt(amount);
+    createLtc.mutate({ credits: n });
   };
 
   const presets = [10, 25, 50, 100, 250, 500];
@@ -202,23 +258,68 @@ function BuyCreditsModal({ open, onClose, currentCredits, onSuccess }: PixModalP
                   {t.buy_credits_cancel}
                 </Button>
                 <Button
-                  onClick={handleGenerate}
-                  disabled={createCharge.isPending || !amount || parseInt(amount) < 1}
+                  onClick={handleContinue}
+                  disabled={!amount || parseInt(amount) < 1}
                   className="flex-1 h-11 font-semibold text-white gap-2"
                   style={{ background: "linear-gradient(135deg, #10b981, #059669)", boxShadow: "0 4px 20px rgba(16,185,129,0.35)" }}
                 >
-                  {createCharge.isPending ? (
-                    <><Loader2 className="w-4 h-4 animate-spin" /> {t.buy_credits_generating}</>
-                  ) : (
-                    <><QrCode className="w-4 h-4" /> {t.buy_credits_generate_pix}</>
-                  )}
+                  {language === "en" ? "Continue" : "Continuar"} <ArrowRight className="w-4 h-4" />
                 </Button>
               </div>
             </div>
           )}
 
-          {/* ── Step: Pending payment ── */}
-          {step === "pending" && pixData && (
+          {/* ── Step: Select method ── */}
+          {step === "method" && (
+            <div className="p-6 space-y-5">
+              <div className="text-center">
+                <p className="text-gray-500 text-xs mb-1">{language === "en" ? "Amount" : "Quantidade"}</p>
+                <p className="text-white text-3xl font-bold font-mono">{amount} {t.general_credits}</p>
+                <p className="text-gray-500 text-xs mt-1">{language === "en" ? "Select payment method" : "Selecione o método de pagamento"}</p>
+              </div>
+
+              <button
+                onClick={handlePix}
+                disabled={createPix.isPending}
+                className="w-full rounded-2xl p-4 text-left transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
+                style={{ background: "linear-gradient(135deg, rgba(34,197,94,0.12), rgba(16,185,129,0.05))", border: "1px solid rgba(34,197,94,0.3)" }}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ background: "rgba(34,197,94,0.15)", border: "1px solid rgba(34,197,94,0.3)" }}>
+                    {createPix.isPending ? <Loader2 className="w-5 h-5 text-green-400 animate-spin" /> : <QrCode className="w-5 h-5 text-green-400" />}
+                  </div>
+                  <div>
+                    <p className="text-white font-semibold text-sm">Pix</p>
+                    <p className="text-gray-400 text-xs">{language === "en" ? "Pay with QR code" : "Pagar com QR code"}</p>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                onClick={handleLtc}
+                disabled={createLtc.isPending}
+                className="w-full rounded-2xl p-4 text-left transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
+                style={{ background: "linear-gradient(135deg, rgba(251,191,36,0.12), rgba(245,158,11,0.05))", border: "1px solid rgba(251,191,36,0.3)" }}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ background: "rgba(251,191,36,0.15)", border: "1px solid rgba(251,191,36,0.3)" }}>
+                    {createLtc.isPending ? <Loader2 className="w-5 h-5 text-yellow-400 animate-spin" /> : <Bitcoin className="w-5 h-5 text-yellow-400" />}
+                  </div>
+                  <div>
+                    <p className="text-white font-semibold text-sm">Crypto (LTC)</p>
+                    <p className="text-gray-400 text-xs">{language === "en" ? "Pay with Litecoin" : "Pagar com Litecoin"}</p>
+                  </div>
+                </div>
+              </button>
+
+              <Button variant="outline" onClick={() => setStep("select")} className="w-full border-white/10 text-gray-400 hover:text-gray-200 bg-transparent h-11">
+                {language === "en" ? "Back" : "Voltar"}
+              </Button>
+            </div>
+          )}
+
+          {/* ── Step: Pending Pix ── */}
+          {step === "pending-pix" && pixData && (
             <div className="p-6 space-y-5">
               <div className="text-center">
                 <p className="text-gray-500 text-xs mb-1">{t.buy_credits_amount_to_pay}</p>
@@ -230,6 +331,10 @@ function BuyCreditsModal({ open, onClose, currentCredits, onSuccess }: PixModalP
                 {pixData.qrCodeImage ? (
                   <div className="rounded-xl overflow-hidden p-3" style={{ background: "white", border: "3px solid rgba(16,185,129,0.4)" }}>
                     <img src={pixData.qrCodeImage} alt="QR Code Pix" className="w-44 h-44 object-contain" />
+                  </div>
+                ) : pixData.brCode ? (
+                  <div className="rounded-xl overflow-hidden p-3" style={{ background: "white", border: "3px solid rgba(16,185,129,0.4)" }}>
+                    <QRCodeSVG value={pixData.brCode} size={176} />
                   </div>
                 ) : (
                   <div className="w-52 h-52 rounded-xl flex items-center justify-center" style={{ background: "rgba(16,185,129,0.08)", border: "2px dashed rgba(16,185,129,0.3)" }}>
@@ -272,6 +377,59 @@ function BuyCreditsModal({ open, onClose, currentCredits, onSuccess }: PixModalP
             </div>
           )}
 
+          {/* ── Step: Pending LTC ── */}
+          {step === "pending-ltc" && ltcData && (
+            <div className="p-6 space-y-5">
+              <div className="text-center">
+                <p className="text-gray-500 text-xs mb-1">{language === "en" ? "Amount to pay" : "Valor a pagar"}</p>
+                <p className="text-white text-4xl font-bold font-mono">{fmtCents(ltcData.amountCents)}</p>
+                <p className="text-yellow-400 text-sm mt-1">+{ltcData.credits} {t.general_credits}</p>
+              </div>
+
+              <div className="rounded-2xl p-4 space-y-3" style={{ background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.2)" }}>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-400 text-xs">{language === "en" ? "LTC amount:" : "Quantidade LTC:"}</span>
+                  <span className="text-yellow-400 font-mono font-bold text-sm">{ltcData.ltcAmount.toFixed(6)} LTC</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-400 text-xs">{language === "en" ? "LTC price:" : "Preço LTC:"}</span>
+                  <span className="text-gray-300 font-mono text-xs">R$ {ltcData.ltcPriceBrl.toFixed(2)}</span>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-gray-500 text-xs mb-2 text-center">{language === "en" ? "Send LTC to this address" : "Envie LTC para este endereço"}</p>
+                <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(251,191,36,0.25)" }}>
+                  <div className="px-3 py-2.5 bg-white/[0.03]">
+                    <p className="text-gray-400 text-xs font-mono break-all">{ltcData.ltcAddress}</p>
+                  </div>
+                  <button
+                    onClick={handleCopyLtc}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 text-sm font-medium transition-all"
+                    style={{ background: copiedLtc ? "rgba(34,197,94,0.15)" : "rgba(251,191,36,0.15)", color: copiedLtc ? "#4ade80" : "#fbbf24" }}
+                  >
+                    {copiedLtc ? <><CheckCircle2 className="w-4 h-4" /> {language === "en" ? "Copied" : "Copiado"}</> : <><Copy className="w-4 h-4" /> {language === "en" ? "Copy address" : "Copiar endereço"}</>}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-center gap-1.5">
+                <div className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
+                <span className="text-yellow-400 text-xs font-medium">{language === "en" ? "Waiting for payment" : "Aguardando pagamento"}</span>
+              </div>
+
+              <div className="flex gap-3">
+                <Button variant="outline" onClick={handleClose} className="flex-1 border-white/10 text-gray-400 hover:text-gray-200 bg-transparent h-10 text-sm">
+                  {t.buy_credits_close}
+                </Button>
+                <Button variant="outline" onClick={() => refetchStatus()} className="flex-1 border-yellow-500/30 text-yellow-400 hover:text-yellow-300 bg-transparent h-10 text-sm gap-1.5">
+                  <RefreshCw className="w-3.5 h-3.5" /> {language === "en" ? "Verify" : "Verificar"}
+                </Button>
+              </div>
+              <p className="text-gray-600 text-xs text-center">{language === "en" ? "Payment will be confirmed automatically" : "O pagamento será confirmado automaticamente"}</p>
+            </div>
+          )}
+
           {/* ── Step: Paid ── */}
           {step === "paid" && (
             <div className="p-8 flex flex-col items-center gap-5 text-center">
@@ -281,7 +439,7 @@ function BuyCreditsModal({ open, onClose, currentCredits, onSuccess }: PixModalP
               <div>
                 <h3 className="text-white text-xl font-bold mb-1">{t.buy_credits_confirmed_title}</h3>
                 <p className="text-gray-400 text-sm">
-                  <span className="text-green-400 font-bold font-mono">+{pixData?.credits}</span> {t.buy_credits_confirmed_desc}
+                  <span className="text-green-400 font-bold font-mono">+{pixData?.credits ?? ltcData?.credits}</span> {t.buy_credits_confirmed_desc}
                 </p>
               </div>
               <Button onClick={handleClose} className="w-full h-11 font-semibold text-white" style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}>

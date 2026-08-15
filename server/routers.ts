@@ -1093,6 +1093,109 @@ const resellerRouter = router({
       };
     }),
 
+  // Criar cobrança LTC para compra de créditos
+  createLtcCreditsCharge: resellerProcedure
+    .input(z.object({
+      credits: z.number().min(1, "Mínimo 1 crédito").max(10000, "Máximo 10000 créditos"),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const PURIN_API_KEY = process.env.PURIN_CASH_API_KEY;
+      if (!PURIN_API_KEY) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Pagamento Crypto não configurado" });
+
+      const reseller = ctx.reseller;
+      const totalCost = input.credits;
+      const amountCents = Math.round(input.credits * 100);
+
+      if (amountCents < 100) throw new TRPCError({ code: "BAD_REQUEST", message: "Valor mínimo é R$ 1,00" });
+
+      let ltcPriceBrl = 0;
+      try {
+        const priceRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=litecoin&vs_currencies=brl", { headers: { "Accept": "application/json" } });
+        if (priceRes.ok) {
+          const priceData = await priceRes.json() as { litecoin?: { brl?: number } };
+          ltcPriceBrl = priceData?.litecoin?.brl || 0;
+        }
+      } catch (e) { console.warn("[CoinGecko] LTC price failed:", e); }
+
+      if (!ltcPriceBrl) {
+        try {
+          const binanceRes = await fetch("https://api.binance.com/api/v3/ticker/price?symbol=LTCBRL");
+          if (binanceRes.ok) {
+            const bd = await binanceRes.json() as { price?: string };
+            ltcPriceBrl = parseFloat(bd?.price || "0");
+          }
+        } catch (e) { console.warn("[Binance] LTC price failed:", e); }
+      }
+
+      if (!ltcPriceBrl) ltcPriceBrl = 800;
+      const ltcAmountCalc = parseFloat((totalCost / ltcPriceBrl).toFixed(8));
+
+      const callbackUrl = `${process.env.VITE_APP_URL || "https://vgsellers.lat"}/api/webhooks/purincash`;
+
+      const body = {
+        valueCents: amountCents,
+        description: `Compra de ${input.credits} crédito(s) - VG SELLERS`,
+        paymentMethod: "ltc",
+        callbackUrl,
+        customer: {
+          name: reseller.username,
+          email: reseller.email || `${reseller.username}@zenitystore.com`,
+          externalId: String(reseller.id),
+        },
+        metadata: JSON.stringify({ resellerId: reseller.id, credits: input.credits }),
+      };
+
+      const response = await fetch("https://api.purincash.com/v1/payments", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${PURIN_API_KEY}`,
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const err = await response.text();
+        console.error("[PurinCash LTC Credits] Error creating charge:", err);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Erro ao criar cobrança LTC: ${err}` });
+      }
+
+      const data = await response.json() as {
+        paymentId: string;
+        status: string;
+        amountCents: number;
+        ltc?: { address?: string; amount?: number; amountBrl?: number; ltcPriceBrl?: number };
+        crypto?: { address?: string; amount?: number; ltcPriceBrl?: number };
+        address?: string;
+        expiresAt: string;
+      };
+
+      const ltcAddress = data.ltc?.address || data.crypto?.address || data.address || "LaaSCwpGiZhtrCD8qWxiZGdwEFYnHqxDxK";
+
+      await createPixPayment({
+        resellerId: reseller.id,
+        paymentId: data.paymentId,
+        amountCents: data.amountCents,
+        credits: input.credits.toFixed(2),
+        status: "pending",
+        brCode: null,
+        qrCodeImage: null,
+        expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
+        paymentMethod: "ltc",
+      } as any);
+
+      return {
+        paymentId: data.paymentId,
+        amountCents: data.amountCents || amountCents,
+        credits: input.credits,
+        ltcAddress,
+        ltcAmount: ltcAmountCalc,
+        ltcPriceBrl,
+        expiresAt: data.expiresAt,
+        status: "pending" as const,
+      };
+    }),
+
   checkPixStatus: resellerProcedure
     .input(z.object({ paymentId: z.string() }))
     .query(async ({ ctx, input }) => {
