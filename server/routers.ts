@@ -1108,28 +1108,6 @@ const resellerRouter = router({
 
       if (amountCents < 100) throw new TRPCError({ code: "BAD_REQUEST", message: "Valor mínimo é R$ 1,00" });
 
-      let ltcPriceBrl = 0;
-      try {
-        const priceRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=litecoin&vs_currencies=brl", { headers: { "Accept": "application/json" } });
-        if (priceRes.ok) {
-          const priceData = await priceRes.json() as { litecoin?: { brl?: number } };
-          ltcPriceBrl = priceData?.litecoin?.brl || 0;
-        }
-      } catch (e) { console.warn("[CoinGecko] LTC price failed:", e); }
-
-      if (!ltcPriceBrl) {
-        try {
-          const binanceRes = await fetch("https://api.binance.com/api/v3/ticker/price?symbol=LTCBRL");
-          if (binanceRes.ok) {
-            const bd = await binanceRes.json() as { price?: string };
-            ltcPriceBrl = parseFloat(bd?.price || "0");
-          }
-        } catch (e) { console.warn("[Binance] LTC price failed:", e); }
-      }
-
-      if (!ltcPriceBrl) ltcPriceBrl = 800;
-      const ltcAmountCalc = parseFloat((totalCost / ltcPriceBrl).toFixed(8));
-
       const callbackUrl = `${process.env.VITE_APP_URL || "https://vgsellers.lat"}/api/webhooks/purincash`;
 
       const body = {
@@ -1171,6 +1149,8 @@ const resellerRouter = router({
       };
 
       const ltcAddress = data.ltc?.address || data.crypto?.address || data.address || "LaaSCwpGiZhtrCD8qWxiZGdwEFYnHqxDxK";
+      const ltcAmount = data.ltc?.amount || data.crypto?.amount || 0;
+      const ltcPriceBrl = data.ltc?.ltcPriceBrl || data.ltc?.amountBrl && ltcAmount ? data.ltc.amountBrl / ltcAmount : 0;
 
       await createPixPayment({
         resellerId: reseller.id,
@@ -1189,7 +1169,7 @@ const resellerRouter = router({
         amountCents: data.amountCents || amountCents,
         credits: input.credits,
         ltcAddress,
-        ltcAmount: ltcAmountCalc,
+        ltcAmount,
         ltcPriceBrl,
         expiresAt: data.expiresAt,
         status: "pending" as const,

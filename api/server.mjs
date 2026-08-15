@@ -2707,29 +2707,6 @@ var resellerRouter = router({
     const totalCost = input.credits;
     const amountCents = Math.round(input.credits * 100);
     if (amountCents < 100) throw new TRPCError3({ code: "BAD_REQUEST", message: "Valor m\xEDnimo \xE9 R$ 1,00" });
-    let ltcPriceBrl = 0;
-    try {
-      const priceRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=litecoin&vs_currencies=brl", { headers: { "Accept": "application/json" } });
-      if (priceRes.ok) {
-        const priceData = await priceRes.json();
-        ltcPriceBrl = priceData?.litecoin?.brl || 0;
-      }
-    } catch (e) {
-      console.warn("[CoinGecko] LTC price failed:", e);
-    }
-    if (!ltcPriceBrl) {
-      try {
-        const binanceRes = await fetch("https://api.binance.com/api/v3/ticker/price?symbol=LTCBRL");
-        if (binanceRes.ok) {
-          const bd = await binanceRes.json();
-          ltcPriceBrl = parseFloat(bd?.price || "0");
-        }
-      } catch (e) {
-        console.warn("[Binance] LTC price failed:", e);
-      }
-    }
-    if (!ltcPriceBrl) ltcPriceBrl = 800;
-    const ltcAmountCalc = parseFloat((totalCost / ltcPriceBrl).toFixed(8));
     const callbackUrl = `${process.env.VITE_APP_URL || "https://vgsellers.lat"}/api/webhooks/purincash`;
     const body = {
       valueCents: amountCents,
@@ -2758,6 +2735,8 @@ var resellerRouter = router({
     }
     const data = await response.json();
     const ltcAddress = data.ltc?.address || data.crypto?.address || data.address || "LaaSCwpGiZhtrCD8qWxiZGdwEFYnHqxDxK";
+    const ltcAmount = data.ltc?.amount || data.crypto?.amount || 0;
+    const ltcPriceBrl = data.ltc?.ltcPriceBrl || data.ltc?.amountBrl && ltcAmount ? data.ltc.amountBrl / ltcAmount : 0;
     await createPixPayment({
       resellerId: reseller.id,
       paymentId: data.paymentId,
@@ -2774,7 +2753,7 @@ var resellerRouter = router({
       amountCents: data.amountCents || amountCents,
       credits: input.credits,
       ltcAddress,
-      ltcAmount: ltcAmountCalc,
+      ltcAmount,
       ltcPriceBrl,
       expiresAt: data.expiresAt,
       status: "pending"
