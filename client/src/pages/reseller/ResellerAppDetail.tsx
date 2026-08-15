@@ -823,12 +823,9 @@ function PercentageAppDetail({ app, id }: { app: any; id: number }) {
   return (
     <>
       <Tabs defaultValue="overview">
-        <TabsList className="bg-white/5 border border-white/10">
-          <TabsTrigger value="overview" className="data-[state=active]:bg-white/10 data-[state=active]:text-white text-gray-400 font-bold text-sm">{t.apps_overview}</TabsTrigger>
-          <TabsTrigger value="buy" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white text-gray-400 gap-1.5 font-bold text-sm">
-            <ShoppingCart className="w-3.5 h-3.5" /> {t.apps_buy_keys}
-          </TabsTrigger>
-          <TabsTrigger value="downloads" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white text-gray-400 gap-1.5 font-bold text-sm">
+        <TabsList className="bg-white/[0.03] border border-white/[0.06] p-1 rounded-2xl">
+          <TabsTrigger value="overview" className="data-[state=active]:bg-white/10 data-[state=active]:text-white text-gray-400 text-sm font-medium rounded-xl px-4 py-2">{t.apps_overview}</TabsTrigger>
+          <TabsTrigger value="downloads" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white text-gray-400 gap-1.5 text-sm font-medium rounded-xl px-4 py-2">
             <Download className="w-3.5 h-3.5" /> Downloads
           </TabsTrigger>
         </TabsList>
@@ -861,37 +858,37 @@ function PercentageAppDetail({ app, id }: { app: any; id: number }) {
             {!app.plans?.length ? (
               <p className="text-gray-600 text-sm">{t.apps_no_plans}</p>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
+              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
                 {app.plans.map((plan: any) => {
                   const original = parseFloat(String(plan.pricePercentage ?? "0"));
                   const withDiscount = original * (1 - discount / 100);
                   return (
-                    <div key={plan.id} className="group rounded-3xl border border-white/[0.06] p-5 hover:border-emerald-500/30 hover:bg-white/[0.03] transition-all cursor-pointer"
+                    <div key={plan.id} className="group rounded-2xl border border-white/[0.06] p-4 hover:border-emerald-500/30 hover:bg-white/[0.03] transition-all cursor-pointer"
                       style={{ background: "rgba(255,255,255,0.02)" }}
                       onClick={() => { setSelectedPlan(plan); setShowBuy(true); }}>
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="w-10 h-10 rounded-2xl bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center">
-                          <ShoppingCart className="w-5 h-5 text-emerald-400" />
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center">
+                          <ShoppingCart className="w-4 h-4 text-emerald-400" />
                         </div>
-                        <span className={`text-[10px] px-2.5 py-1 rounded-full border font-medium uppercase tracking-wider ${levelColors[plan.level] ?? levelColors.basic}`}>{plan.level}</span>
+                        <span className={`text-[9px] px-2 py-0.5 rounded-full border font-medium uppercase tracking-wider ${levelColors[plan.level] ?? levelColors.basic}`}>{plan.level}</span>
                       </div>
-                      <h4 className="text-white font-semibold text-base mb-1">{plan.name}</h4>
-                      <p className="text-gray-600 text-xs mb-4">{plan.durationDays >= 9000 ? t.apps_lifetime : `${plan.durationDays} ${t.apps_days}`}</p>
+                      <h4 className="text-white font-semibold text-sm mb-0.5">{plan.name}</h4>
+                      <p className="text-gray-600 text-[10px] mb-3">{plan.durationDays >= 9000 ? t.apps_lifetime : `${plan.durationDays} ${t.apps_days}`}</p>
 
-                      <div className="space-y-2 mb-5">
-                        <div className="flex items-baseline gap-2">
-                          <span className="text-emerald-400 font-bold font-mono text-2xl">{fmt(withDiscount)}</span>
-                          {discount > 0 && original > 0 && <span className="text-gray-600 text-xs line-through">{fmt(original)}</span>}
+                      <div className="space-y-1.5 mb-4">
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="text-emerald-400 font-bold font-mono text-xl">{fmt(withDiscount)}</span>
+                          {discount > 0 && original > 0 && <span className="text-gray-600 text-[10px] line-through">{fmt(original)}</span>}
                         </div>
-                        <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                        <div className="flex items-center gap-1 text-[10px] text-gray-500">
                           <span>{language === "en" ? "Sells for" : "Vende por"}</span>
                           <span className="text-emerald-400 font-mono font-semibold">R$ {parseFloat(String(plan.resellerSellingPrice ?? "0")).toFixed(2)}</span>
                         </div>
                       </div>
 
-                      <Button size="sm" className="w-full h-10 rounded-xl text-xs font-bold tracking-wide border-0 transition-all group-hover:shadow-lg group-hover:shadow-emerald-500/20"
+                      <Button size="sm" className="w-full h-9 rounded-lg text-[11px] font-bold tracking-wide border-0 transition-all group-hover:shadow-lg group-hover:shadow-emerald-500/20"
                         style={{ background: "linear-gradient(135deg, #10b981 0%, #059669 100%)", color: "#fff" }}>
-                        <ShoppingCart className="w-3.5 h-3.5 mr-1.5" /> {t.apps_buy}
+                        <ShoppingCart className="w-3 h-3 mr-1" /> {t.apps_buy}
                       </Button>
                     </div>
                   );
@@ -918,73 +915,6 @@ function PercentageAppDetail({ app, id }: { app: any; id: number }) {
               </div>
             </div>
           )}
-        </TabsContent>
-
-        <TabsContent value="buy" className="mt-6">
-          <div className="max-w-md mx-auto space-y-5 rounded-3xl p-6" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
-            <h3 className="text-white font-bold text-lg mb-1">{language === "en" ? "Buy Keys" : "Comprar Keys"}</h3>
-            <p className="text-gray-500 text-xs mb-2">{app.name}</p>
-
-            <div className="rounded-2xl p-4 flex items-center justify-between" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center">
-                  <Percent className="w-4 h-4 text-emerald-400" />
-                </div>
-                <div>
-                  <p className="text-gray-500 text-xs">{t.general_discount}</p>
-                  <p className="text-white font-bold">{discount.toFixed(0)}%</p>
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider mb-2 block">{t.apps_plan} *</Label>
-              <Select value={selectedPlan ? String(selectedPlan.id) : ""} onValueChange={v => setSelectedPlan(app.plans?.find((p: any) => String(p.id) === v))}>
-                <SelectTrigger className="bg-white/[0.03] border-white/[0.06] text-white rounded-xl h-11">
-                  <SelectValue placeholder={t.apps_select_plan} />
-                </SelectTrigger>
-                <SelectContent className="bg-[#0b0b0f] border-white/[0.06]">
-                  {app.plans?.map((p: any) => (
-                    <SelectItem key={p.id} value={String(p.id)} className="text-white rounded-lg">
-                      {p.name} — {fmt(parseFloat(String(p.pricePercentage ?? "0")) * (1 - discount / 100))} ({p.durationDays >= 9000 ? t.apps_lifetime : `${p.durationDays}d`})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider mb-2 block">{t.apps_quantity}</Label>
-              <Input type="number" min="1" max="100" value={quantity} onChange={e => setQuantity(e.target.value)} className="bg-white/[0.03] border-white/[0.06] text-white rounded-xl h-11" />
-            </div>
-
-            {selectedPlan && (
-              <div className="rounded-2xl border border-white/[0.06] p-4 space-y-2" style={{ background: "rgba(255,255,255,0.02)" }}>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">{t.apps_original_price}</span>
-                  <span className="text-gray-500 font-mono line-through">{fmt(planPrice)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">{t.apps_with_discount} {discount.toFixed(0)}%:</span>
-                  <span className="text-emerald-400 font-mono">{fmt(discountedPrice)}</span>
-                </div>
-                <div className="flex justify-between text-sm font-bold border-t border-white/[0.06] pt-2 mt-2">
-                  <span className="text-gray-300">{t.apps_total} ({quantity}x):</span>
-                  <span className="text-emerald-400">{fmt(totalCost)}</span>
-                </div>
-              </div>
-            )}
-
-            <Button
-              onClick={handleBuy}
-              disabled={createKeyPix.isPending || createKeyLtc.isPending || !selectedPlan}
-              className="w-full h-12 rounded-xl font-bold gap-2"
-              style={{ background: "linear-gradient(135deg, #10b981 0%, #059669 100%)", color: "#fff", boxShadow: "0 4px 20px rgba(16,185,129,0.3)" }}
-            >
-              <ShoppingCart className="w-4 h-4" />
-              {(createKeyPix.isPending || createKeyLtc.isPending) ? <><Loader2 className="w-4 h-4 animate-spin" /> {language === "en" ? "Loading..." : "Carregando..."}</> : `${language === "en" ? "Buy" : "Comprar"} ${quantity} Key(s)`}
-            </Button>
-          </div>
         </TabsContent>
 
         <TabsContent value="downloads" className="mt-4">
