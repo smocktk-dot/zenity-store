@@ -20,7 +20,7 @@ import { QRCodeSVG } from "qrcode.react";
 
 const levelColors: Record<string, string> = {
   basic: "text-blue-400 bg-blue-500/20 border-blue-500/30",
-  premium: "text-purple-400 bg-purple-500/20 border-purple-500/30",
+  premium: "text-emerald-400 bg-emerald-500/20 border-emerald-500/30",
   lifetime: "text-yellow-400 bg-yellow-500/20 border-yellow-500/30",
 };
 
@@ -57,14 +57,14 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
     <>
       <div className="space-y-4">
         {/* Credit balance bar */}
-        <div className="rounded-xl border border-violet-500/20 p-4 flex items-center justify-between" style={{ background: "linear-gradient(135deg, rgba(109,40,217,0.12) 0%, rgba(139,92,246,0.06) 100%)" }}>
+        <div className="rounded-xl border border-emerald-500/20 p-4 flex items-center justify-between" style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.12) 0%, rgba(52,211,153,0.06) 100%)" }}>
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-violet-500/20 flex items-center justify-center">
-              <CreditCard className="w-4 h-4 text-violet-400" />
+            <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+              <CreditCard className="w-4 h-4 text-emerald-400" />
             </div>
             <div>
               <p className="text-gray-500 text-xs uppercase tracking-widest font-medium">{language === "en" ? "Available balance" : "Saldo disponível"}</p>
-              <p className="text-white font-bold font-mono text-base leading-tight">{credits.toFixed(2)} <span className="text-violet-400 text-sm font-semibold">{t.general_credits}</span></p>
+              <p className="text-white font-bold font-mono text-base leading-tight">{credits.toFixed(2)} <span className="text-emerald-400 text-sm font-semibold">{t.general_credits}</span></p>
             </div>
           </div>
         </div>
@@ -100,7 +100,7 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
                         {plan.durationDays >= 9000 ? t.apps_lifetime : `${plan.durationDays} ${t.apps_days}`}
                       </div>
                     </div>
-                    <Button size="sm" className="w-full mt-3 text-xs h-7 font-semibold tracking-wide border-0" style={{ background: "linear-gradient(135deg, rgba(124,58,237,0.3) 0%, rgba(109,40,217,0.2) 100%)", color: "#a78bfa" }}>
+                    <Button size="sm" className="w-full mt-3 text-xs h-7 font-semibold tracking-wide border-0" style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.3) 0%, rgba(16,185,129,0.2) 100%)", color: "#34d399" }}>
                       <Key className="w-3 h-3 mr-1" /> {t.apps_generate_key}
                     </Button>
                   </div>
@@ -135,14 +135,14 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
             <DialogTitle className="text-white font-bold">{language === "en" ? "Generate Keys" : "Gerar Keys"} — {app.name}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="rounded-xl border border-violet-500/20 p-4 flex items-center justify-between" style={{ background: "linear-gradient(135deg, rgba(109,40,217,0.12) 0%, rgba(139,92,246,0.06) 100%)" }}>
+            <div className="rounded-xl border border-emerald-500/20 p-4 flex items-center justify-between" style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.12) 0%, rgba(52,211,153,0.06) 100%)" }}>
               <div className="flex items-center gap-2.5">
-                <div className="w-7 h-7 rounded-lg bg-violet-500/20 flex items-center justify-center">
-                  <CreditCard className="w-3.5 h-3.5 text-violet-400" />
+                <div className="w-7 h-7 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                  <CreditCard className="w-3.5 h-3.5 text-emerald-400" />
                 </div>
                 <div>
                   <p className="text-gray-500 text-xs uppercase tracking-widest">{t.apps_balance}</p>
-                  <p className="text-white font-bold font-mono">{credits.toFixed(2)} <span className="text-violet-400 text-xs">cr</span></p>
+                  <p className="text-white font-bold font-mono">{credits.toFixed(2)} <span className="text-emerald-400 text-xs">cr</span></p>
                 </div>
               </div>
             </div>
@@ -199,7 +199,7 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
               onClick={() => generateKeys.mutate({ appId: id, planId: parseInt(genForm.planId), quantity: parseInt(genForm.quantity), customMask: genForm.customMask || undefined, note: genForm.note || undefined })}
               disabled={generateKeys.isPending || !genForm.planId || totalCost > credits}
               className="w-full gap-2 font-bold tracking-wide text-sm h-11"
-              style={{ background: "linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)", boxShadow: "0 0 20px rgba(124,58,237,0.3)" }}
+              style={{ background: "linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)", boxShadow: "0 0 20px rgba(16,185,129,0.3)" }}
             >
               <Key className="w-4 h-4" />
               {generateKeys.isPending ? t.apps_generating : `${language === "en" ? "Generate" : "Gerar"} ${genForm.quantity} Key(s)`}
@@ -235,17 +235,17 @@ function PaymentMethodModal({
           className="relative rounded-2xl overflow-hidden"
           style={{
             background: "linear-gradient(145deg, rgba(13,10,25,0.98) 0%, rgba(18,12,35,0.98) 100%)",
-            border: "1px solid rgba(124,58,237,0.3)",
-            boxShadow: "0 0 60px rgba(124,58,237,0.15), 0 25px 50px rgba(0,0,0,0.6)",
+            border: "1px solid rgba(16,185,129,0.3)",
+            boxShadow: "0 0 60px rgba(16,185,129,0.15), 0 25px 50px rgba(0,0,0,0.6)",
           }}
         >
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(139,92,246,0.6), transparent)" }} />
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(52,211,153,0.6), transparent)" }} />
 
           {/* Header */}
           <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-white/[0.06]">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, rgba(124,58,237,0.3), rgba(139,92,246,0.15))", border: "1px solid rgba(124,58,237,0.4)" }}>
-                <ShoppingCart className="w-4 h-4 text-violet-400" />
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.3), rgba(52,211,153,0.15))", border: "1px solid rgba(16,185,129,0.4)" }}>
+                <ShoppingCart className="w-4 h-4 text-emerald-400" />
               </div>
               <div>
                 <h2 className="text-white font-semibold text-base leading-tight">{t.payment_select_method}</h2>
@@ -388,11 +388,11 @@ function PixKeyModal({
           className="relative rounded-2xl overflow-hidden"
           style={{
             background: "linear-gradient(145deg, rgba(13,10,25,0.98) 0%, rgba(18,12,35,0.98) 100%)",
-            border: "1px solid rgba(124,58,237,0.3)",
-            boxShadow: "0 0 60px rgba(124,58,237,0.15), 0 25px 50px rgba(0,0,0,0.6)",
+            border: "1px solid rgba(16,185,129,0.3)",
+            boxShadow: "0 0 60px rgba(16,185,129,0.15), 0 25px 50px rgba(0,0,0,0.6)",
           }}
         >
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(139,92,246,0.6), transparent)" }} />
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(52,211,153,0.6), transparent)" }} />
 
           {/* Header */}
           <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-white/[0.06]">
@@ -416,21 +416,21 @@ function PixKeyModal({
               <div className="text-center">
                 <p className="text-gray-500 text-xs mb-1">{t.pix_amount_to_pay}</p>
                 <p className="text-white text-4xl font-bold font-mono">{fmtCents(pixData.amountCents)}</p>
-                <p className="text-violet-400 text-sm mt-1">{quantity} {t.pix_keys_after_payment}</p>
+                <p className="text-emerald-400 text-sm mt-1">{quantity} {t.pix_keys_after_payment}</p>
               </div>
 
               <div className="flex flex-col items-center gap-3">
                 {pixData.qrCodeImage ? (
-                  <div className="rounded-xl overflow-hidden p-3" style={{ background: "white", border: "3px solid rgba(124,58,237,0.4)" }}>
+                  <div className="rounded-xl overflow-hidden p-3" style={{ background: "white", border: "3px solid rgba(16,185,129,0.4)" }}>
                     <img src={pixData.qrCodeImage} alt="QR Code Pix" className="w-44 h-44 object-contain" />
                   </div>
                 ) : pixData.brCode ? (
-                  <div className="rounded-xl overflow-hidden p-3" style={{ background: "white", border: "3px solid rgba(124,58,237,0.4)" }}>
+                  <div className="rounded-xl overflow-hidden p-3" style={{ background: "white", border: "3px solid rgba(16,185,129,0.4)" }}>
                     <QRCodeSVG value={pixData.brCode} size={176} bgColor="#ffffff" fgColor="#000000" />
                   </div>
                 ) : (
-                  <div className="w-52 h-52 rounded-xl flex items-center justify-center" style={{ background: "rgba(124,58,237,0.08)", border: "2px dashed rgba(124,58,237,0.3)" }}>
-                    <QrCode className="w-16 h-16 text-violet-500/40" />
+                  <div className="w-52 h-52 rounded-xl flex items-center justify-center" style={{ background: "rgba(16,185,129,0.08)", border: "2px dashed rgba(16,185,129,0.3)" }}>
+                    <QrCode className="w-16 h-16 text-emerald-500/40" />
                   </div>
                 )}
                 <div className="flex items-center gap-1.5">
@@ -442,14 +442,14 @@ function PixKeyModal({
               {pixData.brCode && (
                 <div>
                   <p className="text-gray-500 text-xs mb-2 text-center">{t.pix_or_copypaste}</p>
-                  <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(124,58,237,0.25)" }}>
+                  <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(16,185,129,0.25)" }}>
                     <div className="px-3 py-2.5 bg-white/[0.03]">
                       <p className="text-gray-400 text-xs font-mono truncate">{pixData.brCode.slice(0, 60)}...</p>
                     </div>
                     <button
                       onClick={handleCopy}
                       className="w-full flex items-center justify-center gap-2 py-2.5 text-sm font-medium transition-all"
-                      style={{ background: copied ? "rgba(34,197,94,0.15)" : "rgba(124,58,237,0.15)", color: copied ? "#4ade80" : "#a78bfa" }}
+                      style={{ background: copied ? "rgba(34,197,94,0.15)" : "rgba(16,185,129,0.15)", color: copied ? "#4ade80" : "#34d399" }}
                     >
                       {copied ? <><CheckCircle2 className="w-4 h-4" /> {t.pix_copied}</> : <><Copy className="w-4 h-4" /> {t.pix_copy_code}</>}
                     </button>
@@ -459,7 +459,7 @@ function PixKeyModal({
 
               <div className="flex gap-3">
                 <Button variant="outline" onClick={handleClose} className="flex-1 border-white/10 text-gray-400 hover:text-gray-200 bg-transparent h-10 text-sm">{t.pix_close}</Button>
-                <Button variant="outline" onClick={() => refetchStatus()} className="flex-1 border-violet-500/30 text-violet-400 hover:text-violet-300 bg-transparent h-10 text-sm gap-1.5">
+                <Button variant="outline" onClick={() => refetchStatus()} className="flex-1 border-emerald-500/30 text-emerald-400 hover:text-emerald-300 bg-transparent h-10 text-sm gap-1.5">
                   <RefreshCw className="w-3.5 h-3.5" /> {t.pix_verify}
                 </Button>
               </div>
@@ -617,7 +617,7 @@ function LtcKeyModal({
                 <p className="text-gray-500 text-xs mt-1">
                   {t.ltc_brl_value}: <span className="text-white font-mono">{fmtCents(ltcData.amountCents)}</span>
                 </p>
-                <p className="text-violet-400 text-sm mt-1">{quantity} {t.ltc_keys_after_payment}</p>
+                <p className="text-emerald-400 text-sm mt-1">{quantity} {t.ltc_keys_after_payment}</p>
               </div>
 
               {/* Info cards */}
@@ -801,7 +801,7 @@ function PercentageAppDetail({ app, id }: { app: any; id: number }) {
       <Tabs defaultValue="overview">
         <TabsList className="bg-white/5 border border-white/10">
           <TabsTrigger value="overview" className="data-[state=active]:bg-white/10 data-[state=active]:text-white text-gray-400 font-bold text-sm">{t.apps_overview}</TabsTrigger>
-          <TabsTrigger value="buy" className="data-[state=active]:bg-violet-600 data-[state=active]:text-white text-gray-400 gap-1.5 font-bold text-sm">
+          <TabsTrigger value="buy" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white text-gray-400 gap-1.5 font-bold text-sm">
             <ShoppingCart className="w-3.5 h-3.5" /> {t.apps_buy_keys}
           </TabsTrigger>
           <TabsTrigger value="downloads" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white text-gray-400 gap-1.5 font-bold text-sm">
@@ -811,11 +811,11 @@ function PercentageAppDetail({ app, id }: { app: any; id: number }) {
 
         <TabsContent value="overview" className="mt-4 space-y-4">
           {/* Discount bar */}
-          <div className="rounded-xl border border-purple-500/20 p-4 flex items-center justify-between" style={{ background: "rgba(168,85,247,0.05)" }}>
+          <div className="rounded-xl border border-emerald-500/20 p-4 flex items-center justify-between" style={{ background: "rgba(16,185,129,0.05)" }}>
             <div className="flex items-center gap-2">
-              <Percent className="w-4 h-4 text-purple-400" />
+              <Percent className="w-4 h-4 text-emerald-400" />
               <span className="text-gray-400 text-sm">{t.apps_current_discount}</span>
-              <span className="text-purple-400 font-bold text-lg">{discount.toFixed(0)}%</span>
+              <span className="text-emerald-400 font-bold text-lg">{discount.toFixed(0)}%</span>
             </div>
             {profile?.nextLevel && (
               <span className="text-gray-500 text-xs">{t.apps_next_level} {(profile.nextLevel as any)?.purchasesNeeded} {language === "en" ? "more purchases" : "compras"}</span>
@@ -833,7 +833,7 @@ function PercentageAppDetail({ app, id }: { app: any; id: number }) {
                   const original = parseFloat(String(plan.pricePercentage ?? "0"));
                   const withDiscount = original * (1 - discount / 100);
                   return (
-                    <div key={plan.id} className="rounded-xl border border-white/10 p-4 hover:border-purple-500/30 transition-all cursor-pointer" style={{ background: "rgba(255,255,255,0.02)" }}
+                    <div key={plan.id} className="rounded-xl border border-white/10 p-4 hover:border-emerald-500/30 transition-all cursor-pointer" style={{ background: "rgba(255,255,255,0.02)" }}
                       onClick={() => { setSelectedPlan(plan); setShowBuy(true); }}>
                       <div className="mb-3">
                         <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${levelColors[plan.level] ?? levelColors.basic}`}>{plan.level}</span>
@@ -841,8 +841,8 @@ function PercentageAppDetail({ app, id }: { app: any; id: number }) {
                       <h4 className="text-white font-semibold">{plan.name}</h4>
                       <div className="mt-3 space-y-1.5">
                         <div className="flex items-center gap-2">
-                          <DollarSign className="w-3.5 h-3.5 text-purple-400" />
-                          <span className="text-purple-400 font-bold font-mono text-sm">{fmt(withDiscount)}</span>
+                          <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
+                          <span className="text-emerald-400 font-bold font-mono text-sm">{fmt(withDiscount)}</span>
                           {discount > 0 && original > 0 && <span className="text-gray-600 text-xs line-through">{fmt(original)}</span>}
                         </div>
                         <div className="flex items-center gap-2 text-xs text-green-400">
@@ -854,7 +854,7 @@ function PercentageAppDetail({ app, id }: { app: any; id: number }) {
                           {plan.durationDays >= 9000 ? t.apps_lifetime : `${plan.durationDays} ${t.apps_days}`}
                         </div>
                       </div>
-                      <Button size="sm" className="w-full mt-3 bg-purple-600/20 hover:bg-purple-600 text-purple-400 hover:text-white border border-purple-600/30 transition-all text-xs h-7">
+                      <Button size="sm" className="w-full mt-3 bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white border border-emerald-600/30 transition-all text-xs h-7">
                         <ShoppingCart className="w-3 h-3 mr-1" /> {t.apps_buy}
                       </Button>
                     </div>
@@ -884,11 +884,11 @@ function PercentageAppDetail({ app, id }: { app: any; id: number }) {
 
         <TabsContent value="buy" className="mt-4">
           <div className="max-w-md mx-auto space-y-4">
-            <div className="rounded-xl border border-purple-500/20 p-4 flex items-center justify-between" style={{ background: "rgba(168,85,247,0.05)" }}>
+            <div className="rounded-xl border border-emerald-500/20 p-4 flex items-center justify-between" style={{ background: "rgba(16,185,129,0.05)" }}>
               <div className="flex items-center gap-2">
-                <Percent className="w-4 h-4 text-purple-400" />
+                <Percent className="w-4 h-4 text-emerald-400" />
                 <span className="text-gray-400 text-sm">{t.general_discount}:</span>
-                <span className="text-purple-400 font-bold">{discount.toFixed(0)}%</span>
+                <span className="text-emerald-400 font-bold">{discount.toFixed(0)}%</span>
               </div>
             </div>
 
@@ -921,11 +921,11 @@ function PercentageAppDetail({ app, id }: { app: any; id: number }) {
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-400">{t.apps_with_discount} {discount.toFixed(0)}% {t.general_discount}:</span>
-                  <span className="text-purple-400 font-mono">{fmt(discountedPrice)}</span>
+                  <span className="text-emerald-400 font-mono">{fmt(discountedPrice)}</span>
                 </div>
                 <div className="flex justify-between text-sm font-bold border-t border-white/10 pt-1.5 mt-1.5">
                   <span className="text-gray-300">{t.apps_total} ({quantity}x):</span>
-                  <span className="text-purple-400">{fmt(totalCost)}</span>
+                  <span className="text-emerald-400">{fmt(totalCost)}</span>
                 </div>
               </div>
             )}
@@ -933,7 +933,7 @@ function PercentageAppDetail({ app, id }: { app: any; id: number }) {
             <Button
               onClick={handleBuy}
               disabled={createKeyPix.isPending || createKeyLtc.isPending || !selectedPlan}
-              className="w-full bg-purple-600 hover:bg-purple-500 text-white gap-2"
+              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white gap-2"
             >
               <ShoppingCart className="w-4 h-4" />
               {(createKeyPix.isPending || createKeyLtc.isPending) ? <><Loader2 className="w-4 h-4 animate-spin" /> {language === "en" ? "Loading..." : "Carregando..."}</> : `${language === "en" ? "Buy" : "Comprar"} ${quantity} Key(s)`}
@@ -981,14 +981,14 @@ function PercentageAppDetail({ app, id }: { app: any; id: number }) {
         <DialogContent className="bg-[#0d0d14] border-white/10 text-white max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-white flex items-center gap-2">
-              <ShoppingCart className="w-4 h-4 text-purple-400" /> {language === "en" ? "Buy Key" : "Comprar Key"} — {selectedPlan?.name}
+              <ShoppingCart className="w-4 h-4 text-emerald-400" /> {language === "en" ? "Buy Key" : "Comprar Key"} — {selectedPlan?.name}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-2">
-            <div className="rounded-lg border border-purple-500/20 p-3" style={{ background: "rgba(168,85,247,0.05)" }}>
-              <p className="text-purple-400/80 text-xs">{t.apps_current_discount} <span className="font-bold text-purple-400">{discount.toFixed(0)}%</span></p>
+            <div className="rounded-lg border border-emerald-500/20 p-3" style={{ background: "rgba(16,185,129,0.05)" }}>
+              <p className="text-emerald-400/80 text-xs">{t.apps_current_discount} <span className="font-bold text-emerald-400">{discount.toFixed(0)}%</span></p>
               <p className="text-gray-400 text-xs mt-1">
-                {language === "en" ? "Price with discount:" : "Preço com desconto:"} <span className="text-purple-400 font-mono font-bold">R$ {(parseFloat(String(selectedPlan?.pricePercentage ?? "0")) * (1 - discount / 100)).toFixed(2)}</span>
+                {language === "en" ? "Price with discount:" : "Preço com desconto:"} <span className="text-emerald-400 font-mono font-bold">R$ {(parseFloat(String(selectedPlan?.pricePercentage ?? "0")) * (1 - discount / 100)).toFixed(2)}</span>
               </p>
             </div>
             <div>
@@ -997,7 +997,7 @@ function PercentageAppDetail({ app, id }: { app: any; id: number }) {
             </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => setShowBuy(false)} className="flex-1 border-white/10 text-gray-300">{t.apps_cancel}</Button>
-              <Button onClick={handleBuy} disabled={createKeyPix.isPending || createKeyLtc.isPending} className="flex-1 bg-purple-600 hover:bg-purple-500 text-white">
+              <Button onClick={handleBuy} disabled={createKeyPix.isPending || createKeyLtc.isPending} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white">
                 {(createKeyPix.isPending || createKeyLtc.isPending) ? <><Loader2 className="w-4 h-4 animate-spin" /> {language === "en" ? "Loading..." : "Carregando..."}</> : t.apps_confirm}
               </Button>
             </div>
@@ -1021,7 +1021,7 @@ function ResellerDownloads({ appId }: { appId: number }) {
       {downloadItems.length > 0 && (
         <div>
           <h3 className="text-white font-semibold text-sm mb-3 flex items-center gap-2">
-            <Download className="w-4 h-4 text-violet-400" /> Downloads
+            <Download className="w-4 h-4 text-emerald-400" /> Downloads
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {downloadItems.map((d: any) => (
@@ -1030,11 +1030,11 @@ function ResellerDownloads({ appId }: { appId: number }) {
                 href={d.url}
                 target="_blank"
                 rel="noreferrer"
-                className="rounded-xl border border-white/5 p-4 hover:border-violet-500/30 transition-all"
+                className="rounded-xl border border-white/5 p-4 hover:border-emerald-500/30 transition-all"
                 style={{ background: "rgba(255,255,255,0.02)" }}
               >
                 <p className="text-white font-medium text-sm">{d.title}</p>
-                <p className="text-violet-400 text-xs mt-2 flex items-center gap-1">
+                <p className="text-emerald-400 text-xs mt-2 flex items-center gap-1">
                   <Download className="w-3 h-3" /> Baixar
                 </p>
               </a>
@@ -1111,7 +1111,7 @@ export default function ResellerAppDetail({ id }: { id: number }) {
           </span>
           {resellerType === "credits"
             ? <span className="text-xs px-2 py-1 rounded-full border font-medium bg-yellow-500/20 text-yellow-400 border-yellow-500/30 flex items-center gap-1"><CreditCard className="w-3 h-3" /> {language === "en" ? "Credits" : "Créditos"}</span>
-            : <span className="text-xs px-2 py-1 rounded-full border font-medium bg-purple-500/20 text-purple-400 border-purple-500/30 flex items-center gap-1"><Percent className="w-3 h-3" /> {language === "en" ? "Percentage" : "Porcentagem"}</span>
+            : <span className="text-xs px-2 py-1 rounded-full border font-medium bg-emerald-500/20 text-emerald-400 border-emerald-500/30 flex items-center gap-1"><Percent className="w-3 h-3" /> {language === "en" ? "Percentage" : "Porcentagem"}</span>
           }
         </div>
       </div>
