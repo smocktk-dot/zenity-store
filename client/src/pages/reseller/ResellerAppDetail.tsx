@@ -55,53 +55,62 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
 
   return (
     <>
-      <div className="space-y-4">
+      <div className="space-y-6">
         {/* Credit balance bar */}
-        <div className="rounded-xl border border-emerald-500/20 p-4 flex items-center justify-between" style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.12) 0%, rgba(52,211,153,0.06) 100%)" }}>
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
-              <CreditCard className="w-4 h-4 text-emerald-400" />
+        <div className="rounded-3xl p-6 flex items-center justify-between" style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.12) 0%, rgba(16,185,129,0.05) 100%)", border: "1px solid rgba(16,185,129,0.2)" }}>
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center shadow-lg shadow-emerald-500/10">
+              <CreditCard className="w-6 h-6 text-emerald-400" />
             </div>
             <div>
               <p className="text-gray-500 text-xs uppercase tracking-widest font-medium">{language === "en" ? "Available balance" : "Saldo disponível"}</p>
-              <p className="text-white font-bold font-mono text-base leading-tight">{credits.toFixed(2)} <span className="text-emerald-400 text-sm font-semibold">{t.general_credits}</span></p>
+              <p className="text-white font-bold font-mono text-2xl leading-tight">{credits.toFixed(2)} <span className="text-emerald-400 text-sm font-semibold">{t.general_credits}</span></p>
             </div>
+          </div>
+          <div className="text-right hidden sm:block">
+            <p className="text-gray-500 text-xs">{language === "en" ? "Discount" : "Desconto"}</p>
+            <p className="text-emerald-400 font-bold font-mono">{discount.toFixed(0)}%</p>
           </div>
         </div>
 
         {/* Plans */}
         <div>
-          <h3 className="text-white font-semibold text-sm mb-3">{t.apps_available_plans}</h3>
+          <h3 className="text-white font-bold text-lg mb-4 flex items-center gap-2">
+            <Key className="w-5 h-5 text-emerald-400" /> {t.apps_available_plans}
+          </h3>
           {!app.plans?.length ? (
             <p className="text-gray-600 text-sm">{t.apps_no_plans}</p>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
               {app.plans.map((plan: any) => {
                 const price = parseFloat(String(plan.priceCredits)) * (1 - discount / 100);
                 return (
-                  <div key={plan.id} className="rounded-xl border border-white/10 p-4 hover:border-white/20 transition-all cursor-pointer" style={{ background: "rgba(255,255,255,0.02)" }}
+                  <div key={plan.id} className="group rounded-3xl border border-white/[0.06] p-5 hover:border-emerald-500/30 hover:bg-white/[0.03] transition-all cursor-pointer"
+                    style={{ background: "rgba(255,255,255,0.02)" }}
                     onClick={() => { setGenForm(f => ({...f, planId: String(plan.id)})); setShowGenerate(true); }}>
-                    <div className="mb-3">
-                      <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${levelColors[plan.level] ?? levelColors.basic}`}>{plan.level}</span>
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="w-10 h-10 rounded-2xl bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center">
+                        <Key className="w-5 h-5 text-emerald-400" />
+                      </div>
+                      <span className={`text-[10px] px-2.5 py-1 rounded-full border font-medium uppercase tracking-wider ${levelColors[plan.level] ?? levelColors.basic}`}>{plan.level}</span>
                     </div>
-                    <h4 className="text-white font-semibold">{plan.name}</h4>
-                    <div className="mt-3 space-y-1.5">
-                      <div className="flex items-center gap-2">
-                        <DollarSign className="w-3.5 h-3.5 text-yellow-400" />
-                        <span className="text-yellow-400 font-bold font-mono text-sm">{price.toFixed(2)}</span>
-                        <span className="text-gray-600 text-xs">cr</span>
+                    <h4 className="text-white font-semibold text-base mb-1">{plan.name}</h4>
+                    <p className="text-gray-600 text-xs mb-4">{plan.durationDays >= 9000 ? t.apps_lifetime : `${plan.durationDays} ${t.apps_days}`}</p>
+
+                    <div className="space-y-2 mb-5">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-yellow-400 font-bold font-mono text-2xl">{price.toFixed(2)}</span>
+                        <span className="text-gray-600 text-sm">cr</span>
                       </div>
-                      <div className="flex items-center gap-2 text-xs text-green-400">
-                        <span className="text-gray-500">Preço final:</span>
-                        <span className="font-mono font-bold">R$ {parseFloat(String(plan.resellerSellingPrice ?? "0")).toFixed(2)}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-gray-400">
-                        <Clock className="w-3 h-3 text-blue-400" />
-                        {plan.durationDays >= 9000 ? t.apps_lifetime : `${plan.durationDays} ${t.apps_days}`}
+                      <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                        <span>{language === "en" ? "Sells for" : "Vende por"}</span>
+                        <span className="text-emerald-400 font-mono font-semibold">R$ {parseFloat(String(plan.resellerSellingPrice ?? "0")).toFixed(2)}</span>
                       </div>
                     </div>
-                    <Button size="sm" className="w-full mt-3 text-xs h-7 font-semibold tracking-wide border-0" style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.3) 0%, rgba(16,185,129,0.2) 100%)", color: "#34d399" }}>
-                      <Key className="w-3 h-3 mr-1" /> {t.apps_generate_key}
+
+                    <Button size="sm" className="w-full h-10 rounded-xl text-xs font-bold tracking-wide border-0 transition-all group-hover:shadow-lg group-hover:shadow-emerald-500/20"
+                      style={{ background: "linear-gradient(135deg, #10b981 0%, #059669 100%)", color: "#fff" }}>
+                      <Key className="w-3.5 h-3.5 mr-1.5" /> {t.apps_generate_key}
                     </Button>
                   </div>
                 );
@@ -112,15 +121,17 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
 
         {/* Features */}
         {app.features && (
-          <div className="rounded-xl border border-white/5 p-5" style={{ background: "rgba(255,255,255,0.02)" }}>
-            <h3 className="text-white font-semibold text-sm mb-3 flex items-center gap-2">
+          <div className="rounded-3xl border border-white/[0.06] p-6" style={{ background: "rgba(255,255,255,0.02)" }}>
+            <h3 className="text-white font-semibold text-base mb-4 flex items-center gap-2">
               <Star className="w-4 h-4 text-yellow-400" /> {t.apps_features}
             </h3>
-            <div className="space-y-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {app.features.split("\n").filter(Boolean).map((f: string, i: number) => (
-                <div key={i} className="flex items-center gap-2 text-sm">
-                  <CheckCircle className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
-                  <span className="text-gray-300">{f}</span>
+                <div key={i} className="flex items-start gap-3 p-3 rounded-2xl" style={{ background: "rgba(255,255,255,0.02)" }}>
+                  <div className="w-5 h-5 rounded-full bg-emerald-500/15 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <CheckCircle className="w-3 h-3 text-emerald-400" />
+                  </div>
+                  <span className="text-gray-300 text-sm leading-relaxed">{f}</span>
                 </div>
               ))}
             </div>
@@ -130,32 +141,45 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
 
       {/* Generate Modal */}
       <Dialog open={showGenerate} onOpenChange={setShowGenerate}>
-        <DialogContent className="bg-[#0d0d14] border-white/10 text-white max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-white font-bold">{language === "en" ? "Generate Keys" : "Gerar Keys"} — {app.name}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="rounded-xl border border-emerald-500/20 p-4 flex items-center justify-between" style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.12) 0%, rgba(52,211,153,0.06) 100%)" }}>
-              <div className="flex items-center gap-2.5">
-                <div className="w-7 h-7 rounded-lg bg-emerald-500/20 flex items-center justify-center">
-                  <CreditCard className="w-3.5 h-3.5 text-emerald-400" />
+        <DialogContent className="bg-[#0b0b0f] border-white/[0.08] text-white max-w-md rounded-3xl p-0 overflow-hidden">
+          <div className="p-6 space-y-5" style={{ background: "linear-gradient(180deg, rgba(16,185,129,0.08) 0%, rgba(11,11,15,0.95) 120px)" }}>
+            <DialogHeader>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center">
+                  <Key className="w-5 h-5 text-emerald-400" />
                 </div>
                 <div>
-                  <p className="text-gray-500 text-xs uppercase tracking-widest">{t.apps_balance}</p>
+                  <DialogTitle className="text-white font-bold text-base">{language === "en" ? "Generate Keys" : "Gerar Keys"}</DialogTitle>
+                  <p className="text-gray-500 text-xs">{app.name}</p>
+                </div>
+              </div>
+            </DialogHeader>
+
+            <div className="rounded-2xl p-4 flex items-center justify-between" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center">
+                  <CreditCard className="w-4 h-4 text-emerald-400" />
+                </div>
+                <div>
+                  <p className="text-gray-500 text-xs">{t.apps_balance}</p>
                   <p className="text-white font-bold font-mono">{credits.toFixed(2)} <span className="text-emerald-400 text-xs">cr</span></p>
                 </div>
+              </div>
+              <div className="text-right">
+                <p className="text-gray-500 text-xs">{language === "en" ? "Discount" : "Desconto"}</p>
+                <p className="text-emerald-400 font-bold">{discount.toFixed(0)}%</p>
               </div>
             </div>
 
             <div>
-              <Label className="text-gray-300 text-sm">{t.apps_plan} *</Label>
+              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider mb-2 block">{t.apps_plan} *</Label>
               <Select value={genForm.planId} onValueChange={v => setGenForm(f => ({...f, planId: v}))}>
-                <SelectTrigger className="bg-white/5 border-white/10 text-white mt-1">
+                <SelectTrigger className="bg-white/[0.03] border-white/[0.06] text-white rounded-xl h-11">
                   <SelectValue placeholder={t.apps_select_plan} />
                 </SelectTrigger>
-                <SelectContent className="bg-[#0d0d14] border-white/10">
+                <SelectContent className="bg-[#0b0b0f] border-white/[0.06]">
                   {app.plans?.map((p: any) => (
-                    <SelectItem key={p.id} value={String(p.id)} className="text-white">
+                    <SelectItem key={p.id} value={String(p.id)} className="text-white rounded-lg">
                       {p.name} — {(parseFloat(String(p.priceCredits)) * (1 - discount / 100)).toFixed(2)} cr ({p.durationDays >= 9000 ? t.apps_lifetime : `${p.durationDays}d`})
                     </SelectItem>
                   ))}
@@ -164,28 +188,28 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
             </div>
 
             <div>
-              <Label className="text-gray-300 text-sm">{t.apps_quantity}</Label>
-              <Input type="number" min="1" max="100" value={genForm.quantity} onChange={e => setGenForm(f => ({...f, quantity: e.target.value}))} className="bg-white/5 border-white/10 text-white mt-1" />
+              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider mb-2 block">{t.apps_quantity}</Label>
+              <Input type="number" min="1" max="100" value={genForm.quantity} onChange={e => setGenForm(f => ({...f, quantity: e.target.value}))} className="bg-white/[0.03] border-white/[0.06] text-white rounded-xl h-11" />
             </div>
 
             <div>
-              <Label className="text-gray-300 text-sm">{t.apps_note}</Label>
-              <textarea value={genForm.note} onChange={e => setGenForm(f => ({...f, note: e.target.value}))} placeholder={t.apps_note_placeholder} rows={2} className="w-full bg-white/5 border border-white/10 text-white rounded-lg px-3 py-2 text-sm mt-1 resize-none focus:outline-none focus:border-red-500/50 placeholder:text-gray-700" />
+              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider mb-2 block">{t.apps_note}</Label>
+              <textarea value={genForm.note} onChange={e => setGenForm(f => ({...f, note: e.target.value}))} placeholder={t.apps_note_placeholder} rows={2} className="w-full bg-white/[0.03] border border-white/[0.06] text-white rounded-xl px-3 py-2.5 text-sm resize-none focus:outline-none focus:border-emerald-500/50 placeholder:text-gray-700" />
             </div>
 
             {selectedPlan && (
-              <div className="rounded-lg bg-white/5 border border-white/10 p-3 space-y-1.5">
+              <div className="rounded-2xl border border-white/[0.06] p-4 space-y-2" style={{ background: "rgba(255,255,255,0.02)" }}>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-400">{t.apps_price_per_key}</span>
+                  <span className="text-gray-500">{t.apps_price_per_key}</span>
                   <span className="text-white font-mono">{discountedPrice.toFixed(2)} cr</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-400">{t.general_quantity}:</span>
+                  <span className="text-gray-500">{t.general_quantity}:</span>
                   <span className="text-white">{genForm.quantity}</span>
                 </div>
-                <div className="flex justify-between text-sm font-bold border-t border-white/10 pt-1.5 mt-1.5">
+                <div className="flex justify-between text-sm font-bold border-t border-white/[0.06] pt-2 mt-2">
                   <span className="text-gray-300">{t.apps_total}:</span>
-                  <span className={totalCost > credits ? "text-red-400" : "text-yellow-400"}>{totalCost.toFixed(2)} cr</span>
+                  <span className={totalCost > credits ? "text-red-400" : "text-emerald-400"}>{totalCost.toFixed(2)} cr</span>
                 </div>
                 <div className="flex justify-between text-xs">
                   <span className="text-gray-600">{t.apps_balance}:</span>
@@ -198,8 +222,8 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
             <Button
               onClick={() => generateKeys.mutate({ appId: id, planId: parseInt(genForm.planId), quantity: parseInt(genForm.quantity), customMask: genForm.customMask || undefined, note: genForm.note || undefined })}
               disabled={generateKeys.isPending || !genForm.planId || totalCost > credits}
-              className="w-full gap-2 font-bold tracking-wide text-sm h-11"
-              style={{ background: "linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)", boxShadow: "0 0 20px rgba(16,185,129,0.3)" }}
+              className="w-full gap-2 font-bold tracking-wide text-sm h-12 rounded-xl"
+              style={{ background: "linear-gradient(135deg, #10b981 0%, #059669 100%)", boxShadow: "0 4px 20px rgba(16,185,129,0.3)" }}
             >
               <Key className="w-4 h-4" />
               {generateKeys.isPending ? t.apps_generating : `${language === "en" ? "Generate" : "Gerar"} ${genForm.quantity} Key(s)`}
@@ -809,53 +833,65 @@ function PercentageAppDetail({ app, id }: { app: any; id: number }) {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="mt-4 space-y-4">
+        <TabsContent value="overview" className="mt-6 space-y-6">
           {/* Discount bar */}
-          <div className="rounded-xl border border-emerald-500/20 p-4 flex items-center justify-between" style={{ background: "rgba(16,185,129,0.05)" }}>
-            <div className="flex items-center gap-2">
-              <Percent className="w-4 h-4 text-emerald-400" />
-              <span className="text-gray-400 text-sm">{t.apps_current_discount}</span>
-              <span className="text-emerald-400 font-bold text-lg">{discount.toFixed(0)}%</span>
+          <div className="rounded-3xl p-6 flex items-center justify-between" style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.12) 0%, rgba(16,185,129,0.05) 100%)", border: "1px solid rgba(16,185,129,0.2)" }}>
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center shadow-lg shadow-emerald-500/10">
+                <Percent className="w-6 h-6 text-emerald-400" />
+              </div>
+              <div>
+                <p className="text-gray-500 text-xs uppercase tracking-widest font-medium">{t.apps_current_discount}</p>
+                <p className="text-white font-bold font-mono text-2xl leading-tight">{discount.toFixed(0)}%</p>
+              </div>
             </div>
             {profile?.nextLevel && (
-              <span className="text-gray-500 text-xs">{t.apps_next_level} {(profile.nextLevel as any)?.purchasesNeeded} {language === "en" ? "more purchases" : "compras"}</span>
+              <div className="text-right">
+                <p className="text-emerald-400 text-sm font-bold">{(profile.nextLevel as any)?.purchasesNeeded} {language === "en" ? "more" : "compras"}</p>
+                <p className="text-gray-500 text-xs">{t.apps_next_level}</p>
+              </div>
             )}
           </div>
 
           {/* Plans */}
           <div>
-            <h3 className="text-white font-semibold text-sm mb-3">{t.apps_available_plans}</h3>
+            <h3 className="text-white font-bold text-lg mb-4 flex items-center gap-2">
+              <ShoppingCart className="w-5 h-5 text-emerald-400" /> {t.apps_available_plans}
+            </h3>
             {!app.plans?.length ? (
               <p className="text-gray-600 text-sm">{t.apps_no_plans}</p>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
                 {app.plans.map((plan: any) => {
                   const original = parseFloat(String(plan.pricePercentage ?? "0"));
                   const withDiscount = original * (1 - discount / 100);
                   return (
-                    <div key={plan.id} className="rounded-xl border border-white/10 p-4 hover:border-emerald-500/30 transition-all cursor-pointer" style={{ background: "rgba(255,255,255,0.02)" }}
+                    <div key={plan.id} className="group rounded-3xl border border-white/[0.06] p-5 hover:border-emerald-500/30 hover:bg-white/[0.03] transition-all cursor-pointer"
+                      style={{ background: "rgba(255,255,255,0.02)" }}
                       onClick={() => { setSelectedPlan(plan); setShowBuy(true); }}>
-                      <div className="mb-3">
-                        <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${levelColors[plan.level] ?? levelColors.basic}`}>{plan.level}</span>
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="w-10 h-10 rounded-2xl bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center">
+                          <ShoppingCart className="w-5 h-5 text-emerald-400" />
+                        </div>
+                        <span className={`text-[10px] px-2.5 py-1 rounded-full border font-medium uppercase tracking-wider ${levelColors[plan.level] ?? levelColors.basic}`}>{plan.level}</span>
                       </div>
-                      <h4 className="text-white font-semibold">{plan.name}</h4>
-                      <div className="mt-3 space-y-1.5">
-                        <div className="flex items-center gap-2">
-                          <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
-                          <span className="text-emerald-400 font-bold font-mono text-sm">{fmt(withDiscount)}</span>
+                      <h4 className="text-white font-semibold text-base mb-1">{plan.name}</h4>
+                      <p className="text-gray-600 text-xs mb-4">{plan.durationDays >= 9000 ? t.apps_lifetime : `${plan.durationDays} ${t.apps_days}`}</p>
+
+                      <div className="space-y-2 mb-5">
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-emerald-400 font-bold font-mono text-2xl">{fmt(withDiscount)}</span>
                           {discount > 0 && original > 0 && <span className="text-gray-600 text-xs line-through">{fmt(original)}</span>}
                         </div>
-                        <div className="flex items-center gap-2 text-xs text-green-400">
-                          <span className="text-gray-500">Preço final:</span>
-                          <span className="font-mono font-bold">R$ {parseFloat(String(plan.resellerSellingPrice ?? "0")).toFixed(2)}</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-gray-400">
-                          <Clock className="w-3 h-3 text-blue-400" />
-                          {plan.durationDays >= 9000 ? t.apps_lifetime : `${plan.durationDays} ${t.apps_days}`}
+                        <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                          <span>{language === "en" ? "Sells for" : "Vende por"}</span>
+                          <span className="text-emerald-400 font-mono font-semibold">R$ {parseFloat(String(plan.resellerSellingPrice ?? "0")).toFixed(2)}</span>
                         </div>
                       </div>
-                      <Button size="sm" className="w-full mt-3 bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white border border-emerald-600/30 transition-all text-xs h-7">
-                        <ShoppingCart className="w-3 h-3 mr-1" /> {t.apps_buy}
+
+                      <Button size="sm" className="w-full h-10 rounded-xl text-xs font-bold tracking-wide border-0 transition-all group-hover:shadow-lg group-hover:shadow-emerald-500/20"
+                        style={{ background: "linear-gradient(135deg, #10b981 0%, #059669 100%)", color: "#fff" }}>
+                        <ShoppingCart className="w-3.5 h-3.5 mr-1.5" /> {t.apps_buy}
                       </Button>
                     </div>
                   );
@@ -866,15 +902,17 @@ function PercentageAppDetail({ app, id }: { app: any; id: number }) {
 
           {/* Features */}
           {app.features && (
-            <div className="rounded-xl border border-white/5 p-5" style={{ background: "rgba(255,255,255,0.02)" }}>
-              <h3 className="text-white font-semibold text-sm mb-3 flex items-center gap-2">
+            <div className="rounded-3xl border border-white/[0.06] p-6" style={{ background: "rgba(255,255,255,0.02)" }}>
+              <h3 className="text-white font-semibold text-base mb-4 flex items-center gap-2">
                 <Star className="w-4 h-4 text-yellow-400" /> {t.apps_features}
               </h3>
-              <div className="space-y-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {app.features.split("\n").filter(Boolean).map((f: string, i: number) => (
-                  <div key={i} className="flex items-center gap-2 text-sm">
-                    <CheckCircle className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
-                    <span className="text-gray-300">{f}</span>
+                  <div key={i} className="flex items-start gap-3 p-3 rounded-2xl" style={{ background: "rgba(255,255,255,0.02)" }}>
+                    <div className="w-5 h-5 rounded-full bg-emerald-500/15 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <CheckCircle className="w-3 h-3 text-emerald-400" />
+                    </div>
+                    <span className="text-gray-300 text-sm leading-relaxed">{f}</span>
                   </div>
                 ))}
               </div>
@@ -882,25 +920,32 @@ function PercentageAppDetail({ app, id }: { app: any; id: number }) {
           )}
         </TabsContent>
 
-        <TabsContent value="buy" className="mt-4">
-          <div className="max-w-md mx-auto space-y-4">
-            <div className="rounded-xl border border-emerald-500/20 p-4 flex items-center justify-between" style={{ background: "rgba(16,185,129,0.05)" }}>
-              <div className="flex items-center gap-2">
-                <Percent className="w-4 h-4 text-emerald-400" />
-                <span className="text-gray-400 text-sm">{t.general_discount}:</span>
-                <span className="text-emerald-400 font-bold">{discount.toFixed(0)}%</span>
+        <TabsContent value="buy" className="mt-6">
+          <div className="max-w-md mx-auto space-y-5 rounded-3xl p-6" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            <h3 className="text-white font-bold text-lg mb-1">{language === "en" ? "Buy Keys" : "Comprar Keys"}</h3>
+            <p className="text-gray-500 text-xs mb-2">{app.name}</p>
+
+            <div className="rounded-2xl p-4 flex items-center justify-between" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center">
+                  <Percent className="w-4 h-4 text-emerald-400" />
+                </div>
+                <div>
+                  <p className="text-gray-500 text-xs">{t.general_discount}</p>
+                  <p className="text-white font-bold">{discount.toFixed(0)}%</p>
+                </div>
               </div>
             </div>
 
             <div>
-              <Label className="text-gray-300 text-sm">{t.apps_plan} *</Label>
+              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider mb-2 block">{t.apps_plan} *</Label>
               <Select value={selectedPlan ? String(selectedPlan.id) : ""} onValueChange={v => setSelectedPlan(app.plans?.find((p: any) => String(p.id) === v))}>
-                <SelectTrigger className="bg-white/5 border-white/10 text-white mt-1">
+                <SelectTrigger className="bg-white/[0.03] border-white/[0.06] text-white rounded-xl h-11">
                   <SelectValue placeholder={t.apps_select_plan} />
                 </SelectTrigger>
-                <SelectContent className="bg-[#0d0d14] border-white/10">
+                <SelectContent className="bg-[#0b0b0f] border-white/[0.06]">
                   {app.plans?.map((p: any) => (
-                    <SelectItem key={p.id} value={String(p.id)} className="text-white">
+                    <SelectItem key={p.id} value={String(p.id)} className="text-white rounded-lg">
                       {p.name} — {fmt(parseFloat(String(p.pricePercentage ?? "0")) * (1 - discount / 100))} ({p.durationDays >= 9000 ? t.apps_lifetime : `${p.durationDays}d`})
                     </SelectItem>
                   ))}
@@ -909,21 +954,21 @@ function PercentageAppDetail({ app, id }: { app: any; id: number }) {
             </div>
 
             <div>
-              <Label className="text-gray-300 text-sm">{t.apps_quantity}</Label>
-              <Input type="number" min="1" max="100" value={quantity} onChange={e => setQuantity(e.target.value)} className="bg-white/5 border-white/10 text-white mt-1" />
+              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider mb-2 block">{t.apps_quantity}</Label>
+              <Input type="number" min="1" max="100" value={quantity} onChange={e => setQuantity(e.target.value)} className="bg-white/[0.03] border-white/[0.06] text-white rounded-xl h-11" />
             </div>
 
             {selectedPlan && (
-              <div className="rounded-lg bg-white/5 border border-white/10 p-3 space-y-1.5">
+              <div className="rounded-2xl border border-white/[0.06] p-4 space-y-2" style={{ background: "rgba(255,255,255,0.02)" }}>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-400">{t.apps_original_price}</span>
-                  <span className="text-gray-400 font-mono line-through">{fmt(planPrice)}</span>
+                  <span className="text-gray-500">{t.apps_original_price}</span>
+                  <span className="text-gray-500 font-mono line-through">{fmt(planPrice)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-400">{t.apps_with_discount} {discount.toFixed(0)}% {t.general_discount}:</span>
+                  <span className="text-gray-500">{t.apps_with_discount} {discount.toFixed(0)}%:</span>
                   <span className="text-emerald-400 font-mono">{fmt(discountedPrice)}</span>
                 </div>
-                <div className="flex justify-between text-sm font-bold border-t border-white/10 pt-1.5 mt-1.5">
+                <div className="flex justify-between text-sm font-bold border-t border-white/[0.06] pt-2 mt-2">
                   <span className="text-gray-300">{t.apps_total} ({quantity}x):</span>
                   <span className="text-emerald-400">{fmt(totalCost)}</span>
                 </div>
@@ -933,7 +978,8 @@ function PercentageAppDetail({ app, id }: { app: any; id: number }) {
             <Button
               onClick={handleBuy}
               disabled={createKeyPix.isPending || createKeyLtc.isPending || !selectedPlan}
-              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white gap-2"
+              className="w-full h-12 rounded-xl font-bold gap-2"
+              style={{ background: "linear-gradient(135deg, #10b981 0%, #059669 100%)", color: "#fff", boxShadow: "0 4px 20px rgba(16,185,129,0.3)" }}
             >
               <ShoppingCart className="w-4 h-4" />
               {(createKeyPix.isPending || createKeyLtc.isPending) ? <><Loader2 className="w-4 h-4 animate-spin" /> {language === "en" ? "Loading..." : "Carregando..."}</> : `${language === "en" ? "Buy" : "Comprar"} ${quantity} Key(s)`}
@@ -978,27 +1024,40 @@ function PercentageAppDetail({ app, id }: { app: any; id: number }) {
 
       {/* Buy Modal (from plan card click) */}
       <Dialog open={showBuy} onOpenChange={setShowBuy}>
-        <DialogContent className="bg-[#0d0d14] border-white/10 text-white max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="text-white flex items-center gap-2">
-              <ShoppingCart className="w-4 h-4 text-emerald-400" /> {language === "en" ? "Buy Key" : "Comprar Key"} — {selectedPlan?.name}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 mt-2">
-            <div className="rounded-lg border border-emerald-500/20 p-3" style={{ background: "rgba(16,185,129,0.05)" }}>
-              <p className="text-emerald-400/80 text-xs">{t.apps_current_discount} <span className="font-bold text-emerald-400">{discount.toFixed(0)}%</span></p>
-              <p className="text-gray-400 text-xs mt-1">
-                {language === "en" ? "Price with discount:" : "Preço com desconto:"} <span className="text-emerald-400 font-mono font-bold">R$ {(parseFloat(String(selectedPlan?.pricePercentage ?? "0")) * (1 - discount / 100)).toFixed(2)}</span>
-              </p>
+        <DialogContent className="bg-[#0b0b0f] border-white/[0.08] text-white max-w-sm rounded-3xl p-0 overflow-hidden">
+          <div className="p-6 space-y-5" style={{ background: "linear-gradient(180deg, rgba(16,185,129,0.08) 0%, rgba(11,11,15,0.95) 120px)" }}>
+            <DialogHeader>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center">
+                  <ShoppingCart className="w-5 h-5 text-emerald-400" />
+                </div>
+                <div>
+                  <DialogTitle className="text-white font-bold text-base">{language === "en" ? "Buy Key" : "Comprar Key"}</DialogTitle>
+                  <p className="text-gray-500 text-xs">{selectedPlan?.name}</p>
+                </div>
+              </div>
+            </DialogHeader>
+
+            <div className="rounded-2xl border border-white/[0.06] p-4 flex items-center justify-between" style={{ background: "rgba(255,255,255,0.02)" }}>
+              <div>
+                <p className="text-gray-500 text-xs">{t.apps_current_discount}</p>
+                <p className="text-emerald-400 font-bold text-2xl">{discount.toFixed(0)}%</p>
+              </div>
+              <div className="text-right">
+                <p className="text-gray-500 text-xs">{language === "en" ? "Price" : "Preço"}</p>
+                <p className="text-emerald-400 font-mono font-bold">R$ {(parseFloat(String(selectedPlan?.pricePercentage ?? "0")) * (1 - discount / 100)).toFixed(2)}</p>
+              </div>
             </div>
+
             <div>
-              <Label className="text-gray-300 text-sm">{t.general_quantity}</Label>
-              <Input type="number" min="1" max="100" value={quantity} onChange={e => setQuantity(e.target.value)} className="bg-white/5 border-white/10 text-white mt-1" />
+              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider mb-2 block">{t.general_quantity}</Label>
+              <Input type="number" min="1" max="100" value={quantity} onChange={e => setQuantity(e.target.value)} className="bg-white/[0.03] border-white/[0.06] text-white rounded-xl h-11" />
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setShowBuy(false)} className="flex-1 border-white/10 text-gray-300">{t.apps_cancel}</Button>
-              <Button onClick={handleBuy} disabled={createKeyPix.isPending || createKeyLtc.isPending} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white">
-                {(createKeyPix.isPending || createKeyLtc.isPending) ? <><Loader2 className="w-4 h-4 animate-spin" /> {language === "en" ? "Loading..." : "Carregando..."}</> : t.apps_confirm}
+
+            <div className="flex gap-3 pt-1">
+              <Button variant="outline" onClick={() => setShowBuy(false)} className="flex-1 h-11 rounded-xl border-white/[0.08] text-gray-300 hover:bg-white/[0.03] hover:text-white">{t.apps_cancel}</Button>
+              <Button onClick={handleBuy} disabled={createKeyPix.isPending || createKeyLtc.isPending} className="flex-1 h-11 rounded-xl font-semibold gap-2" style={{ background: "linear-gradient(135deg, #10b981 0%, #059669 100%)", color: "#fff" }}>
+                {(createKeyPix.isPending || createKeyLtc.isPending) ? <><Loader2 className="w-4 h-4 animate-spin" /> {language === "en" ? "Loading..." : "Carregando..."}</> : <><ShoppingCart className="w-4 h-4" /> {t.apps_confirm}</>}
               </Button>
             </div>
           </div>
