@@ -303,98 +303,107 @@ function CreditsProfile({ profile, refetch }: { profile: any; refetch: () => voi
   const credits = parseFloat(String(profile.credits ?? "0"));
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 max-w-5xl mx-auto">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-white text-2xl font-bold">{t.profile_title}</h1>
+          <h1 className="text-3xl font-bold text-white tracking-tight">{t.profile_title}</h1>
           <p className="text-gray-500 text-sm mt-1">{t.profile_type_credits}</p>
         </div>
-        <span className="text-xs px-2.5 py-1 rounded-full border font-medium bg-yellow-500/20 text-yellow-400 border-yellow-500/30 flex items-center gap-1.5">
+        <span className="text-xs px-3 py-1.5 rounded-full border font-medium bg-yellow-500/15 text-yellow-400 border-yellow-500/30 flex items-center gap-1.5">
           <CreditCard className="w-3 h-3" /> {language === "en" ? "Credits Reseller" : "Reseller Créditos"}
         </span>
       </div>
 
-      {/* Main credit card */}
-      <div className="rounded-2xl p-6 relative overflow-hidden" style={{ background: "linear-gradient(135deg, rgba(234,179,8,0.12) 0%, rgba(234,179,8,0.04) 100%)", border: "1px solid rgba(234,179,8,0.25)" }}>
-        <div className="absolute top-0 right-0 w-48 h-48 rounded-full opacity-10 pointer-events-none" style={{ background: "radial-gradient(circle, #eab308, transparent)", transform: "translate(30%, -30%)" }} />
-        <div className="flex items-center gap-2 mb-1">
-          <CreditCard className="w-4 h-4 text-yellow-400/70" />
-          <p className="text-yellow-400/70 text-sm font-medium">{t.profile_balance}</p>
+      {/* Hero balance */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <div className="lg:col-span-2 rounded-3xl p-8 relative overflow-hidden" style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.12) 0%, rgba(16,185,129,0.04) 100%)", border: "1px solid rgba(16,185,129,0.25)" }}>
+          <div className="absolute top-0 right-0 w-64 h-64 rounded-full opacity-10 pointer-events-none" style={{ background: "radial-gradient(circle, #10b981, transparent)", transform: "translate(30%, -30%)" }} />
+          <div className="relative z-10">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center">
+                <CreditCard className="w-5 h-5 text-emerald-400" />
+              </div>
+              <p className="text-emerald-400/80 text-sm font-medium">{t.profile_balance}</p>
+            </div>
+            <p className="text-white text-6xl font-bold font-mono tracking-tight mb-6">{credits.toFixed(2)} <span className="text-2xl text-emerald-400/70">cr</span></p>
+            <div className="flex items-center gap-4">
+              <Button
+                onClick={() => setShowBuy(true)}
+                className="font-semibold gap-2 h-11 px-5 text-sm text-white rounded-xl"
+                style={{ background: "linear-gradient(135deg, #10b981, #059669)", boxShadow: "0 4px 20px rgba(16,185,129,0.35)" }}
+              >
+                <Plus className="w-4 h-4" /> {t.profile_buy_credits}
+              </Button>
+              <p className="text-gray-500 text-sm"><span className="text-white font-medium">{profile.totalPurchases}</span> {language === "en" ? "purchases made" : "compras realizadas"}</p>
+            </div>
+          </div>
         </div>
-        <p className="text-white text-5xl font-bold font-mono mb-5">{credits.toFixed(2)}</p>
-        <div className="flex items-center gap-4">
-          <Button
-            onClick={() => setShowBuy(true)}
-            className="font-bold gap-2 h-9 text-sm text-white"
-            style={{ background: "linear-gradient(135deg, #10b981, #059669)", boxShadow: "0 4px 16px rgba(16,185,129,0.35)" }}
-          >
-            <Plus className="w-4 h-4" /> {t.profile_buy_credits}
-          </Button>
-          <p className="text-gray-500 text-sm"><span className="text-gray-300 font-medium">{profile.totalPurchases}</span> {language === "en" ? "purchases made" : "compras realizadas"}</p>
+
+        <div className="rounded-3xl p-6" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+          <h2 className="text-white font-semibold text-sm mb-4">{language === "en" ? "Account" : "Conta"}</h2>
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-red-500/15 flex items-center justify-center"><User className="w-4 h-4 text-red-400" /></div>
+              <div><p className="text-gray-500 text-xs">Username</p><p className="text-white text-sm font-medium">{profile.username}</p></div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-blue-500/15 flex items-center justify-center"><Mail className="w-4 h-4 text-blue-400" /></div>
+              <div><p className="text-gray-500 text-xs">{t.profile_email}</p><p className="text-white text-sm font-medium">{profile.email || "—"}</p></div>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Info grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: t.profile_total_purchases, value: profile.totalPurchases, icon: ShoppingBag, color: "text-blue-400", bg: "bg-blue-500/20" },
-          { label: t.profile_member_since, value: formatDate(profile.createdAt, language), icon: Calendar, color: "text-green-400", bg: "bg-green-500/20" },
-          { label: language === "en" ? "Last access" : "Último acesso", value: formatDate(profile.lastLoginAt, language), icon: Clock, color: "text-emerald-400", bg: "bg-emerald-500/20" },
-          { label: t.profile_location, value: profile.location || "—", icon: MapPin, color: "text-orange-400", bg: "bg-orange-500/20" },
+          { label: t.profile_total_purchases, value: profile.totalPurchases, icon: ShoppingBag, color: "text-emerald-400", bg: "bg-emerald-500/15" },
+          { label: t.profile_member_since, value: formatDate(profile.createdAt, language), icon: Calendar, color: "text-blue-400", bg: "bg-blue-500/15" },
+          { label: language === "en" ? "Last access" : "Último acesso", value: formatDate(profile.lastLoginAt, language), icon: Clock, color: "text-yellow-400", bg: "bg-yellow-500/15" },
+          { label: t.profile_location, value: profile.location || "—", icon: MapPin, color: "text-orange-400", bg: "bg-orange-500/15" },
         ].map(({ label, value, icon: Icon, color, bg }) => (
-          <div key={label} className="rounded-xl border border-white/5 p-4" style={{ background: "rgba(255,255,255,0.02)" }}>
-            <div className={`w-8 h-8 rounded-lg ${bg} flex items-center justify-center mb-2`}>
+          <div key={label} className="rounded-2xl border border-white/[0.06] p-4" style={{ background: "rgba(255,255,255,0.02)" }}>
+            <div className={`w-9 h-9 rounded-xl ${bg} flex items-center justify-center mb-3`}>
               <Icon className={`w-4 h-4 ${color}`} />
             </div>
             <p className="text-gray-500 text-xs">{label}</p>
-            <p className="text-white text-sm font-medium mt-0.5 truncate">{String(value)}</p>
+            <p className="text-white text-sm font-semibold mt-0.5 truncate">{String(value)}</p>
           </div>
         ))}
       </div>
 
-      {/* Account info */}
-      <div className="rounded-xl border border-white/5 p-5 space-y-3" style={{ background: "rgba(255,255,255,0.02)" }}>
-        <h2 className="text-white font-semibold text-sm mb-1">{language === "en" ? "Account Information" : "Informações da Conta"}</h2>
-        <div className="flex items-center gap-3 p-3 rounded-lg bg-white/[0.03] border border-white/5">
-          <div className="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center"><User className="w-3.5 h-3.5 text-red-400" /></div>
-          <div><p className="text-gray-500 text-xs">Username</p><p className="text-white text-sm font-medium">{profile.username}</p></div>
-        </div>
-        <div className="flex items-center gap-3 p-3 rounded-lg bg-white/[0.03] border border-white/5">
-          <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center"><Mail className="w-3.5 h-3.5 text-blue-400" /></div>
-          <div><p className="text-gray-500 text-xs">{t.profile_email}</p><p className="text-white text-sm font-medium">{profile.email || "—"}</p></div>
-        </div>
-      </div>
-
       {/* Transaction history */}
-      <div>
-        <h2 className="text-white font-semibold mb-3 flex items-center gap-2">
-          <TrendingUp className="w-4 h-4 text-yellow-400" /> {t.profile_recent_transactions}
+      <div className="rounded-3xl border border-white/[0.06] p-5" style={{ background: "rgba(255,255,255,0.02)" }}>
+        <h2 className="text-white font-semibold mb-4 flex items-center gap-2">
+          <TrendingUp className="w-4 h-4 text-emerald-400" /> {t.profile_recent_transactions}
         </h2>
-        <div className="rounded-xl border border-white/5 overflow-hidden" style={{ background: "rgba(255,255,255,0.02)" }}>
-          {!profile.transactions?.length ? (
-            <p className="text-gray-600 text-sm text-center py-8">{t.profile_no_transactions}</p>
-          ) : profile.transactions.slice(0, 20).map((tx: any) => (
-            <div key={tx.id} className="flex items-center justify-between px-4 py-3 border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition-colors">
-              <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${tx.type === "add" ? "bg-green-500/20" : "bg-red-500/20"}`}>
-                  {tx.type === "add"
-                    ? <ArrowUpRight className="w-4 h-4 text-green-400" />
-                    : <ArrowDownRight className="w-4 h-4 text-red-400" />}
+        {!profile.transactions?.length ? (
+          <p className="text-gray-600 text-sm text-center py-8">{t.profile_no_transactions}</p>
+        ) : (
+          <div className="space-y-2">
+            {profile.transactions.slice(0, 20).map((tx: any) => (
+              <div key={tx.id} className="flex items-center justify-between p-4 rounded-2xl border border-white/[0.04] hover:bg-white/[0.02] transition-colors" style={{ background: "rgba(255,255,255,0.01)" }}>
+                <div className="flex items-center gap-4">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${tx.type === "add" ? "bg-emerald-500/15" : "bg-red-500/15"}`}>
+                    {tx.type === "add"
+                      ? <ArrowUpRight className="w-4 h-4 text-emerald-400" />
+                      : <ArrowDownRight className="w-4 h-4 text-red-400" />}
+                  </div>
+                  <div>
+                    <p className="text-white text-sm font-medium">{tx.description}</p>
+                    <p className="text-gray-600 text-xs">{formatDate(tx.createdAt, language)}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-white text-sm">{tx.description}</p>
-                  <p className="text-gray-600 text-xs">{formatDate(tx.createdAt, language)}</p>
+                <div className="text-right">
+                  <p className={`font-mono font-bold text-sm ${tx.type === "add" ? "text-emerald-400" : "text-red-400"}`}>
+                    {tx.type === "add" ? "+" : "-"}{parseFloat(tx.amount).toFixed(2)} cr
+                  </p>
+                  <p className="text-gray-600 text-xs font-mono">{language === "en" ? "Balance:" : "Saldo:"} {parseFloat(tx.balanceAfter).toFixed(2)} cr</p>
                 </div>
               </div>
-              <div className="text-right">
-                <p className={`font-mono font-bold text-sm ${tx.type === "add" ? "text-green-400" : "text-red-400"}`}>
-                  {tx.type === "add" ? "+" : "-"}{parseFloat(tx.amount).toFixed(2)} cr
-                </p>
-                <p className="text-gray-600 text-xs font-mono">{language === "en" ? "Balance:" : "Saldo:"} {parseFloat(tx.balanceAfter).toFixed(2)} cr</p>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <BuyCreditsModal
@@ -414,9 +423,9 @@ function PercentageProfile({ profile }: { profile: any }) {
   const discount = parseFloat(String(profile.discountPercent ?? 0));
 
   const levels = [
-    { label: language === "en" ? "Level 1" : "Nível 1", discount: 35, from: 0, to: 10, color: "text-blue-400", bg: "bg-blue-500/20", border: "border-blue-500/30", activeBg: "bg-blue-500" },
-    { label: language === "en" ? "Level 2" : "Nível 2", discount: 40, from: 10, to: 20, color: "text-emerald-400", bg: "bg-emerald-500/20", border: "border-emerald-500/30", activeBg: "bg-emerald-500" },
-    { label: language === "en" ? "Level MAX" : "Nível MAX", discount: 50, from: 20, to: Infinity, color: "text-yellow-400", bg: "bg-yellow-500/20", border: "border-yellow-500/30", activeBg: "bg-yellow-500" },
+    { label: language === "en" ? "Starter" : "Iniciante", discount: 35, from: 0, to: 10, color: "text-blue-400", bg: "bg-blue-500/20", border: "border-blue-500/30", activeBg: "bg-blue-500" },
+    { label: language === "en" ? "Advanced" : "Avançado", discount: 40, from: 10, to: 20, color: "text-emerald-400", bg: "bg-emerald-500/20", border: "border-emerald-500/30", activeBg: "bg-emerald-500" },
+    { label: language === "en" ? "Elite" : "Elite", discount: 50, from: 20, to: Infinity, color: "text-yellow-400", bg: "bg-yellow-500/20", border: "border-yellow-500/30", activeBg: "bg-yellow-500" },
   ];
 
   const currentLevelIdx = purchases >= 20 ? 2 : purchases >= 10 ? 1 : 0;
@@ -426,74 +435,94 @@ function PercentageProfile({ profile }: { profile: any }) {
   const progressPct = nextLevel ? Math.min(100, (progressInLevel / 10) * 100) : 100;
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 max-w-5xl mx-auto">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-white text-2xl font-bold">{t.profile_title}</h1>
+          <h1 className="text-3xl font-bold text-white tracking-tight">{t.profile_title}</h1>
           <p className="text-gray-500 text-sm mt-1">{t.profile_type_percentage}</p>
         </div>
-        <span className="text-xs px-2.5 py-1 rounded-full border font-medium bg-emerald-500/20 text-emerald-400 border-emerald-500/30 flex items-center gap-1.5">
+        <span className="text-xs px-3 py-1.5 rounded-full border font-medium bg-emerald-500/15 text-emerald-400 border-emerald-500/30 flex items-center gap-1.5">
           <Percent className="w-3 h-3" /> {language === "en" ? "Percentage Reseller" : "Reseller Porcentagem"}
         </span>
       </div>
 
-      {/* Discount hero card */}
-      <div className="rounded-2xl p-6 relative overflow-hidden" style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.12) 0%, rgba(16,185,129,0.04) 100%)", border: "1px solid rgba(16,185,129,0.25)" }}>
-        <div className="absolute top-0 right-0 w-48 h-48 rounded-full opacity-10 pointer-events-none" style={{ background: "radial-gradient(circle, #a855f7, transparent)", transform: "translate(30%, -30%)" }} />
-        <div className="flex items-center gap-2 mb-1">
-          <Percent className="w-4 h-4 text-emerald-400/70" />
-          <p className="text-emerald-400/70 text-sm font-medium">{t.profile_current_discount}</p>
-        </div>
-        <div className="flex items-end gap-3 mb-5">
-          <p className="text-white text-6xl font-bold">{discount.toFixed(0)}<span className="text-3xl text-emerald-400">%</span></p>
-          <span className={`text-xs px-2 py-0.5 rounded-full border font-medium mb-2 ${currentLevel.border} ${currentLevel.color}`} style={{ background: "rgba(16,185,129,0.08)" }}>
-            {currentLevel.label}
-          </span>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* Discount hero */}
+        <div className="lg:col-span-2 rounded-3xl p-8 relative overflow-hidden" style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.12) 0%, rgba(16,185,129,0.04) 100%)", border: "1px solid rgba(16,185,129,0.25)" }}>
+          <div className="absolute top-0 right-0 w-64 h-64 rounded-full opacity-10 pointer-events-none" style={{ background: "radial-gradient(circle, #10b981, transparent)", transform: "translate(30%, -30%)" }} />
+          <div className="relative z-10">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center">
+                <Percent className="w-5 h-5 text-emerald-400" />
+              </div>
+              <p className="text-emerald-400/80 text-sm font-medium">{t.profile_current_discount}</p>
+            </div>
+            <div className="flex items-end gap-4 mb-6">
+              <p className="text-white text-6xl font-bold tracking-tight">{discount.toFixed(0)}<span className="text-3xl text-emerald-400">%</span></p>
+              <span className={`text-xs px-3 py-1 rounded-full border font-medium mb-3 ${currentLevel.border} ${currentLevel.color}`} style={{ background: "rgba(16,185,129,0.08)" }}>
+                {currentLevel.label}
+              </span>
+            </div>
+
+            {nextLevel ? (
+              <div>
+                <div className="flex justify-between text-xs mb-2">
+                  <span className="text-gray-400">{progressInLevel}/10 {language === "en" ? "purchases at this level" : "compras neste nível"}</span>
+                  <span className={nextLevel.color}>{nextLevel.discount}% {language === "en" ? "next level" : "próximo nível"}</span>
+                </div>
+                <div className="h-2.5 rounded-full bg-white/10 overflow-hidden">
+                  <div className="h-full rounded-full transition-all duration-700" style={{ width: `${progressPct}%`, background: "linear-gradient(90deg, #10b981, #34d399)" }} />
+                </div>
+                <p className="text-gray-500 text-xs mt-2">
+                  {language === "en" ? "Need" : "Faltam"} <span className="text-emerald-400 font-semibold">{10 - progressInLevel} {language === "en" ? "more purchases" : "compras"}</span> {language === "en" ? `for ${nextLevel.discount}% discount` : `para ${nextLevel.discount}% de desconto`}
+                </p>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-2.5 rounded-full overflow-hidden" style={{ background: "rgba(234,179,8,0.2)" }}>
+                  <div className="h-full rounded-full w-full" style={{ background: "linear-gradient(90deg, #ca8a04, #eab308)" }} />
+                </div>
+                <span className="text-yellow-400 text-sm font-bold whitespace-nowrap">{language === "en" ? "MAX REACHED" : "MÁXIMO ATINGIDO"}</span>
+              </div>
+            )}
+          </div>
         </div>
 
-        {nextLevel ? (
-          <div>
-            <div className="flex justify-between text-xs mb-1.5">
-              <span className="text-gray-400">{progressInLevel}/10 {language === "en" ? "purchases at this level" : "compras neste nível"}</span>
-              <span className={nextLevel.color}>{nextLevel.discount}% {t.profile_discount_level} {nextLevel.from} {t.profile_discount_after}</span>
+        <div className="rounded-3xl p-6" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+          <h2 className="text-white font-semibold text-sm mb-4">{language === "en" ? "Account" : "Conta"}</h2>
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-red-500/15 flex items-center justify-center"><User className="w-4 h-4 text-red-400" /></div>
+              <div><p className="text-gray-500 text-xs">Username</p><p className="text-white text-sm font-medium">{profile.username}</p></div>
             </div>
-            <div className="h-2.5 rounded-full bg-white/10 overflow-hidden">
-              <div className="h-full rounded-full transition-all duration-700" style={{ width: `${progressPct}%`, background: "linear-gradient(90deg, #10b981, #a855f7)" }} />
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-blue-500/15 flex items-center justify-center"><Mail className="w-4 h-4 text-blue-400" /></div>
+              <div><p className="text-gray-500 text-xs">{t.profile_email}</p><p className="text-white text-sm font-medium">{profile.email || "—"}</p></div>
             </div>
-            <p className="text-gray-500 text-xs mt-1.5">
-              {language === "en" ? "Need" : "Faltam"} <span className="text-emerald-400 font-semibold">{10 - progressInLevel} {language === "en" ? "more purchases" : "compras"}</span> {language === "en" ? `for ${nextLevel.discount}% discount` : `para ${nextLevel.discount}% de desconto`}
-            </p>
           </div>
-        ) : (
-          <div className="flex items-center gap-3">
-            <div className="flex-1 h-2.5 rounded-full overflow-hidden" style={{ background: "rgba(234,179,8,0.2)" }}>
-              <div className="h-full rounded-full w-full" style={{ background: "linear-gradient(90deg, #ca8a04, #eab308)" }} />
-            </div>
-            <span className="text-yellow-400 text-sm font-bold whitespace-nowrap">🏆 {language === "en" ? "MAX REACHED" : "MÁXIMO ATINGIDO"}</span>
-          </div>
-        )}
+        </div>
       </div>
 
-      {/* Level progression */}
+      {/* Levels */}
       <div>
-        <h2 className="text-white font-semibold mb-3 flex items-center gap-2">
+        <h2 className="text-white font-semibold mb-4 flex items-center gap-2">
           <TrendingUp className="w-4 h-4 text-emerald-400" /> {language === "en" ? "Discount Progression" : "Progressão de Desconto"}
         </h2>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-3 gap-4">
           {levels.map((level, idx) => {
             const isUnlocked = currentLevelIdx >= idx;
             const isCurrent = currentLevelIdx === idx;
             return (
-              <div key={level.label} className={`rounded-xl border p-4 transition-all ${isCurrent ? `${level.border}` : isUnlocked ? "border-white/10" : "border-white/5 opacity-40"}`}
+              <div key={level.label} className={`rounded-2xl border p-5 transition-all ${isCurrent ? `${level.border}` : isUnlocked ? "border-white/10" : "border-white/5 opacity-40"}`}
                 style={{ background: isCurrent ? "rgba(16,185,129,0.07)" : "rgba(255,255,255,0.02)" }}>
-                <div className={`w-9 h-9 rounded-full flex items-center justify-center mb-3 ${isUnlocked ? level.bg : "bg-white/5"}`}>
-                  <Percent className={`w-4 h-4 ${isUnlocked ? level.color : "text-gray-600"}`} />
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-4 ${isUnlocked ? level.bg : "bg-white/5"}`}>
+                  <Percent className={`w-5 h-5 ${isUnlocked ? level.color : "text-gray-600"}`} />
                 </div>
-                <p className={`text-3xl font-bold ${isUnlocked ? level.color : "text-gray-600"}`}>{level.discount}%</p>
-                <p className="text-gray-400 text-xs font-medium mt-0.5">{level.label}</p>
+                <p className={`text-4xl font-bold ${isUnlocked ? level.color : "text-gray-600"}`}>{level.discount}%</p>
+                <p className="text-gray-300 text-sm font-medium mt-1">{level.label}</p>
                 <p className="text-gray-600 text-xs mt-1">{level.from === 0 ? (language === "en" ? "Starting discount" : "Desconto inicial") : `${language === "en" ? "After" : "Após"} ${level.from} ${language === "en" ? "purchases" : "compras"}`}</p>
-                {isCurrent && <span className="text-xs text-green-400 font-semibold mt-2 block">● {language === "en" ? "Current level" : "Nível atual"}</span>}
-                {isUnlocked && !isCurrent && <span className="text-xs text-gray-500 mt-2 block">✓ {language === "en" ? "Unlocked" : "Desbloqueado"}</span>}
+                {isCurrent && <span className="text-xs text-emerald-400 font-semibold mt-3 block">● {language === "en" ? "Current level" : "Nível atual"}</span>}
+                {isUnlocked && !isCurrent && <span className="text-xs text-gray-500 mt-3 block">✓ {language === "en" ? "Unlocked" : "Desbloqueado"}</span>}
               </div>
             );
           })}
@@ -501,34 +530,21 @@ function PercentageProfile({ profile }: { profile: any }) {
       </div>
 
       {/* Info grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: t.profile_total_purchases, value: purchases, icon: ShoppingBag, color: "text-blue-400", bg: "bg-blue-500/20" },
-          { label: t.profile_member_since, value: formatDate(profile.createdAt, language), icon: Calendar, color: "text-green-400", bg: "bg-green-500/20" },
-          { label: language === "en" ? "Last access" : "Último acesso", value: formatDate(profile.lastLoginAt, language), icon: Clock, color: "text-emerald-400", bg: "bg-emerald-500/20" },
-          { label: t.profile_location, value: profile.location || "—", icon: MapPin, color: "text-orange-400", bg: "bg-orange-500/20" },
+          { label: t.profile_total_purchases, value: purchases, icon: ShoppingBag, color: "text-emerald-400", bg: "bg-emerald-500/15" },
+          { label: t.profile_member_since, value: formatDate(profile.createdAt, language), icon: Calendar, color: "text-blue-400", bg: "bg-blue-500/15" },
+          { label: language === "en" ? "Last access" : "Último acesso", value: formatDate(profile.lastLoginAt, language), icon: Clock, color: "text-yellow-400", bg: "bg-yellow-500/15" },
+          { label: t.profile_location, value: profile.location || "—", icon: MapPin, color: "text-orange-400", bg: "bg-orange-500/15" },
         ].map(({ label, value, icon: Icon, color, bg }) => (
-          <div key={label} className="rounded-xl border border-white/5 p-4" style={{ background: "rgba(255,255,255,0.02)" }}>
-            <div className={`w-8 h-8 rounded-lg ${bg} flex items-center justify-center mb-2`}>
+          <div key={label} className="rounded-2xl border border-white/[0.06] p-4" style={{ background: "rgba(255,255,255,0.02)" }}>
+            <div className={`w-9 h-9 rounded-xl ${bg} flex items-center justify-center mb-3`}>
               <Icon className={`w-4 h-4 ${color}`} />
             </div>
             <p className="text-gray-500 text-xs">{label}</p>
-            <p className="text-white text-sm font-medium mt-0.5 truncate">{String(value)}</p>
+            <p className="text-white text-sm font-semibold mt-0.5 truncate">{String(value)}</p>
           </div>
         ))}
-      </div>
-
-      {/* Account info */}
-      <div className="rounded-xl border border-white/5 p-5 space-y-3" style={{ background: "rgba(255,255,255,0.02)" }}>
-        <h2 className="text-white font-semibold text-sm mb-1">{language === "en" ? "Account Information" : "Informações da Conta"}</h2>
-        <div className="flex items-center gap-3 p-3 rounded-lg bg-white/[0.03] border border-white/5">
-          <div className="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center"><User className="w-3.5 h-3.5 text-red-400" /></div>
-          <div><p className="text-gray-500 text-xs">Username</p><p className="text-white text-sm font-medium">{profile.username}</p></div>
-        </div>
-        <div className="flex items-center gap-3 p-3 rounded-lg bg-white/[0.03] border border-white/5">
-          <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center"><Mail className="w-3.5 h-3.5 text-blue-400" /></div>
-          <div><p className="text-gray-500 text-xs">{t.profile_email}</p><p className="text-white text-sm font-medium">{profile.email || "—"}</p></div>
-        </div>
       </div>
     </div>
   );
