@@ -110,17 +110,17 @@ function BuyCreditsModal({ open, onClose, currentCredits, onSuccess }: PixModalP
           className="relative rounded-2xl overflow-hidden"
           style={{
             background: "linear-gradient(145deg, rgba(13,10,25,0.98) 0%, rgba(18,12,35,0.98) 100%)",
-            border: "1px solid rgba(124,58,237,0.3)",
-            boxShadow: "0 0 60px rgba(124,58,237,0.15), 0 25px 50px rgba(0,0,0,0.6)",
+            border: "1px solid rgba(16,185,129,0.3)",
+            boxShadow: "0 0 60px rgba(16,185,129,0.15), 0 25px 50px rgba(0,0,0,0.6)",
           }}
         >
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(139,92,246,0.6), transparent)" }} />
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(52,211,153,0.6), transparent)" }} />
 
           {/* Header */}
           <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-white/[0.06]">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, rgba(124,58,237,0.3), rgba(139,92,246,0.15))", border: "1px solid rgba(124,58,237,0.4)" }}>
-                <QrCode className="w-4.5 h-4.5 text-violet-400" />
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.3), rgba(52,211,153,0.15))", border: "1px solid rgba(16,185,129,0.4)" }}>
+                <QrCode className="w-4.5 h-4.5 text-emerald-400" />
               </div>
               <div>
                 <h2 className="text-white font-semibold text-base leading-tight">{t.buy_credits_title}</h2>
@@ -135,12 +135,12 @@ function BuyCreditsModal({ open, onClose, currentCredits, onSuccess }: PixModalP
           {/* ── Step: Select amount ── */}
           {step === "select" && (
             <div className="p-6 space-y-5">
-              <div className="flex items-center justify-between rounded-xl px-4 py-3" style={{ background: "rgba(124,58,237,0.08)", border: "1px solid rgba(124,58,237,0.2)" }}>
+              <div className="flex items-center justify-between rounded-xl px-4 py-3" style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.2)" }}>
                 <div className="flex items-center gap-2">
-                  <CreditCard className="w-3.5 h-3.5 text-violet-400" />
+                  <CreditCard className="w-3.5 h-3.5 text-emerald-400" />
                   <span className="text-gray-400 text-xs">{t.buy_credits_current_balance}</span>
                 </div>
-                <span className="text-violet-300 font-mono font-bold text-sm">{currentCredits.toFixed(2)} {t.general_credits}</span>
+                <span className="text-emerald-300 font-mono font-bold text-sm">{currentCredits.toFixed(2)} {t.general_credits}</span>
               </div>
 
               <div>
@@ -154,9 +154,9 @@ function BuyCreditsModal({ open, onClose, currentCredits, onSuccess }: PixModalP
                         amount === String(p) ? "text-white" : "text-gray-400 hover:text-gray-200"
                       }`}
                       style={amount === String(p) ? {
-                        background: "linear-gradient(135deg, rgba(124,58,237,0.4), rgba(139,92,246,0.25))",
-                        border: "1px solid rgba(124,58,237,0.5)",
-                        boxShadow: "0 0 16px rgba(124,58,237,0.2)",
+                        background: "linear-gradient(135deg, rgba(16,185,129,0.4), rgba(52,211,153,0.25))",
+                        border: "1px solid rgba(16,185,129,0.5)",
+                        boxShadow: "0 0 16px rgba(16,185,129,0.2)",
                       } : {
                         background: "rgba(255,255,255,0.04)",
                         border: "1px solid rgba(255,255,255,0.08)",
@@ -180,12 +180,12 @@ function BuyCreditsModal({ open, onClose, currentCredits, onSuccess }: PixModalP
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                     placeholder={t.buy_credits_placeholder}
-                    className="bg-white/[0.04] border-white/10 text-white placeholder:text-gray-600 pr-20 focus:border-violet-500/50 focus:ring-violet-500/20 h-11"
+                    className="bg-white/[0.04] border-white/10 text-white placeholder:text-gray-600 pr-20 focus:border-emerald-500/50 focus:ring-emerald-500/20 h-11"
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm font-medium">{t.general_credits}</span>
                 </div>
                 {amount && parseInt(amount) > 0 && (
-                  <p className="text-violet-400 text-xs mt-1.5 flex items-center gap-1">
+                  <p className="text-emerald-400 text-xs mt-1.5 flex items-center gap-1">
                     <Zap className="w-3 h-3" />
                     {language === "en" ? "Amount to pay:" : "Valor a pagar:"} <span className="font-mono font-bold">{fmt(parseInt(amount))}</span>
                   </p>
@@ -205,7 +205,7 @@ function BuyCreditsModal({ open, onClose, currentCredits, onSuccess }: PixModalP
                   onClick={handleGenerate}
                   disabled={createCharge.isPending || !amount || parseInt(amount) < 1}
                   className="flex-1 h-11 font-semibold text-white gap-2"
-                  style={{ background: "linear-gradient(135deg, #7c3aed, #8b5cf6)", boxShadow: "0 4px 20px rgba(124,58,237,0.35)" }}
+                  style={{ background: "linear-gradient(135deg, #10b981, #059669)", boxShadow: "0 4px 20px rgba(16,185,129,0.35)" }}
                 >
                   {createCharge.isPending ? (
                     <><Loader2 className="w-4 h-4 animate-spin" /> {t.buy_credits_generating}</>
@@ -223,17 +223,17 @@ function BuyCreditsModal({ open, onClose, currentCredits, onSuccess }: PixModalP
               <div className="text-center">
                 <p className="text-gray-500 text-xs mb-1">{t.buy_credits_amount_to_pay}</p>
                 <p className="text-white text-4xl font-bold font-mono">{fmtCents(pixData.amountCents)}</p>
-                <p className="text-violet-400 text-sm mt-1">+{pixData.credits} {t.buy_credits_will_add}</p>
+                <p className="text-emerald-400 text-sm mt-1">+{pixData.credits} {t.buy_credits_will_add}</p>
               </div>
 
               <div className="flex flex-col items-center gap-3">
                 {pixData.qrCodeImage ? (
-                  <div className="rounded-xl overflow-hidden p-3" style={{ background: "white", border: "3px solid rgba(124,58,237,0.4)" }}>
+                  <div className="rounded-xl overflow-hidden p-3" style={{ background: "white", border: "3px solid rgba(16,185,129,0.4)" }}>
                     <img src={pixData.qrCodeImage} alt="QR Code Pix" className="w-44 h-44 object-contain" />
                   </div>
                 ) : (
-                  <div className="w-52 h-52 rounded-xl flex items-center justify-center" style={{ background: "rgba(124,58,237,0.08)", border: "2px dashed rgba(124,58,237,0.3)" }}>
-                    <QrCode className="w-16 h-16 text-violet-500/40" />
+                  <div className="w-52 h-52 rounded-xl flex items-center justify-center" style={{ background: "rgba(16,185,129,0.08)", border: "2px dashed rgba(16,185,129,0.3)" }}>
+                    <QrCode className="w-16 h-16 text-emerald-500/40" />
                   </div>
                 )}
                 <div className="flex items-center gap-1.5">
@@ -245,14 +245,14 @@ function BuyCreditsModal({ open, onClose, currentCredits, onSuccess }: PixModalP
               {pixData.brCode && (
                 <div>
                   <p className="text-gray-500 text-xs mb-2 text-center">{t.buy_credits_or_copypaste}</p>
-                  <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(124,58,237,0.25)" }}>
+                  <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(16,185,129,0.25)" }}>
                     <div className="px-3 py-2.5 bg-white/[0.03]">
                       <p className="text-gray-400 text-xs font-mono truncate">{pixData.brCode.slice(0, 60)}...</p>
                     </div>
                     <button
                       onClick={handleCopy}
                       className="w-full flex items-center justify-center gap-2 py-2.5 text-sm font-medium transition-all"
-                      style={{ background: copied ? "rgba(34,197,94,0.15)" : "rgba(124,58,237,0.15)", color: copied ? "#4ade80" : "#a78bfa" }}
+                      style={{ background: copied ? "rgba(34,197,94,0.15)" : "rgba(16,185,129,0.15)", color: copied ? "#4ade80" : "#34d399" }}
                     >
                       {copied ? <><CheckCircle2 className="w-4 h-4" /> {t.buy_credits_copied}</> : <><Copy className="w-4 h-4" /> {t.buy_credits_copy}</>}
                     </button>
@@ -264,7 +264,7 @@ function BuyCreditsModal({ open, onClose, currentCredits, onSuccess }: PixModalP
                 <Button variant="outline" onClick={handleClose} className="flex-1 border-white/10 text-gray-400 hover:text-gray-200 bg-transparent h-10 text-sm">
                   {t.buy_credits_close}
                 </Button>
-                <Button variant="outline" onClick={() => refetchStatus()} className="flex-1 border-violet-500/30 text-violet-400 hover:text-violet-300 bg-transparent h-10 text-sm gap-1.5">
+                <Button variant="outline" onClick={() => refetchStatus()} className="flex-1 border-emerald-500/30 text-emerald-400 hover:text-emerald-300 bg-transparent h-10 text-sm gap-1.5">
                   <RefreshCw className="w-3.5 h-3.5" /> {t.buy_credits_verify}
                 </Button>
               </div>
@@ -284,7 +284,7 @@ function BuyCreditsModal({ open, onClose, currentCredits, onSuccess }: PixModalP
                   <span className="text-green-400 font-bold font-mono">+{pixData?.credits}</span> {t.buy_credits_confirmed_desc}
                 </p>
               </div>
-              <Button onClick={handleClose} className="w-full h-11 font-semibold text-white" style={{ background: "linear-gradient(135deg, #7c3aed, #8b5cf6)" }}>
+              <Button onClick={handleClose} className="w-full h-11 font-semibold text-white" style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}>
                 {t.buy_credits_close}
               </Button>
             </div>
@@ -326,7 +326,7 @@ function CreditsProfile({ profile, refetch }: { profile: any; refetch: () => voi
           <Button
             onClick={() => setShowBuy(true)}
             className="font-bold gap-2 h-9 text-sm text-white"
-            style={{ background: "linear-gradient(135deg, #7c3aed, #8b5cf6)", boxShadow: "0 4px 16px rgba(124,58,237,0.35)" }}
+            style={{ background: "linear-gradient(135deg, #10b981, #059669)", boxShadow: "0 4px 16px rgba(16,185,129,0.35)" }}
           >
             <Plus className="w-4 h-4" /> {t.profile_buy_credits}
           </Button>
@@ -339,7 +339,7 @@ function CreditsProfile({ profile, refetch }: { profile: any; refetch: () => voi
         {[
           { label: t.profile_total_purchases, value: profile.totalPurchases, icon: ShoppingBag, color: "text-blue-400", bg: "bg-blue-500/20" },
           { label: t.profile_member_since, value: formatDate(profile.createdAt, language), icon: Calendar, color: "text-green-400", bg: "bg-green-500/20" },
-          { label: language === "en" ? "Last access" : "Último acesso", value: formatDate(profile.lastLoginAt, language), icon: Clock, color: "text-purple-400", bg: "bg-purple-500/20" },
+          { label: language === "en" ? "Last access" : "Último acesso", value: formatDate(profile.lastLoginAt, language), icon: Clock, color: "text-emerald-400", bg: "bg-emerald-500/20" },
           { label: t.profile_location, value: profile.location || "—", icon: MapPin, color: "text-orange-400", bg: "bg-orange-500/20" },
         ].map(({ label, value, icon: Icon, color, bg }) => (
           <div key={label} className="rounded-xl border border-white/5 p-4" style={{ background: "rgba(255,255,255,0.02)" }}>
@@ -415,7 +415,7 @@ function PercentageProfile({ profile }: { profile: any }) {
 
   const levels = [
     { label: language === "en" ? "Level 1" : "Nível 1", discount: 35, from: 0, to: 10, color: "text-blue-400", bg: "bg-blue-500/20", border: "border-blue-500/30", activeBg: "bg-blue-500" },
-    { label: language === "en" ? "Level 2" : "Nível 2", discount: 40, from: 10, to: 20, color: "text-purple-400", bg: "bg-purple-500/20", border: "border-purple-500/30", activeBg: "bg-purple-500" },
+    { label: language === "en" ? "Level 2" : "Nível 2", discount: 40, from: 10, to: 20, color: "text-emerald-400", bg: "bg-emerald-500/20", border: "border-emerald-500/30", activeBg: "bg-emerald-500" },
     { label: language === "en" ? "Level MAX" : "Nível MAX", discount: 50, from: 20, to: Infinity, color: "text-yellow-400", bg: "bg-yellow-500/20", border: "border-yellow-500/30", activeBg: "bg-yellow-500" },
   ];
 
@@ -432,21 +432,21 @@ function PercentageProfile({ profile }: { profile: any }) {
           <h1 className="text-white text-2xl font-bold">{t.profile_title}</h1>
           <p className="text-gray-500 text-sm mt-1">{t.profile_type_percentage}</p>
         </div>
-        <span className="text-xs px-2.5 py-1 rounded-full border font-medium bg-purple-500/20 text-purple-400 border-purple-500/30 flex items-center gap-1.5">
+        <span className="text-xs px-2.5 py-1 rounded-full border font-medium bg-emerald-500/20 text-emerald-400 border-emerald-500/30 flex items-center gap-1.5">
           <Percent className="w-3 h-3" /> {language === "en" ? "Percentage Reseller" : "Reseller Porcentagem"}
         </span>
       </div>
 
       {/* Discount hero card */}
-      <div className="rounded-2xl p-6 relative overflow-hidden" style={{ background: "linear-gradient(135deg, rgba(168,85,247,0.12) 0%, rgba(168,85,247,0.04) 100%)", border: "1px solid rgba(168,85,247,0.25)" }}>
+      <div className="rounded-2xl p-6 relative overflow-hidden" style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.12) 0%, rgba(16,185,129,0.04) 100%)", border: "1px solid rgba(16,185,129,0.25)" }}>
         <div className="absolute top-0 right-0 w-48 h-48 rounded-full opacity-10 pointer-events-none" style={{ background: "radial-gradient(circle, #a855f7, transparent)", transform: "translate(30%, -30%)" }} />
         <div className="flex items-center gap-2 mb-1">
-          <Percent className="w-4 h-4 text-purple-400/70" />
-          <p className="text-purple-400/70 text-sm font-medium">{t.profile_current_discount}</p>
+          <Percent className="w-4 h-4 text-emerald-400/70" />
+          <p className="text-emerald-400/70 text-sm font-medium">{t.profile_current_discount}</p>
         </div>
         <div className="flex items-end gap-3 mb-5">
-          <p className="text-white text-6xl font-bold">{discount.toFixed(0)}<span className="text-3xl text-purple-400">%</span></p>
-          <span className={`text-xs px-2 py-0.5 rounded-full border font-medium mb-2 ${currentLevel.border} ${currentLevel.color}`} style={{ background: "rgba(168,85,247,0.08)" }}>
+          <p className="text-white text-6xl font-bold">{discount.toFixed(0)}<span className="text-3xl text-emerald-400">%</span></p>
+          <span className={`text-xs px-2 py-0.5 rounded-full border font-medium mb-2 ${currentLevel.border} ${currentLevel.color}`} style={{ background: "rgba(16,185,129,0.08)" }}>
             {currentLevel.label}
           </span>
         </div>
@@ -458,10 +458,10 @@ function PercentageProfile({ profile }: { profile: any }) {
               <span className={nextLevel.color}>{nextLevel.discount}% {t.profile_discount_level} {nextLevel.from} {t.profile_discount_after}</span>
             </div>
             <div className="h-2.5 rounded-full bg-white/10 overflow-hidden">
-              <div className="h-full rounded-full transition-all duration-700" style={{ width: `${progressPct}%`, background: "linear-gradient(90deg, #7c3aed, #a855f7)" }} />
+              <div className="h-full rounded-full transition-all duration-700" style={{ width: `${progressPct}%`, background: "linear-gradient(90deg, #10b981, #a855f7)" }} />
             </div>
             <p className="text-gray-500 text-xs mt-1.5">
-              {language === "en" ? "Need" : "Faltam"} <span className="text-purple-400 font-semibold">{10 - progressInLevel} {language === "en" ? "more purchases" : "compras"}</span> {language === "en" ? `for ${nextLevel.discount}% discount` : `para ${nextLevel.discount}% de desconto`}
+              {language === "en" ? "Need" : "Faltam"} <span className="text-emerald-400 font-semibold">{10 - progressInLevel} {language === "en" ? "more purchases" : "compras"}</span> {language === "en" ? `for ${nextLevel.discount}% discount` : `para ${nextLevel.discount}% de desconto`}
             </p>
           </div>
         ) : (
@@ -477,7 +477,7 @@ function PercentageProfile({ profile }: { profile: any }) {
       {/* Level progression */}
       <div>
         <h2 className="text-white font-semibold mb-3 flex items-center gap-2">
-          <TrendingUp className="w-4 h-4 text-purple-400" /> {language === "en" ? "Discount Progression" : "Progressão de Desconto"}
+          <TrendingUp className="w-4 h-4 text-emerald-400" /> {language === "en" ? "Discount Progression" : "Progressão de Desconto"}
         </h2>
         <div className="grid grid-cols-3 gap-3">
           {levels.map((level, idx) => {
@@ -485,7 +485,7 @@ function PercentageProfile({ profile }: { profile: any }) {
             const isCurrent = currentLevelIdx === idx;
             return (
               <div key={level.label} className={`rounded-xl border p-4 transition-all ${isCurrent ? `${level.border}` : isUnlocked ? "border-white/10" : "border-white/5 opacity-40"}`}
-                style={{ background: isCurrent ? "rgba(168,85,247,0.07)" : "rgba(255,255,255,0.02)" }}>
+                style={{ background: isCurrent ? "rgba(16,185,129,0.07)" : "rgba(255,255,255,0.02)" }}>
                 <div className={`w-9 h-9 rounded-full flex items-center justify-center mb-3 ${isUnlocked ? level.bg : "bg-white/5"}`}>
                   <Percent className={`w-4 h-4 ${isUnlocked ? level.color : "text-gray-600"}`} />
                 </div>
@@ -505,7 +505,7 @@ function PercentageProfile({ profile }: { profile: any }) {
         {[
           { label: t.profile_total_purchases, value: purchases, icon: ShoppingBag, color: "text-blue-400", bg: "bg-blue-500/20" },
           { label: t.profile_member_since, value: formatDate(profile.createdAt, language), icon: Calendar, color: "text-green-400", bg: "bg-green-500/20" },
-          { label: language === "en" ? "Last access" : "Último acesso", value: formatDate(profile.lastLoginAt, language), icon: Clock, color: "text-purple-400", bg: "bg-purple-500/20" },
+          { label: language === "en" ? "Last access" : "Último acesso", value: formatDate(profile.lastLoginAt, language), icon: Clock, color: "text-emerald-400", bg: "bg-emerald-500/20" },
           { label: t.profile_location, value: profile.location || "—", icon: MapPin, color: "text-orange-400", bg: "bg-orange-500/20" },
         ].map(({ label, value, icon: Icon, color, bg }) => (
           <div key={label} className="rounded-xl border border-white/5 p-4" style={{ background: "rgba(255,255,255,0.02)" }}>

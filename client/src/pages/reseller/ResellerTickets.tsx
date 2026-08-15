@@ -189,7 +189,7 @@ export default function ResellerTickets() {
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(e as any); } }}
                 />
                 {chatImageName && (
-                  <div className="flex items-center gap-2 mt-2 text-xs text-violet-400">
+                  <div className="flex items-center gap-2 mt-2 text-xs text-emerald-400">
                     <Image className="w-3.5 h-3.5" />
                     <span className="truncate max-w-[200px]">{chatImageName}</span>
                     <button type="button" onClick={() => { setChatImage(null); setChatImageName(null); }} className="text-gray-500 hover:text-red-400"><X className="w-3.5 h-3.5" /></button>
@@ -208,7 +208,7 @@ export default function ResellerTickets() {
                   type="button"
                   variant="outline"
                   onClick={() => chatFileInputRef.current?.click()}
-                  className="h-10 w-10 p-0 border-white/10 text-gray-400 hover:text-violet-400 hover:bg-white/5"
+                  className="h-10 w-10 p-0 border-white/10 text-gray-400 hover:text-emerald-400 hover:bg-white/5"
                 >
                   <Image className="w-4 h-4" />
                 </Button>
@@ -271,8 +271,8 @@ export default function ResellerTickets() {
                 onClick={() => setSelectedTicketId(t.id)}
                 className="w-full flex items-center gap-4 px-5 py-4 text-left hover:bg-white/[0.02] transition-colors"
               >
-                <div className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center border border-violet-500/20">
-                  <MessageSquare className="w-4 h-4 text-violet-400" />
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
+                  <MessageSquare className="w-4 h-4 text-emerald-400" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-white text-sm font-medium truncate">{t.subject}</p>
@@ -306,7 +306,7 @@ export default function ResellerTickets() {
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
                 placeholder="Ex: Problema com key"
-                className="mt-1.5 text-white border-white/10 focus:border-violet-500/60 bg-white/5"
+                className="mt-1.5 text-white border-white/10 focus:border-emerald-500/60 bg-white/5"
                 required
               />
             </div>
@@ -316,7 +316,7 @@ export default function ResellerTickets() {
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 placeholder="Descreva sua dúvida ou problema..."
-                className="mt-1.5 text-white border-white/10 focus:border-violet-500/60 bg-white/5 min-h-[100px]"
+                className="mt-1.5 text-white border-white/10 focus:border-emerald-500/60 bg-white/5 min-h-[100px]"
                 required
               />
             </div>
@@ -333,12 +333,12 @@ export default function ResellerTickets() {
                 type="button"
                 variant="outline"
                 onClick={() => fileInputRef.current?.click()}
-                className="gap-2 border-white/10 text-gray-400 hover:text-violet-400 bg-transparent"
+                className="gap-2 border-white/10 text-gray-400 hover:text-emerald-400 bg-transparent"
               >
                 <Image className="w-4 h-4" /> {imageName ? "Trocar foto" : "Adicionar foto"}
               </Button>
               {imageName && (
-                <p className="text-xs text-violet-400 mt-1.5 flex items-center gap-2">
+                <p className="text-xs text-emerald-400 mt-1.5 flex items-center gap-2">
                   <Image className="w-3.5 h-3.5" /> {imageName}
                 </p>
               )}

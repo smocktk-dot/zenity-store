@@ -182,7 +182,7 @@ export default function ResellerKeys() {
                       <button
                         onClick={() => { if (confirm(language === "en" ? "Reset HWID for this key?" : "Resetar HWID desta key?")) resetHwid.mutate({ keyId: k.id }); }}
                         title={t.keys_reset_hwid}
-                        className="p-1.5 rounded-lg text-gray-500 hover:text-purple-400 hover:bg-purple-500/10 transition-all"
+                        className="p-1.5 rounded-lg text-gray-500 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all"
                       >
                         <RefreshCw className="w-3.5 h-3.5" />
                       </button>
@@ -229,8 +229,8 @@ export default function ResellerKeys() {
         <DialogContent className="bg-[#0d0d14] border-white/10 text-white max-w-md">
           <DialogHeader>
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-purple-500/20 flex items-center justify-center">
-                <Key className="w-4 h-4 text-purple-400" />
+              <div className="w-9 h-9 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                <Key className="w-4 h-4 text-emerald-400" />
               </div>
               <div>
                 <DialogTitle className="text-white text-sm font-mono">{viewKey?.keyValue}</DialogTitle>
@@ -275,7 +275,7 @@ export default function ResellerKeys() {
                   <Copy className="w-3.5 h-3.5" /> {t.keys_copy}
                 </button>
                 {viewKey.status === "active" && (
-                  <button onClick={() => resetHwid.mutate({ keyId: viewKey.id })} disabled={resetHwid.isPending} className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 text-sm transition-all">
+                  <button onClick={() => resetHwid.mutate({ keyId: viewKey.id })} disabled={resetHwid.isPending} className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 text-sm transition-all">
                     <RefreshCw className="w-3.5 h-3.5" /> {t.keys_reset_hwid}
                   </button>
                 )}
