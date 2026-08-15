@@ -36,7 +36,7 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
       <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
         <div className="galaxy-bg"><div className="galaxy-stars" /></div>
         <div className="relative z-10 flex items-center gap-3 text-gray-400">
-          <div className="w-5 h-5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+          <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
           {t.nav_loading}
         </div>
       </div>
@@ -61,9 +61,9 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
       <header
         className="relative z-10 border-b sticky top-0"
         style={{
-          background: "rgba(8,6,18,0.92)",
-          backdropFilter: "blur(20px)",
-          borderColor: "rgba(124,58,237,0.12)",
+          background: "rgba(5,5,5,0.88)",
+          backdropFilter: "blur(24px)",
+          borderColor: "rgba(255,255,255,0.06)",
         }}
       >
         <div className="flex items-center justify-between px-6 h-14">
@@ -74,9 +74,9 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
                 src={LOGO_URL}
                 alt="Zenity"
                 className="w-7 h-7 object-contain"
-                style={{ filter: "drop-shadow(0 0 6px rgba(124,58,237,0.7))" }}
+                style={{ filter: "drop-shadow(0 0 6px rgba(16,185,129,0.7))" }}
               />
-              <span className="text-white font-black text-sm tracking-wide">ZENITY <span className="font-normal text-purple-400 text-xs tracking-widest">STORE</span></span>
+              <span className="text-white font-black text-sm tracking-wide">ZENITY <span className="font-normal text-emerald-400 text-xs tracking-widest">STORE</span></span>
             </div>
 
             <nav className="flex items-center gap-0.5 ml-2">
@@ -87,9 +87,9 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
                     <div
                       className="flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer transition-all text-sm"
                       style={active ? {
-                        background: "rgba(124,58,237,0.15)",
-                        color: "#c4b5fd",
-                        border: "1px solid rgba(124,58,237,0.2)",
+                        background: "rgba(16,185,129,0.15)",
+                        color: "#6ee7b7",
+                        border: "1px solid rgba(16,185,129,0.2)",
                       } : {
                         color: "#6b7280",
                         border: "1px solid transparent",
@@ -110,12 +110,12 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
                   <div
                     className="flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer transition-all text-sm ml-1"
                     style={{
-                      background: "rgba(124,58,237,0.12)",
-                      color: "#a78bfa",
-                      border: "1px solid rgba(124,58,237,0.3)",
+                      background: "rgba(16,185,129,0.12)",
+                      color: "#34d399",
+                      border: "1px solid rgba(16,185,129,0.3)",
                     }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = "rgba(124,58,237,0.25)"; (e.currentTarget as HTMLDivElement).style.color = "#c4b5fd"; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = "rgba(124,58,237,0.12)"; (e.currentTarget as HTMLDivElement).style.color = "#a78bfa"; }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = "rgba(16,185,129,0.25)"; (e.currentTarget as HTMLDivElement).style.color = "#6ee7b7"; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = "rgba(16,185,129,0.12)"; (e.currentTarget as HTMLDivElement).style.color = "#34d399"; }}
                   >
                     <Shield className="w-3.5 h-3.5" />
                     {t.nav_admin_panel}
@@ -134,7 +134,7 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
             {isAdmin && (
               <div
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold"
-                style={{ background: "rgba(124,58,237,0.12)", border: "1px solid rgba(124,58,237,0.3)", color: "#a78bfa" }}
+                style={{ background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.3)", color: "#34d399" }}
               >
                 <Shield className="w-3 h-3" />
                 Admin
@@ -152,7 +152,7 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
             {resellerSession && !isCredits && (
               <div
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
-                style={{ background: "rgba(124,58,237,0.08)", border: "1px solid rgba(124,58,237,0.2)", color: "#a78bfa" }}
+                style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.2)", color: "#34d399" }}
               >
                 {parseFloat((resellerSession as any).discountPercent ?? "0").toFixed(0)}% {t.general_discount}
               </div>
@@ -164,7 +164,7 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
             >
               <div
                 className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold uppercase"
-                style={{ background: isAdmin ? "rgba(124,58,237,0.4)" : "rgba(124,58,237,0.3)", color: "#a78bfa" }}
+                style={{ background: isAdmin ? "rgba(16,185,129,0.4)" : "rgba(16,185,129,0.3)", color: "#34d399" }}
               >
                 {displayUsername[0]}
               </div>
