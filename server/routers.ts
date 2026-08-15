@@ -1419,64 +1419,6 @@ const resellerRouter = router({
       };
     }),
 
-  // Comprar keys para resellers de porcentagem (sem débito de créditos)
-  buyKey: resellerProcedure
-    .input(z.object({
-      appId: z.number(), planId: z.number(), quantity: z.number().min(1).max(100),
-    }))
-    .mutation(async ({ ctx, input }) => {
-      const reseller = ctx.reseller;
-      if (reseller.resellerType !== "percentage") {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Esta ação é apenas para resellers de porcentagem" });
-      }
-
-      const assigned = await getAssignedAppIds(ctx.resellerId);
-      if (!assigned.includes(input.appId)) throw new TRPCError({ code: "FORBIDDEN", message: "App não disponível" });
-
-      const plan = await getPlanById(input.planId);
-      if (!plan || plan.appId !== input.appId) throw new TRPCError({ code: "NOT_FOUND", message: "Plano não encontrado" });
-
-      const app = await getAppById(input.appId);
-      if (!app) throw new TRPCError({ code: "NOT_FOUND" });
-
-      // Resellers de porcentagem usam o desconto configurado pelo admin
-      const discount = parseFloat(reseller.discountPercent as string) || 0;
-      const basePrice = parseFloat((plan as any).pricePercentage ?? "0");
-      const discountedPrice = basePrice * (1 - discount / 100);
-      const totalCost = discountedPrice * input.quantity;
-
-      const newPurchases = reseller.totalPurchases + input.quantity;
-      await updateResellerCredits(ctx.resellerId, reseller.credits as string, newPurchases, reseller.discountPercent as string);
-
-      // Reservar keys do estoque
-      const reserved = await getAvailableStockForPlan(input.appId, input.planId, input.quantity);
-      if (reserved.length < input.quantity) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: `Estoque insuficiente. Disponível: ${reserved.length}, Solicitado: ${input.quantity}`,
-        });
-      }
-
-      const generatedKeys: string[] = [];
-      for (const stock of reserved) {
-        const row = await reserveStockForReseller(stock.id, ctx.resellerId);
-        if (!row) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Falha ao reservar stock" });
-        await createLicenseKey({
-          keyValue: row.keyValue,
-          resellerId: ctx.resellerId,
-          appId: input.appId,
-          planId: plan.id,
-          planName: plan.name,
-          durationDays: plan.durationDays,
-          creditsSpent: discountedPrice.toFixed(2),
-          resellerCredits: reseller.credits as string,
-          note: `Compra via porcentagem - R$ ${totalCost.toFixed(2)}`,
-        } as any);
-        generatedKeys.push(row.keyValue);
-      }
-
-      return { success: true, keys: generatedKeys, totalCost, newBalance: reseller.credits };
-    }),
 
   // ─── Tickets ─────────────────────────────────────────────────────────────────
   myTickets: resellerProcedure.query(async ({ ctx }) => {

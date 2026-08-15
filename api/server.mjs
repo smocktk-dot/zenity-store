@@ -2964,54 +2964,6 @@ var resellerRouter = router({
       keys
     };
   }),
-  // Comprar keys para resellers de porcentagem (sem débito de créditos)
-  buyKey: resellerProcedure.input(z2.object({
-    appId: z2.number(),
-    planId: z2.number(),
-    quantity: z2.number().min(1).max(100)
-  })).mutation(async ({ ctx, input }) => {
-    const reseller = ctx.reseller;
-    if (reseller.resellerType !== "percentage") {
-      throw new TRPCError3({ code: "FORBIDDEN", message: "Esta a\xE7\xE3o \xE9 apenas para resellers de porcentagem" });
-    }
-    const assigned = await getAssignedAppIds(ctx.resellerId);
-    if (!assigned.includes(input.appId)) throw new TRPCError3({ code: "FORBIDDEN", message: "App n\xE3o dispon\xEDvel" });
-    const plan = await getPlanById(input.planId);
-    if (!plan || plan.appId !== input.appId) throw new TRPCError3({ code: "NOT_FOUND", message: "Plano n\xE3o encontrado" });
-    const app2 = await getAppById(input.appId);
-    if (!app2) throw new TRPCError3({ code: "NOT_FOUND" });
-    const discount = parseFloat(reseller.discountPercent) || 0;
-    const basePrice = parseFloat(plan.pricePercentage ?? "0");
-    const discountedPrice = basePrice * (1 - discount / 100);
-    const totalCost = discountedPrice * input.quantity;
-    const newPurchases = reseller.totalPurchases + input.quantity;
-    await updateResellerCredits(ctx.resellerId, reseller.credits, newPurchases, reseller.discountPercent);
-    const reserved = await getAvailableStockForPlan(input.appId, input.planId, input.quantity);
-    if (reserved.length < input.quantity) {
-      throw new TRPCError3({
-        code: "BAD_REQUEST",
-        message: `Estoque insuficiente. Dispon\xEDvel: ${reserved.length}, Solicitado: ${input.quantity}`
-      });
-    }
-    const generatedKeys = [];
-    for (const stock of reserved) {
-      const row = await reserveStockForReseller(stock.id, ctx.resellerId);
-      if (!row) throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: "Falha ao reservar stock" });
-      await createLicenseKey({
-        keyValue: row.keyValue,
-        resellerId: ctx.resellerId,
-        appId: input.appId,
-        planId: plan.id,
-        planName: plan.name,
-        durationDays: plan.durationDays,
-        creditsSpent: discountedPrice.toFixed(2),
-        resellerCredits: reseller.credits,
-        note: `Compra via porcentagem - R$ ${totalCost.toFixed(2)}`
-      });
-      generatedKeys.push(row.keyValue);
-    }
-    return { success: true, keys: generatedKeys, totalCost, newBalance: reseller.credits };
-  }),
   // ─── Tickets ─────────────────────────────────────────────────────────────────
   myTickets: resellerProcedure.query(async ({ ctx }) => {
     return getTicketsByResellerId(ctx.resellerId);
