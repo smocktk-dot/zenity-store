@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useEffect, useCallback } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useCurrency } from "@/hooks/useCurrency";
+import { QRCodeSVG } from "qrcode.react";
 
 const levelColors: Record<string, string> = {
   basic: "text-blue-400 bg-blue-500/20 border-blue-500/30",
@@ -422,6 +423,10 @@ function PixKeyModal({
                 {pixData.qrCodeImage ? (
                   <div className="rounded-xl overflow-hidden p-3" style={{ background: "white", border: "3px solid rgba(124,58,237,0.4)" }}>
                     <img src={pixData.qrCodeImage} alt="QR Code Pix" className="w-44 h-44 object-contain" />
+                  </div>
+                ) : pixData.brCode ? (
+                  <div className="rounded-xl overflow-hidden p-3" style={{ background: "white", border: "3px solid rgba(124,58,237,0.4)" }}>
+                    <QRCodeSVG value={pixData.brCode} size={176} bgColor="#ffffff" fgColor="#000000" />
                   </div>
                 ) : (
                   <div className="w-52 h-52 rounded-xl flex items-center justify-center" style={{ background: "rgba(124,58,237,0.08)", border: "2px dashed rgba(124,58,237,0.3)" }}>
