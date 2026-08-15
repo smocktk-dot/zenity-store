@@ -1664,7 +1664,11 @@ async function handlePurinCashWebhook(req, res) {
       hasSecret: !!PURIN_WEBHOOK_SECRET,
       bodyLength: rawBody?.length
     });
-    if (PURIN_WEBHOOK_SECRET && !isValidHmac(rawBody, signature, PURIN_WEBHOOK_SECRET)) {
+    if (!PURIN_WEBHOOK_SECRET) {
+      console.error("[PurinCash Webhook] missing PURINCASH_WEBHOOK_SECRET");
+      return res.status(401).json({ error: "Webhook n\xE3o configurado" });
+    }
+    if (!isValidHmac(rawBody, signature, PURIN_WEBHOOK_SECRET)) {
       console.warn("[PurinCash Webhook] invalid signature");
       return res.status(401).json({ error: "Assinatura inv\xE1lida" });
     }
