@@ -1105,9 +1105,9 @@ export default function ResellerAppDetail({ id }: { id: number }) {
         </div>
       </div>
 
-      {resellerType === "percentage"
-        ? <PercentageAppDetail app={app} id={id} />
-        : <CreditsAppDetail app={app} id={id} />
+      {resellerType === "credits"
+        ? <CreditsAppDetail app={app} id={id} />
+        : <PercentageAppDetail app={app} id={id} />
       }
     </div>
   );

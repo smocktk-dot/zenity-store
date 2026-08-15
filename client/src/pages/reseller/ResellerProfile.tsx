@@ -567,7 +567,7 @@ export default function ResellerProfile() {
     </div>
   );
 
-  return profile.resellerType === "percentage"
-    ? <PercentageProfile profile={profile} />
-    : <CreditsProfile profile={profile} refetch={refetch} />;
+  return profile.resellerType === "credits"
+    ? <CreditsProfile profile={profile} refetch={refetch} />
+    : <PercentageProfile profile={profile} />;
 }
