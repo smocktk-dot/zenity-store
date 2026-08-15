@@ -514,7 +514,7 @@ function PixKeyModal({
                   ))}
                 </div>
               )}
-              <Button onClick={handleClose} className="w-full h-11 font-semibold text-white" style={{ background: "linear-gradient(135deg, #7c3aed, #8b5cf6)" }}>
+              <Button onClick={handleClose} className="w-full h-11 font-semibold text-white" style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}>
                 {t.pix_see_keys}
               </Button>
             </div>
@@ -730,7 +730,7 @@ function LtcKeyModal({
                   ))}
                 </div>
               )}
-              <Button onClick={handleClose} className="w-full h-11 font-semibold text-white" style={{ background: "linear-gradient(135deg, #7c3aed, #8b5cf6)" }}>
+              <Button onClick={handleClose} className="w-full h-11 font-semibold text-white" style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}>
                 {t.ltc_see_keys}
               </Button>
             </div>
