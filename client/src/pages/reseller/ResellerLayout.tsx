@@ -76,7 +76,7 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
                 className="w-7 h-7 object-contain"
                 style={{ filter: "drop-shadow(0 0 6px rgba(16,185,129,0.7))" }}
               />
-              <span className="text-white font-black text-sm tracking-wide">ZENITY <span className="font-normal text-emerald-400 text-xs tracking-widest">STORE</span></span>
+              <span className="text-white font-black text-sm tracking-wide">VG <span className="font-normal text-emerald-400 text-xs tracking-widest">SELLERS</span></span>
             </div>
 
             <nav className="flex items-center gap-0.5 ml-2">

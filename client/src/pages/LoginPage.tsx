@@ -257,8 +257,8 @@ export default function LoginPage() {
               style={{ filter: "drop-shadow(0 0 20px rgba(16,185,129,0.6))" }}
             />
             <div className="text-left">
-              <h1 className="text-4xl font-black tracking-tight text-white leading-none">ZENITY</h1>
-              <p className="text-sm font-bold tracking-[0.4em] mt-0.5" style={{ color: "#34d399" }}>STORE</p>
+              <h1 className="text-4xl font-black tracking-tight text-white leading-none">VG</h1>
+              <p className="text-sm font-bold tracking-[0.4em] mt-0.5" style={{ color: "#34d399" }}>SELLERS</p>
             </div>
           </div>
           <p className="text-gray-500 text-sm">{t.login_title}</p>

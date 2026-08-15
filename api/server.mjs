@@ -2648,7 +2648,7 @@ var resellerRouter = router({
     const callbackUrl = `${process.env.VITE_APP_URL || "https://vgsellers.lat"}/api/webhooks/purincash`;
     const body = {
       valueCents: amountCents,
-      description: `Compra de ${input.credits} cr\xE9dito(s) - ZENITY STORE`,
+      description: `Compra de ${input.credits} cr\xE9dito(s) - VG SELLERS`,
       callbackUrl,
       customer: {
         name: reseller.username,
@@ -2747,7 +2747,7 @@ var resellerRouter = router({
     const callbackUrl = `${process.env.VITE_APP_URL || "https://vgsellers.lat"}/api/webhooks/purincash`;
     const body = {
       valueCents: amountCents,
-      description: `${input.quantity}x key(s) ${app2.name} - ${plan.name} - ZENITY STORE`,
+      description: `${input.quantity}x key(s) ${app2.name} - ${plan.name} - VG SELLERS`,
       callbackUrl,
       customer: {
         name: reseller.username,
@@ -2882,7 +2882,7 @@ var resellerRouter = router({
     const callbackUrl = `${process.env.VITE_APP_URL || "https://vgsellers.lat"}/api/webhooks/purincash`;
     const body = {
       valueCents: amountCents,
-      description: `${input.quantity}x key(s) ${app2.name} - ${plan.name} - ZENITY STORE`,
+      description: `${input.quantity}x key(s) ${app2.name} - ${plan.name} - VG SELLERS`,
       paymentMethod: "ltc",
       callbackUrl,
       customer: {

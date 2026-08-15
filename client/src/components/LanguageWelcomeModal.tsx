@@ -52,7 +52,7 @@ export function LanguageWelcomeModal() {
             <span className="text-3xl">🌐</span>
           </div>
           <h2 className="text-white text-xl font-bold text-center leading-tight">
-            ZENITY STORE
+            VG SELLERS
           </h2>
           <p className="text-gray-400 text-sm text-center mt-1">
             Selecione seu idioma / Select your language

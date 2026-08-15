@@ -75,8 +75,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             style={{ filter: "drop-shadow(0 0 8px rgba(16,185,129,0.7))" }}
           />
           <div>
-            <p className="text-white font-black text-sm leading-none tracking-wide">ZENITY</p>
-            <p className="text-xs font-semibold tracking-widest mt-0.5" style={{ color: "#34d399" }}>STORE</p>
+            <p className="text-white font-black text-sm leading-none tracking-wide">VG</p>
+            <p className="text-xs font-semibold tracking-widest mt-0.5" style={{ color: "#34d399" }}>SELLERS</p>
           </div>
           <div className="ml-auto">
             <Shield className="w-3.5 h-3.5" style={{ color: "#059669" }} />

@@ -1040,7 +1040,7 @@ const resellerRouter = router({
 
       const body = {
         valueCents: amountCents,
-        description: `Compra de ${input.credits} crédito(s) - ZENITY STORE`,
+        description: `Compra de ${input.credits} crédito(s) - VG SELLERS`,
         callbackUrl,
         customer: {
           name: reseller.username,
@@ -1163,7 +1163,7 @@ const resellerRouter = router({
 
       const body = {
         valueCents: amountCents,
-        description: `${input.quantity}x key(s) ${app.name} - ${plan.name} - ZENITY STORE`,
+        description: `${input.quantity}x key(s) ${app.name} - ${plan.name} - VG SELLERS`,
         callbackUrl,
         customer: {
           name: reseller.username,
@@ -1320,7 +1320,7 @@ const resellerRouter = router({
 
       const body = {
         valueCents: amountCents,
-        description: `${input.quantity}x key(s) ${app.name} - ${plan.name} - ZENITY STORE`,
+        description: `${input.quantity}x key(s) ${app.name} - ${plan.name} - VG SELLERS`,
         paymentMethod: "ltc",
         callbackUrl,
         customer: {

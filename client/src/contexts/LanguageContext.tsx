@@ -276,8 +276,8 @@ const ptTranslations: Translations = {
   login_password: "Password",
   login_signing_in: "Entrando...",
   login_sign_in: "Sign In",
-  login_secure_access: "Secure reseller access for ZENITY STORE",
-  login_copyright: "© 2025 ZENITY STORE. All rights reserved.",
+  login_secure_access: "Secure reseller access for VG SELLERS",
+  login_copyright: "© 2025 VG SELLERS. All rights reserved.",
   login_fill_fields: "Preencha todos os campos",
   login_success: "Login realizado com sucesso!",
 
@@ -539,8 +539,8 @@ const enTranslations: Translations = {
   login_password: "Password",
   login_signing_in: "Signing in...",
   login_sign_in: "Sign In",
-  login_secure_access: "Secure reseller access for ZENITY STORE",
-  login_copyright: "© 2025 ZENITY STORE. All rights reserved.",
+  login_secure_access: "Secure reseller access for VG SELLERS",
+  login_copyright: "© 2025 VG SELLERS. All rights reserved.",
   login_fill_fields: "Please fill in all fields",
   login_success: "Login successful!",
 
