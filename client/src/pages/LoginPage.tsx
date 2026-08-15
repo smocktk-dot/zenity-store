@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Eye, EyeOff, LogIn, Send, MessageCircle, X, UserPlus, CheckCircle2, HelpCircle } from "lucide-react";
+import { Eye, EyeOff, LogIn, Send, MessageCircle, X, UserPlus, CheckCircle2, HelpCircle, Zap, Shield, TrendingUp } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -245,48 +245,71 @@ export default function LoginPage() {
         />
       </div>
 
-      {/* Login Card */}
-      <div className="relative z-10 w-full max-w-md mx-4">
-        {/* Logo + Brand */}
-        <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-3 mb-3" style={{ fontFamily: 'var(--font-display)' }}>
+      {/* Login layout */}
+      <div className="relative z-10 w-full max-w-5xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+        {/* Left - Brand */}
+        <div className="hidden lg:flex flex-col items-start">
+          <div className="flex items-center gap-4 mb-8">
             <img
               src={LOGO_URL}
-              alt="Zenity Store"
-              className="w-16 h-16 object-contain"
-              style={{ filter: "drop-shadow(0 0 20px rgba(16,185,129,0.6))" }}
+              alt="VG Sellers"
+              className="w-20 h-20 object-contain"
+              style={{ filter: "drop-shadow(0 0 30px rgba(16,185,129,0.5))" }}
             />
             <div className="text-left">
-              <h1 className="text-4xl font-black tracking-tight text-white leading-none">VG</h1>
-              <p className="text-sm font-bold tracking-[0.4em] mt-0.5" style={{ color: "#34d399" }}>SELLERS</p>
+              <h1 className="text-6xl font-black tracking-tight text-white leading-none">VG</h1>
+              <p className="text-lg font-bold tracking-[0.3em] mt-1" style={{ color: "#34d399" }}>SELLERS</p>
             </div>
           </div>
-          <p className="text-gray-500 text-sm">{t.login_title}</p>
+          <h2 className="text-4xl font-bold text-white leading-tight mb-4">
+            Revenda <span className="euphon-text-gradient">keys e licenças</span> com facilidade.
+          </h2>
+          <p className="text-gray-400 text-lg mb-8 max-w-md">
+            Painel exclusivo para resellers gerenciarem pedidos, estoque e entregas automáticas em segundos.
+          </p>
+          <div className="space-y-4">
+            {[
+              { icon: Zap, text: "Entrega automática de keys" },
+              { icon: Shield, text: "Sistema seguro e whitelist" },
+              { icon: TrendingUp, text: "Gestão de créditos e comissões" },
+            ].map(({ icon: Icon, text }) => (
+              <div key={text} className="flex items-center gap-3 text-gray-300">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.2)" }}>
+                  <Icon className="w-4 h-4" style={{ color: "#34d399" }} />
+                </div>
+                <span className="text-sm font-medium">{text}</span>
+              </div>
+            ))}
+          </div>
         </div>
 
-        {/* Card */}
-        <div
-          className="rounded-2xl border overflow-hidden"
-          style={{
-            background: "rgba(10,8,20,0.88)",
-            backdropFilter: "blur(24px)",
-            borderColor: "rgba(16,185,129,0.2)",
-            boxShadow: "0 0 80px rgba(16,185,129,0.1), 0 30px 60px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.05)",
-          }}
-        >
-          {/* Form */}
-          <div className="p-8">
-            <div className="flex items-center gap-2.5 mb-7">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(16,185,129,0.2)", border: "1px solid rgba(16,185,129,0.3)" }}>
-                <LogIn className="w-4 h-4" style={{ color: "#34d399" }} />
-              </div>
-              <div>
-                <h2 className="text-white font-bold text-lg leading-none">{t.login_reseller_access}</h2>
-                <p className="text-gray-600 text-xs mt-0.5">{t.login_sign_in_desc}</p>
+        {/* Right - Card */}
+        <div className="w-full max-w-md mx-auto lg:mx-0 lg:ml-auto">
+          <div className="text-center lg:hidden mb-8">
+            <div className="flex items-center justify-center gap-3">
+              <img src={LOGO_URL} alt="VG Sellers" className="w-14 h-14 object-contain" style={{ filter: "drop-shadow(0 0 20px rgba(16,185,129,0.5))" }} />
+              <div className="text-left">
+                <h1 className="text-3xl font-black tracking-tight text-white leading-none">VG</h1>
+                <p className="text-sm font-bold tracking-[0.3em]" style={{ color: "#34d399" }}>SELLERS</p>
               </div>
             </div>
+          </div>
 
-            <form onSubmit={handleLogin} className="space-y-4">
+          <div
+            className="rounded-3xl border p-8"
+            style={{
+              background: "rgba(8,8,10,0.78)",
+              backdropFilter: "blur(28px)",
+              borderColor: "rgba(255,255,255,0.08)",
+              boxShadow: "0 0 0 1px rgba(16,185,129,0.08), 0 40px 80px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.04)",
+            }}
+          >
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold text-white">{t.login_reseller_access}</h2>
+              <p className="text-gray-500 text-sm mt-1">{t.login_sign_in_desc}</p>
+            </div>
+
+            <form onSubmit={handleLogin} className="space-y-5">
               <div className="space-y-1.5">
                 <label className="text-gray-400 text-xs font-semibold uppercase tracking-wider">{t.login_username}</label>
                 <Input
@@ -294,10 +317,10 @@ export default function LoginPage() {
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder={t.login_username_placeholder}
                   autoComplete="username"
-                  className="h-11 text-white placeholder:text-gray-600 transition-all"
-                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
-                  onFocus={e => { e.currentTarget.style.borderColor = "rgba(16,185,129,0.5)"; }}
-                  onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"; }}
+                  className="h-12 text-white placeholder:text-gray-600 transition-all rounded-xl"
+                  style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}
+                  onFocus={e => { e.currentTarget.style.borderColor = "rgba(16,185,129,0.5)"; e.currentTarget.style.background = "rgba(255,255,255,0.05)"; }}
+                  onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"; e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}
                 />
               </div>
               <div className="space-y-1.5">
@@ -309,10 +332,10 @@ export default function LoginPage() {
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••••"
                     autoComplete="current-password"
-                    className="h-11 text-white placeholder:text-gray-600 pr-10 transition-all"
-                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
-                    onFocus={e => { e.currentTarget.style.borderColor = "rgba(16,185,129,0.5)"; }}
-                    onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"; }}
+                    className="h-12 text-white placeholder:text-gray-600 pr-10 transition-all rounded-xl"
+                    style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}
+                    onFocus={e => { e.currentTarget.style.borderColor = "rgba(16,185,129,0.5)"; e.currentTarget.style.background = "rgba(255,255,255,0.05)"; }}
+                    onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"; e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}
                   />
                   <button
                     type="button"
@@ -324,24 +347,27 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                <input
-                  id="remember"
-                  type="checkbox"
-                  checked={remember}
-                  onChange={(e) => setRemember(e.target.checked)}
-                  className="w-4 h-4 accent-violet-500 cursor-pointer"
-                />
-                <label htmlFor="remember" className="text-gray-400 text-xs cursor-pointer select-none">Lembrar de mim</label>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <input
+                    id="remember"
+                    type="checkbox"
+                    checked={remember}
+                    onChange={(e) => setRemember(e.target.checked)}
+                    className="w-4 h-4 accent-emerald-500 cursor-pointer rounded"
+                  />
+                  <label htmlFor="remember" className="text-gray-400 text-xs cursor-pointer select-none">Lembrar de mim</label>
+                </div>
+                <a href="#" className="text-emerald-400 text-xs hover:text-emerald-300 transition-colors" onClick={e => { e.preventDefault(); toast.info("Entre em contato com o admin."); }}>Esqueceu a senha?</a>
               </div>
 
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full h-11 rounded-lg font-semibold text-sm text-white mt-2 flex items-center justify-center gap-2 transition-all"
+                className="w-full h-12 rounded-xl font-semibold text-sm text-white mt-2 flex items-center justify-center gap-2 transition-all"
                 style={{
                   background: isLoading ? "rgba(16,185,129,0.4)" : "linear-gradient(135deg, #10b981 0%, #059669 100%)",
-                  boxShadow: isLoading ? "none" : "0 4px 24px rgba(16,185,129,0.45), 0 1px 0 rgba(255,255,255,0.1) inset",
+                  boxShadow: isLoading ? "none" : "0 4px 24px rgba(16,185,129,0.35), 0 1px 0 rgba(255,255,255,0.1) inset",
                   border: "none",
                   cursor: isLoading ? "not-allowed" : "pointer",
                 }}
@@ -360,36 +386,36 @@ export default function LoginPage() {
               </button>
             </form>
 
-            <p className="text-center text-gray-700 text-xs mt-5">
+            <p className="text-center text-gray-600 text-xs mt-6">
               {t.login_secure_access}
             </p>
           </div>
+
+          {/* Apply button */}
+          {!hasApplication && (
+            <div className="mt-5 text-center">
+              <Button
+                onClick={() => setShowApply(true)}
+                className="gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white"
+                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
+              >
+                <UserPlus className="w-4 h-4" /> Quero me tornar Reseller
+              </Button>
+            </div>
+          )}
+
+          {hasApplication && application?.status === "pre_approved" && (
+            <div className="mt-5 text-center">
+              <p className="text-emerald-400 text-sm font-medium flex items-center justify-center gap-2">
+                <CheckCircle2 className="w-4 h-4" /> Pré-aprovado! Clique no chat flutuante.
+              </p>
+            </div>
+          )}
+
+          <p className="text-center text-gray-600 text-xs mt-6">
+            {t.login_copyright}
+          </p>
         </div>
-
-        {/* Apply button */}
-        {!hasApplication && (
-          <div className="mt-5 text-center">
-            <Button
-              onClick={() => setShowApply(true)}
-              className="gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white"
-              style={{ background: "linear-gradient(135deg, #22c55e, #16a34a)", boxShadow: "0 4px 20px rgba(34,197,94,0.35)" }}
-            >
-              <UserPlus className="w-4 h-4" /> Quero me tornar Reseller
-            </Button>
-          </div>
-        )}
-
-        {hasApplication && application?.status === "pre_approved" && (
-          <div className="mt-5 text-center">
-            <p className="text-green-400 text-sm font-medium flex items-center justify-center gap-2">
-              <CheckCircle2 className="w-4 h-4" /> Pré-aprovado! Clique no chat flutuante.
-            </p>
-          </div>
-        )}
-
-        <p className="text-center text-gray-700 text-xs mt-6">
-          {t.login_copyright}
-        </p>
       </div>
 
       {/* Apply Modal */}
