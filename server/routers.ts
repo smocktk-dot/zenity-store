@@ -39,6 +39,32 @@ import {
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "cv-reseller-secret-key-2024");
 const CUSTOM_COOKIE = "cv_session";
 
+/** Extract Pix BR code and QR code image from different PurinCash response shapes */
+function extractPixData(data: any) {
+  return {
+    paymentId: data?.paymentId,
+    amountCents: data?.amountCents,
+    expiresAt: data?.expiresAt,
+    brCode:
+      data?.pix?.brCode ||
+      data?.pix?.copiaECola ||
+      data?.pix?.copia_e_cola ||
+      data?.brCode ||
+      data?.br_code ||
+      data?.copiaECola ||
+      null,
+    qrCodeImage:
+      data?.pix?.qrCodeImage ||
+      data?.pix?.qrCodeBase64 ||
+      data?.pix?.qr_code ||
+      data?.qrCodeImage ||
+      data?.qrCodeBase64 ||
+      data?.qrCode ||
+      data?.qr_code ||
+      null,
+  };
+}
+
 /** Extract the real client IP from all common proxy headers, normalized to IPv4 */
 function getClientIp(req: { headers: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } }): string {
   const h = req.headers;
@@ -1039,23 +1065,20 @@ const resellerRouter = router({
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Erro ao criar cobrança Pix" });
       }
 
-      const data = await response.json() as {
-        paymentId: string;
-        status: string;
-        amountCents: number;
-        pix: { brCode: string; qrCodeImage: string };
-        expiresAt: string;
-      };
+      const data = await response.json() as any;
+      console.log("[PurinCash] createKeyPixCharge response:", data);
+
+      const { brCode, qrCodeImage } = extractPixData(data);
 
       // Persist the payment record
-      const payment = await createPixPayment({
+      await createPixPayment({
         resellerId: reseller.id,
         paymentId: data.paymentId,
         amountCents: data.amountCents,
         credits: input.credits.toFixed(2),
         status: "pending",
-        brCode: data.pix?.brCode || null,
-        qrCodeImage: data.pix?.qrCodeImage || null,
+        brCode,
+        qrCodeImage,
         expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
       });
 
@@ -1063,8 +1086,8 @@ const resellerRouter = router({
         paymentId: data.paymentId,
         amountCents: data.amountCents,
         credits: input.credits,
-        brCode: data.pix?.brCode,
-        qrCodeImage: data.pix?.qrCodeImage,
+        brCode,
+        qrCodeImage,
         expiresAt: data.expiresAt,
         status: "pending" as const,
       };
@@ -1171,22 +1194,18 @@ const resellerRouter = router({
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Erro ao criar cobrança Pix" });
       }
 
-      const data = await response.json() as {
-        paymentId: string;
-        status: string;
-        amountCents: number;
-        pix: { brCode: string; qrCodeImage: string };
-        expiresAt: string;
-      };
+      const data = await response.json() as any;
+      console.log("[PurinCash] createKeyPixCharge response:", data);
 
+      const { brCode, qrCodeImage } = extractPixData(data);
       await createPixPayment({
         resellerId: reseller.id,
         paymentId: data.paymentId,
         amountCents: data.amountCents,
         credits: "0.00",
         status: "pending",
-        brCode: data.pix?.brCode || null,
-        qrCodeImage: data.pix?.qrCodeImage || null,
+        brCode,
+        qrCodeImage,
         expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
         paymentType: "key",
         appId: input.appId,
@@ -1198,8 +1217,8 @@ const resellerRouter = router({
         paymentId: data.paymentId,
         amountCents: data.amountCents,
         totalCost,
-        brCode: data.pix?.brCode,
-        qrCodeImage: data.pix?.qrCodeImage,
+        brCode,
+        qrCodeImage,
         expiresAt: data.expiresAt,
         status: "pending" as const,
       };
