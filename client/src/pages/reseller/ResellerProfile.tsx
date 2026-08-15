@@ -163,27 +163,27 @@ function BuyCreditsModal({ open, onClose, currentCredits, onSuccess }: PixModalP
     <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); }}>
       <DialogContent className="p-0 border-0 bg-transparent max-w-md w-full shadow-2xl" style={{ boxShadow: "none" }}>
         <div
-          className="relative rounded-2xl overflow-hidden"
+          className="relative rounded-3xl overflow-hidden"
           style={{
             background: "linear-gradient(145deg, rgba(13,10,25,0.98) 0%, rgba(18,12,35,0.98) 100%)",
-            border: "1px solid rgba(16,185,129,0.3)",
-            boxShadow: "0 0 60px rgba(16,185,129,0.15), 0 25px 50px rgba(0,0,0,0.6)",
+            border: "1px solid rgba(16,185,129,0.25)",
+            boxShadow: "0 0 60px rgba(16,185,129,0.12), 0 25px 50px rgba(0,0,0,0.6)",
           }}
         >
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(52,211,153,0.6), transparent)" }} />
 
           {/* Header */}
-          <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-white/[0.06]">
+          <div className="flex items-center justify-between px-6 pt-6 pb-5 border-b border-white/[0.05]">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.3), rgba(52,211,153,0.15))", border: "1px solid rgba(16,185,129,0.4)" }}>
-                <QrCode className="w-4.5 h-4.5 text-emerald-400" />
+              <div className="w-10 h-10 rounded-2xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.25), rgba(52,211,153,0.12))", border: "1px solid rgba(16,185,129,0.35)" }}>
+                <CreditCard className="w-5 h-5 text-emerald-400" />
               </div>
               <div>
-                <h2 className="text-white font-semibold text-base leading-tight">{t.buy_credits_title}</h2>
-                <p className="text-gray-500 text-xs">{t.buy_credits_subtitle}</p>
+                <h2 className="text-white font-bold text-lg leading-tight">{t.buy_credits_title}</h2>
+                <p className="text-gray-500 text-xs">{step === "select" ? t.buy_credits_subtitle : step === "method" ? (language === "en" ? "Select payment method" : "Selecione o método") : step === "paid" ? (language === "en" ? "Payment confirmed" : "Pagamento confirmado") : (language === "en" ? "Complete your payment" : "Complete seu pagamento")}</p>
               </div>
             </div>
-            <button onClick={handleClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-gray-300 hover:bg-white/5 transition-all">
+            <button onClick={handleClose} className="w-9 h-9 rounded-xl flex items-center justify-center text-gray-500 hover:text-white hover:bg-white/5 transition-all">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -191,16 +191,20 @@ function BuyCreditsModal({ open, onClose, currentCredits, onSuccess }: PixModalP
           {/* ── Step: Select amount ── */}
           {step === "select" && (
             <div className="p-6 space-y-5">
-              <div className="flex items-center justify-between rounded-xl px-4 py-3" style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.2)" }}>
-                <div className="flex items-center gap-2">
-                  <CreditCard className="w-3.5 h-3.5 text-emerald-400" />
-                  <span className="text-gray-400 text-xs">{t.buy_credits_current_balance}</span>
+              <div className="rounded-2xl p-4 flex items-center justify-between" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center">
+                    <CreditCard className="w-4 h-4 text-emerald-400" />
+                  </div>
+                  <div>
+                    <p className="text-gray-500 text-[10px] uppercase tracking-wider">{t.buy_credits_current_balance}</p>
+                    <p className="text-white font-mono font-bold text-sm">{currentCredits.toFixed(2)} <span className="text-emerald-400 text-xs">{t.general_credits}</span></p>
+                  </div>
                 </div>
-                <span className="text-emerald-300 font-mono font-bold text-sm">{currentCredits.toFixed(2)} {t.general_credits}</span>
               </div>
 
               <div>
-                <p className="text-gray-400 text-xs mb-2.5 font-medium uppercase tracking-wider">{t.buy_credits_quick_values}</p>
+                <p className="text-gray-500 text-xs mb-3 font-medium uppercase tracking-wider">{t.buy_credits_quick_values}</p>
                 <div className="grid grid-cols-3 gap-2">
                   {presets.map((p) => (
                     <button
@@ -226,7 +230,7 @@ function BuyCreditsModal({ open, onClose, currentCredits, onSuccess }: PixModalP
               </div>
 
               <div>
-                <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider mb-2 block">{t.buy_credits_or_type}</Label>
+                <Label className="text-gray-500 text-xs font-medium uppercase tracking-wider mb-2 block">{t.buy_credits_or_type}</Label>
                 <div className="relative">
                   <Input
                     type="number"
@@ -236,9 +240,9 @@ function BuyCreditsModal({ open, onClose, currentCredits, onSuccess }: PixModalP
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                     placeholder={t.buy_credits_placeholder}
-                    className="bg-white/[0.04] border-white/10 text-white placeholder:text-gray-600 pr-20 focus:border-emerald-500/50 focus:ring-emerald-500/20 h-11"
+                    className="bg-white/[0.03] border-white/[0.06] text-white placeholder:text-gray-700 pr-24 focus:border-emerald-500/50 focus:ring-emerald-500/10 h-12 rounded-xl"
                   />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm font-medium">{t.general_credits}</span>
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 text-sm font-medium">{t.general_credits}</span>
                 </div>
                 {amount && parseInt(amount) > 0 && (
                   <p className="text-emerald-400 text-xs mt-1.5 flex items-center gap-1">
@@ -248,19 +252,19 @@ function BuyCreditsModal({ open, onClose, currentCredits, onSuccess }: PixModalP
                 )}
               </div>
 
-              <div className="flex items-center gap-2 rounded-lg px-3 py-2.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+              <div className="flex items-center gap-2 rounded-xl px-3 py-2.5" style={{ background: "rgba(16,185,129,0.04)", border: "1px solid rgba(16,185,129,0.12)" }}>
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                 <p className="text-gray-500 text-xs">{t.buy_credits_rate}</p>
               </div>
 
               <div className="flex gap-3 pt-1">
-                <Button variant="outline" onClick={handleClose} className="flex-1 border-white/10 text-gray-400 hover:text-gray-200 bg-transparent h-11">
+                <Button variant="outline" onClick={handleClose} className="flex-1 rounded-xl border-white/[0.08] text-gray-400 hover:text-white hover:bg-white/[0.03] bg-transparent h-11">
                   {t.buy_credits_cancel}
                 </Button>
                 <Button
                   onClick={handleContinue}
                   disabled={!amount || parseInt(amount) < 1}
-                  className="flex-1 h-11 font-semibold text-white gap-2"
+                  className="flex-1 h-11 rounded-xl font-semibold text-white gap-2"
                   style={{ background: "linear-gradient(135deg, #10b981, #059669)", boxShadow: "0 4px 20px rgba(16,185,129,0.35)" }}
                 >
                   {language === "en" ? "Continue" : "Continuar"} <ArrowRight className="w-4 h-4" />
@@ -272,47 +276,50 @@ function BuyCreditsModal({ open, onClose, currentCredits, onSuccess }: PixModalP
           {/* ── Step: Select method ── */}
           {step === "method" && (
             <div className="p-6 space-y-5">
-              <div className="text-center">
-                <p className="text-gray-500 text-xs mb-1">{language === "en" ? "Amount" : "Quantidade"}</p>
-                <p className="text-white text-3xl font-bold font-mono">{amount} {t.general_credits}</p>
-                <p className="text-gray-500 text-xs mt-1">{language === "en" ? "Select payment method" : "Selecione o método de pagamento"}</p>
+              <div className="text-center pb-2">
+                <p className="text-gray-500 text-xs mb-1 uppercase tracking-wider">{language === "en" ? "Amount" : "Quantidade"}</p>
+                <p className="text-white text-4xl font-bold font-mono">{amount}</p>
+                <p className="text-emerald-400 text-sm">{t.general_credits}</p>
+                <p className="text-gray-500 text-xs mt-2">{language === "en" ? "Select payment method" : "Selecione o método de pagamento"}</p>
               </div>
 
               <button
                 onClick={handlePix}
                 disabled={createPix.isPending}
-                className="w-full rounded-2xl p-4 text-left transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
-                style={{ background: "linear-gradient(135deg, rgba(34,197,94,0.12), rgba(16,185,129,0.05))", border: "1px solid rgba(34,197,94,0.3)" }}
+                className="w-full group rounded-2xl p-4 text-left transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
+                style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}
               >
-                <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ background: "rgba(34,197,94,0.15)", border: "1px solid rgba(34,197,94,0.3)" }}>
-                    {createPix.isPending ? <Loader2 className="w-5 h-5 text-green-400 animate-spin" /> : <QrCode className="w-5 h-5 text-green-400" />}
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, rgba(34,197,94,0.18), rgba(16,185,129,0.08))", border: "1px solid rgba(34,197,94,0.3)" }}>
+                    {createPix.isPending ? <Loader2 className="w-6 h-6 text-emerald-400 animate-spin" /> : <QrCode className="w-6 h-6 text-emerald-400" />}
                   </div>
-                  <div>
-                    <p className="text-white font-semibold text-sm">Pix</p>
-                    <p className="text-gray-400 text-xs">{language === "en" ? "Pay with QR code" : "Pagar com QR code"}</p>
+                  <div className="flex-1">
+                    <p className="text-white font-bold text-base group-hover:text-emerald-300 transition-colors">Pix</p>
+                    <p className="text-gray-500 text-xs">{language === "en" ? "Pay with QR code" : "Pagar com QR code"}</p>
                   </div>
+                  <ArrowRight className="w-4 h-4 text-gray-600 group-hover:text-emerald-400 transition-colors" />
                 </div>
               </button>
 
               <button
                 onClick={handleLtc}
                 disabled={createLtc.isPending}
-                className="w-full rounded-2xl p-4 text-left transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
-                style={{ background: "linear-gradient(135deg, rgba(251,191,36,0.12), rgba(245,158,11,0.05))", border: "1px solid rgba(251,191,36,0.3)" }}
+                className="w-full group rounded-2xl p-4 text-left transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
+                style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}
               >
-                <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ background: "rgba(251,191,36,0.15)", border: "1px solid rgba(251,191,36,0.3)" }}>
-                    {createLtc.isPending ? <Loader2 className="w-5 h-5 text-yellow-400 animate-spin" /> : <Bitcoin className="w-5 h-5 text-yellow-400" />}
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, rgba(251,191,36,0.15), rgba(245,158,11,0.05))", border: "1px solid rgba(251,191,36,0.25)" }}>
+                    {createLtc.isPending ? <Loader2 className="w-6 h-6 text-yellow-400 animate-spin" /> : <Bitcoin className="w-6 h-6 text-yellow-400" />}
                   </div>
-                  <div>
-                    <p className="text-white font-semibold text-sm">Crypto (LTC)</p>
-                    <p className="text-gray-400 text-xs">{language === "en" ? "Pay with Litecoin" : "Pagar com Litecoin"}</p>
+                  <div className="flex-1">
+                    <p className="text-white font-bold text-base group-hover:text-yellow-300 transition-colors">Crypto (LTC)</p>
+                    <p className="text-gray-500 text-xs">{language === "en" ? "Pay with Litecoin" : "Pagar com Litecoin"}</p>
                   </div>
+                  <ArrowRight className="w-4 h-4 text-gray-600 group-hover:text-yellow-400 transition-colors" />
                 </div>
               </button>
 
-              <Button variant="outline" onClick={() => setStep("select")} className="w-full border-white/10 text-gray-400 hover:text-gray-200 bg-transparent h-11">
+              <Button variant="outline" onClick={() => setStep("select")} className="w-full rounded-xl border-white/[0.08] text-gray-400 hover:text-white hover:bg-white/[0.03] bg-transparent h-11">
                 {language === "en" ? "Back" : "Voltar"}
               </Button>
             </div>
@@ -322,26 +329,26 @@ function BuyCreditsModal({ open, onClose, currentCredits, onSuccess }: PixModalP
           {step === "pending-pix" && pixData && (
             <div className="p-6 space-y-5">
               <div className="text-center">
-                <p className="text-gray-500 text-xs mb-1">{t.buy_credits_amount_to_pay}</p>
+                <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-1">{t.buy_credits_amount_to_pay}</p>
                 <p className="text-white text-4xl font-bold font-mono">{fmtCents(pixData.amountCents)}</p>
                 <p className="text-emerald-400 text-sm mt-1">+{pixData.credits} {t.buy_credits_will_add}</p>
               </div>
 
               <div className="flex flex-col items-center gap-3">
                 {pixData.qrCodeImage ? (
-                  <div className="rounded-xl overflow-hidden p-3" style={{ background: "white", border: "3px solid rgba(16,185,129,0.4)" }}>
-                    <img src={pixData.qrCodeImage} alt="QR Code Pix" className="w-44 h-44 object-contain" />
+                  <div className="rounded-2xl overflow-hidden p-4" style={{ background: "white", border: "1px solid rgba(16,185,129,0.3)" }}>
+                    <img src={pixData.qrCodeImage} alt="QR Code Pix" className="w-48 h-48 object-contain" />
                   </div>
                 ) : pixData.brCode ? (
-                  <div className="rounded-xl overflow-hidden p-3" style={{ background: "white", border: "3px solid rgba(16,185,129,0.4)" }}>
-                    <QRCodeSVG value={pixData.brCode} size={176} />
+                  <div className="rounded-2xl overflow-hidden p-4" style={{ background: "white", border: "1px solid rgba(16,185,129,0.3)" }}>
+                    <QRCodeSVG value={pixData.brCode} size={192} />
                   </div>
                 ) : (
-                  <div className="w-52 h-52 rounded-xl flex items-center justify-center" style={{ background: "rgba(16,185,129,0.08)", border: "2px dashed rgba(16,185,129,0.3)" }}>
+                  <div className="w-52 h-52 rounded-2xl flex items-center justify-center" style={{ background: "rgba(16,185,129,0.05)", border: "2px dashed rgba(16,185,129,0.2)" }}>
                     <QrCode className="w-16 h-16 text-emerald-500/40" />
                   </div>
                 )}
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full" style={{ background: "rgba(251,191,36,0.08)" }}>
                   <div className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
                   <span className="text-yellow-400 text-xs font-medium">{t.buy_credits_waiting}</span>
                 </div>
@@ -350,14 +357,14 @@ function BuyCreditsModal({ open, onClose, currentCredits, onSuccess }: PixModalP
               {pixData.brCode && (
                 <div>
                   <p className="text-gray-500 text-xs mb-2 text-center">{t.buy_credits_or_copypaste}</p>
-                  <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(16,185,129,0.25)" }}>
-                    <div className="px-3 py-2.5 bg-white/[0.03]">
+                  <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                    <div className="px-4 py-3 bg-white/[0.02]">
                       <p className="text-gray-400 text-xs font-mono truncate">{pixData.brCode.slice(0, 60)}...</p>
                     </div>
                     <button
                       onClick={handleCopy}
-                      className="w-full flex items-center justify-center gap-2 py-2.5 text-sm font-medium transition-all"
-                      style={{ background: copied ? "rgba(34,197,94,0.15)" : "rgba(16,185,129,0.15)", color: copied ? "#4ade80" : "#34d399" }}
+                      className="w-full flex items-center justify-center gap-2 py-3 text-sm font-medium transition-all"
+                      style={{ background: copied ? "rgba(34,197,94,0.12)" : "rgba(16,185,129,0.12)", color: copied ? "#4ade80" : "#34d399" }}
                     >
                       {copied ? <><CheckCircle2 className="w-4 h-4" /> {t.buy_credits_copied}</> : <><Copy className="w-4 h-4" /> {t.buy_credits_copy}</>}
                     </button>
@@ -366,10 +373,10 @@ function BuyCreditsModal({ open, onClose, currentCredits, onSuccess }: PixModalP
               )}
 
               <div className="flex gap-3">
-                <Button variant="outline" onClick={handleClose} className="flex-1 border-white/10 text-gray-400 hover:text-gray-200 bg-transparent h-10 text-sm">
+                <Button variant="outline" onClick={handleClose} className="flex-1 rounded-xl border-white/[0.08] text-gray-400 hover:text-white hover:bg-white/[0.03] bg-transparent h-11 text-sm">
                   {t.buy_credits_close}
                 </Button>
-                <Button variant="outline" onClick={() => refetchStatus()} className="flex-1 border-emerald-500/30 text-emerald-400 hover:text-emerald-300 bg-transparent h-10 text-sm gap-1.5">
+                <Button variant="outline" onClick={() => refetchStatus()} className="flex-1 rounded-xl border-emerald-500/30 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/5 bg-transparent h-11 text-sm gap-1.5">
                   <RefreshCw className="w-3.5 h-3.5" /> {t.buy_credits_verify}
                 </Button>
               </div>
@@ -381,48 +388,48 @@ function BuyCreditsModal({ open, onClose, currentCredits, onSuccess }: PixModalP
           {step === "pending-ltc" && ltcData && (
             <div className="p-6 space-y-5">
               <div className="text-center">
-                <p className="text-gray-500 text-xs mb-1">{language === "en" ? "Amount to pay" : "Valor a pagar"}</p>
+                <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-1">{language === "en" ? "Amount to pay" : "Valor a pagar"}</p>
                 <p className="text-white text-4xl font-bold font-mono">{fmtCents(ltcData.amountCents)}</p>
                 <p className="text-yellow-400 text-sm mt-1">+{ltcData.credits} {t.general_credits}</p>
               </div>
 
-              <div className="rounded-2xl p-4 space-y-3" style={{ background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.2)" }}>
+              <div className="rounded-2xl p-4 space-y-3" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-400 text-xs">{language === "en" ? "LTC amount:" : "Quantidade LTC:"}</span>
-                  <span className="text-yellow-400 font-mono font-bold text-sm">{ltcData.ltcAmount.toFixed(6)} LTC</span>
+                  <span className="text-gray-500 text-xs">{language === "en" ? "Send exactly" : "Envie exatamente"}</span>
+                  <span className="text-yellow-400 font-mono font-bold text-base">{ltcData.ltcAmount.toFixed(6)} LTC</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-400 text-xs">{language === "en" ? "LTC price:" : "Preço LTC:"}</span>
-                  <span className="text-gray-300 font-mono text-xs">R$ {ltcData.ltcPriceBrl.toFixed(2)}</span>
+                  <span className="text-gray-500 text-xs">{language === "en" ? "LTC price" : "Preço LTC"}</span>
+                  <span className="text-gray-400 font-mono text-xs">R$ {ltcData.ltcPriceBrl.toFixed(2)}</span>
                 </div>
               </div>
 
               <div>
                 <p className="text-gray-500 text-xs mb-2 text-center">{language === "en" ? "Send LTC to this address" : "Envie LTC para este endereço"}</p>
-                <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(251,191,36,0.25)" }}>
-                  <div className="px-3 py-2.5 bg-white/[0.03]">
+                <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(251,191,36,0.2)" }}>
+                  <div className="px-4 py-3 bg-white/[0.02]">
                     <p className="text-gray-400 text-xs font-mono break-all">{ltcData.ltcAddress}</p>
                   </div>
                   <button
                     onClick={handleCopyLtc}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 text-sm font-medium transition-all"
-                    style={{ background: copiedLtc ? "rgba(34,197,94,0.15)" : "rgba(251,191,36,0.15)", color: copiedLtc ? "#4ade80" : "#fbbf24" }}
+                    className="w-full flex items-center justify-center gap-2 py-3 text-sm font-medium transition-all"
+                    style={{ background: copiedLtc ? "rgba(34,197,94,0.12)" : "rgba(251,191,36,0.12)", color: copiedLtc ? "#4ade80" : "#fbbf24" }}
                   >
                     {copiedLtc ? <><CheckCircle2 className="w-4 h-4" /> {language === "en" ? "Copied" : "Copiado"}</> : <><Copy className="w-4 h-4" /> {language === "en" ? "Copy address" : "Copiar endereço"}</>}
                   </button>
                 </div>
               </div>
 
-              <div className="flex items-center justify-center gap-1.5">
+              <div className="flex items-center justify-center gap-2 px-3 py-1.5 rounded-full mx-auto w-fit" style={{ background: "rgba(251,191,36,0.08)" }}>
                 <div className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
                 <span className="text-yellow-400 text-xs font-medium">{language === "en" ? "Waiting for payment" : "Aguardando pagamento"}</span>
               </div>
 
               <div className="flex gap-3">
-                <Button variant="outline" onClick={handleClose} className="flex-1 border-white/10 text-gray-400 hover:text-gray-200 bg-transparent h-10 text-sm">
+                <Button variant="outline" onClick={handleClose} className="flex-1 rounded-xl border-white/[0.08] text-gray-400 hover:text-white hover:bg-white/[0.03] bg-transparent h-11 text-sm">
                   {t.buy_credits_close}
                 </Button>
-                <Button variant="outline" onClick={() => refetchStatus()} className="flex-1 border-yellow-500/30 text-yellow-400 hover:text-yellow-300 bg-transparent h-10 text-sm gap-1.5">
+                <Button variant="outline" onClick={() => refetchStatus()} className="flex-1 rounded-xl border-yellow-500/30 text-yellow-400 hover:text-yellow-300 hover:bg-yellow-500/5 bg-transparent h-11 text-sm gap-1.5">
                   <RefreshCw className="w-3.5 h-3.5" /> {language === "en" ? "Verify" : "Verificar"}
                 </Button>
               </div>
@@ -433,16 +440,16 @@ function BuyCreditsModal({ open, onClose, currentCredits, onSuccess }: PixModalP
           {/* ── Step: Paid ── */}
           {step === "paid" && (
             <div className="p-8 flex flex-col items-center gap-5 text-center">
-              <div className="w-20 h-20 rounded-full flex items-center justify-center" style={{ background: "linear-gradient(135deg, rgba(34,197,94,0.2), rgba(34,197,94,0.08))", border: "2px solid rgba(34,197,94,0.4)" }}>
-                <CheckCircle2 className="w-10 h-10 text-green-400" />
+              <div className="w-20 h-20 rounded-full flex items-center justify-center" style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.18), rgba(16,185,129,0.08))", border: "2px solid rgba(16,185,129,0.35)" }}>
+                <CheckCircle2 className="w-10 h-10 text-emerald-400" />
               </div>
               <div>
                 <h3 className="text-white text-xl font-bold mb-1">{t.buy_credits_confirmed_title}</h3>
                 <p className="text-gray-400 text-sm">
-                  <span className="text-green-400 font-bold font-mono">+{pixData?.credits ?? ltcData?.credits}</span> {t.buy_credits_confirmed_desc}
+                  <span className="text-emerald-400 font-bold font-mono">+{pixData?.credits ?? ltcData?.credits}</span> {t.buy_credits_confirmed_desc}
                 </p>
               </div>
-              <Button onClick={handleClose} className="w-full h-11 font-semibold text-white" style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}>
+              <Button onClick={handleClose} className="w-full h-12 rounded-xl font-semibold text-white" style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}>
                 {t.buy_credits_close}
               </Button>
             </div>
