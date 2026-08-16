@@ -59,40 +59,40 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
       {/* Sidebar */}
       <aside
-        className="relative z-10 w-56 flex-shrink-0 flex flex-col border-r"
+        className="relative z-10 w-60 flex-shrink-0 flex flex-col rounded-r-3xl m-4 mr-0"
         style={{
-          background: "rgba(8,6,18,0.92)",
-          backdropFilter: "blur(20px)",
-          borderColor: "rgba(16,185,129,0.12)",
+          background: "rgba(8,6,18,0.85)",
+          backdropFilter: "blur(24px)",
+          border: "1px solid rgba(255,255,255,0.06)",
         }}
       >
         {/* Logo */}
-        <div className="flex items-center gap-3 px-4 py-5 border-b" style={{ borderColor: "rgba(16,185,129,0.12)" }}>
+        <div className="flex items-center gap-3 px-5 py-6 border-b border-white/[0.06]">
           <img
             src={LOGO_URL}
-            alt="Zenity"
-            className="w-8 h-8 object-contain"
-            style={{ filter: "drop-shadow(0 0 8px rgba(16,185,129,0.7))" }}
+            alt="VG Sellers"
+            className="w-9 h-9 object-contain"
+            style={{ filter: "drop-shadow(0 0 10px rgba(16,185,129,0.6))" }}
           />
           <div>
-            <p className="text-white font-black text-sm leading-none tracking-wide">VG</p>
-            <p className="text-xs font-semibold tracking-widest mt-0.5" style={{ color: "#34d399" }}>SELLERS</p>
+            <p className="text-white font-black text-base leading-none tracking-tight">VG</p>
+            <p className="text-[10px] font-semibold tracking-[0.25em] mt-0.5" style={{ color: "#34d399" }}>SELLERS</p>
           </div>
-          <div className="ml-auto">
-            <Shield className="w-3.5 h-3.5" style={{ color: "#059669" }} />
+          <div className="ml-auto w-6 h-6 rounded-lg bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center">
+            <Shield className="w-3 h-3 text-emerald-500" />
           </div>
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 px-3 py-4 space-y-0.5">
+        <nav className="flex-1 px-3 py-5 space-y-1 overflow-y-auto">
           {navItems.map(({ href, icon: Icon, label }) => {
             const active = location === href || (href !== "/admin" && location.startsWith(href));
             return (
               <Link key={href} href={href}>
                 <div
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-150 group"
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-all duration-150 group"
                   style={active ? {
-                    background: "rgba(16,185,129,0.15)",
+                    background: "rgba(16,185,129,0.14)",
                     border: "1px solid rgba(16,185,129,0.25)",
                     color: "#6ee7b7",
                   } : {
@@ -102,9 +102,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   onMouseEnter={e => { if (!active) { (e.currentTarget as HTMLDivElement).style.background = "rgba(255,255,255,0.04)"; (e.currentTarget as HTMLDivElement).style.color = "#d1d5db"; } }}
                   onMouseLeave={e => { if (!active) { (e.currentTarget as HTMLDivElement).style.background = "transparent"; (e.currentTarget as HTMLDivElement).style.color = "#6b7280"; } }}
                 >
-                  <Icon className="w-4 h-4 flex-shrink-0" style={{ color: active ? "#34d399" : "inherit" }} />
-                  <span className="text-sm font-medium">{label}</span>
-                  {active && <ChevronRight className="w-3 h-3 ml-auto" style={{ color: "rgba(110,231,183,0.6)" }} />}
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${active ? "bg-emerald-500/20" : "bg-white/[0.03]"}`}>
+                    <Icon className="w-4 h-4 flex-shrink-0" style={{ color: active ? "#34d399" : "inherit" }} />
+                  </div>
+                  <span className="text-sm font-medium flex-1">{label}</span>
+                  {active && <ChevronRight className="w-3.5 h-3.5" style={{ color: "rgba(110,231,183,0.7)" }} />}
                 </div>
               </Link>
             );
@@ -112,22 +114,24 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </nav>
 
         {/* User */}
-        <div className="px-3 py-4 border-t" style={{ borderColor: "rgba(16,185,129,0.12)" }}>
-          <div className="flex items-center gap-3 px-3 py-2 mb-2">
-            <div
-              className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold uppercase"
-              style={{ background: "rgba(16,185,129,0.25)", color: "#34d399", border: "1px solid rgba(16,185,129,0.3)" }}
-            >
-              {session?.username?.[0] ?? "A"}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-white text-xs font-medium truncate">{session?.username}</p>
-              <p className="text-xs" style={{ color: "#059669" }}>Administrator</p>
+        <div className="px-4 py-5 border-t border-white/[0.06]">
+          <div className="rounded-2xl p-3 mb-3" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}>
+            <div className="flex items-center gap-3">
+              <div
+                className="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold uppercase"
+                style={{ background: "rgba(16,185,129,0.18)", color: "#34d399", border: "1px solid rgba(16,185,129,0.25)" }}
+              >
+                {session?.username?.[0] ?? "A"}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-white text-sm font-medium truncate">{session?.username}</p>
+                <p className="text-[10px]" style={{ color: "#059669" }}>Administrator</p>
+              </div>
             </div>
           </div>
           <button
             onClick={() => logout.mutate()}
-            className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-gray-500 transition-all text-sm"
+            className="flex items-center gap-2 w-full px-4 py-2.5 rounded-xl text-gray-500 transition-all text-sm"
             onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#f87171"; (e.currentTarget as HTMLButtonElement).style.background = "rgba(239,68,68,0.08)"; }}
             onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#6b7280"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
           >
@@ -138,7 +142,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </aside>
 
       {/* Main */}
-      <main className="relative z-10 flex-1 overflow-auto">
+      <main className="relative z-10 flex-1 overflow-auto p-4 pl-6">
         {children}
       </main>
     </div>
