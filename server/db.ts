@@ -530,6 +530,7 @@ export async function createLicenseKey(data: InsertLicenseKey) {
   if (data.note !== undefined && data.note !== null) optionalValues.note = data.note;
   if (data.customMask !== undefined && data.customMask !== null) optionalValues.customMask = data.customMask;
   if (data.expiresAt !== undefined && data.expiresAt !== null) optionalValues.expiresAt = data.expiresAt;
+  if (data.source !== undefined && data.source !== null) optionalValues.source = data.source;
 
   await db.insert(licenseKeys).values({ ...requiredValues, ...optionalValues } as InsertLicenseKey);
 }

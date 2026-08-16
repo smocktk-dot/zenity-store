@@ -142,6 +142,7 @@ var init_schema = __esm({
       expiresAt: timestamp("expiresAt"),
       note: text("note"),
       customMask: varchar("customMask", { length: 128 }),
+      source: varchar("source", { length: 32 }).default("panel").notNull(),
       createdAt: timestamp("createdAt").defaultNow().notNull()
     });
     appStock = pgTable("app_stock", {
@@ -821,6 +822,7 @@ async function createLicenseKey(data) {
   if (data.note !== void 0 && data.note !== null) optionalValues.note = data.note;
   if (data.customMask !== void 0 && data.customMask !== null) optionalValues.customMask = data.customMask;
   if (data.expiresAt !== void 0 && data.expiresAt !== null) optionalValues.expiresAt = data.expiresAt;
+  if (data.source !== void 0 && data.source !== null) optionalValues.source = data.source;
   await db.insert(licenseKeys).values({ ...requiredValues, ...optionalValues });
 }
 async function updateLicenseKey(id, data) {
@@ -1605,6 +1607,7 @@ function registerResellerApi(app2) {
         durationDays: plan.durationDays,
         creditsSpent: pricePerKey.toFixed(2),
         resellerCredits: newCredits.toFixed(2),
+        source: "api",
         ...noteValue ? { note: noteValue } : {},
         ...customMask ? { customMask } : {}
       });
@@ -2546,6 +2549,19 @@ var adminRouter = router({
   }),
   // All keys
   listAllKeys: adminProcedure2.query(() => getAllKeysWithReseller()),
+  // Reseller API Keys
+  listResellerApiKeys: adminProcedure2.input(z2.object({ resellerId: z2.number() })).query(async ({ input }) => {
+    const keys = await listResellerApiKeys(input.resellerId);
+    return keys.map((k) => ({ ...k, apiKey: k.apiKey.slice(0, 8) + "..." + k.apiKey.slice(-4) }));
+  }),
+  createResellerApiKey: adminProcedure2.input(z2.object({ resellerId: z2.number(), name: z2.string().optional(), allowedIps: z2.string().optional() })).mutation(async ({ input }) => {
+    const key = await createResellerApiKey({ resellerId: input.resellerId, name: input.name, allowedIps: input.allowedIps });
+    return { apiKey: key.apiKey, id: key.id };
+  }),
+  revokeResellerApiKey: adminProcedure2.input(z2.object({ id: z2.number() })).mutation(async ({ input }) => {
+    await revokeResellerApiKey(input.id);
+    return { success: true };
+  }),
   // IP Whitelist management
   listIpWhitelist: adminProcedure2.query(() => getAllIpWhitelist()),
   addIp: adminProcedure2.input(z2.object({

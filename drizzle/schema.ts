@@ -166,6 +166,7 @@ export const licenseKeys = pgTable("license_keys", {
   expiresAt: timestamp("expiresAt"),
   note: text("note"),
   customMask: varchar("customMask", { length: 128 }),
+  source: varchar("source", { length: 32 }).default("panel").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 

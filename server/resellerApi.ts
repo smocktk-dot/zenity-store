@@ -82,6 +82,7 @@ export function registerResellerApi(app: Express) {
         durationDays: plan.durationDays,
         creditsSpent: pricePerKey.toFixed(2),
         resellerCredits: newCredits.toFixed(2),
+        source: "api",
         ...(noteValue ? { note: noteValue } : {}),
         ...(customMask ? { customMask } : {}),
       } as any);

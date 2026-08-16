@@ -3,7 +3,7 @@ import { useLocation, Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
-  LayoutDashboard, Users, Tag, AppWindow, Key, LogOut, ChevronRight, Shield, Lock, Ticket, UserPlus, HelpCircle, Boxes, Send, Download
+  LayoutDashboard, Users, Tag, AppWindow, Key, LogOut, ChevronRight, Shield, Lock, Ticket, UserPlus, HelpCircle, Boxes, Send, Download, KeyRound
 } from "lucide-react";
 import InteractiveStars from "@/components/InteractiveStars";
 
@@ -15,6 +15,7 @@ const navItems = [
   { href: "/admin/categories", icon: Tag, label: "Categorias" },
   { href: "/admin/apps", icon: AppWindow, label: "Apps" },
   { href: "/admin/keys", icon: Key, label: "License Keys" },
+  { href: "/admin/api-keys", icon: KeyRound, label: "API Keys" },
   { href: "/admin/stock", icon: Boxes, label: "Estoque" },
   { href: "/admin/manual-delivery", icon: Send, label: "Entrega Manual" },
   { href: "/admin/downloads", icon: Download, label: "Downloads" },

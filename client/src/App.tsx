@@ -12,6 +12,7 @@ import AdminCategories from "./pages/admin/AdminCategories";
 import AdminApps from "./pages/admin/AdminApps";
 import AdminAppDetail from "./pages/admin/AdminAppDetail";
 import AdminKeys from "./pages/admin/AdminKeys";
+import AdminApiKeys from "./pages/admin/AdminApiKeys";
 import AdminResellerDetail from "./pages/admin/AdminResellerDetail";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminIpWhitelist from "./pages/admin/AdminIpWhitelist";
@@ -84,6 +85,13 @@ function Router() {
         {() => (
           <AdminLayout>
             <AdminKeys />
+          </AdminLayout>
+        )}
+      </Route>
+      <Route path="/admin/api-keys">
+        {() => (
+          <AdminLayout>
+            <AdminApiKeys />
           </AdminLayout>
         )}
       </Route>

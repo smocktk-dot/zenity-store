@@ -20,6 +20,7 @@ import {
   getKeysByResellerId, getAllKeys, getAllKeysWithReseller, getKeyById, createLicenseKey, updateLicenseKey,
   getTransactionsByResellerId, createCreditTransaction,
   getAllIpWhitelist, addIpToWhitelist, removeIpFromWhitelist, isIpWhitelisted,
+  listResellerApiKeys, createResellerApiKey, revokeResellerApiKey,
   isAdminIpAllowed, isResellerIpAllowed, normalizeIp,
   updateAdminPassword, updateResellerPassword,
   createPixPayment, getPixPaymentByPaymentId, updatePixPaymentStatus,
@@ -676,6 +677,28 @@ const adminRouter = router({
 
   // All keys
   listAllKeys: adminProcedure.query(() => getAllKeysWithReseller()),
+
+  // Reseller API Keys
+  listResellerApiKeys: adminProcedure
+    .input(z.object({ resellerId: z.number() }))
+    .query(async ({ input }) => {
+      const keys = await listResellerApiKeys(input.resellerId);
+      return keys.map(k => ({ ...k, apiKey: k.apiKey.slice(0, 8) + "..." + k.apiKey.slice(-4) }));
+    }),
+
+  createResellerApiKey: adminProcedure
+    .input(z.object({ resellerId: z.number(), name: z.string().optional(), allowedIps: z.string().optional() }))
+    .mutation(async ({ input }) => {
+      const key = await createResellerApiKey({ resellerId: input.resellerId, name: input.name, allowedIps: input.allowedIps });
+      return { apiKey: key.apiKey, id: key.id };
+    }),
+
+  revokeResellerApiKey: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      await revokeResellerApiKey(input.id);
+      return { success: true };
+    }),
 
   // IP Whitelist management
   listIpWhitelist: adminProcedure.query(() => getAllIpWhitelist()),

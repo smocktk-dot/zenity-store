@@ -72,17 +72,17 @@ export default function AdminKeys() {
         <table className="w-full">
           <thead>
             <tr className="border-b border-white/[0.04]">
-              {["Key", "App", "Plano", "Reseller", "Tipo", "Status", "Usado Por", "Valor", "Saldo Após", "Criado em", "Ações"].map(h => (
+              {["Key", "App", "Plano", "Reseller", "Tipo", "Status", "Usado Por", "Valor", "Saldo Após", "Origem", "Criado em", "Ações"].map(h => (
                 <th key={h} className="text-left px-5 py-4 text-gray-400 text-xs font-semibold uppercase tracking-widest">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={11} className="text-center py-8 text-gray-600">Carregando...</td></tr>
+              <tr><td colSpan={12} className="text-center py-8 text-gray-600">Carregando...</td></tr>
             ) : paginated.length === 0 ? (
               <tr>
-                <td colSpan={11} className="text-center py-12">
+                <td colSpan={12} className="text-center py-12">
                   <Key className="w-8 h-8 text-gray-700 mx-auto mb-2" />
                   <p className="text-gray-600">Nenhuma key encontrada</p>
                 </td>
@@ -102,6 +102,11 @@ export default function AdminKeys() {
                 <td className="px-5 py-4 text-gray-400 text-sm">{k.usedBy || <span className="text-gray-600">—</span>}</td>
                 <td className="px-5 py-4 text-yellow-400 text-sm font-mono">{parseFloat(k.creditsSpent).toFixed(2)}</td>
                 <td className="px-5 py-4 text-emerald-400 text-sm font-mono">{k.resellerCredits ? parseFloat(k.resellerCredits).toFixed(2) : "—"}</td>
+                <td className="px-5 py-4">
+                  <span className={`text-[10px] px-2 py-1 rounded-full border font-medium uppercase ${k.source === "api" ? "bg-blue-500/10 text-blue-400 border-blue-500/25" : "bg-emerald-500/10 text-emerald-400 border-emerald-500/25"}`}>
+                    {k.source === "api" ? "API" : "Painel"}
+                  </span>
+                </td>
                 <td className="px-5 py-4 text-gray-500 text-xs">{new Date(k.createdAt).toLocaleDateString("pt-BR")}</td>
                 <td className="px-5 py-4">
                   <button onClick={() => copyKey(k.id, k.keyValue)} className="p-1.5 rounded-lg text-gray-500 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all">
