@@ -364,6 +364,7 @@ __export(db_exports, {
   isResellerIpAllowed: () => isResellerIpAllowed,
   listResellerApiKeys: () => listResellerApiKeys,
   normalizeIp: () => normalizeIp,
+  releaseStockReservation: () => releaseStockReservation,
   removeAppFromReseller: () => removeAppFromReseller,
   removeIpFromWhitelist: () => removeIpFromWhitelist,
   reserveStockForReseller: () => reserveStockForReseller,
@@ -1103,6 +1104,13 @@ async function reserveStockForReseller(id, resellerId) {
   const [row] = await db.update(appStock).set({ status: "sold", resellerId, soldAt: /* @__PURE__ */ new Date() }).where(and(eq(appStock.id, id), eq(appStock.status, "available"))).returning();
   return row;
 }
+async function releaseStockReservation(id) {
+  await ensureAppStockSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.update(appStock).set({ status: "available", resellerId: null, soldAt: null }).where(and(eq(appStock.id, id), eq(appStock.status, "sold"))).returning();
+  return row;
+}
 async function addStockBatch(data) {
   await ensureAppStockSchema();
   const db = await getDb();
@@ -1593,7 +1601,7 @@ function registerResellerApi(app2) {
     const discount = parseFloat(reseller.discountPercent);
     const pricePerKey = basePrice * (1 - discount / 100);
     const totalCost = pricePerKey * qty;
-    const currentCredits = parseFloat(reseller.credits);
+    let currentCredits = parseFloat(reseller.credits);
     if (currentCredits < totalCost) return res.status(402).json({ error: `Insufficient credits. Need: ${totalCost.toFixed(2)}, have: ${currentCredits.toFixed(2)}` });
     const stock = await getAvailableStockForPlan(app3.id, plan.id, qty);
     if (stock.length < qty) return res.status(409).json({ error: `Insufficient stock. Available: ${stock.length}, requested: ${qty}` });
@@ -1602,6 +1610,12 @@ function registerResellerApi(app2) {
       const r = await reserveStockForReseller(s.id, reseller.id);
       if (!r) return res.status(409).json({ error: "Stock reservation failed" });
       reserved.push(r);
+    }
+    const freshReseller = await getResellerById(reseller.id);
+    currentCredits = parseFloat(String(freshReseller?.credits ?? reseller.credits));
+    if (currentCredits < totalCost) {
+      for (const r of reserved) await releaseStockReservation(r.id);
+      return res.status(402).json({ error: `Insufficient credits after reservation. Need: ${totalCost.toFixed(2)}, have: ${currentCredits.toFixed(2)}` });
     }
     const newCredits = currentCredits - totalCost;
     const newPurchases = reseller.totalPurchases + qty;

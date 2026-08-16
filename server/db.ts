@@ -897,6 +897,17 @@ export async function reserveStockForReseller(id: number, resellerId: number) {
   return row;
 }
 
+export async function releaseStockReservation(id: number) {
+  await ensureAppStockSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.update(appStock)
+    .set({ status: "available", resellerId: null, soldAt: null })
+    .where(and(eq(appStock.id, id), eq(appStock.status, "sold")))
+    .returning();
+  return row;
+}
+
 export async function addStockBatch(data: InsertAppStock[]) {
   await ensureAppStockSchema();
   const db = await getDb();

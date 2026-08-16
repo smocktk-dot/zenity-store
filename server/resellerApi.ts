@@ -1,8 +1,8 @@
 import express, { type Express, type Request, type Response } from "express";
 import {
-  getResellerByApiKey, getAssignedAppIds, getAppsByResellerId,
+  getResellerByApiKey, getResellerById, getAssignedAppIds, getAppsByResellerId,
   getAppById, getPlansByAppId, getPlanById, getStockByApp,
-  getAvailableStockForPlan, reserveStockForReseller, createLicenseKey,
+  getAvailableStockForPlan, reserveStockForReseller, releaseStockReservation, createLicenseKey,
   updateResellerCredits, createCreditTransaction,
 } from "./db";
 import type { Reseller } from "../drizzle/schema";
@@ -69,7 +69,7 @@ export function registerResellerApi(app: Express) {
     const discount = parseFloat(reseller.discountPercent as string);
     const pricePerKey = basePrice * (1 - discount / 100);
     const totalCost = pricePerKey * qty;
-    const currentCredits = parseFloat(reseller.credits as string);
+    let currentCredits = parseFloat(reseller.credits as string);
     if (currentCredits < totalCost) return res.status(402).json({ error: `Insufficient credits. Need: ${totalCost.toFixed(2)}, have: ${currentCredits.toFixed(2)}` });
     const stock = await getAvailableStockForPlan(app.id, plan.id, qty);
     if (stock.length < qty) return res.status(409).json({ error: `Insufficient stock. Available: ${stock.length}, requested: ${qty}` });
@@ -78,6 +78,12 @@ export function registerResellerApi(app: Express) {
       const r = await reserveStockForReseller(s.id, reseller.id);
       if (!r) return res.status(409).json({ error: "Stock reservation failed" });
       reserved.push(r);
+    }
+    const freshReseller = await getResellerById(reseller.id);
+    currentCredits = parseFloat(String(freshReseller?.credits ?? reseller.credits));
+    if (currentCredits < totalCost) {
+      for (const r of reserved) await releaseStockReservation(r.id);
+      return res.status(402).json({ error: `Insufficient credits after reservation. Need: ${totalCost.toFixed(2)}, have: ${currentCredits.toFixed(2)}` });
     }
     const newCredits = currentCredits - totalCost;
     const newPurchases = reseller.totalPurchases + qty;
