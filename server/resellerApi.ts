@@ -13,6 +13,18 @@ async function authReseller(req: Request): Promise<Reseller | undefined> {
   return getResellerByApiKey(apiKey);
 }
 
+async function resolvePlan(appId: number, planId: number | undefined, planName: string | undefined) {
+  if (planId) {
+    const plan = await getPlanById(Number(planId));
+    if (plan && plan.appId === appId) return plan;
+    return undefined;
+  }
+  if (!planName) return undefined;
+  const plans = await getPlansByAppId(appId);
+  const name = String(planName).toLowerCase().trim();
+  return plans.find(p => p.name.toLowerCase().trim() === name);
+}
+
 export function registerResellerApi(app: Express) {
   app.post("/api/reseller/v1/auth/verify", async (req, res) => {
     const reseller = await authReseller(req);
@@ -43,13 +55,15 @@ export function registerResellerApi(app: Express) {
     const reseller = await authReseller(req);
     if (!reseller) return res.status(401).json({ error: "Invalid API key" });
     if (reseller.resellerType !== "credits") return res.status(403).json({ error: "Not a credits reseller" });
-    const { appId, planId, quantity = 1, customer, customMask, note } = req.body;
-    if (!appId || !planId) return res.status(400).json({ error: "appId and planId are required" });
+    const { appId, planId, planName, quantity = 1, customer, note } = req.body;
+    if (!appId) return res.status(400).json({ error: "appId is required" });
+    if (!planId && !planName) return res.status(400).json({ error: "planId or planName is required" });
     const app = await getAppById(Number(appId));
-    const plan = await getPlanById(Number(planId));
-    if (!app || !plan || plan.appId !== app.id) return res.status(404).json({ error: "Plan or app not found" });
+    if (!app) return res.status(404).json({ error: "App not found" });
     const assigned = await getAssignedAppIds(reseller.id);
     if (!assigned.includes(app.id)) return res.status(403).json({ error: "App not assigned" });
+    const plan = await resolvePlan(app.id, planId ? Number(planId) : undefined, planName);
+    if (!plan) return res.status(404).json({ error: "Plan not found" });
     const qty = Math.max(1, Math.min(100, Number(quantity) || 1));
     const basePrice = parseFloat(plan.priceCredits as string);
     const discount = parseFloat(reseller.discountPercent as string);
@@ -84,7 +98,6 @@ export function registerResellerApi(app: Express) {
         resellerCredits: newCredits.toFixed(2),
         source: "api",
         ...(noteValue ? { note: noteValue } : {}),
-        ...(customMask ? { customMask } : {}),
       } as any);
       keys.push(r.keyValue);
     }
@@ -97,6 +110,6 @@ export function registerResellerApi(app: Express) {
       balanceAfter: newCredits.toFixed(2),
       description: `API buy ${qty}x ${app.name} (${plan.name})`,
     });
-    res.json({ keys, cost: totalCost.toFixed(2), balanceAfter: newCredits.toFixed(2) });
+    res.json({ keys, cost: totalCost.toFixed(2), balanceAfter: newCredits.toFixed(2), plan: { id: plan.id, name: plan.name, durationDays: plan.durationDays } });
   });
 }

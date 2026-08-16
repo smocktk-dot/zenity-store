@@ -89,15 +89,24 @@ X-Api-Key: SUA_CHAVE
 Content-Type: application/json
 ```
 
-**Body:**
+**Body (por nome do plano):**
+```json
+{
+  "appId": 1,
+  "planName": "mensal",
+  "quantity": 1,
+  "customer": "cliente@email.com",
+  "note": "pedido #123"
+}
+```
+
+Também pode usar `planId`:
 ```json
 {
   "appId": 1,
   "planId": 3,
   "quantity": 1,
-  "customer": "cliente@email.com",
-  "customMask": "****-****-****-****",
-  "note": "pedido #123"
+  "customer": "cliente@email.com"
 }
 ```
 

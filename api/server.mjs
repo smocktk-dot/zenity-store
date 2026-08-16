@@ -1540,6 +1540,17 @@ async function authReseller(req) {
   if (!apiKey) return void 0;
   return getResellerByApiKey(apiKey);
 }
+async function resolvePlan(appId, planId, planName) {
+  if (planId) {
+    const plan = await getPlanById(Number(planId));
+    if (plan && plan.appId === appId) return plan;
+    return void 0;
+  }
+  if (!planName) return void 0;
+  const plans = await getPlansByAppId(appId);
+  const name = String(planName).toLowerCase().trim();
+  return plans.find((p) => p.name.toLowerCase().trim() === name);
+}
 function registerResellerApi(app2) {
   app2.post("/api/reseller/v1/auth/verify", async (req, res) => {
     const reseller = await authReseller(req);
@@ -1568,13 +1579,15 @@ function registerResellerApi(app2) {
     const reseller = await authReseller(req);
     if (!reseller) return res.status(401).json({ error: "Invalid API key" });
     if (reseller.resellerType !== "credits") return res.status(403).json({ error: "Not a credits reseller" });
-    const { appId, planId, quantity = 1, customer, customMask, note } = req.body;
-    if (!appId || !planId) return res.status(400).json({ error: "appId and planId are required" });
+    const { appId, planId, planName, quantity = 1, customer, note } = req.body;
+    if (!appId) return res.status(400).json({ error: "appId is required" });
+    if (!planId && !planName) return res.status(400).json({ error: "planId or planName is required" });
     const app3 = await getAppById(Number(appId));
-    const plan = await getPlanById(Number(planId));
-    if (!app3 || !plan || plan.appId !== app3.id) return res.status(404).json({ error: "Plan or app not found" });
+    if (!app3) return res.status(404).json({ error: "App not found" });
     const assigned = await getAssignedAppIds(reseller.id);
     if (!assigned.includes(app3.id)) return res.status(403).json({ error: "App not assigned" });
+    const plan = await resolvePlan(app3.id, planId ? Number(planId) : void 0, planName);
+    if (!plan) return res.status(404).json({ error: "Plan not found" });
     const qty = Math.max(1, Math.min(100, Number(quantity) || 1));
     const basePrice = parseFloat(plan.priceCredits);
     const discount = parseFloat(reseller.discountPercent);
@@ -1608,8 +1621,7 @@ function registerResellerApi(app2) {
         creditsSpent: pricePerKey.toFixed(2),
         resellerCredits: newCredits.toFixed(2),
         source: "api",
-        ...noteValue ? { note: noteValue } : {},
-        ...customMask ? { customMask } : {}
+        ...noteValue ? { note: noteValue } : {}
       });
       keys.push(r.keyValue);
     }
@@ -1622,7 +1634,7 @@ function registerResellerApi(app2) {
       balanceAfter: newCredits.toFixed(2),
       description: `API buy ${qty}x ${app3.name} (${plan.name})`
     });
-    res.json({ keys, cost: totalCost.toFixed(2), balanceAfter: newCredits.toFixed(2) });
+    res.json({ keys, cost: totalCost.toFixed(2), balanceAfter: newCredits.toFixed(2), plan: { id: plan.id, name: plan.name, durationDays: plan.durationDays } });
   });
 }
 
