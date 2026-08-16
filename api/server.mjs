@@ -2643,7 +2643,7 @@ var resellerRouter = router({
   }),
   // ─── Pix / Purin Cash ──────────────────────────────────────────────────────
   createPixCharge: resellerProcedure.input(z2.object({
-    credits: z2.number().min(1, "M\xEDnimo 1 cr\xE9dito").max(1e4, "M\xE1ximo 10000 cr\xE9ditos")
+    credits: z2.number().min(600, "M\xEDnimo 600 cr\xE9ditos").max(1e4, "M\xE1ximo 10000 cr\xE9ditos")
   })).mutation(async ({ ctx, input }) => {
     const PURIN_API_KEY2 = process.env.PURIN_CASH_API_KEY;
     if (!PURIN_API_KEY2) throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: "Pagamento Pix n\xE3o configurado" });
@@ -2699,7 +2699,7 @@ var resellerRouter = router({
   }),
   // Criar cobrança LTC para compra de créditos
   createLtcCreditsCharge: resellerProcedure.input(z2.object({
-    credits: z2.number().min(1, "M\xEDnimo 1 cr\xE9dito").max(1e4, "M\xE1ximo 10000 cr\xE9ditos")
+    credits: z2.number().min(600, "M\xEDnimo 600 cr\xE9ditos").max(1e4, "M\xE1ximo 10000 cr\xE9ditos")
   })).mutation(async ({ ctx, input }) => {
     const PURIN_API_KEY2 = process.env.PURIN_CASH_API_KEY;
     if (!PURIN_API_KEY2) throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: "Pagamento Crypto n\xE3o configurado" });

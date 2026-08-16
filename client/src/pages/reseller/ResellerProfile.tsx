@@ -143,17 +143,19 @@ function BuyCreditsModal({ open, onClose, currentCredits, onSuccess }: PixModalP
 
   const handleContinue = () => {
     const n = parseInt(amount);
-    if (!n || n < 1) { toast.error(t.buy_credits_invalid_amount); return; }
+    if (!n || n < 600) { toast.error(language === "en" ? "Minimum recharge is 600 credits" : "Recarga mínima é de 600 créditos"); return; }
     setStep("method");
   };
 
   const handlePix = () => {
     const n = parseInt(amount);
+    if (n < 600) { toast.error(language === "en" ? "Minimum recharge is 600 credits" : "Recarga mínima é de 600 créditos"); return; }
     createPix.mutate({ credits: n });
   };
 
   const handleLtc = () => {
     const n = parseInt(amount);
+    if (n < 600) { toast.error(language === "en" ? "Minimum recharge is 600 credits" : "Recarga mínima é de 600 créditos"); return; }
     createLtc.mutate({ credits: n });
   };
 
@@ -234,7 +236,7 @@ function BuyCreditsModal({ open, onClose, currentCredits, onSuccess }: PixModalP
                 <div className="relative">
                   <Input
                     type="number"
-                    min="1"
+                    min="600"
                     max="10000"
                     step="1"
                     value={amount}
@@ -263,7 +265,7 @@ function BuyCreditsModal({ open, onClose, currentCredits, onSuccess }: PixModalP
                 </Button>
                 <Button
                   onClick={handleContinue}
-                  disabled={!amount || parseInt(amount) < 1}
+                  disabled={!amount || parseInt(amount) < 600}
                   className="flex-1 h-11 rounded-xl font-semibold text-white gap-2"
                   style={{ background: "linear-gradient(135deg, #10b981, #059669)", boxShadow: "0 4px 20px rgba(16,185,129,0.35)" }}
                 >

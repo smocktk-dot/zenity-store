@@ -1028,7 +1028,7 @@ const resellerRouter = router({
   // ─── Pix / Purin Cash ──────────────────────────────────────────────────────
   createPixCharge: resellerProcedure
     .input(z.object({
-      credits: z.number().min(1, "Mínimo 1 crédito").max(10000, "Máximo 10000 créditos"),
+      credits: z.number().min(600, "Mínimo 600 créditos").max(10000, "Máximo 10000 créditos"),
     }))
     .mutation(async ({ ctx, input }) => {
       const PURIN_API_KEY = process.env.PURIN_CASH_API_KEY;
@@ -1096,7 +1096,7 @@ const resellerRouter = router({
   // Criar cobrança LTC para compra de créditos
   createLtcCreditsCharge: resellerProcedure
     .input(z.object({
-      credits: z.number().min(1, "Mínimo 1 crédito").max(10000, "Máximo 10000 créditos"),
+      credits: z.number().min(600, "Mínimo 600 créditos").max(10000, "Máximo 10000 créditos"),
     }))
     .mutation(async ({ ctx, input }) => {
       const PURIN_API_KEY = process.env.PURIN_CASH_API_KEY;
