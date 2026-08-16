@@ -75,6 +75,21 @@ export const resellers = pgTable("resellers", {
 export type Reseller = typeof resellers.$inferSelect;
 export type InsertReseller = typeof resellers.$inferInsert;
 
+export const resellerApiKeys = pgTable("reseller_api_keys", {
+  id: serial("id").primaryKey(),
+  resellerId: integer("resellerId").notNull().references(() => resellers.id),
+  apiKey: varchar("apiKey", { length: 128 }).notNull().unique(),
+  name: varchar("name", { length: 64 }),
+  isActive: boolean("isActive").default(true).notNull(),
+  allowedIps: text("allowedIps"),
+  lastUsedAt: timestamp("lastUsedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
+export type ResellerApiKey = typeof resellerApiKeys.$inferSelect;
+export type InsertResellerApiKey = typeof resellerApiKeys.$inferInsert;
+
 // ─── Categories ───────────────────────────────────────────────────────────────
 export const categories = pgTable("categories", {
   id: serial("id").primaryKey(),

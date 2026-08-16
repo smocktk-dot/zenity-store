@@ -17,9 +17,10 @@ import {
   timestamp,
   varchar,
   decimal,
+  boolean,
   serial
 } from "drizzle-orm/pg-core";
-var userRoleEnum, resellerTypeEnum, resellerStatusEnum, appStatusEnum, planLevelEnum, keyStatusEnum, transactionTypeEnum, pixPaymentStatusEnum, ticketStatusEnum, ticketSenderEnum, applicationStatusEnum, applicationSenderEnum, supportTicketStatusEnum, supportMessageSenderEnum, appDownloadTypeEnum, users, admins, resellers, categories, apps, stockStatusEnum, subscriptionPlans, resellerApps, licenseKeys, appStock, creditTransactions, pixPayments, ipWhitelist, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages, appDownloads;
+var userRoleEnum, resellerTypeEnum, resellerStatusEnum, appStatusEnum, planLevelEnum, keyStatusEnum, transactionTypeEnum, pixPaymentStatusEnum, ticketStatusEnum, ticketSenderEnum, applicationStatusEnum, applicationSenderEnum, supportTicketStatusEnum, supportMessageSenderEnum, appDownloadTypeEnum, users, admins, resellers, resellerApiKeys, categories, apps, stockStatusEnum, subscriptionPlans, resellerApps, licenseKeys, appStock, creditTransactions, pixPayments, ipWhitelist, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages, appDownloads;
 var init_schema = __esm({
   "drizzle/schema.ts"() {
     "use strict";
@@ -70,6 +71,17 @@ var init_schema = __esm({
       createdAt: timestamp("createdAt").defaultNow().notNull(),
       updatedAt: timestamp("updatedAt").defaultNow().notNull(),
       lastLoginAt: timestamp("lastLoginAt")
+    });
+    resellerApiKeys = pgTable("reseller_api_keys", {
+      id: serial("id").primaryKey(),
+      resellerId: integer("resellerId").notNull().references(() => resellers.id),
+      apiKey: varchar("apiKey", { length: 128 }).notNull().unique(),
+      name: varchar("name", { length: 64 }),
+      isActive: boolean("isActive").default(true).notNull(),
+      allowedIps: text("allowedIps"),
+      lastUsedAt: timestamp("lastUsedAt"),
+      createdAt: timestamp("createdAt").defaultNow().notNull(),
+      updatedAt: timestamp("updatedAt").defaultNow().notNull()
     });
     categories = pgTable("categories", {
       id: serial("id").primaryKey(),
@@ -285,6 +297,7 @@ __export(db_exports, {
   createPixPayment: () => createPixPayment,
   createPlan: () => createPlan,
   createReseller: () => createReseller,
+  createResellerApiKey: () => createResellerApiKey,
   createResellerApplication: () => createResellerApplication,
   createSupportMessage: () => createSupportMessage,
   createSupportTicket: () => createSupportTicket,
@@ -302,6 +315,7 @@ __export(db_exports, {
   ensureAppStockSchema: () => ensureAppStockSchema,
   ensureLicenseKeysSchema: () => ensureLicenseKeysSchema,
   ensurePixPaymentSchema: () => ensurePixPaymentSchema,
+  ensureResellerApiKeySchema: () => ensureResellerApiKeySchema,
   getAdminById: () => getAdminById,
   getAdminByUsername: () => getAdminByUsername,
   getAllApps: () => getAllApps,
@@ -329,8 +343,10 @@ __export(db_exports, {
   getPixPaymentsByReseller: () => getPixPaymentsByReseller,
   getPlanById: () => getPlanById,
   getPlansByAppId: () => getPlansByAppId,
+  getResellerApiKeyByKey: () => getResellerApiKeyByKey,
   getResellerApplicationByEmail: () => getResellerApplicationByEmail,
   getResellerApplicationById: () => getResellerApplicationById,
+  getResellerByApiKey: () => getResellerByApiKey,
   getResellerById: () => getResellerById,
   getResellerByUsername: () => getResellerByUsername,
   getStockByApp: () => getStockByApp,
@@ -345,10 +361,12 @@ __export(db_exports, {
   isAdminIpAllowed: () => isAdminIpAllowed,
   isIpWhitelisted: () => isIpWhitelisted,
   isResellerIpAllowed: () => isResellerIpAllowed,
+  listResellerApiKeys: () => listResellerApiKeys,
   normalizeIp: () => normalizeIp,
   removeAppFromReseller: () => removeAppFromReseller,
   removeIpFromWhitelist: () => removeIpFromWhitelist,
   reserveStockForReseller: () => reserveStockForReseller,
+  revokeResellerApiKey: () => revokeResellerApiKey,
   updateAdminPassword: () => updateAdminPassword,
   updateApp: () => updateApp,
   updateAppDownload: () => updateAppDownload,
@@ -370,6 +388,7 @@ __export(db_exports, {
 import { eq, and, desc, sql, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
+import { randomUUID } from "crypto";
 async function getDb() {
   if (!_db) {
     const connectionString = process.env.DATABASE_URL;
@@ -489,6 +508,35 @@ async function ensureAppDownloadsSchema() {
   }
   return _appDownloadsSchemaReady;
 }
+async function ensureResellerApiKeySchema() {
+  await getDb();
+  if (!_sqlClient) throw new Error("DB not available");
+  if (!_resellerApiKeysSchemaReady) {
+    _resellerApiKeysSchemaReady = (async () => {
+      try {
+        await _sqlClient.unsafe(`CREATE TABLE IF NOT EXISTS "reseller_api_keys" (
+          "id" serial PRIMARY KEY,
+          "resellerId" integer NOT NULL REFERENCES "resellers"("id"),
+          "apiKey" varchar(128) NOT NULL UNIQUE,
+          "name" varchar(64),
+          "isActive" boolean DEFAULT true NOT NULL,
+          "allowedIps" text,
+          "lastUsedAt" timestamp,
+          "createdAt" timestamp DEFAULT now() NOT NULL,
+          "updatedAt" timestamp DEFAULT now() NOT NULL
+        )`);
+      } catch (e) {
+        console.error("[Database] Failed to create reseller_api_keys:", e);
+        throw e;
+      }
+    })().then(() => void 0).catch((error) => {
+      _resellerApiKeysSchemaReady = null;
+      console.error("[Database] Failed to ensure reseller_api_keys schema:", error);
+      throw new Error("N\xE3o foi poss\xEDvel preparar o banco para reseller API keys");
+    });
+  }
+  return _resellerApiKeysSchemaReady;
+}
 async function upsertUser(user) {
   if (!user.openId) throw new Error("User openId is required for upsert");
   const db = await getDb();
@@ -576,6 +624,48 @@ async function updateResellerCredits(id, newCredits, newPurchases, newDiscount) 
     totalPurchases: newPurchases,
     discountPercent: newDiscount
   }).where(eq(resellers.id, id));
+}
+async function getResellerByApiKey(apiKey) {
+  await ensureResellerApiKeySchema();
+  const db = await getDb();
+  if (!db) return void 0;
+  const rows = await db.select({ reseller: resellers, key: resellerApiKeys }).from(resellerApiKeys).innerJoin(resellers, eq(resellerApiKeys.resellerId, resellers.id)).where(and(eq(resellerApiKeys.apiKey, apiKey), eq(resellerApiKeys.isActive, true))).limit(1);
+  if (rows.length === 0) return void 0;
+  const { reseller, key } = rows[0];
+  await db.update(resellerApiKeys).set({ lastUsedAt: /* @__PURE__ */ new Date() }).where(eq(resellerApiKeys.id, key.id));
+  return reseller;
+}
+async function getResellerApiKeyByKey(apiKey) {
+  await ensureResellerApiKeySchema();
+  const db = await getDb();
+  if (!db) return void 0;
+  const result = await db.select().from(resellerApiKeys).where(eq(resellerApiKeys.apiKey, apiKey)).limit(1);
+  return result.length > 0 ? result[0] : void 0;
+}
+async function createResellerApiKey(data) {
+  await ensureResellerApiKeySchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.insert(resellerApiKeys).values({
+    resellerId: data.resellerId,
+    apiKey: randomUUID(),
+    name: data.name ?? null,
+    allowedIps: data.allowedIps ?? null,
+    isActive: true
+  }).returning();
+  return row;
+}
+async function listResellerApiKeys(resellerId) {
+  await ensureResellerApiKeySchema();
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(resellerApiKeys).where(eq(resellerApiKeys.resellerId, resellerId)).orderBy(desc(resellerApiKeys.createdAt));
+}
+async function revokeResellerApiKey(id) {
+  await ensureResellerApiKeySchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(resellerApiKeys).set({ isActive: false, updatedAt: /* @__PURE__ */ new Date() }).where(eq(resellerApiKeys.id, id));
 }
 async function getAllCategories() {
   const db = await getDb();
@@ -1073,7 +1163,7 @@ async function deleteAppDownload(id) {
   if (!db) throw new Error("DB not available");
   await db.delete(appDownloads).where(eq(appDownloads.id, id));
 }
-var _db, _sqlClient, _pixPaymentSchemaReady, _appStockSchemaReady, _licenseKeysSchemaReady, _appDownloadsSchemaReady;
+var _db, _sqlClient, _pixPaymentSchemaReady, _appStockSchemaReady, _licenseKeysSchemaReady, _appDownloadsSchemaReady, _resellerApiKeysSchemaReady;
 var init_db = __esm({
   "server/db.ts"() {
     "use strict";
@@ -1085,6 +1175,7 @@ var init_db = __esm({
     _appStockSchemaReady = null;
     _licenseKeysSchemaReady = null;
     _appDownloadsSchemaReady = null;
+    _resellerApiKeysSchemaReady = null;
   }
 });
 
@@ -1437,6 +1528,98 @@ function registerOAuthRoutes(app2) {
       console.error("[OAuth] Callback failed", error);
       res.status(500).json({ error: "OAuth callback failed" });
     }
+  });
+}
+
+// server/resellerApi.ts
+init_db();
+async function authReseller(req) {
+  const apiKey = req.headers["x-api-key"];
+  if (!apiKey) return void 0;
+  return getResellerByApiKey(apiKey);
+}
+function registerResellerApi(app2) {
+  app2.post("/api/reseller/v1/auth/verify", async (req, res) => {
+    const reseller = await authReseller(req);
+    if (!reseller) return res.status(401).json({ error: "Invalid API key" });
+    const { passwordHash, ...safe } = reseller;
+    res.json({ reseller: safe, balance: reseller.credits });
+  });
+  app2.get("/api/reseller/v1/products", async (req, res) => {
+    const reseller = await authReseller(req);
+    if (!reseller) return res.status(401).json({ error: "Invalid API key" });
+    const rows = await getAppsByResellerId(reseller.id);
+    const result = await Promise.all(rows.map(async ({ app: app3 }) => {
+      const [plans, stock] = await Promise.all([getPlansByAppId(app3.id), getStockByApp(app3.id)]);
+      const planList = plans.map((p) => ({
+        id: p.id,
+        name: p.name,
+        durationDays: p.durationDays,
+        priceCredits: p.priceCredits,
+        stockCount: stock.filter((s) => s.planId === p.id && s.status === "available").length
+      }));
+      return { id: app3.id, name: app3.name, description: app3.description, version: app3.version, plans: planList };
+    }));
+    res.json(result);
+  });
+  app2.post("/api/reseller/v1/buy", async (req, res) => {
+    const reseller = await authReseller(req);
+    if (!reseller) return res.status(401).json({ error: "Invalid API key" });
+    if (reseller.resellerType !== "credits") return res.status(403).json({ error: "Not a credits reseller" });
+    const { appId, planId, quantity = 1, customer, customMask, note } = req.body;
+    if (!appId || !planId) return res.status(400).json({ error: "appId and planId are required" });
+    const app3 = await getAppById(Number(appId));
+    const plan = await getPlanById(Number(planId));
+    if (!app3 || !plan || plan.appId !== app3.id) return res.status(404).json({ error: "Plan or app not found" });
+    const assigned = await getAssignedAppIds(reseller.id);
+    if (!assigned.includes(app3.id)) return res.status(403).json({ error: "App not assigned" });
+    const qty = Math.max(1, Math.min(100, Number(quantity) || 1));
+    const basePrice = parseFloat(plan.priceCredits);
+    const discount = parseFloat(reseller.discountPercent);
+    const pricePerKey = basePrice * (1 - discount / 100);
+    const totalCost = pricePerKey * qty;
+    const currentCredits = parseFloat(reseller.credits);
+    if (currentCredits < totalCost) return res.status(402).json({ error: `Insufficient credits. Need: ${totalCost.toFixed(2)}, have: ${currentCredits.toFixed(2)}` });
+    const stock = await getAvailableStockForPlan(app3.id, plan.id, qty);
+    if (stock.length < qty) return res.status(409).json({ error: `Insufficient stock. Available: ${stock.length}, requested: ${qty}` });
+    const reserved = [];
+    for (const s of stock) {
+      const r = await reserveStockForReseller(s.id, reseller.id);
+      if (!r) return res.status(409).json({ error: "Stock reservation failed" });
+      reserved.push(r);
+    }
+    const newCredits = currentCredits - totalCost;
+    const newPurchases = reseller.totalPurchases + qty;
+    const noteParts = [];
+    if (customer) noteParts.push(`customer: ${customer}`);
+    if (note) noteParts.push(note);
+    const noteValue = noteParts.length ? noteParts.join(" | ") : void 0;
+    const keys = [];
+    for (const r of reserved) {
+      await createLicenseKey({
+        keyValue: r.keyValue,
+        resellerId: reseller.id,
+        appId: app3.id,
+        planId: plan.id,
+        planName: plan.name,
+        durationDays: plan.durationDays,
+        creditsSpent: pricePerKey.toFixed(2),
+        resellerCredits: newCredits.toFixed(2),
+        ...noteValue ? { note: noteValue } : {},
+        ...customMask ? { customMask } : {}
+      });
+      keys.push(r.keyValue);
+    }
+    await updateResellerCredits(reseller.id, newCredits.toFixed(2), newPurchases, reseller.discountPercent);
+    await createCreditTransaction({
+      resellerId: reseller.id,
+      type: "deduct",
+      amount: totalCost.toFixed(2),
+      balanceBefore: reseller.credits,
+      balanceAfter: newCredits.toFixed(2),
+      description: `API buy ${qty}x ${app3.name} (${plan.name})`
+    });
+    res.json({ keys, cost: totalCost.toFixed(2), balanceAfter: newCredits.toFixed(2) });
   });
 }
 
@@ -3109,6 +3292,7 @@ app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 registerStorageProxy(app);
 registerOAuthRoutes(app);
+registerResellerApi(app);
 app.get("/api/my-ip", (req, res) => {
   const h = req.headers;
   const candidates = [

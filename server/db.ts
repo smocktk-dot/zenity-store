@@ -1,9 +1,10 @@
 import { eq, and, desc, sql, inArray, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { InsertUser, users, admins, resellers, categories, apps, subscriptionPlans, resellerApps, licenseKeys, appStock, appDownloads, creditTransactions, ipWhitelist, pixPayments, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages } from "../drizzle/schema";
-import type { InsertAdmin, InsertReseller, InsertCategory, InsertApp, InsertSubscriptionPlan, InsertResellerApp, InsertLicenseKey, InsertAppStock, InsertAppDownload, InsertCreditTransaction, InsertPixPayment, InsertTicket, InsertTicketMessage, InsertResellerApplication, InsertApplicationMessage, InsertSupportTicket, InsertSupportMessage } from "../drizzle/schema";
+import { InsertUser, users, admins, resellers, resellerApiKeys, categories, apps, subscriptionPlans, resellerApps, licenseKeys, appStock, appDownloads, creditTransactions, ipWhitelist, pixPayments, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages } from "../drizzle/schema";
+import type { InsertAdmin, InsertReseller, InsertResellerApiKey, InsertCategory, InsertApp, InsertSubscriptionPlan, InsertResellerApp, InsertLicenseKey, InsertAppStock, InsertAppDownload, InsertCreditTransaction, InsertPixPayment, InsertTicket, InsertTicketMessage, InsertResellerApplication, InsertApplicationMessage, InsertSupportTicket, InsertSupportMessage } from "../drizzle/schema";
 import { ENV } from './_core/env';
+import { randomUUID } from "crypto";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 let _sqlClient: ReturnType<typeof postgres> | null = null;
@@ -155,6 +156,38 @@ export async function ensureAppDownloadsSchema(): Promise<void> {
   return _appDownloadsSchemaReady;
 }
 
+let _resellerApiKeysSchemaReady: Promise<void> | null = null;
+
+export async function ensureResellerApiKeySchema(): Promise<void> {
+  await getDb();
+  if (!_sqlClient) throw new Error("DB not available");
+  if (!_resellerApiKeysSchemaReady) {
+    _resellerApiKeysSchemaReady = (async () => {
+      try {
+        await _sqlClient!.unsafe(`CREATE TABLE IF NOT EXISTS "reseller_api_keys" (
+          "id" serial PRIMARY KEY,
+          "resellerId" integer NOT NULL REFERENCES "resellers"("id"),
+          "apiKey" varchar(128) NOT NULL UNIQUE,
+          "name" varchar(64),
+          "isActive" boolean DEFAULT true NOT NULL,
+          "allowedIps" text,
+          "lastUsedAt" timestamp,
+          "createdAt" timestamp DEFAULT now() NOT NULL,
+          "updatedAt" timestamp DEFAULT now() NOT NULL
+        )`);
+      } catch (e) {
+        console.error("[Database] Failed to create reseller_api_keys:", e);
+        throw e;
+      }
+    })().then(() => undefined).catch(error => {
+      _resellerApiKeysSchemaReady = null;
+      console.error("[Database] Failed to ensure reseller_api_keys schema:", error);
+      throw new Error("Não foi possível preparar o banco para reseller API keys");
+    });
+  }
+  return _resellerApiKeysSchemaReady;
+}
+
 // ─── Users (Manus OAuth) ─────────────────────────────────────────────────────
 export async function upsertUser(user: InsertUser): Promise<void> {
   if (!user.openId) throw new Error("User openId is required for upsert");
@@ -247,6 +280,57 @@ export async function updateResellerCredits(id: number, newCredits: string, newP
     totalPurchases: newPurchases,
     discountPercent: newDiscount,
   }).where(eq(resellers.id, id));
+}
+
+export async function getResellerByApiKey(apiKey: string) {
+  await ensureResellerApiKeySchema();
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db.select({ reseller: resellers, key: resellerApiKeys })
+    .from(resellerApiKeys)
+    .innerJoin(resellers, eq(resellerApiKeys.resellerId, resellers.id))
+    .where(and(eq(resellerApiKeys.apiKey, apiKey), eq(resellerApiKeys.isActive, true)))
+    .limit(1);
+  if (rows.length === 0) return undefined;
+  const { reseller, key } = rows[0];
+  await db.update(resellerApiKeys).set({ lastUsedAt: new Date() }).where(eq(resellerApiKeys.id, key.id));
+  return reseller;
+}
+
+export async function getResellerApiKeyByKey(apiKey: string) {
+  await ensureResellerApiKeySchema();
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(resellerApiKeys).where(eq(resellerApiKeys.apiKey, apiKey)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function createResellerApiKey(data: { resellerId: number; name?: string | null; allowedIps?: string | null }) {
+  await ensureResellerApiKeySchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.insert(resellerApiKeys).values({
+    resellerId: data.resellerId,
+    apiKey: randomUUID(),
+    name: data.name ?? null,
+    allowedIps: data.allowedIps ?? null,
+    isActive: true,
+  } as InsertResellerApiKey).returning();
+  return row;
+}
+
+export async function listResellerApiKeys(resellerId: number) {
+  await ensureResellerApiKeySchema();
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(resellerApiKeys).where(eq(resellerApiKeys.resellerId, resellerId)).orderBy(desc(resellerApiKeys.createdAt));
+}
+
+export async function revokeResellerApiKey(id: number) {
+  await ensureResellerApiKeySchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(resellerApiKeys).set({ isActive: false, updatedAt: new Date() }).where(eq(resellerApiKeys.id, id));
 }
 
 // ─── Categories ───────────────────────────────────────────────────────────────
