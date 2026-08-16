@@ -198,20 +198,34 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
             </div>
 
             {selectedPlan && (
-              <div className="rounded-2xl border border-white/[0.06] p-4 space-y-2" style={{ background: "rgba(255,255,255,0.02)" }}>
+              <div className="rounded-2xl border border-white/[0.06] p-4 space-y-2.5" style={{ background: "rgba(255,255,255,0.02)" }}>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">{t.apps_price_per_key}</span>
                   <span className="text-white font-mono">{discountedPrice.toFixed(2)} cr</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">{t.general_quantity}:</span>
-                  <span className="text-white">{genForm.quantity}</span>
+                  <span className="text-gray-500">{language === "en" ? "Sell price" : "Preço venda"}</span>
+                  <span className="text-emerald-400 font-mono">R$ {parseFloat(String(selectedPlan.resellerSellingPrice ?? "0")).toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between text-sm font-bold border-t border-white/[0.06] pt-2 mt-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">{t.general_quantity}:</span>
+                  <span className="text-white font-mono">{genForm.quantity}</span>
+                </div>
+                <div className="flex justify-between text-sm font-bold border-t border-white/[0.06] pt-2.5 mt-1">
                   <span className="text-gray-300">{t.apps_total}:</span>
                   <span className={totalCost > credits ? "text-red-400" : "text-emerald-400"}>{totalCost.toFixed(2)} cr</span>
                 </div>
-                <div className="flex justify-between text-xs">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">{language === "en" ? "Revenue" : "Receita"}</span>
+                  <span className="text-emerald-300 font-mono">R$ {(parseFloat(String(selectedPlan.resellerSellingPrice ?? "0")) * parseInt(genForm.quantity || "1")).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">{language === "en" ? "Profit" : "Lucro"}</span>
+                  <span className={totalCost > credits ? "text-red-400" : "text-yellow-400"}>
+                    R$ {((parseFloat(String(selectedPlan.resellerSellingPrice ?? "0")) * parseInt(genForm.quantity || "1")) - totalCost).toFixed(2)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-xs pt-1">
                   <span className="text-gray-600">{t.apps_balance}:</span>
                   <span className="text-gray-400 font-mono">{credits.toFixed(2)} cr</span>
                 </div>
