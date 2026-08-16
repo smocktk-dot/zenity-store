@@ -83,14 +83,14 @@ export default function AdminManualDelivery() {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4 rounded-xl border border-white/5 p-5" style={{ background: "rgba(255,255,255,0.02)" }}>
+      <form onSubmit={handleSubmit} className="space-y-4 rounded-3xl border border-white/[0.06] p-5" style={{ background: "rgba(255,255,255,0.02)" }}>
         <div>
           <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Reseller</Label>
           <Select value={resellerId} onValueChange={setResellerId}>
-            <SelectTrigger className="mt-1.5 bg-white/5 border-white/10 text-white">
+            <SelectTrigger className="mt-1.5 bg-white/[0.03] border-white/[0.06] text-white">
               <SelectValue placeholder="Selecione um reseller" />
             </SelectTrigger>
-            <SelectContent className="bg-[#0f0c1a] border-white/10">
+            <SelectContent className="bg-[#0f0c1a] border-white/[0.06]">
               {resellers.map((r: any) => (
                 <SelectItem key={r.id} value={String(r.id)} className="text-white">{r.username} ({r.resellerType})</SelectItem>
               ))}
@@ -105,10 +105,10 @@ export default function AdminManualDelivery() {
           <div>
             <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">App</Label>
             <Select value={appId} onValueChange={(v) => { setAppId(v); setPlanId(""); setKeyValue(""); }}>
-              <SelectTrigger className="mt-1.5 bg-white/5 border-white/10 text-white">
+              <SelectTrigger className="mt-1.5 bg-white/[0.03] border-white/[0.06] text-white">
                 <SelectValue placeholder="Selecione um app" />
               </SelectTrigger>
-              <SelectContent className="bg-[#0f0c1a] border-white/10">
+              <SelectContent className="bg-[#0f0c1a] border-white/[0.06]">
                 {apps.map((a: any) => (
                   <SelectItem key={a.id} value={String(a.id)} className="text-white">{a.name}</SelectItem>
                 ))}
@@ -118,10 +118,10 @@ export default function AdminManualDelivery() {
           <div>
             <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Plano</Label>
             <Select value={planId} onValueChange={(v) => { setPlanId(v); setKeyValue(""); }} disabled={!appId}>
-              <SelectTrigger className="mt-1.5 bg-white/5 border-white/10 text-white">
+              <SelectTrigger className="mt-1.5 bg-white/[0.03] border-white/[0.06] text-white">
                 <SelectValue placeholder="Selecione um plano" />
               </SelectTrigger>
-              <SelectContent className="bg-[#0f0c1a] border-white/10">
+              <SelectContent className="bg-[#0f0c1a] border-white/[0.06]">
                 {app?.plans?.map((p: any) => (
                   <SelectItem key={p.id} value={String(p.id)} className="text-white">{p.name} ({p.durationDays}d)</SelectItem>
                 ))}
@@ -131,7 +131,7 @@ export default function AdminManualDelivery() {
         </div>
 
         {!!appId && !!planId && (
-          <div className="rounded-lg border border-white/5 p-3" style={{ background: "rgba(255,255,255,0.02)" }}>
+          <div className="rounded-lg border border-white/[0.06] p-3" style={{ background: "rgba(255,255,255,0.02)" }}>
             <div className="flex items-center justify-between">
               <p className="text-gray-400 text-xs font-medium uppercase tracking-wider">Próxima key no estoque</p>
               <Button
@@ -139,7 +139,7 @@ export default function AdminManualDelivery() {
                 onClick={handleUseStock}
                 disabled={!nextStock?.[0]}
                 className="h-7 text-xs text-white"
-                style={{ background: "linear-gradient(135deg, #22c55e, #16a34a)" }}
+                style={{ background: "linear-gradient(135deg, #10b981, #047857)" }}
               >
                 <Package className="w-3 h-3 mr-1" /> Usar do estoque
               </Button>
@@ -158,7 +158,7 @@ export default function AdminManualDelivery() {
             value={keyValue}
             onChange={(e) => setKeyValue(e.target.value)}
             placeholder="Cole aqui a key ou clique em 'Usar do estoque'"
-            className="mt-1.5 bg-white/5 border-white/10 text-white font-mono"
+            className="mt-1.5 bg-white/[0.03] border-white/[0.06] text-white font-mono"
             required
           />
         </div>
@@ -169,7 +169,7 @@ export default function AdminManualDelivery() {
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder="Nota interna sobre a entrega..."
-            className="mt-1.5 bg-white/5 border-white/10 text-white placeholder:text-gray-600"
+            className="mt-1.5 bg-white/[0.03] border-white/[0.06] text-white placeholder:text-gray-600"
           />
         </div>
 
@@ -177,7 +177,7 @@ export default function AdminManualDelivery() {
           type="submit"
           disabled={deliver.isPending}
           className="w-full text-white"
-          style={{ background: "linear-gradient(135deg, #7c3aed, #8b5cf6)" }}
+          style={{ background: "linear-gradient(135deg, #10b981, #047857)" }}
         >
           <Send className="w-4 h-4 mr-2" /> {deliver.isPending ? "Entregando..." : "Entregar key"}
         </Button>

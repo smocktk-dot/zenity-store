@@ -29,8 +29,8 @@ export default function AdminCategories() {
           onClick={() => { setShowCreate(true); setForm({ name: "", description: "" }); }}
           className="relative overflow-hidden gap-2 px-5 py-2.5 text-sm font-semibold text-white rounded-xl transition-all duration-200 active:scale-[0.97]"
           style={{
-            background: "linear-gradient(135deg, oklch(0.55 0.28 290), oklch(0.45 0.25 270))",
-            boxShadow: "0 0 20px oklch(0.55 0.28 290 / 0.35), 0 4px 12px rgba(0,0,0,0.4)",
+            background: "linear-gradient(135deg, #10b981, #047857)",
+            boxShadow: "0 0 20px rgba(16,185,129,0.35), 0 4px 12px rgba(0,0,0,0.4)",
           }}
         >
           <Plus className="w-4 h-4" /> Nova Categoria
@@ -47,9 +47,9 @@ export default function AdminCategories() {
             <p className="text-gray-700 text-sm mt-1">Crie categorias para organizar seus apps</p>
           </div>
         ) : categories.map((cat: any) => (
-          <div key={cat.id} className="rounded-xl border border-white/5 p-5 hover:border-purple-500/20 transition-all group" style={{ background: "rgba(255,255,255,0.02)" }}>
+          <div key={cat.id} className="rounded-3xl border border-white/[0.06] p-5 hover:border-purple-500/20 transition-all group" style={{ background: "rgba(255,255,255,0.02)" }}>
             <div className="flex items-start justify-between mb-3">
-              <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: "linear-gradient(135deg, oklch(0.55 0.28 290 / 0.2), oklch(0.45 0.25 270 / 0.15))", border: "1px solid oklch(0.55 0.28 290 / 0.25)" }}>
+              <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.2), oklch(0.45 0.25 270 / 0.15))", border: "1px solid rgba(16,185,129,0.25)" }}>
                 <Tag className="w-4 h-4 text-purple-400" />
               </div>
               <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -61,7 +61,7 @@ export default function AdminCategories() {
                 </button>
                 <button
                   onClick={() => { if (confirm(`Remover "${cat.name}"?`)) del.mutate({ id: cat.id }); }}
-                  className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-all border border-transparent hover:border-red-500/20"
+                  className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-emerald-500/10 transition-all border border-transparent hover:border-red-500/20"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
@@ -86,7 +86,7 @@ export default function AdminCategories() {
         >
           <DialogHeader className="pb-2">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, oklch(0.55 0.28 290 / 0.3), oklch(0.45 0.25 270 / 0.2))", border: "1px solid oklch(0.55 0.28 290 / 0.3)" }}>
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.3), rgba(5,150,105,0.2))", border: "1px solid rgba(16,185,129,0.3)" }}>
                 <Layers className="w-4 h-4 text-purple-400" />
               </div>
               <DialogTitle className="text-white text-lg font-semibold">{editCat ? "Editar Categoria" : "Nova Categoria"}</DialogTitle>
@@ -101,7 +101,7 @@ export default function AdminCategories() {
               <Input
                 value={form.name}
                 onChange={e => setForm(f => ({...f, name: e.target.value}))}
-                className="mt-1.5 text-white border-white/10 focus:border-purple-500/60 transition-colors"
+                className="mt-1.5 text-white border-white/[0.06] focus:border-emerald-500/60 transition-colors"
                 style={{ background: "rgba(255,255,255,0.05)" }}
                 required
                 autoFocus
@@ -112,7 +112,7 @@ export default function AdminCategories() {
               <Input
                 value={form.description}
                 onChange={e => setForm(f => ({...f, description: e.target.value}))}
-                className="mt-1.5 text-white border-white/10 focus:border-purple-500/60 transition-colors"
+                className="mt-1.5 text-white border-white/[0.06] focus:border-emerald-500/60 transition-colors"
                 style={{ background: "rgba(255,255,255,0.05)" }}
               />
             </div>
@@ -130,8 +130,8 @@ export default function AdminCategories() {
                 disabled={create.isPending || update.isPending}
                 className="flex-1 font-semibold text-white rounded-xl transition-all duration-200 active:scale-[0.97] disabled:opacity-50"
                 style={{
-                  background: "linear-gradient(135deg, oklch(0.55 0.28 290), oklch(0.45 0.25 270))",
-                  boxShadow: "0 0 20px oklch(0.55 0.28 290 / 0.3), 0 4px 12px rgba(0,0,0,0.3)",
+                  background: "linear-gradient(135deg, #10b981, #047857)",
+                  boxShadow: "0 0 20px rgba(16,185,129,0.3), 0 4px 12px rgba(0,0,0,0.3)",
                 }}
               >
                 {create.isPending || update.isPending ? "Salvando..." : editCat ? "Salvar Alterações" : "Criar Categoria"}

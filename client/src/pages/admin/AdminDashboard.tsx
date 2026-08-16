@@ -14,7 +14,7 @@ export default function AdminDashboard() {
   const stats = [
     { label: "Total Resellers", value: resellers.length, sub: `${activeResellers} ativos`, icon: Users, color: "text-blue-400", bg: "bg-blue-500/10 border-blue-500/20" },
     { label: "Apps Cadastrados", value: apps.length, sub: `${apps.filter((a: any) => a.status === "active").length} ativos`, icon: AppWindow, color: "text-purple-400", bg: "bg-purple-500/10 border-purple-500/20" },
-    { label: "Keys Geradas", value: keys.length, sub: `${activeKeys} ativas / ${usedKeys} usadas`, icon: Key, color: "text-green-400", bg: "bg-green-500/10 border-green-500/20" },
+    { label: "Keys Geradas", value: keys.length, sub: `${activeKeys} ativas / ${usedKeys} usadas`, icon: Key, color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20" },
     { label: "Categorias", value: categories.length, sub: "categorias de apps", icon: Tag, color: "text-yellow-400", bg: "bg-yellow-500/10 border-yellow-500/20" },
   ];
 
@@ -28,9 +28,9 @@ export default function AdminDashboard() {
           <h1 className="text-white text-2xl font-bold">Dashboard</h1>
           <p className="text-gray-500 text-sm mt-1">Visão geral do sistema CV STORE</p>
         </div>
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-500/10 border border-green-500/20">
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
           <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-          <span className="text-green-400 text-xs font-medium">Sistema Online</span>
+          <span className="text-emerald-400 text-xs font-medium">Sistema Online</span>
         </div>
       </div>
 
@@ -54,19 +54,19 @@ export default function AdminDashboard() {
       {/* Recent Keys + Resellers */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Recent Keys */}
-        <div className="rounded-xl border border-white/5 p-5" style={{ background: "rgba(255,255,255,0.02)" }}>
+        <div className="rounded-3xl border border-white/[0.06] p-5" style={{ background: "rgba(255,255,255,0.02)" }}>
           <div className="flex items-center gap-2 mb-4">
-            <Key className="w-4 h-4 text-green-400" />
+            <Key className="w-4 h-4 text-emerald-400" />
             <h2 className="text-white font-semibold text-sm">Keys Recentes</h2>
           </div>
           <div className="space-y-2">
             {recentKeys.length === 0 ? (
               <p className="text-gray-600 text-sm text-center py-4">Nenhuma key gerada ainda</p>
             ) : recentKeys.map((k: any) => (
-              <div key={k.id} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
+              <div key={k.id} className="flex items-center justify-between py-2 border-b border-white/[0.04] last:border-0">
                 <span className="text-gray-300 text-xs font-mono truncate max-w-[180px]">{k.keyValue}</span>
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                  k.status === "active" ? "bg-green-500/20 text-green-400" :
+                  k.status === "active" ? "bg-emerald-500/20 text-emerald-400" :
                   k.status === "used" ? "bg-blue-500/20 text-blue-400" :
                   "bg-gray-500/20 text-gray-400"
                 }`}>{k.status}</span>
@@ -76,7 +76,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Resellers */}
-        <div className="rounded-xl border border-white/5 p-5" style={{ background: "rgba(255,255,255,0.02)" }}>
+        <div className="rounded-3xl border border-white/[0.06] p-5" style={{ background: "rgba(255,255,255,0.02)" }}>
           <div className="flex items-center gap-2 mb-4">
             <Activity className="w-4 h-4 text-blue-400" />
             <h2 className="text-white font-semibold text-sm">Resellers Recentes</h2>
@@ -85,16 +85,16 @@ export default function AdminDashboard() {
             {resellers.length === 0 ? (
               <p className="text-gray-600 text-sm text-center py-4">Nenhum reseller cadastrado</p>
             ) : resellers.slice(0, 8).map((r: any) => (
-              <div key={r.id} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
+              <div key={r.id} className="flex items-center justify-between py-2 border-b border-white/[0.04] last:border-0">
                 <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-full bg-red-600/30 flex items-center justify-center text-red-400 text-xs font-bold uppercase">
+                  <div className="w-6 h-6 rounded-full bg-emerald-600/30 flex items-center justify-center text-red-400 text-xs font-bold uppercase">
                     {r.username[0]}
                   </div>
                   <span className="text-gray-300 text-sm">{r.username}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-yellow-400 text-xs font-mono">{parseFloat(r.credits).toFixed(2)} cr</span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${r.status === "active" ? "bg-green-500/20 text-green-400" : "bg-gray-500/20 text-gray-400"}`}>{r.status}</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${r.status === "active" ? "bg-emerald-500/20 text-emerald-400" : "bg-gray-500/20 text-gray-400"}`}>{r.status}</span>
                 </div>
               </div>
             ))}

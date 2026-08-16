@@ -190,7 +190,7 @@ export default function AdminIpWhitelist() {
               type="submit"
               disabled={addIp.isPending}
               className="h-10 px-5 font-semibold text-sm text-white"
-              style={{ background: "linear-gradient(135deg, #7c3aed 0%, #9333ea 100%)", border: "none" }}
+              style={{ background: "linear-gradient(135deg, #10b981 0%, #34d399 100%)", border: "none" }}
             >
               {addIp.isPending ? (
                 <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -260,7 +260,7 @@ export default function AdminIpWhitelist() {
 
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
-            <div className="w-5 h-5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+            <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : displayList.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -303,7 +303,7 @@ export default function AdminIpWhitelist() {
                   <button
                     onClick={() => removeIp.mutate({ id: entry.id })}
                     disabled={removeIp.isPending}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-500/10"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg text-gray-600 hover:text-red-400 hover:bg-emerald-500/10"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>

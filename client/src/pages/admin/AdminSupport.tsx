@@ -95,7 +95,7 @@ export default function AdminSupport() {
   });
 
   const statusColor: Record<string, string> = {
-    open: "bg-green-500/20 text-green-400 border-green-500/30",
+    open: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
     closed: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
     archived: "bg-gray-500/20 text-gray-400 border-gray-500/30",
   };
@@ -113,7 +113,7 @@ export default function AdminSupport() {
           <div className="flex items-center gap-4">
             <button
               onClick={() => setSelectedId(null)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-white/5 transition-all"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-white/[0.03] transition-all"
             >
               <ArrowLeft className="w-4 h-4" /> Voltar
             </button>
@@ -130,10 +130,10 @@ export default function AdminSupport() {
                 updateStatus.mutate({ id: detail.id, status: v as any });
               }}
             >
-              <SelectTrigger className="w-[140px] h-9 text-white bg-white/5 border-white/10 text-xs">
+              <SelectTrigger className="w-[140px] h-9 text-white bg-white/[0.03] border-white/[0.06] text-xs">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-[#0f0c1a] border-white/10">
+              <SelectContent className="bg-[#0f0c1a] border-white/[0.06]">
                 <SelectItem value="open" className="text-white">Aberto</SelectItem>
                 <SelectItem value="closed" className="text-white">Fechado</SelectItem>
                 <SelectItem value="archived" className="text-white">Arquivado</SelectItem>
@@ -141,7 +141,7 @@ export default function AdminSupport() {
             </Select>
             <Button
               onClick={() => { if (confirm("Deseja excluir esta dúvida?")) deleteTicket.mutate({ id: detail.id }); }}
-              className="h-9 px-3 text-red-400 bg-red-500/10 border border-red-500/30 hover:bg-red-500/20"
+              className="h-9 px-3 text-red-400 bg-red-500/10 border border-red-500/30 hover:bg-emerald-500/20"
               title="Deletar dúvida"
             >
               <Trash2 className="w-4 h-4" />
@@ -150,21 +150,21 @@ export default function AdminSupport() {
         </div>
 
         <div className="grid grid-cols-2 gap-4 mb-4">
-          <div className="rounded-xl border border-white/5 p-4" style={{ background: "rgba(255,255,255,0.02)" }}>
+          <div className="rounded-3xl border border-white/[0.06] p-4" style={{ background: "rgba(255,255,255,0.02)" }}>
             <p className="text-gray-500 text-xs uppercase tracking-wider">Nome</p>
             <p className="text-white text-sm font-medium">{detail.name}</p>
           </div>
-          <div className="rounded-xl border border-white/5 p-4" style={{ background: "rgba(255,255,255,0.02)" }}>
+          <div className="rounded-3xl border border-white/[0.06] p-4" style={{ background: "rgba(255,255,255,0.02)" }}>
             <p className="text-gray-500 text-xs uppercase tracking-wider">Email</p>
             <p className="text-white text-sm">{detail.email}</p>
           </div>
         </div>
 
-        <div className="rounded-xl border border-white/5 p-4 mb-4" style={{ background: "rgba(255,255,255,0.02)" }}>
+        <div className="rounded-3xl border border-white/[0.06] p-4 mb-4" style={{ background: "rgba(255,255,255,0.02)" }}>
           <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Motivo</p>
           <p className="text-white text-sm leading-relaxed font-semibold">{detail.subject}</p>
         </div>
-        <div className="rounded-xl border border-white/5 p-4 mb-4" style={{ background: "rgba(255,255,255,0.02)" }}>
+        <div className="rounded-3xl border border-white/[0.06] p-4 mb-4" style={{ background: "rgba(255,255,255,0.02)" }}>
           <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Dúvida</p>
           <p className="text-white text-sm leading-relaxed">{detail.question}</p>
         </div>
@@ -195,27 +195,27 @@ export default function AdminSupport() {
         </div>
 
         {detail.status === "open" ? (
-          <form onSubmit={handleSend} className="mt-4 pt-4 border-t border-white/5">
+          <form onSubmit={handleSend} className="mt-4 pt-4 border-t border-white/[0.04]">
             <div className="flex items-end gap-2">
               <Textarea
                 value={chatText}
                 onChange={(e) => setChatText(e.target.value)}
                 placeholder="Responda a dúvida..."
-                className="flex-1 bg-white/5 border-white/10 text-white placeholder:text-gray-600 min-h-[60px] resize-none"
+                className="flex-1 bg-white/[0.03] border-white/[0.06] text-white placeholder:text-gray-600 min-h-[60px] resize-none"
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(e as any); } }}
               />
               <Button
                 type="submit"
                 disabled={sendMessage.isPending || !chatText.trim()}
                 className="h-[60px] w-12 p-0 text-white"
-                style={{ background: "linear-gradient(135deg, #7c3aed, #8b5cf6)" }}
+                style={{ background: "linear-gradient(135deg, #10b981, #047857)" }}
               >
                 <Send className="w-4 h-4" />
               </Button>
             </div>
           </form>
         ) : (
-          <p className="text-center text-gray-500 text-sm py-4 border-t border-white/5">Ticket encerrado.</p>
+          <p className="text-center text-gray-500 text-sm py-4 border-t border-white/[0.04]">Ticket encerrado.</p>
         )}
       </div>
     );
@@ -230,10 +230,10 @@ export default function AdminSupport() {
         </div>
         <div className="flex items-center gap-2">
           <Select value={filter} onValueChange={setFilter}>
-            <SelectTrigger className="w-[140px] h-9 text-white bg-white/5 border-white/10 text-xs">
+            <SelectTrigger className="w-[140px] h-9 text-white bg-white/[0.03] border-white/[0.06] text-xs">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent className="bg-[#0f0c1a] border-white/10">
+            <SelectContent className="bg-[#0f0c1a] border-white/[0.06]">
               <SelectItem value="all" className="text-white">Todos</SelectItem>
               <SelectItem value="open" className="text-white">Abertos</SelectItem>
               <SelectItem value="closed" className="text-white">Fechados</SelectItem>
@@ -249,11 +249,11 @@ export default function AdminSupport() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Buscar por nome, email ou dúvida..."
-          className="pl-9 bg-white/5 border-white/10 text-white placeholder:text-gray-600"
+          className="pl-9 bg-white/[0.03] border-white/[0.06] text-white placeholder:text-gray-600"
         />
       </div>
 
-      <div className="rounded-xl border border-white/5 overflow-hidden" style={{ background: "rgba(255,255,255,0.02)" }}>
+      <div className="rounded-3xl border border-white/[0.06] overflow-hidden" style={{ background: "rgba(255,255,255,0.02)" }}>
         {isLoading ? (
           <p className="text-center py-10 text-gray-500">Carregando...</p>
         ) : filtered.length === 0 ? (
@@ -264,26 +264,26 @@ export default function AdminSupport() {
         ) : (
           <table className="w-full">
             <thead>
-              <tr className="border-b border-white/5">
+              <tr className="border-b border-white/[0.04]">
                 {["ID", "Nome", "Motivo", "Email", "Status", "Data", "Ações"].map((h) => (
-                  <th key={h} className="text-left px-4 py-3 text-gray-500 text-xs font-medium uppercase tracking-wider">{h}</th>
+                  <th key={h} className="text-left px-5 py-4 text-gray-400 text-xs font-semibold uppercase tracking-widest">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filtered.map((t: any) => (
-                <tr key={t.id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition-colors">
-                  <td className="px-4 py-3 text-white text-sm font-medium">#{t.id}</td>
-                  <td className="px-4 py-3 text-gray-300 text-sm">{t.name}</td>
-                  <td className="px-4 py-3 text-gray-300 text-sm max-w-[180px] truncate" title={t.subject}>{t.subject}</td>
-                  <td className="px-4 py-3 text-gray-400 text-sm">{t.email}</td>
-                  <td className="px-4 py-3">
+                <tr key={t.id} className="border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02] transition-colors">
+                  <td className="px-5 py-4 text-white text-sm font-medium">#{t.id}</td>
+                  <td className="px-5 py-4 text-gray-300 text-sm">{t.name}</td>
+                  <td className="px-5 py-4 text-gray-300 text-sm max-w-[180px] truncate" title={t.subject}>{t.subject}</td>
+                  <td className="px-5 py-4 text-gray-400 text-sm">{t.email}</td>
+                  <td className="px-5 py-4">
                     <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${statusColor[t.status]}`}>
                       {statusLabel[t.status] || t.status}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-gray-500 text-sm">{formatDate(t.createdAt)}</td>
-                  <td className="px-4 py-3">
+                  <td className="px-5 py-4 text-gray-500 text-sm">{formatDate(t.createdAt)}</td>
+                  <td className="px-5 py-4">
                     <div className="flex items-center gap-1">
                       <button
                         onClick={() => setSelectedId(t.id)}
@@ -301,14 +301,14 @@ export default function AdminSupport() {
                       </button>
                       <button
                         onClick={() => updateStatus.mutate({ id: t.id, status: "closed" })}
-                        className="p-1.5 rounded-lg text-gray-500 hover:text-green-400 hover:bg-green-500/10 transition-all"
+                        className="p-1.5 rounded-lg text-gray-500 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all"
                         title="Fechar"
                       >
                         <CheckCircle className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => { if (confirm("Deseja excluir esta dúvida?")) deleteTicket.mutate({ id: t.id }); }}
-                        className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                        className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-emerald-500/10 transition-all"
                         title="Deletar"
                       >
                         <Trash2 className="w-3.5 h-3.5" />

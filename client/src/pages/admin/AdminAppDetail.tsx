@@ -61,7 +61,7 @@ export default function AdminAppDetail({ id }: { id: number }) {
 
   if (isLoading) return (
     <div className="p-6 flex items-center justify-center h-64">
-      <div className="w-6 h-6 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+      <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
     </div>
   );
   if (!app) return <div className="p-6 text-gray-500">App não encontrado</div>;
@@ -79,7 +79,7 @@ export default function AdminAppDetail({ id }: { id: number }) {
     <div className="p-6 space-y-5">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <button onClick={() => navigate("/admin/apps")} className="p-2 rounded-lg text-gray-500 hover:text-white hover:bg-white/5 transition-all">
+        <button onClick={() => navigate("/admin/apps")} className="p-2 rounded-lg text-gray-500 hover:text-white hover:bg-white/[0.03] transition-all">
           <ArrowLeft className="w-4 h-4" />
         </button>
         <div>
@@ -87,23 +87,23 @@ export default function AdminAppDetail({ id }: { id: number }) {
           <p className="text-gray-500 text-sm">{app.description || "Sem descrição"}</p>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <span className="text-xs px-2 py-1 rounded-full bg-white/5 text-gray-400 font-mono">{app.version}</span>
-          <span className={`text-xs px-2 py-1 rounded-full border font-medium ${app.status === "active" ? "bg-green-500/20 text-green-400 border-green-500/30" : "bg-gray-500/20 text-gray-400 border-gray-500/30"}`}>{app.status}</span>
+          <span className="text-xs px-2 py-1 rounded-full bg-white/[0.03] text-gray-400 font-mono">{app.version}</span>
+          <span className={`text-xs px-2 py-1 rounded-full border font-medium ${app.status === "active" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" : "bg-gray-500/20 text-gray-400 border-gray-500/30"}`}>{app.status}</span>
         </div>
       </div>
 
       <Tabs defaultValue="plans">
-        <TabsList className="bg-white/5 border border-white/10">
-          <TabsTrigger value="plans" className="data-[state=active]:bg-red-600 data-[state=active]:text-white text-gray-400">Planos</TabsTrigger>
-          <TabsTrigger value="resellers" className="data-[state=active]:bg-red-600 data-[state=active]:text-white text-gray-400">Atribuir Resellers</TabsTrigger>
-          <TabsTrigger value="features" className="data-[state=active]:bg-red-600 data-[state=active]:text-white text-gray-400">Features</TabsTrigger>
+        <TabsList className="bg-white/[0.03] border border-white/[0.06]">
+          <TabsTrigger value="plans" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white text-gray-400">Planos</TabsTrigger>
+          <TabsTrigger value="resellers" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white text-gray-400">Atribuir Resellers</TabsTrigger>
+          <TabsTrigger value="features" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white text-gray-400">Features</TabsTrigger>
         </TabsList>
 
         {/* ── Plans Tab ── */}
         <TabsContent value="plans" className="mt-4 space-y-6">
           <div className="flex justify-between items-center">
             <p className="text-gray-400 text-sm">{app.plans?.length || 0} planos configurados</p>
-            <Button onClick={() => { resetForm(); setShowPlan(true); }} className="bg-red-600 hover:bg-red-500 text-white gap-2 h-8 text-sm">
+            <Button onClick={() => { resetForm(); setShowPlan(true); }} className="bg-emerald-600 hover:bg-emerald-500 text-white gap-2 h-8 text-sm">
               <Plus className="w-3.5 h-3.5" /> Novo Plano
             </Button>
           </div>
@@ -139,7 +139,7 @@ export default function AdminAppDetail({ id }: { id: number }) {
                           <button onClick={() => openEdit(plan)} className="p-1 rounded text-gray-500 hover:text-yellow-400 hover:bg-yellow-500/10 transition-all">
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
-                          <button onClick={() => { if (confirm("Remover plano?")) deletePlan.mutate({ id: plan.id }); }} className="p-1 rounded text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-all">
+                          <button onClick={() => { if (confirm("Remover plano?")) deletePlan.mutate({ id: plan.id }); }} className="p-1 rounded text-gray-500 hover:text-red-400 hover:bg-emerald-500/10 transition-all">
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
@@ -187,7 +187,7 @@ export default function AdminAppDetail({ id }: { id: number }) {
                           <button onClick={() => openEdit(plan)} className="p-1 rounded text-gray-500 hover:text-purple-400 hover:bg-purple-500/10 transition-all">
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
-                          <button onClick={() => { if (confirm("Remover plano?")) deletePlan.mutate({ id: plan.id }); }} className="p-1 rounded text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-all">
+                          <button onClick={() => { if (confirm("Remover plano?")) deletePlan.mutate({ id: plan.id }); }} className="p-1 rounded text-gray-500 hover:text-red-400 hover:bg-emerald-500/10 transition-all">
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
@@ -207,7 +207,7 @@ export default function AdminAppDetail({ id }: { id: number }) {
                         Com 35% desc → <span className="text-purple-400">R$ {(parseFloat(plan.pricePercentage ?? "0") * 0.65).toFixed(2)}</span>
                         {" · "}50% desc → <span className="text-purple-400">R$ {(parseFloat(plan.pricePercentage ?? "0") * 0.50).toFixed(2)}</span>
                       </p>
-                      <p className="text-green-400 text-xs mt-1">
+                      <p className="text-emerald-400 text-xs mt-1">
                         Preço final de venda: <span className="font-bold">R$ {parseFloat(plan.resellerSellingPrice ?? "0").toFixed(2)}</span>
                       </p>
                     </div>
@@ -221,16 +221,16 @@ export default function AdminAppDetail({ id }: { id: number }) {
 
         {/* ── Resellers Tab ── */}
         <TabsContent value="resellers" className="mt-4 space-y-4">
-          <div className="rounded-xl border border-white/5 p-5" style={{ background: "rgba(255,255,255,0.02)" }}>
+          <div className="rounded-3xl border border-white/[0.06] p-5" style={{ background: "rgba(255,255,255,0.02)" }}>
             <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
               <Users className="w-4 h-4 text-blue-400" /> Atribuir App a Reseller
             </h3>
             <div className="flex gap-3">
               <Select value={selectedReseller} onValueChange={setSelectedReseller}>
-                <SelectTrigger className="bg-white/5 border-white/10 text-white flex-1">
+                <SelectTrigger className="bg-white/[0.03] border-white/[0.06] text-white flex-1">
                   <SelectValue placeholder="Selecionar reseller..." />
                 </SelectTrigger>
-                <SelectContent className="bg-[#0d0d14] border-white/10">
+                <SelectContent className="bg-[#0d0d14] border-white/[0.06]">
                   {resellers.length === 0 && (
                     <SelectItem value="_none" disabled className="text-gray-500">Nenhum reseller cadastrado</SelectItem>
                   )}
@@ -259,7 +259,7 @@ export default function AdminAppDetail({ id }: { id: number }) {
               <Button
                 onClick={() => { if (selectedReseller) assignApp.mutate({ resellerId: parseInt(selectedReseller), appId: id }); }}
                 disabled={!selectedReseller || assignApp.isPending}
-                className="bg-green-600 hover:bg-green-500 text-white"
+                className="bg-emerald-600 hover:bg-emerald-500 text-white"
               >
                 {assignApp.isPending ? "Atribuindo..." : "Atribuir"}
               </Button>
@@ -270,7 +270,7 @@ export default function AdminAppDetail({ id }: { id: number }) {
 
         {/* ── Features Tab ── */}
         <TabsContent value="features" className="mt-4">
-          <div className="rounded-xl border border-white/5 p-5" style={{ background: "rgba(255,255,255,0.02)" }}>
+          <div className="rounded-3xl border border-white/[0.06] p-5" style={{ background: "rgba(255,255,255,0.02)" }}>
             <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
               <Star className="w-4 h-4 text-yellow-400" /> Features do App
             </h3>
@@ -290,7 +290,7 @@ export default function AdminAppDetail({ id }: { id: number }) {
 
       {/* ── Create / Edit Plan Modal ── */}
       <Dialog open={showPlan || !!editingPlan} onOpenChange={(open) => { if (!open) { setShowPlan(false); setEditingPlan(null); } }}>
-        <DialogContent className="bg-[#0d0d14] border-white/10 text-white max-w-lg">
+        <DialogContent className="bg-[#0d0d14] border-white/[0.06] text-white max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-white">{editingPlan ? "Editar Plano" : "Novo Plano de Assinatura"}</DialogTitle>
           </DialogHeader>
@@ -317,11 +317,11 @@ export default function AdminAppDetail({ id }: { id: number }) {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-gray-300 text-sm">Nome do Plano *</Label>
-                <Input value={planForm.name} onChange={e => setPlanForm(f => ({ ...f, name: e.target.value }))} placeholder="Ex: Daily, Weekly, Monthly" className="bg-white/5 border-white/10 text-white mt-1" required />
+                <Input value={planForm.name} onChange={e => setPlanForm(f => ({ ...f, name: e.target.value }))} placeholder="Ex: Daily, Weekly, Monthly" className="bg-white/[0.03] border-white/[0.06] text-white mt-1" required />
               </div>
               <div>
                 <Label className="text-gray-300 text-sm">Duração (dias) *</Label>
-                <Input type="number" value={planForm.durationDays} onChange={e => setPlanForm(f => ({ ...f, durationDays: e.target.value }))} className="bg-white/5 border-white/10 text-white mt-1" required />
+                <Input type="number" value={planForm.durationDays} onChange={e => setPlanForm(f => ({ ...f, durationDays: e.target.value }))} className="bg-white/[0.03] border-white/[0.06] text-white mt-1" required />
                 <p className="text-gray-600 text-xs mt-0.5">Use 9999 para Lifetime</p>
               </div>
             </div>
@@ -375,9 +375,9 @@ export default function AdminAppDetail({ id }: { id: number }) {
                   value={planForm.resellerSellingPrice}
                   onChange={e => setPlanForm(f => ({ ...f, resellerSellingPrice: e.target.value }))}
                   placeholder="Ex: 50.00"
-                  className="bg-black/30 border-green-500/20 text-white mt-1 focus:border-green-500/50"
+                  className="bg-black/30 border-emerald-500/20 text-white mt-1 focus:border-emerald-500/50"
                 />
-                <p className="text-green-400 text-xs mt-1">
+                <p className="text-emerald-400 text-xs mt-1">
                   Valor que os resellers devem cobrar do cliente final
                 </p>
               </div>
@@ -386,8 +386,8 @@ export default function AdminAppDetail({ id }: { id: number }) {
             <div>
               <Label className="text-gray-300 text-sm">Nível</Label>
               <Select value={planForm.level} onValueChange={v => setPlanForm(f => ({ ...f, level: v as any }))}>
-                <SelectTrigger className="bg-white/5 border-white/10 text-white mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent className="bg-[#0d0d14] border-white/10">
+                <SelectTrigger className="bg-white/[0.03] border-white/[0.06] text-white mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent className="bg-[#0d0d14] border-white/[0.06]">
                   <SelectItem value="basic" className="text-white">Basic</SelectItem>
                   <SelectItem value="premium" className="text-white">Premium</SelectItem>
                   <SelectItem value="lifetime" className="text-white">Lifetime</SelectItem>
@@ -396,8 +396,8 @@ export default function AdminAppDetail({ id }: { id: number }) {
             </div>
 
             <div className="flex gap-2 pt-2">
-              <Button type="button" variant="outline" onClick={() => { setShowPlan(false); setEditingPlan(null); }} className="flex-1 border-white/10 text-gray-300">Cancelar</Button>
-              <Button type="submit" disabled={createPlan.isPending || updatePlan.isPending} className="flex-1 bg-red-600 hover:bg-red-500 text-white">
+              <Button type="button" variant="outline" onClick={() => { setShowPlan(false); setEditingPlan(null); }} className="flex-1 border-white/[0.06] text-gray-300">Cancelar</Button>
+              <Button type="submit" disabled={createPlan.isPending || updatePlan.isPending} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white">
                 {(createPlan.isPending || updatePlan.isPending) ? "Salvando..." : editingPlan ? "Salvar Alterações" : "Criar Plano"}
               </Button>
             </div>

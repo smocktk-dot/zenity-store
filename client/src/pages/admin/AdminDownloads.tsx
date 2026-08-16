@@ -91,10 +91,10 @@ export default function AdminDownloads() {
       <div>
         <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Aplicação</Label>
         <Select value={appId} onValueChange={setAppId}>
-          <SelectTrigger className="mt-1.5 bg-white/5 border-white/10 text-white">
+          <SelectTrigger className="mt-1.5 bg-white/[0.03] border-white/[0.06] text-white">
             <SelectValue placeholder="Selecione um app" />
           </SelectTrigger>
-          <SelectContent className="bg-[#0f0c1a] border-white/10">
+          <SelectContent className="bg-[#0f0c1a] border-white/[0.06]">
             {apps.map((a: any) => (
               <SelectItem key={a.id} value={String(a.id)} className="text-white">{a.name}</SelectItem>
             ))}
@@ -109,7 +109,7 @@ export default function AdminDownloads() {
             <Button
               onClick={() => { setShow(true); resetForm(); }}
               className="h-8 text-xs text-white"
-              style={{ background: "linear-gradient(135deg, #7c3aed, #8b5cf6)" }}
+              style={{ background: "linear-gradient(135deg, #10b981, #047857)" }}
             >
               <Plus className="w-3.5 h-3.5 mr-1" /> Novo
             </Button>
@@ -120,7 +120,7 @@ export default function AdminDownloads() {
               <p className="text-gray-600 text-sm">Nenhum download/tutorial para este app.</p>
             ) : (
               downloads.map((d: any) => (
-                <div key={d.id} className="rounded-xl border border-white/5 p-4" style={{ background: "rgba(255,255,255,0.02)" }}>
+                <div key={d.id} className="rounded-3xl border border-white/[0.06] p-4" style={{ background: "rgba(255,255,255,0.02)" }}>
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
                       {d.type === "download" ? <Download className="w-4 h-4 text-violet-400" /> : <Film className="w-4 h-4 text-blue-400" />}
@@ -131,7 +131,7 @@ export default function AdminDownloads() {
                     </div>
                     <button
                       onClick={() => { if (confirm("Remover este item?")) del.mutate({ id: d.id }); }}
-                      className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                      className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-emerald-500/10 transition-all"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -162,10 +162,10 @@ export default function AdminDownloads() {
             <div>
               <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Tipo</Label>
               <Select value={form.type} onValueChange={(v) => setForm(f => ({ ...f, type: v as any }))}>
-                <SelectTrigger className="mt-1.5 bg-white/5 border-white/10 text-white">
+                <SelectTrigger className="mt-1.5 bg-white/[0.03] border-white/[0.06] text-white">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-[#0f0c1a] border-white/10">
+                <SelectContent className="bg-[#0f0c1a] border-white/[0.06]">
                   <SelectItem value="download" className="text-white">Download</SelectItem>
                   <SelectItem value="tutorial" className="text-white">Tutorial</SelectItem>
                 </SelectContent>
@@ -173,23 +173,23 @@ export default function AdminDownloads() {
             </div>
             <div>
               <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Título</Label>
-              <Input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} className="mt-1.5 bg-white/5 border-white/10 text-white" required />
+              <Input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} className="mt-1.5 bg-white/[0.03] border-white/[0.06] text-white" required />
             </div>
             <div>
               <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">URL do {form.type === "download" ? "Download" : "Tutorial"}</Label>
-              <Input value={form.url} onChange={e => setForm(f => ({ ...f, url: e.target.value }))} className="mt-1.5 bg-white/5 border-white/10 text-white" required />
+              <Input value={form.url} onChange={e => setForm(f => ({ ...f, url: e.target.value }))} className="mt-1.5 bg-white/[0.03] border-white/[0.06] text-white" required />
             </div>
             <div>
               <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">URL do Vídeo (opcional)</Label>
-              <Input value={form.videoUrl} onChange={e => setForm(f => ({ ...f, videoUrl: e.target.value }))} className="mt-1.5 bg-white/5 border-white/10 text-white" />
+              <Input value={form.videoUrl} onChange={e => setForm(f => ({ ...f, videoUrl: e.target.value }))} className="mt-1.5 bg-white/[0.03] border-white/[0.06] text-white" />
             </div>
             <div>
               <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Ordem</Label>
-              <Input type="number" value={form.sortOrder} onChange={e => setForm(f => ({ ...f, sortOrder: e.target.value }))} className="mt-1.5 bg-white/5 border-white/10 text-white" />
+              <Input type="number" value={form.sortOrder} onChange={e => setForm(f => ({ ...f, sortOrder: e.target.value }))} className="mt-1.5 bg-white/[0.03] border-white/[0.06] text-white" />
             </div>
             <div className="flex gap-3 pt-2">
               <Button type="button" onClick={() => setShow(false)} className="flex-1 text-gray-300" style={{ background: "rgba(255,255,255,0.06)" }}>Cancelar</Button>
-              <Button type="submit" disabled={create.isPending} className="flex-1 text-white" style={{ background: "linear-gradient(135deg, #7c3aed, #8b5cf6)" }}>
+              <Button type="submit" disabled={create.isPending} className="flex-1 text-white" style={{ background: "linear-gradient(135deg, #10b981, #047857)" }}>
                 <Save className="w-4 h-4 mr-1" /> Salvar
               </Button>
             </div>

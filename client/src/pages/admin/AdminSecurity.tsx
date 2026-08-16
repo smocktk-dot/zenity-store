@@ -124,7 +124,7 @@ function ChangeAdminPassword() {
           type="submit"
           disabled={change.isPending}
           className="w-full h-10 font-semibold text-sm text-white mt-2"
-          style={{ background: "linear-gradient(135deg, #7c3aed 0%, #9333ea 100%)", border: "none" }}
+          style={{ background: "linear-gradient(135deg, #10b981 0%, #34d399 100%)", border: "none" }}
         >
           {change.isPending ? (
             <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -278,7 +278,7 @@ function ChangeResellerPassword() {
           type="submit"
           disabled={change.isPending}
           className="w-full h-10 font-semibold text-sm text-white mt-2"
-          style={{ background: "linear-gradient(135deg, #d97706 0%, #f59e0b 100%)", border: "none" }}
+          style={{ background: "linear-gradient(135deg, #10b981 0%, #34d399 100%)", border: "none" }}
         >
           {change.isPending ? (
             <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />

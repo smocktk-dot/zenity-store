@@ -45,7 +45,7 @@ export default function AdminResellerDetail({ id }: { id: number }) {
 
   if (isLoading) return (
     <div className="p-6 flex items-center justify-center h-64">
-      <div className="w-6 h-6 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+      <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
     </div>
   );
 
@@ -64,12 +64,12 @@ export default function AdminResellerDetail({ id }: { id: number }) {
       <div className="flex items-center gap-3">
         <button
           onClick={() => navigate("/admin/resellers")}
-          className="p-2 rounded-lg text-gray-500 hover:text-white hover:bg-white/5 transition-all"
+          className="p-2 rounded-lg text-gray-500 hover:text-white hover:bg-white/[0.03] transition-all"
         >
           <ArrowLeft className="w-4 h-4" />
         </button>
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-red-600 to-red-800 flex items-center justify-center text-white font-bold text-lg">
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-600 to-emerald-800 flex items-center justify-center text-white font-bold text-lg">
             {reseller?.username?.[0]?.toUpperCase() ?? "?"}
           </div>
           <div>
@@ -84,7 +84,7 @@ export default function AdminResellerDetail({ id }: { id: number }) {
                   <Percent className="w-3 h-3" /> Porcentagem
                 </span>
               )}
-              <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${reseller?.status === "active" ? "bg-green-500/10 text-green-400 border-green-500/20" : "bg-gray-500/10 text-gray-400 border-gray-500/20"}`}>
+              <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${reseller?.status === "active" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-gray-500/10 text-gray-400 border-gray-500/20"}`}>
                 {reseller?.status ?? "—"}
               </span>
             </div>
@@ -105,7 +105,7 @@ export default function AdminResellerDetail({ id }: { id: number }) {
             </div>
             <div className="text-right">
               <p className="text-gray-500 text-xs">Desconto</p>
-              <p className="text-green-400 font-bold">{reseller.discountPercent ?? 0}%</p>
+              <p className="text-emerald-400 font-bold">{reseller.discountPercent ?? 0}%</p>
             </div>
           </div>
         )}
@@ -134,7 +134,7 @@ export default function AdminResellerDetail({ id }: { id: number }) {
 
       {/* Configurar desconto */}
       {reseller && (
-        <div className="rounded-xl border border-white/10 p-4" style={{ background: "rgba(255,255,255,0.02)" }}>
+        <div className="rounded-3xl border border-white/[0.06] p-4" style={{ background: "rgba(255,255,255,0.02)" }}>
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div>
               <h3 className="text-white font-semibold text-sm">Desconto do reseller</h3>
@@ -148,7 +148,7 @@ export default function AdminResellerDetail({ id }: { id: number }) {
                 step="1"
                 value={discountValue}
                 onChange={(e) => setDiscount(e.target.value)}
-                className="w-24 bg-white/5 border-white/10 text-white text-center"
+                className="w-24 bg-white/[0.03] border-white/[0.06] text-white text-center"
               />
               <span className="text-gray-400 text-sm">%</span>
               <Button
@@ -162,7 +162,7 @@ export default function AdminResellerDetail({ id }: { id: number }) {
                 }}
                 disabled={updateReseller.isPending}
                 className="text-white"
-                style={{ background: "linear-gradient(135deg, #7c3aed, #8b5cf6)" }}
+                style={{ background: "linear-gradient(135deg, #10b981, #047857)" }}
               >
                 {updateReseller.isPending ? "Salvando..." : "Salvar"}
               </Button>
@@ -177,16 +177,16 @@ export default function AdminResellerDetail({ id }: { id: number }) {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-white font-semibold flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-green-400" />
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
               Apps Atribuídos
-              <span className="text-xs bg-green-500/10 text-green-400 border border-green-500/20 px-2 py-0.5 rounded-full font-mono">
+              <span className="text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-mono">
                 {assignedApps.length}
               </span>
             </h2>
           </div>
 
           {assignedApps.length === 0 ? (
-            <div className="rounded-xl border border-white/5 p-8 text-center" style={{ background: "rgba(255,255,255,0.02)" }}>
+            <div className="rounded-3xl border border-white/[0.06] p-8 text-center" style={{ background: "rgba(255,255,255,0.02)" }}>
               <Package className="w-8 h-8 text-gray-700 mx-auto mb-2" />
               <p className="text-gray-600 text-sm">Nenhum app atribuído ainda</p>
               <p className="text-gray-700 text-xs mt-1">Adicione apps da coluna ao lado</p>
@@ -196,11 +196,11 @@ export default function AdminResellerDetail({ id }: { id: number }) {
               {assignedApps.map((app: any) => (
                 <div
                   key={app.id}
-                  className="rounded-xl border border-green-500/10 p-3.5 bg-green-500/5 flex items-center justify-between group hover:border-green-500/20 transition-all"
+                  className="rounded-xl border border-emerald-500/10 p-3.5 bg-emerald-500/5 flex items-center justify-between group hover:border-emerald-500/20 transition-all"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-green-500/10 flex items-center justify-center">
-                      <Package className="w-4 h-4 text-green-400" />
+                    <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                      <Package className="w-4 h-4 text-emerald-400" />
                     </div>
                     <div>
                       <p className="text-white font-medium text-sm">{app.name}</p>
@@ -210,7 +210,7 @@ export default function AdminResellerDetail({ id }: { id: number }) {
                   <button
                     onClick={() => { if (confirm(`Remover "${app.name}" deste reseller?`)) removeApp.mutate({ resellerId: id, appId: app.id }); }}
                     disabled={removeApp.isPending}
-                    className="p-1.5 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all"
+                    className="p-1.5 rounded-lg text-gray-600 hover:text-red-400 hover:bg-emerald-500/10 opacity-0 group-hover:opacity-100 transition-all"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -226,15 +226,15 @@ export default function AdminResellerDetail({ id }: { id: number }) {
             <h2 className="text-white font-semibold flex items-center gap-2">
               <Circle className="w-4 h-4 text-gray-500" />
               Apps Disponíveis
-              <span className="text-xs bg-white/5 text-gray-400 border border-white/10 px-2 py-0.5 rounded-full font-mono">
+              <span className="text-xs bg-white/[0.03] text-gray-400 border border-white/[0.06] px-2 py-0.5 rounded-full font-mono">
                 {availableApps.length}
               </span>
             </h2>
           </div>
 
           {availableApps.length === 0 ? (
-            <div className="rounded-xl border border-white/5 p-8 text-center" style={{ background: "rgba(255,255,255,0.02)" }}>
-              <CheckCircle2 className="w-8 h-8 text-green-600 mx-auto mb-2" />
+            <div className="rounded-3xl border border-white/[0.06] p-8 text-center" style={{ background: "rgba(255,255,255,0.02)" }}>
+              <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto mb-2" />
               <p className="text-gray-600 text-sm">Todos os apps foram atribuídos!</p>
             </div>
           ) : (
@@ -242,11 +242,11 @@ export default function AdminResellerDetail({ id }: { id: number }) {
               {availableApps.map((app: any) => (
                 <div
                   key={app.id}
-                  className="rounded-xl border border-white/5 p-3.5 flex items-center justify-between group hover:border-white/10 hover:bg-white/[0.02] transition-all"
+                  className="rounded-3xl border border-white/[0.06] p-3.5 flex items-center justify-between group hover:border-white/[0.06] hover:bg-white/[0.02] transition-all"
                   style={{ background: "rgba(255,255,255,0.01)" }}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center">
+                    <div className="w-8 h-8 rounded-lg bg-white/[0.03] flex items-center justify-center">
                       <Package className="w-4 h-4 text-gray-500" />
                     </div>
                     <div>
@@ -257,7 +257,7 @@ export default function AdminResellerDetail({ id }: { id: number }) {
                   <button
                     onClick={() => assignApp.mutate({ resellerId: id, appId: app.id })}
                     disabled={assignApp.isPending}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-600/10 text-green-400 border border-green-500/20 hover:bg-green-600 hover:text-white hover:border-green-600 transition-all opacity-0 group-hover:opacity-100"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-600/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-600 hover:text-white hover:border-green-600 transition-all opacity-0 group-hover:opacity-100"
                   >
                     <Plus className="w-3 h-3" /> Adicionar
                   </button>

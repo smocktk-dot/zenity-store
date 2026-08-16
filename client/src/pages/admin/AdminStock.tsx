@@ -87,14 +87,14 @@ export default function AdminStock() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 rounded-xl border border-white/5 p-4" style={{ background: "rgba(255,255,255,0.02)" }}>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 rounded-3xl border border-white/[0.06] p-4" style={{ background: "rgba(255,255,255,0.02)" }}>
         <div>
           <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">App</Label>
           <Select value={appId ? String(appId) : ""} onValueChange={(v) => { setAppId(Number(v)); setPlanId(null); }}>
-            <SelectTrigger className="mt-1.5 bg-white/5 border-white/10 text-white">
+            <SelectTrigger className="mt-1.5 bg-white/[0.03] border-white/[0.06] text-white">
               <SelectValue placeholder="Selecione um app" />
             </SelectTrigger>
-            <SelectContent className="bg-[#0f0c1a] border-white/10">
+            <SelectContent className="bg-[#0f0c1a] border-white/[0.06]">
               {apps.map((a: any) => (
                 <SelectItem key={a.id} value={String(a.id)} className="text-white">{a.name}</SelectItem>
               ))}
@@ -104,10 +104,10 @@ export default function AdminStock() {
         <div>
           <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Plano</Label>
           <Select value={planId ? String(planId) : ""} onValueChange={(v) => setPlanId(Number(v))} disabled={!appId}>
-            <SelectTrigger className="mt-1.5 bg-white/5 border-white/10 text-white">
+            <SelectTrigger className="mt-1.5 bg-white/[0.03] border-white/[0.06] text-white">
               <SelectValue placeholder="Selecione um plano" />
             </SelectTrigger>
-            <SelectContent className="bg-[#0f0c1a] border-white/10">
+            <SelectContent className="bg-[#0f0c1a] border-white/[0.06]">
               {plans.map((p: any) => (
                 <SelectItem key={p.id} value={String(p.id)} className="text-white">{p.name} ({p.durationDays} dias)</SelectItem>
               ))}
@@ -117,7 +117,7 @@ export default function AdminStock() {
       </div>
 
       {appId && planId && (
-        <form onSubmit={handleAdd} className="rounded-xl border border-white/5 p-4 space-y-3" style={{ background: "rgba(255,255,255,0.02)" }}>
+        <form onSubmit={handleAdd} className="rounded-3xl border border-white/[0.06] p-4 space-y-3" style={{ background: "rgba(255,255,255,0.02)" }}>
           <div>
             <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">
               Keys para {selectedApp?.name} / {selectedPlan?.name}
@@ -127,7 +127,7 @@ export default function AdminStock() {
               value={keys}
               onChange={(e) => setKeys(e.target.value)}
               placeholder="XXXX-XXXX-XXXX&#10;YYYY-YYYY-YYYY&#10;ZZZZ-ZZZZ-ZZZZ"
-              className="mt-2 min-h-[120px] bg-white/5 border-white/10 text-white placeholder:text-gray-600"
+              className="mt-2 min-h-[120px] bg-white/[0.03] border-white/[0.06] text-white placeholder:text-gray-600"
               required
             />
           </div>
@@ -135,7 +135,7 @@ export default function AdminStock() {
             type="submit"
             disabled={addStock.isPending}
             className="text-white"
-            style={{ background: "linear-gradient(135deg, #7c3aed, #8b5cf6)" }}
+            style={{ background: "linear-gradient(135deg, #10b981, #047857)" }}
           >
             <Package className="w-4 h-4 mr-2" /> {addStock.isPending ? "Adicionando..." : "Adicionar ao estoque"}
           </Button>
@@ -150,7 +150,7 @@ export default function AdminStock() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar key..."
-              className="pl-9 bg-white/5 border-white/10 text-white placeholder:text-gray-600"
+              className="pl-9 bg-white/[0.03] border-white/[0.06] text-white placeholder:text-gray-600"
             />
           </div>
 
@@ -163,7 +163,7 @@ export default function AdminStock() {
           ) : (
             <div className="space-y-3">
               {grouped.map((g: any) => (
-                <div key={g.id} className="rounded-xl border border-white/5 overflow-hidden" style={{ background: "rgba(255,255,255,0.02)" }}>
+                <div key={g.id} className="rounded-3xl border border-white/[0.06] overflow-hidden" style={{ background: "rgba(255,255,255,0.02)" }}>
                   <button
                     onClick={() => togglePlan(g.id)}
                     className="w-full flex items-center justify-between p-4 hover:bg-white/[0.02] transition-colors"
@@ -177,7 +177,7 @@ export default function AdminStock() {
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="flex items-center gap-1.5 text-xs">
-                        <span className="text-green-400 font-medium">{g.available} disp</span>
+                        <span className="text-emerald-400 font-medium">{g.available} disp</span>
                         <span className="text-gray-600">·</span>
                         <span className="text-blue-400 font-medium">{g.sold} vend</span>
                       </div>
@@ -186,34 +186,34 @@ export default function AdminStock() {
                   </button>
 
                   {expandedPlans[g.id] && (
-                    <div className="border-t border-white/5">
+                    <div className="border-t border-white/[0.04]">
                       {g.items.length === 0 ? (
                         <p className="text-center py-6 text-gray-500 text-sm">Nenhuma key neste plano</p>
                       ) : (
                         <table className="w-full">
                           <thead>
-                            <tr className="border-b border-white/5">
+                            <tr className="border-b border-white/[0.04]">
                               {["Key", "Status", "Reseller", "Ações"].map((h) => (
-                                <th key={h} className="text-left px-4 py-2 text-gray-500 text-xs font-medium uppercase tracking-wider">{h}</th>
+                                <th key={h} className="text-left px-5 py-3 text-gray-400 text-xs font-semibold uppercase tracking-widest">{h}</th>
                               ))}
                             </tr>
                           </thead>
                           <tbody>
                             {g.items.map((item: any) => (
-                              <tr key={item.id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
-                                <td className="px-4 py-2 text-gray-300 text-sm font-mono max-w-[220px] truncate" title={item.keyValue}>{item.keyValue}</td>
-                                <td className="px-4 py-2">
+                              <tr key={item.id} className="border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02]">
+                                <td className="px-5 py-3 text-gray-300 text-sm font-mono max-w-[220px] truncate" title={item.keyValue}>{item.keyValue}</td>
+                                <td className="px-5 py-3">
                                   <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${
-                                    item.status === "available" ? "bg-green-500/20 text-green-400 border-green-500/30" : "bg-blue-500/20 text-blue-400 border-blue-500/30"
+                                    item.status === "available" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" : "bg-blue-500/20 text-blue-400 border-blue-500/30"
                                   }`}>
                                     {item.status === "available" ? "Disponível" : "Vendida"}
                                   </span>
                                 </td>
-                                <td className="px-4 py-2 text-gray-400 text-sm">{item.resellerId ? `#${item.resellerId}` : "—"}</td>
-                                <td className="px-4 py-2">
+                                <td className="px-5 py-3 text-gray-400 text-sm">{item.resellerId ? `#${item.resellerId}` : "—"}</td>
+                                <td className="px-5 py-3">
                                   <button
                                     onClick={() => { if (confirm("Remover esta key do estoque?")) deleteStock.mutate({ id: item.id }); }}
-                                    className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                                    className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-emerald-500/10 transition-all"
                                     title="Remover"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
