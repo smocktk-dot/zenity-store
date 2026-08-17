@@ -21,7 +21,7 @@ import {
   getTransactionsByResellerId, createCreditTransaction,
   getAllIpWhitelist, addIpToWhitelist, removeIpFromWhitelist, isIpWhitelisted,
   listResellerApiKeys, createResellerApiKey, revokeResellerApiKey,
-  isAdminIpAllowed,
+  isAdminIpAllowed, normalizeIp,
   updateAdminPassword, updateResellerPassword,
   createPixPayment, getPixPaymentByPaymentId, updatePixPaymentStatus,
   getPendingPixPaymentsByReseller, getPixPaymentsByReseller,

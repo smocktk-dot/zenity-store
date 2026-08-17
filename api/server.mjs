@@ -391,7 +391,7 @@ __export(db_exports, {
   isIpWhitelisted: () => isIpWhitelisted,
   isResellerIpAllowed: () => isResellerIpAllowed,
   listResellerApiKeys: () => listResellerApiKeys,
-  normalizeIp: () => normalizeIp2,
+  normalizeIp: () => normalizeIp,
   releaseStockReservation: () => releaseStockReservation,
   removeAppFromReseller: () => removeAppFromReseller,
   removeIpFromWhitelist: () => removeIpFromWhitelist,
@@ -913,7 +913,7 @@ async function createCreditTransaction(data) {
   if (!db) throw new Error("DB not available");
   await db.insert(creditTransactions).values(data);
 }
-function normalizeIp2(raw) {
+function normalizeIp(raw) {
   if (!raw) return "";
   const s = raw.trim();
   const mapped = s.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
@@ -929,7 +929,7 @@ async function getAllIpWhitelist() {
 async function addIpToWhitelist(ip, label, userType = "admin", userId) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  const normalized = normalizeIp2(ip);
+  const normalized = normalizeIp(ip);
   await db.insert(ipWhitelist).values({
     ip: normalized,
     label: label || null,
@@ -945,20 +945,20 @@ async function removeIpFromWhitelist(id) {
 async function isAdminIpAllowed(rawIp) {
   const db = await getDb();
   if (!db) return true;
-  const ip = normalizeIp2(rawIp);
+  const ip = normalizeIp(rawIp);
   const adminEntries = await db.select().from(ipWhitelist).where(eq(ipWhitelist.userType, "admin"));
   if (adminEntries.length === 0) return true;
-  return adminEntries.some((e) => normalizeIp2(e.ip) === ip);
+  return adminEntries.some((e) => normalizeIp(e.ip) === ip);
 }
 async function isResellerIpAllowed(rawIp, resellerId) {
   const db = await getDb();
   if (!db) return true;
-  const ip = normalizeIp2(rawIp);
+  const ip = normalizeIp(rawIp);
   const entries = await db.select().from(ipWhitelist).where(
     and(eq(ipWhitelist.userType, "reseller"), eq(ipWhitelist.userId, resellerId))
   );
   if (entries.length === 0) return true;
-  return entries.some((e) => normalizeIp2(e.ip) === ip);
+  return entries.some((e) => normalizeIp(e.ip) === ip);
 }
 async function isIpWhitelisted(ip) {
   return isAdminIpAllowed(ip);
