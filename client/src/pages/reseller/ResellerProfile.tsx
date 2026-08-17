@@ -584,7 +584,7 @@ function CreditsProfile({ profile, refetch }: { profile: any; refetch: () => voi
 }
 
 // ─── Percentage Profile ───────────────────────────────────────────────────────
-function PercentageProfile({ profile }: { profile: any }) {
+function PercentageProfile({ profile, otherStore }: { profile: any; otherStore?: boolean }) {
   const { t, language } = useLanguage();
   const purchases = profile.totalPurchases ?? 0;
   const discount = parseFloat(String(profile.discountPercent ?? 0));
@@ -606,10 +606,10 @@ function PercentageProfile({ profile }: { profile: any }) {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-3xl font-bold text-white tracking-tight">{t.profile_title}</h1>
-          <p className="text-gray-500 text-sm mt-1">{t.profile_type_percentage}</p>
+          <p className="text-gray-500 text-sm mt-1">{otherStore ? "Reseller Other Store" : t.profile_type_percentage}</p>
         </div>
         <span className="text-xs px-3 py-1.5 rounded-full border font-medium bg-emerald-500/15 text-emerald-400 border-emerald-500/30 flex items-center gap-1.5">
-          <Percent className="w-3 h-3" /> {language === "en" ? "Percentage Reseller" : "Reseller Porcentagem"}
+          <Percent className="w-3 h-3" /> {otherStore ? (language === "en" ? "Other Store" : "Other Store") : (language === "en" ? "Percentage Reseller" : "Reseller Porcentagem")}
         </span>
       </div>
 
@@ -736,5 +736,5 @@ export default function ResellerProfile() {
 
   return profile.resellerType === "credits"
     ? <CreditsProfile profile={profile} refetch={refetch} />
-    : <PercentageProfile profile={profile} />;
+    : <PercentageProfile profile={profile} otherStore={profile.resellerType === "other"} />;
 }

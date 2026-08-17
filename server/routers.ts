@@ -999,7 +999,8 @@ const resellerRouter = router({
     const r = ctx.reseller;
     const purchases = r.totalPurchases;
     const discount = parseFloat(r.discountPercent as string) || 0;
-    const nextLevel = r.resellerType === "percentage" && purchases < 10 ? { target: 10, discount: 40 } : r.resellerType === "percentage" && purchases < 20 ? { target: 20, discount: 50 } : null;
+    const isPercentLike = r.resellerType === "percentage" || r.resellerType === "other";
+    const nextLevel = isPercentLike && purchases < 10 ? { target: 10, discount: 40 } : isPercentLike && purchases < 20 ? { target: 20, discount: 50 } : null;
     const transactions = await getTransactionsByResellerId(r.id);
     return {
       id: r.id, username: r.username, email: r.email, location: r.location,

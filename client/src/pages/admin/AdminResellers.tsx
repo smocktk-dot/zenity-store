@@ -86,7 +86,7 @@ export default function AdminResellers() {
       <table className="w-full">
         <thead>
           <tr className="border-b border-white/[0.04]">
-            {["Usuário", "Email", type === "credits" ? "Créditos" : type === "other" ? "Tipo" : "Desconto Atual", type === "credits" ? "Compras" : type === "other" ? "Compras" : "Compras (progresso)", "Status", "Ações"].map(h => (
+            {["Usuário", "Email", type === "credits" ? "Créditos" : "Desconto Atual", "Compras", "Status", "Ações"].map(h => (
               <th key={h} className="text-left px-5 py-4 text-gray-400 text-xs font-semibold uppercase tracking-widest">{h}</th>
             ))}
           </tr>
@@ -109,17 +109,13 @@ export default function AdminResellers() {
               <td className="px-5 py-4 text-gray-400 text-sm">{r.email || <span className="text-gray-600">—</span>}</td>
               {type === "credits" ? (
                 <td className="px-5 py-4 text-yellow-400 text-sm font-mono font-medium">{parseFloat(r.credits).toFixed(2)}</td>
-              ) : type === "other" ? (
-                <td className="px-5 py-4 text-emerald-400 text-sm font-medium">Other Store</td>
               ) : (
-                <td className="px-5 py-4 text-purple-400 text-sm font-medium">{parseFloat(r.discountPercent).toFixed(0)}%</td>
+                <td className="px-5 py-4 text-emerald-400 text-sm font-medium">{parseFloat(r.discountPercent).toFixed(0)}%</td>
               )}
-              {type === "credits" ? (
-                <td className="px-5 py-4 text-gray-400 text-sm">{r.totalPurchases}</td>
-              ) : type === "other" ? (
-                <td className="px-5 py-4 text-gray-400 text-sm">{r.totalPurchases}</td>
-              ) : (
-                <td className="px-5 py-4">
+              <td className="px-5 py-4">
+                {type === "credits" ? (
+                  <span className="text-gray-400 text-sm">{r.totalPurchases}</span>
+                ) : (
                   <div className="flex items-center gap-2">
                     <span className="text-gray-400 text-sm">{r.totalPurchases}</span>
                     <div className="flex-1 max-w-[80px] h-1.5 rounded-full bg-white/10">
@@ -130,8 +126,8 @@ export default function AdminResellers() {
                     </div>
                     <span className="text-gray-600 text-xs">{r.totalPurchases < 10 ? `${r.totalPurchases}/10` : r.totalPurchases < 20 ? `${r.totalPurchases}/20` : "MAX"}</span>
                   </div>
-                </td>
-              )}
+                )}
+              </td>
               <td className="px-5 py-4"><StatusBadge status={r.status} /></td>
               <td className="px-5 py-4">
                 <div className="flex items-center gap-1">
