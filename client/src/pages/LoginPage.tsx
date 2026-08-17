@@ -25,11 +25,19 @@ function formatDate(d: Date | string | null | undefined) {
 
 export default function LoginPage() {
   const [, navigate] = useLocation();
+  const [location] = useLocation();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [remember, setRemember] = useState(false);
   const { t } = useLanguage();
+
+  const hwid = (() => {
+    try {
+      const url = new URL("https://x" + location);
+      return url.searchParams.get("hwid") || undefined;
+    } catch { return undefined; }
+  })();
 
   // Application state
   const [showApply, setShowApply] = useState(false);
@@ -162,7 +170,7 @@ export default function LoginPage() {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (!username || !password) { toast.error(t.login_fill_fields); return; }
-    resellerLogin.mutate({ username, password, remember });
+    resellerLogin.mutate({ username, password, remember, hwid });
   };
 
   const handleApply = (e: React.FormEvent) => {

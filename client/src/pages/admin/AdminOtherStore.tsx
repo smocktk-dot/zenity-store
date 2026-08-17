@@ -30,8 +30,8 @@ export default function AdminOtherStore() {
   const { data: resellers } = trpc.admin.listResellers.useQuery();
   const create = trpc.admin.createOtherStoreReseller.useMutation({ onSuccess: () => { toast.success("Criado"); refetch(); } });
   const del = trpc.admin.deleteOtherStoreReseller.useMutation({ onSuccess: () => { toast.success("Removido"); refetch(); } });
-  const addIp = trpc.admin.addOtherStoreIp.useMutation({ onSuccess: () => { toast.success("IP adicionado"); refetch(); } });
-  const remIp = trpc.admin.removeOtherStoreIp.useMutation({ onSuccess: () => { toast.success("IP removido"); refetch(); } });
+  const addHwid = trpc.admin.addOtherStoreHwid.useMutation({ onSuccess: () => { toast.success("HWID adicionado"); refetch(); } });
+  const remHwid = trpc.admin.removeOtherStoreHwid.useMutation({ onSuccess: () => { toast.success("HWID removido"); refetch(); } });
 
   const [form, setForm] = useState({
     resellerId: "",
@@ -39,7 +39,7 @@ export default function AdminOtherStore() {
     purinApiKey: "",
     recipientEmail: "",
     splitPercent: "45",
-    newIp: "",
+    newHwid: "",
   });
   const [editing, setEditing] = useState<number | null>(null);
 
@@ -94,11 +94,11 @@ export default function AdminOtherStore() {
             <Input value={form.purinApiKey} onChange={e => setForm({ ...form, purinApiKey: e.target.value })} className={inputClass} placeholder="ps_live_..." />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-gray-400 text-xs uppercase">Email destinatário split</Label>
+            <Label className="text-gray-400 text-xs uppercase">Email destinatario split</Label>
             <Input value={form.recipientEmail} onChange={e => setForm({ ...form, recipientEmail: e.target.value })} className={inputClass} placeholder="parceiro@email.com" />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-gray-400 text-xs uppercase">Split % para destinatário</Label>
+            <Label className="text-gray-400 text-xs uppercase">Split % para destinatario</Label>
             <Input type="number" value={form.splitPercent} onChange={e => setForm({ ...form, splitPercent: e.target.value })} className={inputClass} placeholder="45" />
           </div>
         </div>
@@ -127,27 +127,27 @@ export default function AdminOtherStore() {
             </div>
 
             <div className="mt-4 pt-4 border-t border-white/[0.06]">
-              <p className="text-sm text-gray-400 mb-3">IPs autorizados:</p>
+              <p className="text-sm text-gray-400 mb-3">HWIDs autorizados:</p>
               <div className="flex flex-wrap gap-2">
-                {(item.ips as any[])?.map((ip: any) => (
-                  <span key={ip.id} className="px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300 flex items-center gap-2">
-                    {ip.ip}
-                    <Trash2 className="w-3 h-3 cursor-pointer text-red-400 hover:text-red-300" onClick={() => remIp.mutate({ id: ip.id })} />
+                {(item.hwids as any[])?.map((h: any) => (
+                  <span key={h.id} className="px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300 flex items-center gap-2 font-mono break-all">
+                    {h.hwid}
+                    <Trash2 className="w-3 h-3 cursor-pointer text-red-400 hover:text-red-300 flex-shrink-0" onClick={() => remHwid.mutate({ id: h.id })} />
                   </span>
                 ))}
-                {!(item.ips as any[])?.length && (
-                  <span className="text-xs text-gray-500">Nenhum IP autorizado</span>
+                {!(item.hwids as any[])?.length && (
+                  <span className="text-xs text-gray-500">Nenhum HWID autorizado</span>
                 )}
               </div>
-              <div className="flex gap-2 mt-4">
+              <div className="flex gap-2 mt-4 items-start">
                 <Input
-                  placeholder="Adicionar IP"
-                  className={`${inputClass} h-9 w-56`}
-                  value={editing === item.id ? form.newIp : ""}
-                  onChange={e => { setEditing(item.id); setForm({ ...form, newIp: e.target.value }); }}
-                  onKeyDown={e => { if (e.key === "Enter" && form.newIp) { addIp.mutate({ otherStoreResellerId: item.id, ip: form.newIp }); setForm({ ...form, newIp: "" }); } }}
+                  placeholder="Adicionar HWID"
+                  className={`${inputClass} h-9 w-96`}
+                  value={editing === item.id ? form.newHwid : ""}
+                  onChange={e => { setEditing(item.id); setForm({ ...form, newHwid: e.target.value }); }}
+                  onKeyDown={e => { if (e.key === "Enter" && form.newHwid) { addHwid.mutate({ otherStoreResellerId: item.id, hwid: form.newHwid }); setForm({ ...form, newHwid: "" }); } }}
                 />
-                <Button size="sm" onClick={() => { addIp.mutate({ otherStoreResellerId: item.id, ip: form.newIp }); setForm({ ...form, newIp: "" }); }} className="bg-emerald-600 hover:bg-emerald-500 h-9">
+                <Button size="sm" onClick={() => { addHwid.mutate({ otherStoreResellerId: item.id, hwid: form.newHwid }); setForm({ ...form, newHwid: "" }); }} className="bg-emerald-600 hover:bg-emerald-500 h-9">
                   <Plus className="w-4 h-4" />
                 </Button>
               </div>

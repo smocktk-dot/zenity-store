@@ -20,7 +20,7 @@ import {
   boolean,
   serial
 } from "drizzle-orm/pg-core";
-var userRoleEnum, resellerTypeEnum, resellerStatusEnum, appStatusEnum, planLevelEnum, keyStatusEnum, transactionTypeEnum, pixPaymentStatusEnum, ticketStatusEnum, ticketSenderEnum, applicationStatusEnum, applicationSenderEnum, supportTicketStatusEnum, supportMessageSenderEnum, appDownloadTypeEnum, users, admins, resellers, resellerApiKeys, categories, apps, stockStatusEnum, subscriptionPlans, resellerApps, licenseKeys, appStock, creditTransactions, pixPayments, ipWhitelist, otherStoreResellers, otherStoreIps, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages, appDownloads;
+var userRoleEnum, resellerTypeEnum, resellerStatusEnum, appStatusEnum, planLevelEnum, keyStatusEnum, transactionTypeEnum, pixPaymentStatusEnum, ticketStatusEnum, ticketSenderEnum, applicationStatusEnum, applicationSenderEnum, supportTicketStatusEnum, supportMessageSenderEnum, appDownloadTypeEnum, users, admins, resellers, resellerApiKeys, categories, apps, stockStatusEnum, subscriptionPlans, resellerApps, licenseKeys, appStock, creditTransactions, pixPayments, ipWhitelist, otherStoreResellers, otherStoreHwids, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages, appDownloads;
 var init_schema = __esm({
   "drizzle/schema.ts"() {
     "use strict";
@@ -207,10 +207,10 @@ var init_schema = __esm({
       createdAt: timestamp("createdAt").defaultNow().notNull(),
       updatedAt: timestamp("updatedAt").defaultNow().notNull()
     });
-    otherStoreIps = pgTable("other_store_ips", {
+    otherStoreHwids = pgTable("other_store_hwids", {
       id: serial("id").primaryKey(),
       otherStoreResellerId: integer("otherStoreResellerId").notNull().references(() => otherStoreResellers.id, { onDelete: "cascade" }),
-      ip: varchar("ip", { length: 64 }).notNull(),
+      hwid: varchar("hwid", { length: 128 }).notNull(),
       createdAt: timestamp("createdAt").defaultNow().notNull()
     });
     tickets = pgTable("tickets", {
@@ -311,7 +311,7 @@ __export(db_exports, {
   createCategory: () => createCategory,
   createCreditTransaction: () => createCreditTransaction,
   createLicenseKey: () => createLicenseKey,
-  createOtherStoreIp: () => createOtherStoreIp,
+  createOtherStoreHwid: () => createOtherStoreHwid,
   createOtherStoreReseller: () => createOtherStoreReseller,
   createPixPayment: () => createPixPayment,
   createPlan: () => createPlan,
@@ -325,7 +325,7 @@ __export(db_exports, {
   deleteApp: () => deleteApp,
   deleteAppDownload: () => deleteAppDownload,
   deleteCategory: () => deleteCategory,
-  deleteOtherStoreIp: () => deleteOtherStoreIp,
+  deleteOtherStoreHwid: () => deleteOtherStoreHwid,
   deleteOtherStoreReseller: () => deleteOtherStoreReseller,
   deletePlan: () => deletePlan,
   deleteResellerApplication: () => deleteResellerApplication,
@@ -360,9 +360,9 @@ __export(db_exports, {
   getKeyById: () => getKeyById,
   getKeysByPaymentId: () => getKeysByPaymentId,
   getKeysByResellerId: () => getKeysByResellerId,
-  getOtherStoreIpsByResellerId: () => getOtherStoreIpsByResellerId,
+  getOtherStoreHwidsByResellerId: () => getOtherStoreHwidsByResellerId,
+  getOtherStoreResellerByHwid: () => getOtherStoreResellerByHwid,
   getOtherStoreResellerById: () => getOtherStoreResellerById,
-  getOtherStoreResellerByIp: () => getOtherStoreResellerByIp,
   getOtherStoreResellers: () => getOtherStoreResellers,
   getPendingPixPaymentsByReseller: () => getPendingPixPaymentsByReseller,
   getPixPaymentByPaymentId: () => getPixPaymentByPaymentId,
@@ -586,14 +586,14 @@ async function ensureOtherStoreSchema() {
         throw e;
       }
       try {
-        await _sqlClient.unsafe(`CREATE TABLE IF NOT EXISTS "other_store_ips" (
+        await _sqlClient.unsafe(`CREATE TABLE IF NOT EXISTS "other_store_hwids" (
           "id" serial PRIMARY KEY,
           "otherStoreResellerId" integer NOT NULL REFERENCES "other_store_resellers"("id") ON DELETE CASCADE,
-          "ip" varchar(64) NOT NULL,
+          "hwid" varchar(128) NOT NULL,
           "createdAt" timestamp DEFAULT now() NOT NULL
         )`);
       } catch (e) {
-        console.error("[Database] Failed to create other_store_ips:", e);
+        console.error("[Database] Failed to create other_store_hwids:", e);
         throw e;
       }
     })().then(() => void 0).catch((error) => {
@@ -1259,11 +1259,11 @@ async function getOtherStoreResellerById(id) {
   const [row] = await db.select().from(otherStoreResellers).where(eq(otherStoreResellers.id, id));
   return row;
 }
-async function getOtherStoreResellerByIp(ip) {
+async function getOtherStoreResellerByHwid(hwid) {
   await ensureOtherStoreSchema();
   const db = await getDb();
   if (!db) return null;
-  const rows = await db.select({ o: otherStoreResellers, i: otherStoreIps }).from(otherStoreIps).innerJoin(otherStoreResellers, eq(otherStoreIps.otherStoreResellerId, otherStoreResellers.id)).where(eq(otherStoreIps.ip, ip));
+  const rows = await db.select({ o: otherStoreResellers, i: otherStoreHwids }).from(otherStoreHwids).innerJoin(otherStoreResellers, eq(otherStoreHwids.otherStoreResellerId, otherStoreResellers.id)).where(eq(otherStoreHwids.hwid, hwid));
   return rows[0]?.o ?? null;
 }
 async function updateOtherStoreReseller(id, data) {
@@ -1279,24 +1279,24 @@ async function deleteOtherStoreReseller(id) {
   if (!db) throw new Error("DB not available");
   await db.delete(otherStoreResellers).where(eq(otherStoreResellers.id, id));
 }
-async function createOtherStoreIp(data) {
+async function createOtherStoreHwid(data) {
   await ensureOtherStoreSchema();
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  const [row] = await db.insert(otherStoreIps).values(data).returning();
+  const [row] = await db.insert(otherStoreHwids).values(data).returning();
   return row;
 }
-async function getOtherStoreIpsByResellerId(otherStoreResellerId) {
+async function getOtherStoreHwidsByResellerId(otherStoreResellerId) {
   await ensureOtherStoreSchema();
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(otherStoreIps).where(eq(otherStoreIps.otherStoreResellerId, otherStoreResellerId));
+  return db.select().from(otherStoreHwids).where(eq(otherStoreHwids.otherStoreResellerId, otherStoreResellerId));
 }
-async function deleteOtherStoreIp(id) {
+async function deleteOtherStoreHwid(id) {
   await ensureOtherStoreSchema();
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  await db.delete(otherStoreIps).where(eq(otherStoreIps.id, id));
+  await db.delete(otherStoreHwids).where(eq(otherStoreHwids.id, id));
 }
 var _db, _sqlClient, _pixPaymentSchemaReady, _appStockSchemaReady, _licenseKeysSchemaReady, _appDownloadsSchemaReady, _resellerApiKeysSchemaReady, _otherStoreSchemaReady;
 var init_db = __esm({
@@ -1846,10 +1846,11 @@ function registerResellerApi(app2) {
   app2.post("/api/reseller/v1/other-store/charge", async (req, res) => {
     const reseller = await authReseller(req);
     if (!reseller) return res.status(401).json({ error: "Invalid API key" });
+    const hwid = req.headers["x-other-store-hwid"];
     const clientIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "";
     const ip = String(clientIp).split(",")[0]?.trim() || "";
-    const otherStore = await getOtherStoreResellerByIp(ip);
-    if (!otherStore || otherStore.resellerId !== reseller.id) return res.status(403).json({ error: "IP not authorized for Other Store" });
+    const otherStore = hwid ? await getOtherStoreResellerByHwid(hwid) : null;
+    if (!otherStore || otherStore.resellerId !== reseller.id) return res.status(403).json({ error: "HWID not authorized for Other Store" });
     const { appId, planName, quantity = 1, customer } = req.body;
     if (!appId) return res.status(400).json({ error: "appId is required" });
     if (!planName) return res.status(400).json({ error: "planName is required" });
@@ -2443,7 +2444,8 @@ var authRouter = router({
   resellerLogin: publicProcedure.input(z2.object({
     username: z2.string(),
     password: z2.string(),
-    remember: z2.boolean().default(false)
+    remember: z2.boolean().default(false),
+    hwid: z2.string().optional()
   })).mutation(async ({ input, ctx }) => {
     const admin = await getAdminByUsername(input.username);
     if (admin) {
@@ -2467,7 +2469,7 @@ var authRouter = router({
     const resellerIpAllowed = await isResellerIpAllowed(resellerIp, reseller.id);
     if (!resellerIpAllowed) throw new TRPCError3({ code: "FORBIDDEN", message: "Acesso negado: IP n\xE3o autorizado para este reseller" });
     await updateReseller(reseller.id, { lastLoginAt: /* @__PURE__ */ new Date() });
-    const otherStore = await getOtherStoreResellerByIp(resellerIp);
+    const otherStore = input.hwid ? await getOtherStoreResellerByHwid(input.hwid) : null;
     const tokenPayload = { sub: String(reseller.id), role: "reseller", username: reseller.username };
     if (otherStore && otherStore.resellerId === reseller.id) {
       tokenPayload.otherStoreId = otherStore.id;
@@ -3049,14 +3051,14 @@ var adminRouter = router({
   // ─── Other Store ─────────────────────────────────────────────────────────────
   listOtherStoreResellers: adminProcedure2.query(async () => {
     const list = await getOtherStoreResellers();
-    const ips = await Promise.all(list.map((r) => getOtherStoreIpsByResellerId(r.id)));
-    return list.map((r, i) => ({ ...r, ips: ips[i] }));
+    const hwids = await Promise.all(list.map((r) => getOtherStoreHwidsByResellerId(r.id)));
+    return list.map((r, i) => ({ ...r, hwids: hwids[i] }));
   }),
   getOtherStoreReseller: adminProcedure2.input(z2.object({ id: z2.number() })).query(async ({ input }) => {
     const r = await getOtherStoreResellerById(input.id);
     if (!r) throw new TRPCError3({ code: "NOT_FOUND" });
-    const ips = await getOtherStoreIpsByResellerId(r.id);
-    return { ...r, ips };
+    const hwids = await getOtherStoreHwidsByResellerId(r.id);
+    return { ...r, hwids };
   }),
   createOtherStoreReseller: adminProcedure2.input(z2.object({
     resellerId: z2.number(),
@@ -3090,15 +3092,15 @@ var adminRouter = router({
     await deleteOtherStoreReseller(input.id);
     return { success: true };
   }),
-  addOtherStoreIp: adminProcedure2.input(z2.object({ otherStoreResellerId: z2.number(), ip: z2.string().min(1) })).mutation(async ({ input }) => {
-    const row = await createOtherStoreIp({
+  addOtherStoreHwid: adminProcedure2.input(z2.object({ otherStoreResellerId: z2.number(), hwid: z2.string().min(1) })).mutation(async ({ input }) => {
+    const row = await createOtherStoreHwid({
       otherStoreResellerId: input.otherStoreResellerId,
-      ip: input.ip
+      hwid: input.hwid
     });
     return row;
   }),
-  removeOtherStoreIp: adminProcedure2.input(z2.object({ id: z2.number() })).mutation(async ({ input }) => {
-    await deleteOtherStoreIp(input.id);
+  removeOtherStoreHwid: adminProcedure2.input(z2.object({ id: z2.number() })).mutation(async ({ input }) => {
+    await deleteOtherStoreHwid(input.id);
     return { success: true };
   })
 });

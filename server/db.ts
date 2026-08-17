@@ -1,8 +1,8 @@
 import { eq, and, desc, sql, inArray, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { InsertUser, users, admins, resellers, resellerApiKeys, categories, apps, subscriptionPlans, resellerApps, licenseKeys, appStock, appDownloads, creditTransactions, ipWhitelist, pixPayments, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages, otherStoreResellers, otherStoreIps } from "../drizzle/schema";
-import type { InsertAdmin, InsertReseller, InsertResellerApiKey, InsertCategory, InsertApp, InsertSubscriptionPlan, InsertResellerApp, InsertLicenseKey, InsertAppStock, InsertAppDownload, InsertCreditTransaction, InsertPixPayment, InsertTicket, InsertTicketMessage, InsertResellerApplication, InsertApplicationMessage, InsertSupportTicket, InsertSupportMessage, InsertOtherStoreReseller, InsertOtherStoreIp } from "../drizzle/schema";
+import { InsertUser, users, admins, resellers, resellerApiKeys, categories, apps, subscriptionPlans, resellerApps, licenseKeys, appStock, appDownloads, creditTransactions, ipWhitelist, pixPayments, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages, otherStoreResellers, otherStoreHwids } from "../drizzle/schema";
+import type { InsertAdmin, InsertReseller, InsertResellerApiKey, InsertCategory, InsertApp, InsertSubscriptionPlan, InsertResellerApp, InsertLicenseKey, InsertAppStock, InsertAppDownload, InsertCreditTransaction, InsertPixPayment, InsertTicket, InsertTicketMessage, InsertResellerApplication, InsertApplicationMessage, InsertSupportTicket, InsertSupportMessage, InsertOtherStoreReseller, InsertOtherStoreHwid } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import { randomUUID } from "crypto";
 
@@ -213,14 +213,14 @@ export async function ensureOtherStoreSchema(): Promise<void> {
       }
 
       try {
-        await _sqlClient!.unsafe(`CREATE TABLE IF NOT EXISTS "other_store_ips" (
+        await _sqlClient!.unsafe(`CREATE TABLE IF NOT EXISTS "other_store_hwids" (
           "id" serial PRIMARY KEY,
           "otherStoreResellerId" integer NOT NULL REFERENCES "other_store_resellers"("id") ON DELETE CASCADE,
-          "ip" varchar(64) NOT NULL,
+          "hwid" varchar(128) NOT NULL,
           "createdAt" timestamp DEFAULT now() NOT NULL
         )`);
       } catch (e) {
-        console.error("[Database] Failed to create other_store_ips:", e);
+        console.error("[Database] Failed to create other_store_hwids:", e);
         throw e;
       }
     })().then(() => undefined).catch(error => {
@@ -1053,14 +1053,14 @@ export async function getOtherStoreResellerById(id: number) {
   return row;
 }
 
-export async function getOtherStoreResellerByIp(ip: string) {
+export async function getOtherStoreResellerByHwid(hwid: string) {
   await ensureOtherStoreSchema();
   const db = await getDb();
   if (!db) return null;
-  const rows = await db.select({ o: otherStoreResellers, i: otherStoreIps })
-    .from(otherStoreIps)
-    .innerJoin(otherStoreResellers, eq(otherStoreIps.otherStoreResellerId, otherStoreResellers.id))
-    .where(eq(otherStoreIps.ip, ip));
+  const rows = await db.select({ o: otherStoreResellers, i: otherStoreHwids })
+    .from(otherStoreHwids)
+    .innerJoin(otherStoreResellers, eq(otherStoreHwids.otherStoreResellerId, otherStoreResellers.id))
+    .where(eq(otherStoreHwids.hwid, hwid));
   return rows[0]?.o ?? null;
 }
 
@@ -1079,24 +1079,24 @@ export async function deleteOtherStoreReseller(id: number) {
   await db.delete(otherStoreResellers).where(eq(otherStoreResellers.id, id));
 }
 
-export async function createOtherStoreIp(data: InsertOtherStoreIp) {
+export async function createOtherStoreHwid(data: InsertOtherStoreHwid) {
   await ensureOtherStoreSchema();
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  const [row] = await db.insert(otherStoreIps).values(data).returning();
+  const [row] = await db.insert(otherStoreHwids).values(data).returning();
   return row;
 }
 
-export async function getOtherStoreIpsByResellerId(otherStoreResellerId: number) {
+export async function getOtherStoreHwidsByResellerId(otherStoreResellerId: number) {
   await ensureOtherStoreSchema();
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(otherStoreIps).where(eq(otherStoreIps.otherStoreResellerId, otherStoreResellerId));
+  return db.select().from(otherStoreHwids).where(eq(otherStoreHwids.otherStoreResellerId, otherStoreResellerId));
 }
 
-export async function deleteOtherStoreIp(id: number) {
+export async function deleteOtherStoreHwid(id: number) {
   await ensureOtherStoreSchema();
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  await db.delete(otherStoreIps).where(eq(otherStoreIps.id, id));
+  await db.delete(otherStoreHwids).where(eq(otherStoreHwids.id, id));
 }

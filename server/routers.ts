@@ -36,8 +36,8 @@ import {
   updateSupportTicketStatus, updateSupportTicketTimestamp, deleteSupportTicket,
   getSupportMessages, createSupportMessage,
   getOtherStoreResellers, createOtherStoreReseller, updateOtherStoreReseller, deleteOtherStoreReseller,
-  getOtherStoreResellerById, getOtherStoreResellerByIp, getOtherStoreIpsByResellerId,
-  createOtherStoreIp, deleteOtherStoreIp,
+  getOtherStoreResellerById, getOtherStoreResellerByHwid, getOtherStoreHwidsByResellerId,
+  createOtherStoreHwid, deleteOtherStoreHwid,
 } from "./db";
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "cv-reseller-secret-key-2024");
@@ -176,6 +176,7 @@ const authRouter = router({
       username: z.string(),
       password: z.string(),
       remember: z.boolean().default(false),
+      hwid: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       // Check admin credentials first — admin can log in via reseller form
@@ -204,7 +205,7 @@ const authRouter = router({
       const resellerIpAllowed = await isResellerIpAllowed(resellerIp, reseller.id);
       if (!resellerIpAllowed) throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado: IP não autorizado para este reseller" });
       await updateReseller(reseller.id, { lastLoginAt: new Date() });
-      const otherStore = await getOtherStoreResellerByIp(resellerIp);
+      const otherStore = input.hwid ? await getOtherStoreResellerByHwid(input.hwid) : null;
       const tokenPayload: Record<string, any> = { sub: String(reseller.id), role: "reseller", username: reseller.username };
       if (otherStore && otherStore.resellerId === reseller.id) {
         tokenPayload.otherStoreId = otherStore.id;
@@ -921,8 +922,8 @@ const adminRouter = router({
   // ─── Other Store ─────────────────────────────────────────────────────────────
   listOtherStoreResellers: adminProcedure.query(async () => {
     const list = await getOtherStoreResellers();
-    const ips = await Promise.all(list.map(r => getOtherStoreIpsByResellerId(r.id)));
-    return list.map((r, i) => ({ ...r, ips: ips[i] }));
+    const hwids = await Promise.all(list.map(r => getOtherStoreHwidsByResellerId(r.id)));
+    return list.map((r, i) => ({ ...r, hwids: hwids[i] }));
   }),
 
   getOtherStoreReseller: adminProcedure
@@ -930,8 +931,8 @@ const adminRouter = router({
     .query(async ({ input }) => {
       const r = await getOtherStoreResellerById(input.id);
       if (!r) throw new TRPCError({ code: "NOT_FOUND" });
-      const ips = await getOtherStoreIpsByResellerId(r.id);
-      return { ...r, ips };
+      const hwids = await getOtherStoreHwidsByResellerId(r.id);
+      return { ...r, hwids };
     }),
 
   createOtherStoreReseller: adminProcedure
@@ -975,20 +976,20 @@ const adminRouter = router({
       return { success: true };
     }),
 
-  addOtherStoreIp: adminProcedure
-    .input(z.object({ otherStoreResellerId: z.number(), ip: z.string().min(1) }))
+  addOtherStoreHwid: adminProcedure
+    .input(z.object({ otherStoreResellerId: z.number(), hwid: z.string().min(1) }))
     .mutation(async ({ input }) => {
-      const row = await createOtherStoreIp({
+      const row = await createOtherStoreHwid({
         otherStoreResellerId: input.otherStoreResellerId,
-        ip: input.ip,
+        hwid: input.hwid,
       } as any);
       return row;
     }),
 
-  removeOtherStoreIp: adminProcedure
+  removeOtherStoreHwid: adminProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
-      await deleteOtherStoreIp(input.id);
+      await deleteOtherStoreHwid(input.id);
       return { success: true };
     }),
 });

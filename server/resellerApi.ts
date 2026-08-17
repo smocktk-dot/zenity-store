@@ -4,7 +4,7 @@ import {
   getAppById, getPlansByAppId, getPlanById, getStockByApp,
   getAvailableStockForPlan, reserveStockForReseller, releaseStockReservation, createLicenseKey,
   updateResellerCredits, createCreditTransaction,
-  getOtherStoreResellerByIp, getOtherStoreIpsByResellerId,
+  getOtherStoreResellerByHwid, getOtherStoreHwidsByResellerId,
 } from "./db";
 import type { Reseller } from "../drizzle/schema";
 
@@ -192,10 +192,13 @@ export function registerResellerApi(app: Express) {
   app.post("/api/reseller/v1/other-store/charge", async (req, res) => {
     const reseller = await authReseller(req);
     if (!reseller) return res.status(401).json({ error: "Invalid API key" });
+    const hwid = req.headers["x-other-store-hwid"] as string | undefined;
     const clientIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "";
     const ip = String(clientIp).split(",")[0]?.trim() || "";
-    const otherStore = await getOtherStoreResellerByIp(ip);
-    if (!otherStore || otherStore.resellerId !== reseller.id) return res.status(403).json({ error: "IP not authorized for Other Store" });
+    const otherStore = hwid
+      ? await getOtherStoreResellerByHwid(hwid)
+      : null;
+    if (!otherStore || otherStore.resellerId !== reseller.id) return res.status(403).json({ error: "HWID not authorized for Other Store" });
     const { appId, planName, quantity = 1, customer } = req.body;
     if (!appId) return res.status(400).json({ error: "appId is required" });
     if (!planName) return res.status(400).json({ error: "planName is required" });

@@ -255,15 +255,15 @@ export const otherStoreResellers = pgTable("other_store_resellers", {
 export type OtherStoreReseller = typeof otherStoreResellers.$inferSelect;
 export type InsertOtherStoreReseller = typeof otherStoreResellers.$inferInsert;
 
-export const otherStoreIps = pgTable("other_store_ips", {
+export const otherStoreHwids = pgTable("other_store_hwids", {
   id: serial("id").primaryKey(),
   otherStoreResellerId: integer("otherStoreResellerId").notNull().references(() => otherStoreResellers.id, { onDelete: "cascade" }),
-  ip: varchar("ip", { length: 64 }).notNull(),
+  hwid: varchar("hwid", { length: 128 }).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
-export type OtherStoreIp = typeof otherStoreIps.$inferSelect;
-export type InsertOtherStoreIp = typeof otherStoreIps.$inferInsert;
+export type OtherStoreHwid = typeof otherStoreHwids.$inferSelect;
+export type InsertOtherStoreHwid = typeof otherStoreHwids.$inferInsert;
 
 // ─── Tickets ──────────────────────────────────────────────────────────────────
 export const tickets = pgTable("tickets", {
