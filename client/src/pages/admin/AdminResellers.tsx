@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Plus, Search, Edit, UserCheck, UserX, PlusCircle, Package, CreditCard, Percent, Eye, Users } from "lucide-react";
+import { Plus, Search, Edit, UserCheck, UserX, PlusCircle, Package, CreditCard, Percent, Eye, Users, Store } from "lucide-react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +38,7 @@ export default function AdminResellers() {
   const [, navigate] = useLocation();
   const utils = trpc.useUtils();
   const { data: resellers = [], isLoading } = trpc.admin.listResellers.useQuery();
+  const { data: otherStores = [] } = trpc.admin.listOtherStoreResellers.useQuery();
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [editReseller, setEditReseller] = useState<Reseller | null>(null);
@@ -176,7 +177,7 @@ export default function AdminResellers() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <div className="rounded-xl border border-yellow-500/20 p-4" style={{ background: "rgba(234,179,8,0.05)" }}>
           <div className="flex items-center gap-2 mb-1">
             <CreditCard className="w-4 h-4 text-yellow-400" />
@@ -192,6 +193,14 @@ export default function AdminResellers() {
           </div>
           <p className="text-white text-2xl font-bold">{(resellers as Reseller[]).filter(r => r.resellerType === "percentage").length}</p>
           <p className="text-gray-500 text-xs mt-1">Compram keys com desconto progressivo</p>
+        </div>
+        <div className="rounded-xl border border-emerald-500/20 p-4" style={{ background: "rgba(16,185,129,0.05)" }}>
+          <div className="flex items-center gap-2 mb-1">
+            <Store className="w-4 h-4 text-emerald-400" />
+            <span className="text-emerald-400 text-sm font-medium">Other Store</span>
+          </div>
+          <p className="text-white text-2xl font-bold">{otherStores?.length ?? 0}</p>
+          <p className="text-gray-500 text-xs mt-1">Resellers com acesso por IP e split</p>
         </div>
       </div>
 
@@ -210,12 +219,39 @@ export default function AdminResellers() {
           <TabsTrigger value="percentage" className="data-[state=active]:bg-purple-600/20 data-[state=active]:text-purple-400 text-gray-400 gap-1.5">
             <Percent className="w-3.5 h-3.5" /> Porcentagem ({percentageResellers.length})
           </TabsTrigger>
+          <TabsTrigger value="other" className="data-[state=active]:bg-emerald-600/20 data-[state=active]:text-emerald-400 text-gray-400 gap-1.5">
+            <Store className="w-3.5 h-3.5" /> Other Store ({otherStores?.length ?? 0})
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="credits" className="mt-4">
           <ResellerTable list={creditsResellers} type="credits" />
         </TabsContent>
         <TabsContent value="percentage" className="mt-4">
           <ResellerTable list={percentageResellers} type="percentage" />
+        </TabsContent>
+        <TabsContent value="other" className="mt-4 space-y-4">
+          {otherStores?.map((os: any) => {
+            const r = resellers.find((x: any) => x.id === os.resellerId);
+            return (
+              <div key={os.id} className="rounded-2xl border border-white/[0.06] p-4" style={{ background: "rgba(255,255,255,0.02)" }}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-white font-semibold">{os.label || `Other Store #${os.id}`}</p>
+                    <p className="text-sm text-gray-400">Reseller: <span className="text-emerald-400">{r?.username || os.resellerId}</span> | Split: <span className="text-emerald-400">{os.splitPercent}%</span></p>
+                    <p className="text-xs text-gray-500">{os.recipientEmail}</p>
+                  </div>
+                  <Button size="sm" onClick={() => navigate("/admin/other-store")} className="bg-emerald-600 hover:bg-emerald-500">Editar</Button>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {(os.ips as any[])?.map((ip: any) => (
+                    <span key={ip.id} className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300">{ip.ip}</span>
+                  ))}
+                  {!(os.ips as any[])?.length && <span className="text-xs text-gray-500">Nenhum IP</span>}
+                </div>
+              </div>
+            );
+          })}
+          {otherStores?.length === 0 && <p className="text-center text-gray-500 py-8">Nenhum Other Store cadastrado. Vá em Other Store no menu para criar.</p>}
         </TabsContent>
       </Tabs>
 
