@@ -21,6 +21,7 @@ import {
   getTransactionsByResellerId, createCreditTransaction,
   getAllIpWhitelist, addIpToWhitelist, removeIpFromWhitelist, isIpWhitelisted,
   listResellerApiKeys, createResellerApiKey, revokeResellerApiKey,
+  isAdminIpAllowed,
   updateAdminPassword, updateResellerPassword,
   createPixPayment, getPixPaymentByPaymentId, updatePixPaymentStatus,
   getPendingPixPaymentsByReseller, getPixPaymentsByReseller,
@@ -35,7 +36,7 @@ import {
   updateSupportTicketStatus, updateSupportTicketTimestamp, deleteSupportTicket,
   getSupportMessages, createSupportMessage,
   getOtherStoreResellers, createOtherStoreReseller, updateOtherStoreReseller, deleteOtherStoreReseller,
-  getOtherStoreResellerById, getOtherStoreResellerByHwid, getOtherStoreHwidsByResellerId,
+  getOtherStoreResellerById, getOtherStoreResellerByResellerId, getOtherStoreHwidsByResellerId,
   createOtherStoreHwid, deleteOtherStoreHwid,
 } from "./db";
 
@@ -157,6 +158,10 @@ const authRouter = router({
   adminLogin: publicProcedure
     .input(z.object({ username: z.string(), password: z.string() }))
     .mutation(async ({ input, ctx }) => {
+      // IP whitelist check for admin login
+      const clientIp = getClientIp(ctx.req);
+      const ipAllowed = await isAdminIpAllowed(clientIp);
+      if (!ipAllowed) throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado: IP nao autorizado" });
       const admin = await getAdminByUsername(input.username);
       if (!admin) throw new TRPCError({ code: "UNAUTHORIZED", message: "Credenciais inválidas" });
       const valid = await bcrypt.compare(input.password, admin.passwordHash);
@@ -171,7 +176,6 @@ const authRouter = router({
       username: z.string(),
       password: z.string(),
       remember: z.boolean().default(false),
-      hwid: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       // Check admin credentials first — admin can log in via reseller form
@@ -179,6 +183,10 @@ const authRouter = router({
       if (admin) {
         const validAdmin = await bcrypt.compare(input.password, admin.passwordHash);
         if (validAdmin) {
+          // IP whitelist check for admin login
+          const clientIp = getClientIp(ctx.req);
+          const ipAllowed = await isAdminIpAllowed(clientIp);
+          if (!ipAllowed) throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado: IP nao autorizado" });
           const token = await signCustomJwt({ sub: String(admin.id), role: "admin", username: admin.username });
           const maxAge = input.remember ? 30 * 24 * 3600 : 7 * 24 * 3600;
           ctx.res.cookie(CUSTOM_COOKIE, token, { ...getSessionCookieOptions(ctx.req), maxAge });
@@ -192,7 +200,7 @@ const authRouter = router({
       const valid = await bcrypt.compare(input.password, reseller.passwordHash);
       if (!valid) throw new TRPCError({ code: "UNAUTHORIZED", message: "Credenciais inválidas" });
       await updateReseller(reseller.id, { lastLoginAt: new Date() });
-      const otherStore = input.hwid ? await getOtherStoreResellerByHwid(input.hwid) : null;
+      const otherStore = await getOtherStoreResellerByResellerId(reseller.id);
       const tokenPayload: Record<string, any> = { sub: String(reseller.id), role: "reseller", username: reseller.username };
       if (otherStore && otherStore.resellerId === reseller.id) {
         tokenPayload.otherStoreId = otherStore.id;

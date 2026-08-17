@@ -1074,6 +1074,14 @@ export async function getOtherStoreResellerByDiscordId(discordId: string) {
   return rows[0] ?? null;
 }
 
+export async function getOtherStoreResellerByResellerId(resellerId: number) {
+  await ensureOtherStoreSchema();
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(otherStoreResellers).where(eq(otherStoreResellers.resellerId, resellerId));
+  return rows[0] ?? null;
+}
+
 export async function updateOtherStoreReseller(id: number, data: Partial<InsertOtherStoreReseller>) {
   await ensureOtherStoreSchema();
   const db = await getDb();
