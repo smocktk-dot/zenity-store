@@ -12,7 +12,7 @@ import {
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
 export const userRoleEnum = pgEnum("user_role", ["user", "admin"]);
-export const resellerTypeEnum = pgEnum("reseller_type", ["credits", "percentage"]);
+export const resellerTypeEnum = pgEnum("reseller_type", ["credits", "percentage", "other"]);
 export const resellerStatusEnum = pgEnum("reseller_status", ["active", "inactive", "banned"]);
 export const appStatusEnum = pgEnum("app_status", ["active", "inactive"]);
 export const planLevelEnum = pgEnum("plan_level", ["basic", "premium", "lifetime"]);

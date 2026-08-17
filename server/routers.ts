@@ -406,7 +406,7 @@ const adminRouter = router({
       password: z.string().min(6),
       email: z.string().email().optional(),
       location: z.string().optional(),
-      resellerType: z.enum(["credits", "percentage"]).default("credits"),
+      resellerType: z.enum(["credits", "percentage", "other"]).default("credits"),
     }))
     .mutation(async ({ input }) => {
       const existing = await getResellerByUsername(input.username);
@@ -423,7 +423,7 @@ const adminRouter = router({
       location: z.string().optional().nullable(),
       status: z.enum(["active", "inactive", "banned"]).optional(),
       password: z.string().min(6).optional(),
-      resellerType: z.enum(["credits", "percentage"]).optional(),
+      resellerType: z.enum(["credits", "percentage", "other"]).optional(),
       discountPercent: z.number().min(0).max(100).optional(),
     }))
     .mutation(async ({ input }) => {

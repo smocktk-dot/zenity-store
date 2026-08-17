@@ -26,13 +26,13 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function TypeBadge({ type }: { type: string }) {
-  return type === "credits"
-    ? <span className="text-xs px-2 py-0.5 rounded-full border font-medium bg-yellow-500/20 text-yellow-400 border-yellow-500/30 flex items-center gap-1 w-fit"><CreditCard className="w-3 h-3" />Créditos</span>
-    : <span className="text-xs px-2 py-0.5 rounded-full border font-medium bg-purple-500/20 text-purple-400 border-purple-500/30 flex items-center gap-1 w-fit"><Percent className="w-3 h-3" />Porcentagem</span>;
+  if (type === "credits") return <span className="text-xs px-2 py-0.5 rounded-full border font-medium bg-yellow-500/20 text-yellow-400 border-yellow-500/30 flex items-center gap-1 w-fit"><CreditCard className="w-3 h-3" />Créditos</span>;
+  if (type === "other") return <span className="text-xs px-2 py-0.5 rounded-full border font-medium bg-emerald-500/20 text-emerald-400 border-emerald-500/30 flex items-center gap-1 w-fit"><Store className="w-3 h-3" />Other Store</span>;
+  return <span className="text-xs px-2 py-0.5 rounded-full border font-medium bg-purple-500/20 text-purple-400 border-purple-500/30 flex items-center gap-1 w-fit"><Percent className="w-3 h-3" />Porcentagem</span>;
 }
 
-const emptyCreate = { username: "", password: "", email: "", location: "", resellerType: "credits" as "credits" | "percentage" };
-const emptyEdit = { email: "", location: "", status: "active" as string, password: "", resellerType: "credits" as "credits" | "percentage", discountPercent: "0" };
+const emptyCreate = { username: "", password: "", email: "", location: "", resellerType: "credits" as "credits" | "percentage" | "other" };
+const emptyEdit = { email: "", location: "", status: "active" as string, password: "", resellerType: "credits" as "credits" | "percentage" | "other", discountPercent: "0" };
 
 export default function AdminResellers() {
   const [, navigate] = useLocation();
@@ -67,6 +67,7 @@ export default function AdminResellers() {
   );
   const creditsResellers = filtered.filter(r => r.resellerType === "credits");
   const percentageResellers = filtered.filter(r => r.resellerType === "percentage");
+  const otherResellers = filtered.filter(r => r.resellerType === "other");
 
   const openEdit = (r: Reseller) => {
     setEditReseller(r);
@@ -75,17 +76,17 @@ export default function AdminResellers() {
       location: r.location || "",
       status: r.status,
       password: "",
-      resellerType: (r.resellerType as "credits" | "percentage") || "credits",
+      resellerType: (r.resellerType as "credits" | "percentage" | "other") || "credits",
       discountPercent: String(parseFloat(String(r.discountPercent ?? 0))),
     });
   };
 
-  const ResellerTable = ({ list, type }: { list: Reseller[]; type: "credits" | "percentage" }) => (
+  const ResellerTable = ({ list, type }: { list: Reseller[]; type: "credits" | "percentage" | "other" }) => (
     <div className="rounded-3xl border border-white/[0.06] overflow-hidden" style={{ background: "rgba(255,255,255,0.02)" }}>
       <table className="w-full">
         <thead>
           <tr className="border-b border-white/[0.04]">
-            {["Usuário", "Email", type === "credits" ? "Créditos" : "Desconto Atual", type === "credits" ? "Compras" : "Compras (progresso)", "Status", "Ações"].map(h => (
+            {["Usuário", "Email", type === "credits" ? "Créditos" : type === "other" ? "Tipo" : "Desconto Atual", type === "credits" ? "Compras" : type === "other" ? "Compras" : "Compras (progresso)", "Status", "Ações"].map(h => (
               <th key={h} className="text-left px-5 py-4 text-gray-400 text-xs font-semibold uppercase tracking-widest">{h}</th>
             ))}
           </tr>
@@ -99,7 +100,7 @@ export default function AdminResellers() {
             <tr key={r.id} className="border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02] transition-colors">
               <td className="px-5 py-4">
                 <div className="flex items-center gap-2">
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold uppercase ${type === "credits" ? "bg-yellow-600/30 text-yellow-400" : "bg-purple-600/30 text-purple-400"}`}>
+                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold uppercase ${type === "credits" ? "bg-yellow-600/30 text-yellow-400" : type === "other" ? "bg-emerald-600/30 text-emerald-400" : "bg-purple-600/30 text-purple-400"}`}>
                     {r.username[0]}
                   </div>
                   <span className="text-white text-sm font-medium">{r.username}</span>
@@ -108,10 +109,14 @@ export default function AdminResellers() {
               <td className="px-5 py-4 text-gray-400 text-sm">{r.email || <span className="text-gray-600">—</span>}</td>
               {type === "credits" ? (
                 <td className="px-5 py-4 text-yellow-400 text-sm font-mono font-medium">{parseFloat(r.credits).toFixed(2)}</td>
+              ) : type === "other" ? (
+                <td className="px-5 py-4 text-emerald-400 text-sm font-medium">Other Store</td>
               ) : (
                 <td className="px-5 py-4 text-purple-400 text-sm font-medium">{parseFloat(r.discountPercent).toFixed(0)}%</td>
               )}
               {type === "credits" ? (
+                <td className="px-5 py-4 text-gray-400 text-sm">{r.totalPurchases}</td>
+              ) : type === "other" ? (
                 <td className="px-5 py-4 text-gray-400 text-sm">{r.totalPurchases}</td>
               ) : (
                 <td className="px-5 py-4">
@@ -220,7 +225,7 @@ export default function AdminResellers() {
             <Percent className="w-3.5 h-3.5" /> Porcentagem ({percentageResellers.length})
           </TabsTrigger>
           <TabsTrigger value="other" className="data-[state=active]:bg-emerald-600/20 data-[state=active]:text-emerald-400 text-gray-400 gap-1.5">
-            <Store className="w-3.5 h-3.5" /> Other Store ({otherStores?.length ?? 0})
+            <Store className="w-3.5 h-3.5" /> Other Store ({otherResellers.length})
           </TabsTrigger>
         </TabsList>
         <TabsContent value="credits" className="mt-4">
@@ -229,29 +234,8 @@ export default function AdminResellers() {
         <TabsContent value="percentage" className="mt-4">
           <ResellerTable list={percentageResellers} type="percentage" />
         </TabsContent>
-        <TabsContent value="other" className="mt-4 space-y-4">
-          {otherStores?.map((os: any) => {
-            const r = resellers.find((x: any) => x.id === os.resellerId);
-            return (
-              <div key={os.id} className="rounded-2xl border border-white/[0.06] p-4" style={{ background: "rgba(255,255,255,0.02)" }}>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-white font-semibold">{os.label || `Other Store #${os.id}`}</p>
-                    <p className="text-sm text-gray-400">Reseller: <span className="text-emerald-400">{r?.username || os.resellerId}</span> | Split: <span className="text-emerald-400">{os.splitPercent}%</span></p>
-                    <p className="text-xs text-gray-500">{os.recipientEmail}</p>
-                  </div>
-                  <Button size="sm" onClick={() => navigate("/admin/other-store")} className="bg-emerald-600 hover:bg-emerald-500">Editar</Button>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {(os.ips as any[])?.map((ip: any) => (
-                    <span key={ip.id} className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300">{ip.ip}</span>
-                  ))}
-                  {!(os.ips as any[])?.length && <span className="text-xs text-gray-500">Nenhum IP</span>}
-                </div>
-              </div>
-            );
-          })}
-          {otherStores?.length === 0 && <p className="text-center text-gray-500 py-8">Nenhum Other Store cadastrado. Vá em Other Store no menu para criar.</p>}
+        <TabsContent value="other" className="mt-4">
+          <ResellerTable list={otherResellers} type="other" />
         </TabsContent>
       </Tabs>
 
@@ -287,7 +271,7 @@ export default function AdminResellers() {
             <div><Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Localização</Label><Input value={cf.location} onChange={e => setCf(f => ({...f, location: e.target.value}))} placeholder="Ex: São Paulo, SP" className="mt-1.5 text-white border-white/[0.06] focus:border-emerald-500/60 transition-colors" style={{ background: "rgba(255,255,255,0.05)" }} /></div>
             <div>
               <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Tipo de Reseller *</Label>
-              <Select value={cf.resellerType} onValueChange={v => setCf(f => ({...f, resellerType: v as "credits" | "percentage"}))}>
+              <Select value={cf.resellerType} onValueChange={v => setCf(f => ({...f, resellerType: v as "credits" | "percentage" | "other"}))}>
                 <SelectTrigger className="mt-1.5 text-white border-white/[0.06] focus:border-emerald-500/60 transition-colors" style={{ background: "rgba(255,255,255,0.05)" }}><SelectValue /></SelectTrigger>
                 <SelectContent style={{ background: "rgba(18,12,35,0.98)", border: "1px solid rgba(139,92,246,0.2)" }}>
                   <SelectItem value="credits" className="text-white focus:bg-purple-500/20">
@@ -295,6 +279,9 @@ export default function AdminResellers() {
                   </SelectItem>
                   <SelectItem value="percentage" className="text-white focus:bg-purple-500/20">
                     <div className="flex items-center gap-2"><Percent className="w-4 h-4 text-purple-400" /><div><div className="font-medium">Porcentagem</div><div className="text-xs text-gray-400">Desconto progressivo 35% → 40% → 50%</div></div></div>
+                  </SelectItem>
+                  <SelectItem value="other" className="text-white focus:bg-emerald-500/20">
+                    <div className="flex items-center gap-2"><Store className="w-4 h-4 text-emerald-400" /><div><div className="font-medium">Other Store</div><div className="text-xs text-gray-400">Acesso por IP e split PurinCash</div></div></div>
                   </SelectItem>
                 </SelectContent>
               </Select>
@@ -307,6 +294,11 @@ export default function AdminResellers() {
             {cf.resellerType === "percentage" && (
               <div className="rounded-lg border border-purple-500/20 p-3 text-xs text-purple-400/80" style={{ background: "rgba(168,85,247,0.05)" }}>
                 O reseller terá desconto progressivo: 35% inicial → 40% após 10 compras → 50% após 20 compras (máximo).
+              </div>
+            )}
+            {cf.resellerType === "other" && (
+              <div className="rounded-lg border border-emerald-500/20 p-3 text-xs text-emerald-400/80" style={{ background: "rgba(16,185,129,0.05)" }}>
+                Reseller Other Store. Configure o acesso por IP e split na aba Other Store do menu.
               </div>
             )}
             <div className="flex gap-3 pt-2">
@@ -358,11 +350,12 @@ export default function AdminResellers() {
             <div><Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Localização</Label><Input value={ef.location} onChange={e => setEf(f => ({...f, location: e.target.value}))} className="mt-1.5 text-white border-white/[0.06] focus:border-emerald-500/60 transition-colors" style={{ background: "rgba(255,255,255,0.05)" }} /></div>
             <div>
               <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Tipo de Reseller</Label>
-              <Select value={ef.resellerType} onValueChange={v => setEf(f => ({...f, resellerType: v as "credits" | "percentage"}))}>
+              <Select value={ef.resellerType} onValueChange={v => setEf(f => ({...f, resellerType: v as "credits" | "percentage" | "other"}))}>
                 <SelectTrigger className="mt-1.5 text-white border-white/[0.06] focus:border-emerald-500/60 transition-colors" style={{ background: "rgba(255,255,255,0.05)" }}><SelectValue /></SelectTrigger>
                 <SelectContent style={{ background: "rgba(18,12,35,0.98)", border: "1px solid rgba(139,92,246,0.2)" }}>
                   <SelectItem value="credits" className="text-white focus:bg-purple-500/20">Créditos</SelectItem>
                   <SelectItem value="percentage" className="text-white focus:bg-purple-500/20">Porcentagem</SelectItem>
+                  <SelectItem value="other" className="text-white focus:bg-emerald-500/20">Other Store</SelectItem>
                 </SelectContent>
               </Select>
             </div>

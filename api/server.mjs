@@ -25,7 +25,7 @@ var init_schema = __esm({
   "drizzle/schema.ts"() {
     "use strict";
     userRoleEnum = pgEnum("user_role", ["user", "admin"]);
-    resellerTypeEnum = pgEnum("reseller_type", ["credits", "percentage"]);
+    resellerTypeEnum = pgEnum("reseller_type", ["credits", "percentage", "other"]);
     resellerStatusEnum = pgEnum("reseller_status", ["active", "inactive", "banned"]);
     appStatusEnum = pgEnum("app_status", ["active", "inactive"]);
     planLevelEnum = pgEnum("plan_level", ["basic", "premium", "lifetime"]);
@@ -2640,7 +2640,7 @@ var adminRouter = router({
     password: z2.string().min(6),
     email: z2.string().email().optional(),
     location: z2.string().optional(),
-    resellerType: z2.enum(["credits", "percentage"]).default("credits")
+    resellerType: z2.enum(["credits", "percentage", "other"]).default("credits")
   })).mutation(async ({ input }) => {
     const existing = await getResellerByUsername(input.username);
     if (existing) throw new TRPCError3({ code: "CONFLICT", message: "Username j\xE1 existe" });
@@ -2654,7 +2654,7 @@ var adminRouter = router({
     location: z2.string().optional().nullable(),
     status: z2.enum(["active", "inactive", "banned"]).optional(),
     password: z2.string().min(6).optional(),
-    resellerType: z2.enum(["credits", "percentage"]).optional(),
+    resellerType: z2.enum(["credits", "percentage", "other"]).optional(),
     discountPercent: z2.number().min(0).max(100).optional()
   })).mutation(async ({ input }) => {
     const { id, password, discountPercent, ...rest } = input;
