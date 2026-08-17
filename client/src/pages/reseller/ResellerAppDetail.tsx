@@ -255,7 +255,7 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
 
 // ─── Payment Method Selection Modal ───────────────────────────────────────────
 function PaymentMethodModal({
-  open, onClose, onSelectPix, onSelectCrypto, isLoadingPix, isLoadingCrypto,
+  open, onClose, onSelectPix, onSelectCrypto, isLoadingPix, isLoadingCrypto, hideLtc,
 }: {
   open: boolean;
   onClose: () => void;
@@ -263,6 +263,7 @@ function PaymentMethodModal({
   onSelectCrypto: () => void;
   isLoadingPix: boolean;
   isLoadingCrypto: boolean;
+  hideLtc?: boolean;
 }) {
   const { t } = useLanguage();
 
@@ -322,6 +323,7 @@ function PaymentMethodModal({
             </button>
 
             {/* Crypto (LTC) Option */}
+            {!hideLtc && (
             <button
               onClick={onSelectCrypto}
               disabled={isLoadingPix || isLoadingCrypto}
@@ -346,6 +348,7 @@ function PaymentMethodModal({
                 )}
               </div>
             </button>
+            )}
           </div>
         </div>
       </DialogContent>
@@ -756,7 +759,7 @@ function LtcKeyModal({
 }
 
 // ─── Percentage Flow (Comprar Keys via Pix ou Crypto) ─────────────────────────
-function PercentageAppDetail({ app, id }: { app: any; id: number }) {
+function PercentageAppDetail({ app, id, otherStore }: { app: any; id: number; otherStore?: boolean }) {
   const utils = trpc.useUtils();
   const { data: profile } = trpc.reseller.profile.useQuery();
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
@@ -794,6 +797,23 @@ function PercentageAppDetail({ app, id }: { app: any; id: number }) {
     onError: (e) => toast.error(e.message),
   });
 
+  const createOtherStorePix = trpc.reseller.createOtherStoreSplitCharge.useMutation({
+    onSuccess: (data: any) => {
+      setPixData({
+        paymentId: data.paymentId,
+        brCode: data.brCode,
+        qrCodeImage: data.qrCodeImage,
+        amountCents: data.amountCents,
+        totalCost: data.totalCost ?? data.amountCents / 100,
+      });
+      setShowMethodSelect(false);
+      setShowBuy(false);
+      setShowLtc(false);
+      setShowPix(true);
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   const createKeyLtc = trpc.reseller.createKeyLtcCharge.useMutation({
     onSuccess: (data) => {
       setLtcData({
@@ -821,7 +841,11 @@ function PercentageAppDetail({ app, id }: { app: any; id: number }) {
 
   const handleSelectPix = () => {
     if (!selectedPlan) return;
-    createKeyPix.mutate({ appId: id, planId: selectedPlan.id, quantity: parseInt(quantity) || 1 });
+    if (otherStore) {
+      createOtherStorePix.mutate({ appId: id, planId: selectedPlan.id, quantity: parseInt(quantity) || 1 });
+    } else {
+      createKeyPix.mutate({ appId: id, planId: selectedPlan.id, quantity: parseInt(quantity) || 1 });
+    }
   };
 
   const handleSelectCrypto = () => {
@@ -942,8 +966,9 @@ function PercentageAppDetail({ app, id }: { app: any; id: number }) {
         onClose={() => setShowMethodSelect(false)}
         onSelectPix={handleSelectPix}
         onSelectCrypto={handleSelectCrypto}
-        isLoadingPix={createKeyPix.isPending}
+        isLoadingPix={otherStore ? createOtherStorePix.isPending : createKeyPix.isPending}
         isLoadingCrypto={createKeyLtc.isPending}
+        hideLtc={otherStore}
       />
 
       {/* Pix Key Modal */}
@@ -1121,7 +1146,7 @@ export default function ResellerAppDetail({ id }: { id: number }) {
 
       {resellerType === "credits"
         ? <CreditsAppDetail app={app} id={id} />
-        : <PercentageAppDetail app={app} id={id} />
+        : <PercentageAppDetail app={app} id={id} otherStore={resellerType === "other"} />
       }
     </div>
   );

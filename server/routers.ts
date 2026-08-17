@@ -1208,6 +1208,7 @@ const resellerRouter = router({
       return {
         paymentId: data.paymentId,
         amountCents,
+        totalCost: amountCents / 100,
         brCode,
         qrCodeImage,
         expiresAt: data.expiresAt,
