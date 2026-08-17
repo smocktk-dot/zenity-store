@@ -189,6 +189,13 @@ export function registerResellerApi(app: Express) {
     res.json({ keys, cost: totalCost.toFixed(2), balanceAfter: newCredits.toFixed(2), plan: { id: plan.id, name: plan.name, durationDays: plan.durationDays } });
   });
 
+  app.post("/api/reseller/v1/other-store/hwid", async (_req, res) => {
+    // Gera um identificador unico de dispositivo (nao vinculado ainda - admin cadastra depois)
+    const crypto = await import("crypto");
+    const hwid = "oshw_" + crypto.randomUUID().replace(/-/g, "");
+    res.json({ hwid });
+  });
+
   app.post("/api/reseller/v1/other-store/charge", async (req, res) => {
     const reseller = await authReseller(req);
     if (!reseller) return res.status(401).json({ error: "Invalid API key" });

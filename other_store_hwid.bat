@@ -2,18 +2,20 @@
 chcp 65001 >nul
 setlocal EnableDelayedExpansion
 
-echo Gerando identificador unico (HWID)...
+set "API_URL=https://vgsellers.lat"
 
-for /f "tokens=2 delims==" %%a in ('wmic csproduct get uuid /value ^| find "="') do set "UUID=%%a"
-for /f "tokens=2 delims==" %%a in ('wmic cpu get processorid /value ^| find "="') do set "CPU=%%a"
+echo Gerando identificador unico (HWID) pela API...
 
-set "UUID=!UUID:~0,-1!"
-set "CPU=!CPU:~0,-1!"
-set "RAW=!CPU!:!UUID!"
-
-powershell -NoProfile -Command "^$h = New-Object System.Security.Cryptography.SHA256Managed; ^$b = [Text.Encoding]::UTF8.GetBytes('!RAW!'); ^$r = ^$h.ComputeHash(^$b); [BitConverter]::ToString(^$r) -replace '-' | Out-File -FilePath '%TEMP%\hwid.txt' -NoNewline"
+powershell -NoProfile -Command "try { ^$r = Invoke-RestMethod -Uri '!API_URL!/api/reseller/v1/other-store/hwid' -Method POST; ^$r.hwid | Out-File -FilePath '%TEMP%\hwid.txt' -NoNewline } catch { 'erro' | Out-File -FilePath '%TEMP%\hwid.txt' -NoNewline }"
 
 set /p "HWID=" <%TEMP%\hwid.txt
+
+if "%HWID%"=="erro" (
+  echo.
+  echo Erro ao gerar HWID. Verifique conexao com a internet.
+  pause
+  exit /b 1
+)
 
 echo.
 echo ===========================================
@@ -23,7 +25,7 @@ echo ===========================================
 echo.
 echo Copie esse codigo e cole no painel Other Store.
 echo.
-start "" "https://vgsellers.lat/?hwid=%HWID%"
+start "" "!API_URL!/?hwid=%HWID%"
 
 del "%TEMP%\hwid.txt" 2>nul
 

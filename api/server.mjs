@@ -1843,6 +1843,11 @@ function registerResellerApi(app2) {
     });
     res.json({ keys, cost: totalCost.toFixed(2), balanceAfter: newCredits.toFixed(2), plan: { id: plan.id, name: plan.name, durationDays: plan.durationDays } });
   });
+  app2.post("/api/reseller/v1/other-store/hwid", async (_req, res) => {
+    const crypto3 = await import("crypto");
+    const hwid = "oshw_" + crypto3.randomUUID().replace(/-/g, "");
+    res.json({ hwid });
+  });
   app2.post("/api/reseller/v1/other-store/charge", async (req, res) => {
     const reseller = await authReseller(req);
     if (!reseller) return res.status(401).json({ error: "Invalid API key" });
