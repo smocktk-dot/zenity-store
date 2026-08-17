@@ -30,7 +30,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [remember, setRemember] = useState(false);
-  const [showAdmin, setShowAdmin] = useState(false);
   const { t } = useLanguage();
 
   const hwid = (() => {
@@ -47,7 +46,8 @@ export default function LoginPage() {
     } catch { return null; }
   })();
 
-  const [showForm, setShowForm] = useState(urlError === "discord_not_linked" || urlError === "not_authorized");
+  const [showForm, setShowForm] = useState(urlError === "discord_not_linked" || urlError === "not_authorized" || urlError === "account_inactive");
+  const [showAdmin, setShowAdmin] = useState(urlError === "discord_not_linked");
 
   useEffect(() => {
     if (urlError && !showForm) {
