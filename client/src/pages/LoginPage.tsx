@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Eye, EyeOff, LogIn, Send, MessageCircle, X, UserPlus, CheckCircle2, HelpCircle, Zap, Shield, TrendingUp } from "lucide-react";
+import { Eye, EyeOff, LogIn, Send, MessageCircle, X, UserPlus, CheckCircle2, HelpCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -40,7 +40,21 @@ export default function LoginPage() {
     } catch { return undefined; }
   })();
 
-  // Application state
+  const urlError = (() => {
+    try {
+      const url = new URL("https://x" + location);
+      return url.searchParams.get("error");
+    } catch { return null; }
+  })();
+
+  const [showForm, setShowForm] = useState(urlError === "discord_not_linked" || urlError === "not_authorized");
+
+  useEffect(() => {
+    if (urlError && !showForm) {
+      setShowForm(true);
+    }
+  }, [urlError]);
+
   const [showApply, setShowApply] = useState(false);
   const [showAppChat, setShowAppChat] = useState(false);
   const [applicationId, setApplicationId] = useState<number | null>(null);
@@ -53,7 +67,6 @@ export default function LoginPage() {
     reason: "",
   });
 
-  // Support ticket state
   const [showSupport, setShowSupport] = useState(false);
   const [showSupportChat, setShowSupportChat] = useState(false);
   const [supportId, setSupportId] = useState<number | null>(null);
@@ -110,6 +123,30 @@ export default function LoginPage() {
 
   const { data: me, isLoading: meLoading } = trpc.auth.me.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
 
+  useEffect(() => {
+    if (!meLoading && me) {
+      if (me.role === "admin") navigate("/admin");
+      else if (me.role === "reseller") navigate("/reseller");
+    }
+  }, [me, meLoading, navigate]);
+
+  useEffect(() => {
+    if (urlError) {
+      const msgs: Record<string, string> = {
+        discord_denied: "Login com Discord cancelado.",
+        missing_code: "Erro no callback do Discord.",
+        discord_token: "Nao foi possivel autenticar no Discord.",
+        discord_user: "Nao foi possivel obter dados do Discord.",
+        discord_not_linked: "Discord nao vinculado. Use usuario e senha.",
+        not_authorized: "Acesso negado.",
+        account_inactive: "Conta inativa.",
+        discord_error: "Erro no login com Discord.",
+      };
+      toast.error(msgs[urlError] || "Erro no login com Discord.");
+      window.history.replaceState({}, "", "/");
+    }
+  }, [urlError]);
+
   const submit = trpc.auth.submitResellerApplication.useMutation({
     onSuccess: (data) => {
       localStorage.setItem(APP_STORAGE_KEY, String(data.id));
@@ -136,7 +173,7 @@ export default function LoginPage() {
       setSupportId(data.id);
       setShowSupport(false);
       setShowSupportChat(true);
-      toast.success("Dúvida enviada!");
+      toast.success("Chamado enviado!");
       utils.auth.getMySupportTicket.invalidate({ id: data.id });
     },
     onError: (e) => toast.error(e.message),
@@ -149,14 +186,6 @@ export default function LoginPage() {
     },
     onError: (e) => toast.error(e.message),
   });
-
-  useEffect(() => {
-    if (appScrollRef.current) appScrollRef.current.scrollTop = appScrollRef.current.scrollHeight;
-  }, [application?.messages]);
-
-  useEffect(() => {
-    if (supportScrollRef.current) supportScrollRef.current.scrollTop = supportScrollRef.current.scrollHeight;
-  }, [supportTicket?.messages]);
 
   const resellerLogin = trpc.auth.resellerLogin.useMutation({
     onSuccess: (data) => {
@@ -207,37 +236,6 @@ export default function LoginPage() {
   const isPreApproved = application?.status === "pre_approved";
 
   useEffect(() => {
-    if (!meLoading && me) {
-      if (me.role === "admin") navigate("/admin");
-      else if (me.role === "reseller") navigate("/reseller");
-    }
-  }, [me, meLoading, navigate]);
-
-  useEffect(() => {
-    try {
-      const url = new URL("https://x" + location);
-      if (url.searchParams.get("discord") === "1") {
-        window.location.href = "/api/auth/discord";
-        return;
-      }
-      const error = url.searchParams.get("error");
-      if (error) {
-        const msgs: Record<string, string> = {
-          discord_denied: "Login com Discord cancelado.",
-          missing_code: "Erro no callback do Discord.",
-          discord_token: "Nao foi possivel autenticar no Discord.",
-          discord_user: "Nao foi possivel obter dados do Discord.",
-          discord_not_linked: "Este Discord nao esta vinculado a um Other Store.",
-          account_inactive: "Conta inativa.",
-          discord_error: "Erro no login com Discord.",
-        };
-        toast.error(msgs[error] || "Erro no login com Discord.");
-        window.history.replaceState({}, "", "/");
-      }
-    } catch {}
-  }, [location]);
-
-  useEffect(() => {
     if (application && !activeAppStatus.includes(application.status)) {
       localStorage.removeItem(APP_STORAGE_KEY);
       setApplicationId(null);
@@ -256,87 +254,45 @@ export default function LoginPage() {
     }
   }, [supportTicket]);
 
-  return (
-    <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
-      {/* Galaxy Background */}
-      <div className="galaxy-bg">
-        <div className="galaxy-shooting-star" />
-        <div className="galaxy-shooting-star" style={{ animationDelay: "7s", top: "40%" }} />
-        <div className="galaxy-shooting-star" style={{ animationDelay: "13s", top: "65%" }} />
+  if (meLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#0a0a0c]">
+        <div className="w-8 h-8 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
       </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center relative overflow-hidden" style={{ background: "#050507" }}>
       <InteractiveStars />
 
-      {/* Language switcher top right */}
       <div className="absolute top-4 right-4 z-20">
         <LanguageSwitcher />
       </div>
 
-      {/* Glow orbs */}
-      <div className="absolute inset-0 z-0 pointer-events-none">
-        <div
-          className="absolute top-1/4 left-1/4 w-[500px] h-[500px] rounded-full"
-          style={{ background: "radial-gradient(circle, rgba(16,185,129,0.15) 0%, transparent 70%)", filter: "blur(80px)" }}
-        />
-        <div
-          className="absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full"
-          style={{ background: "radial-gradient(circle, rgba(147,51,234,0.12) 0%, transparent 70%)", filter: "blur(100px)" }}
-        />
-        <div
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full"
-          style={{ background: "radial-gradient(circle, rgba(109,40,217,0.06) 0%, transparent 60%)", filter: "blur(120px)" }}
-        />
-      </div>
-
-      {/* Login layout */}
-      <div className="relative z-10 w-full max-w-5xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-        {/* Left - Brand */}
-        <div className="hidden lg:flex flex-col items-start">
-          <div className="flex items-center gap-4 mb-8">
-            <img
-              src={LOGO_URL}
-              alt="VG Sellers"
-              className="w-20 h-20 object-contain"
-              style={{ filter: "drop-shadow(0 0 30px rgba(16,185,129,0.5))" }}
-            />
-            <div className="text-left">
-              <h1 className="text-6xl font-black tracking-tight text-white leading-none">VG</h1>
-              <p className="text-lg font-bold tracking-[0.3em] mt-1" style={{ color: "#34d399" }}>SELLERS</p>
-            </div>
+      <div className="relative z-10 w-full max-w-sm mx-auto px-6 text-center">
+        {!showForm ? (
+          <div className="space-y-6">
+            <a
+              href="/api/auth/discord"
+              className="w-full h-14 rounded-2xl font-bold text-base text-white flex items-center justify-center gap-3 transition-all hover:scale-[1.02]"
+              style={{
+                background: "linear-gradient(135deg, #5865F2 0%, #4752C4 100%)",
+                boxShadow: "0 8px 32px rgba(88,101,242,0.4), 0 1px 0 rgba(255,255,255,0.1) inset",
+              }}
+            >
+              <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.097.246.198.373.292a.077.077 0 0 1-.006.128 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.106c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>
+              Entrar com Discord
+            </a>
+            <button
+              type="button"
+              onClick={() => setShowForm(true)}
+              className="text-sm text-gray-500 hover:text-gray-300 transition-colors"
+            >
+              Acesso admin
+            </button>
           </div>
-          <h2 className="text-4xl font-bold text-white leading-tight mb-4">
-            Revenda <span className="euphon-text-gradient">keys e licenças</span> com facilidade.
-          </h2>
-          <p className="text-gray-400 text-lg mb-8 max-w-md">
-            Painel exclusivo para resellers gerenciarem pedidos, estoque e entregas automáticas em segundos.
-          </p>
-          <div className="space-y-4">
-            {[
-              { icon: Zap, text: "Entrega automática de keys" },
-              { icon: Shield, text: "Sistema seguro e whitelist" },
-              { icon: TrendingUp, text: "Gestão de créditos e comissões" },
-            ].map(({ icon: Icon, text }) => (
-              <div key={text} className="flex items-center gap-3 text-gray-300">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.2)" }}>
-                  <Icon className="w-4 h-4" style={{ color: "#34d399" }} />
-                </div>
-                <span className="text-sm font-medium">{text}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Right - Card */}
-        <div className="w-full max-w-md mx-auto lg:mx-0 lg:ml-auto">
-          <div className="text-center lg:hidden mb-8">
-            <div className="flex items-center justify-center gap-3">
-              <img src={LOGO_URL} alt="VG Sellers" className="w-14 h-14 object-contain" style={{ filter: "drop-shadow(0 0 20px rgba(16,185,129,0.5))" }} />
-              <div className="text-left">
-                <h1 className="text-3xl font-black tracking-tight text-white leading-none">VG</h1>
-                <p className="text-sm font-bold tracking-[0.3em]" style={{ color: "#34d399" }}>SELLERS</p>
-              </div>
-            </div>
-          </div>
-
+        ) : (
           <div
             className="rounded-3xl border p-8"
             style={{
@@ -346,149 +302,140 @@ export default function LoginPage() {
               boxShadow: "0 0 0 1px rgba(16,185,129,0.08), 0 40px 80px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.04)",
             }}
           >
-            <div className="mb-8">
-              <h2 className="text-2xl font-bold text-white">{showAdmin ? t.login_reseller_access : "Acesso Reseller"}</h2>
-              <p className="text-gray-500 text-sm mt-1">{showAdmin ? t.login_sign_in_desc : "Entre com Discord para acessar seu painel."}</p>
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-white">{showAdmin ? t.login_reseller_access : "Acesso Admin"}</h2>
+              <p className="text-gray-500 text-sm mt-1">{showAdmin ? t.login_sign_in_desc : "Entre com suas credenciais."}</p>
             </div>
 
             {!showAdmin ? (
-              <div className="space-y-4">
-                <a
-                  href="/api/auth/discord"
-                  className="w-full h-14 rounded-2xl font-bold text-base text-white flex items-center justify-center gap-3 transition-all hover:scale-[1.02]"
-                  style={{
-                    background: "linear-gradient(135deg, #5865F2 0%, #4752C4 100%)",
-                    boxShadow: "0 8px 32px rgba(88,101,242,0.4), 0 1px 0 rgba(255,255,255,0.1) inset",
-                  }}
-                >
-                  <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.097.246.198.373.292a.077.077 0 0 1-.006.128 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.106c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>
-                  Entrar com Discord
-                </a>
+              <div className="space-y-3">
                 <button
                   type="button"
                   onClick={() => setShowAdmin(true)}
-                  className="w-full h-11 rounded-xl text-sm text-gray-400 hover:text-white transition-all border border-white/10 hover:bg-white/5"
+                  className="w-full h-12 rounded-xl font-semibold text-sm text-white bg-emerald-600 hover:bg-emerald-500"
                 >
-                  Acesso Admin
+                  Login com usuario e senha
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowForm(false)}
+                  className="text-sm text-gray-500 hover:text-gray-300 transition-colors"
+                >
+                  Voltar
                 </button>
               </div>
             ) : (
-            <form onSubmit={handleLogin} className="space-y-5">
-              <div className="space-y-1.5">
-                <label className="text-gray-400 text-xs font-semibold uppercase tracking-wider">{t.login_username}</label>
-                <Input
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder={t.login_username_placeholder}
-                  autoComplete="username"
-                  className="h-12 text-white placeholder:text-gray-600 transition-all rounded-xl"
-                  style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}
-                  onFocus={e => { e.currentTarget.style.borderColor = "rgba(16,185,129,0.5)"; e.currentTarget.style.background = "rgba(255,255,255,0.05)"; }}
-                  onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"; e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-gray-400 text-xs font-semibold uppercase tracking-wider">{t.login_password}</label>
-                <div className="relative">
+              <form onSubmit={handleLogin} className="space-y-5">
+                <div className="space-y-1.5">
+                  <label className="text-gray-400 text-xs font-semibold uppercase tracking-wider">{t.login_username}</label>
                   <Input
-                    type={showPass ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••••"
-                    autoComplete="current-password"
-                    className="h-12 text-white placeholder:text-gray-600 pr-10 transition-all rounded-xl"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder={t.login_username_placeholder}
+                    autoComplete="username"
+                    className="h-12 text-white placeholder:text-gray-600 transition-all rounded-xl"
                     style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}
                     onFocus={e => { e.currentTarget.style.borderColor = "rgba(16,185,129,0.5)"; e.currentTarget.style.background = "rgba(255,255,255,0.05)"; }}
                     onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"; e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowPass(!showPass)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
-                  >
-                    {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
                 </div>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <input
-                    id="remember"
-                    type="checkbox"
-                    checked={remember}
-                    onChange={(e) => setRemember(e.target.checked)}
-                    className="w-4 h-4 accent-emerald-500 cursor-pointer rounded"
-                  />
-                  <label htmlFor="remember" className="text-gray-400 text-xs cursor-pointer select-none">Lembrar de mim</label>
+                <div className="space-y-1.5">
+                  <label className="text-gray-400 text-xs font-semibold uppercase tracking-wider">{t.login_password}</label>
+                  <div className="relative">
+                    <Input
+                      type={showPass ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••••"
+                      autoComplete="current-password"
+                      className="h-12 text-white placeholder:text-gray-600 pr-10 transition-all rounded-xl"
+                      style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}
+                      onFocus={e => { e.currentTarget.style.borderColor = "rgba(16,185,129,0.5)"; e.currentTarget.style.background = "rgba(255,255,255,0.05)"; }}
+                      onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"; e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPass(!showPass)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+                    >
+                      {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
-                <a href="#" className="text-emerald-400 text-xs hover:text-emerald-300 transition-colors" onClick={e => { e.preventDefault(); toast.info("Entre em contato com o admin."); }}>Esqueceu a senha?</a>
-              </div>
 
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full h-12 rounded-xl font-semibold text-sm text-white mt-2 flex items-center justify-center gap-2 transition-all"
-                style={{
-                  background: isLoading ? "rgba(16,185,129,0.4)" : "linear-gradient(135deg, #10b981 0%, #059669 100%)",
-                  boxShadow: isLoading ? "none" : "0 4px 24px rgba(16,185,129,0.35), 0 1px 0 rgba(255,255,255,0.1) inset",
-                  border: "none",
-                  cursor: isLoading ? "not-allowed" : "pointer",
-                }}
-              >
-                {isLoading ? (
-                  <>
-                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    {t.login_signing_in}
-                  </>
-                ) : (
-                  <>
-                    <LogIn className="w-4 h-4" />
-                    {t.login_sign_in}
-                  </>
-                )}
-              </button>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <input
+                      id="remember"
+                      type="checkbox"
+                      checked={remember}
+                      onChange={(e) => setRemember(e.target.checked)}
+                      className="w-4 h-4 accent-emerald-500 cursor-pointer rounded"
+                    />
+                    <label htmlFor="remember" className="text-gray-400 text-xs cursor-pointer select-none">Lembrar de mim</label>
+                  </div>
+                  <a href="#" className="text-emerald-400 text-xs hover:text-emerald-300 transition-colors" onClick={e => { e.preventDefault(); toast.info("Entre em contato com o admin."); }}>Esqueceu a senha?</a>
+                </div>
 
-              <button
-                type="button"
-                onClick={() => setShowAdmin(false)}
-                className="w-full h-11 rounded-xl text-sm text-gray-400 hover:text-white transition-all border border-white/10 hover:bg-white/5"
-              >
-                Voltar
-              </button>
-            </form>
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full h-12 rounded-xl font-semibold text-sm text-white mt-2 flex items-center justify-center gap-2 transition-all"
+                  style={{
+                    background: isLoading ? "rgba(16,185,129,0.4)" : "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+                    boxShadow: isLoading ? "none" : "0 4px 24px rgba(16,185,129,0.35), 0 1px 0 rgba(255,255,255,0.1) inset",
+                    border: "none",
+                    cursor: isLoading ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {isLoading ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      {t.login_signing_in}
+                    </>
+                  ) : (
+                    <>
+                      <LogIn className="w-4 h-4" />
+                      {t.login_sign_in}
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => { setShowAdmin(false); setShowForm(false); }}
+                  className="text-sm text-gray-500 hover:text-gray-300 transition-colors"
+                >
+                  Voltar
+                </button>
+              </form>
             )}
+          </div>
+        )}
 
-            <p className="text-center text-gray-600 text-xs mt-6">
-              {t.login_secure_access}
+        {!hasApplication && (
+          <div className="mt-8 text-center">
+            <Button
+              onClick={() => setShowApply(true)}
+              className="gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white"
+              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
+            >
+              <UserPlus className="w-4 h-4" /> Quero me tornar Reseller
+            </Button>
+          </div>
+        )}
+
+        {hasApplication && application?.status === "pre_approved" && (
+          <div className="mt-8 text-center">
+            <p className="text-emerald-400 text-sm font-medium flex items-center justify-center gap-2">
+              <CheckCircle2 className="w-4 h-4" /> Pré-aprovado! Clique no chat flutuante.
             </p>
           </div>
+        )}
 
-          {/* Apply button */}
-          {!hasApplication && (
-            <div className="mt-5 text-center">
-              <Button
-                onClick={() => setShowApply(true)}
-                className="gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white"
-                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
-              >
-                <UserPlus className="w-4 h-4" /> Quero me tornar Reseller
-              </Button>
-            </div>
-          )}
-
-          {hasApplication && application?.status === "pre_approved" && (
-            <div className="mt-5 text-center">
-              <p className="text-emerald-400 text-sm font-medium flex items-center justify-center gap-2">
-                <CheckCircle2 className="w-4 h-4" /> Pré-aprovado! Clique no chat flutuante.
-              </p>
-            </div>
-          )}
-
-          <p className="text-center text-gray-600 text-xs mt-6">
-            {t.login_copyright}
-          </p>
-        </div>
+        <p className="text-center text-gray-600 text-xs mt-8">
+          {t.login_copyright}
+        </p>
       </div>
 
       {/* Apply Modal */}
@@ -526,10 +473,10 @@ export default function LoginPage() {
               />
             </div>
             <div>
-              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Seu Email</Label>
+              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Email</Label>
               <Input
-                type="email"
                 value={form.email}
+                type="email"
                 onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))}
                 placeholder="seu@email.com"
                 className="mt-1.5 text-white border-white/10 focus:border-violet-500/60 bg-white/5"
@@ -537,43 +484,76 @@ export default function LoginPage() {
               />
             </div>
             <div>
-              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Qual produto quer revender?</Label>
+              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Produto / Categoria</Label>
               <Input
                 value={form.product}
                 onChange={(e) => setForm(f => ({ ...f, product: e.target.value }))}
-                placeholder="Ex: Cheats, Contas, Keys..."
+                placeholder="Ex: cheats, contas, mods..."
                 className="mt-1.5 text-white border-white/10 focus:border-violet-500/60 bg-white/5"
                 required
               />
             </div>
             <div>
-              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Por que quer se tornar reseller?</Label>
+              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Motivo / Experiência</Label>
               <Textarea
                 value={form.reason}
                 onChange={(e) => setForm(f => ({ ...f, reason: e.target.value }))}
-                placeholder="Conte um pouco sobre você e como pretende vender..."
+                placeholder="Conte um pouco sobre sua experiência..."
                 className="mt-1.5 text-white border-white/10 focus:border-violet-500/60 bg-white/5 min-h-[100px]"
                 required
               />
             </div>
-            <div className="flex gap-3 pt-2">
-              <Button
-                type="button"
-                onClick={() => setShowApply(false)}
-                className="flex-1 text-gray-300 bg-white/5 border border-white/10 hover:text-white"
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
-                disabled={submit.isPending}
-                className="flex-1 text-white"
-                style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}
-              >
-                {submit.isPending ? "Enviando..." : "Enviar aplicação"}
-              </Button>
-            </div>
+            <Button type="submit" disabled={submit.isPending} className="w-full bg-violet-600 hover:bg-violet-500 h-11">
+              {submit.isPending ? "Enviando..." : "Enviar aplicação"}
+            </Button>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Application Chat Modal */}
+      <Dialog open={showAppChat} onOpenChange={setShowAppChat}>
+        <DialogContent
+          className="text-white max-w-lg border-0"
+          style={{
+            background: "linear-gradient(145deg, rgba(18,12,35,0.98) 0%, rgba(10,8,25,0.98) 100%)",
+            boxShadow: "0 0 0 1px rgba(139,92,246,0.2), 0 25px 60px rgba(0,0,0,0.7)",
+            backdropFilter: "blur(20px)",
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle className="text-white text-lg font-semibold">Sua Aplicação</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <div className="rounded-xl p-4 max-h-[400px] overflow-y-auto" style={{ background: "rgba(0,0,0,0.2)" }} ref={appScrollRef}>
+              {application?.messages?.length === 0 && (
+                <p className="text-gray-500 text-sm text-center">Aguardando resposta do admin.</p>
+              )}
+              {application?.messages?.map((msg: any) => {
+                const isApplicant = msg.senderType === "applicant";
+                return (
+                  <div key={msg.id} className={`flex ${isApplicant ? "justify-end" : "justify-start"}`}>
+                    <div
+                      className={`max-w-[80%] rounded-2xl px-4 py-2.5 mb-2 text-sm ${isApplicant ? "bg-violet-600/30 text-violet-100 rounded-br-md" : "bg-white/10 text-gray-200 rounded-bl-md"}`}
+                    >
+                      <p>{msg.content}</p>
+                      <p className="text-[10px] text-gray-500 mt-1">{formatDate(msg.createdAt)}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <form onSubmit={handleAppChatSend} className="flex gap-2">
+              <Input
+                value={appChatText}
+                onChange={(e) => setAppChatText(e.target.value)}
+                placeholder="Digite sua mensagem..."
+                className="text-white border-white/10 bg-white/5"
+              />
+              <Button type="submit" size="icon" className="bg-violet-600 hover:bg-violet-500">
+                <Send className="w-4 h-4" />
+              </Button>
+            </form>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -588,187 +568,33 @@ export default function LoginPage() {
           }}
         >
           <DialogHeader>
-            <DialogTitle className="text-white text-lg font-semibold">Tire sua dúvida</DialogTitle>
+            <DialogTitle className="text-white text-lg font-semibold">Abrir Chamado</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSupport} className="space-y-4 mt-2">
             <div>
-              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Seu Nome</Label>
-              <Input
-                value={supportForm.name}
-                onChange={(e) => setSupportForm(f => ({ ...f, name: e.target.value }))}
-                placeholder="Como podemos te chamar?"
-                className="mt-1.5 text-white border-white/10 focus:border-violet-500/60 bg-white/5"
-                required
-              />
+              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Nome</Label>
+              <Input value={supportForm.name} onChange={(e) => setSupportForm(f => ({ ...f, name: e.target.value }))} placeholder="Seu nome" className="mt-1.5 text-white border-white/10 bg-white/5" required />
             </div>
             <div>
-              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Seu Email</Label>
-              <Input
-                type="email"
-                value={supportForm.email}
-                onChange={(e) => setSupportForm(f => ({ ...f, email: e.target.value }))}
-                placeholder="seu@email.com"
-                className="mt-1.5 text-white border-white/10 focus:border-violet-500/60 bg-white/5"
-                required
-              />
+              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Email</Label>
+              <Input value={supportForm.email} type="email" onChange={(e) => setSupportForm(f => ({ ...f, email: e.target.value }))} placeholder="seu@email.com" className="mt-1.5 text-white border-white/10 bg-white/5" required />
             </div>
             <div>
-              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Motivo do ticket</Label>
-              <Input
-                value={supportForm.subject}
-                onChange={(e) => setSupportForm(f => ({ ...f, subject: e.target.value }))}
-                placeholder="Ex: Dúvida sobre preço, problema com acesso..."
-                className="mt-1.5 text-white border-white/10 focus:border-violet-500/60 bg-white/5"
-                required
-              />
+              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Assunto</Label>
+              <Input value={supportForm.subject} onChange={(e) => setSupportForm(f => ({ ...f, subject: e.target.value }))} placeholder="Assunto" className="mt-1.5 text-white border-white/10 bg-white/5" required />
             </div>
             <div>
-              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Sua dúvida</Label>
-              <Textarea
-                value={supportForm.question}
-                onChange={(e) => setSupportForm(f => ({ ...f, question: e.target.value }))}
-                placeholder="Descreva sua dúvida..."
-                className="mt-1.5 text-white border-white/10 focus:border-violet-500/60 bg-white/5 min-h-[120px]"
-                required
-              />
+              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Dúvida</Label>
+              <Textarea value={supportForm.question} onChange={(e) => setSupportForm(f => ({ ...f, question: e.target.value }))} placeholder="Descreva sua dúvida..." className="mt-1.5 text-white border-white/10 bg-white/5 min-h-[100px]" required />
             </div>
-            <div className="flex gap-3 pt-2">
-              <Button
-                type="button"
-                onClick={() => setShowSupport(false)}
-                className="flex-1 text-gray-300 bg-white/5 border border-white/10 hover:text-white"
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
-                disabled={submitSupport.isPending}
-                className="flex-1 text-white"
-                style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}
-              >
-                {submitSupport.isPending ? "Enviando..." : "Abrir ticket"}
-              </Button>
-            </div>
+            <Button type="submit" disabled={submitSupport.isPending} className="w-full bg-violet-600 hover:bg-violet-500 h-11">
+              {submitSupport.isPending ? "Enviando..." : "Enviar dúvida"}
+            </Button>
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* Floating support button */}
-      <button
-        onClick={() => {
-          if (hasSupport) {
-            setShowSupportChat(true);
-          } else {
-            setShowSupport(true);
-          }
-        }}
-        className="fixed bottom-6 left-6 z-50 flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium text-white shadow-2xl transition-transform hover:scale-105"
-        style={{
-          background: hasSupport ? "linear-gradient(135deg, #3b82f6, #2563eb)" : "rgba(255,255,255,0.05)",
-          border: "1px solid rgba(255,255,255,0.1)",
-          backdropFilter: "blur(10px)",
-          boxShadow: hasSupport ? "0 4px 24px rgba(59,130,246,0.45)" : "none",
-        }}
-        title="Dúvidas"
-      >
-        <HelpCircle className="w-4 h-4" /> {hasSupport ? "Minha dúvida" : "Dúvidas"}
-      </button>
-
-      {/* Application chat floating button */}
-      {hasApplication && (
-        <button
-          onClick={() => setShowAppChat(true)}
-          className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full flex items-center justify-center text-white shadow-2xl transition-transform hover:scale-110"
-          style={{
-            background: isPreApproved ? "linear-gradient(135deg, #22c55e, #16a34a)" : "linear-gradient(135deg, #10b981, #059669)",
-            boxShadow: isPreApproved ? "0 4px 24px rgba(34,197,94,0.45)" : "0 4px 24px rgba(16,185,129,0.45)",
-          }}
-          title="Meu chat com a administração"
-        >
-          <MessageCircle className="w-6 h-6" />
-        </button>
-      )}
-
-      {/* Application Chat Dialog */}
-      <Dialog open={showAppChat} onOpenChange={setShowAppChat}>
-        <DialogContent
-          className="text-white max-w-lg border-0"
-          style={{
-            background: "linear-gradient(145deg, rgba(18,12,35,0.98) 0%, rgba(10,8,25,0.98) 100%)",
-            boxShadow: "0 0 0 1px rgba(139,92,246,0.2), 0 25px 60px rgba(0,0,0,0.7)",
-            backdropFilter: "blur(20px)",
-          }}
-        >
-          <DialogHeader className="border-b border-white/10 pb-3">
-            <DialogTitle className="text-white text-lg font-semibold flex items-center gap-2">
-              <MessageCircle className="w-5 h-5 text-violet-400" /> Chat com a Admin
-            </DialogTitle>
-          </DialogHeader>
-
-          {application?.status === "pre_approved" && (
-            <div className="mb-3 rounded-lg p-3 text-sm" style={{ background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)" }}>
-              <p className="text-green-400 font-semibold flex items-center gap-2"><CheckCircle2 className="w-4 h-4" /> Pré-aprovado!</p>
-              <p className="text-gray-400 text-xs mt-1">Você está no processo de aprovação final. Fique atento ao chat.</p>
-            </div>
-          )}
-
-          <div
-            ref={appScrollRef}
-            className="h-[320px] overflow-y-auto space-y-3 pr-1 my-3"
-          >
-            {isLoadingApp ? (
-              <p className="text-center text-gray-500 text-sm py-10">Carregando...</p>
-            ) : application?.messages?.length === 0 ? (
-              <p className="text-center text-gray-500 text-sm py-10">Aguarde a resposta da administração.</p>
-            ) : (
-              application?.messages?.map((msg: any) => {
-                const isApplicant = msg.senderType === "applicant";
-                return (
-                  <div key={msg.id} className={`flex ${isApplicant ? "justify-end" : "justify-start"}`}>
-                    <div
-                      className={`max-w-[80%] rounded-2xl px-4 py-3 ${isApplicant ? "rounded-tr-sm" : "rounded-tl-sm"}`}
-                      style={{
-                        background: isApplicant ? "linear-gradient(135deg, rgba(16,185,129,0.25), rgba(139,92,246,0.1))" : "rgba(255,255,255,0.05)",
-                        border: isApplicant ? "1px solid rgba(16,185,129,0.3)" : "1px solid rgba(255,255,255,0.08)",
-                      }}
-                    >
-                      <p className="text-[10px] text-gray-500 mb-0.5 font-semibold uppercase">{isApplicant ? "Você" : "Admin"}</p>
-                      <p className="text-white text-sm whitespace-pre-wrap">{msg.message}</p>
-                      <p className="text-[10px] text-gray-500 mt-1 text-right">{formatDate(msg.createdAt)}</p>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-
-          {application && application.status !== "archived" && application.status !== "rejected" ? (
-            <form onSubmit={handleAppChatSend} className="border-t border-white/10 pt-3">
-              <div className="flex items-end gap-2">
-                <Textarea
-                  value={appChatText}
-                  onChange={(e) => setAppChatText(e.target.value)}
-                  placeholder="Escreva uma mensagem..."
-                  className="flex-1 bg-white/5 border-white/10 text-white placeholder:text-gray-600 min-h-[60px] resize-none"
-                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleAppChatSend(e as any); } }}
-                />
-                <Button
-                  type="submit"
-                  disabled={sendAppMessage.isPending || !appChatText.trim()}
-                  className="h-[60px] w-12 p-0 text-white"
-                  style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}
-                >
-                  <Send className="w-4 h-4" />
-                </Button>
-              </div>
-            </form>
-          ) : (
-            <p className="text-center text-gray-500 text-sm py-2 border-t border-white/10">Este chat está encerrado.</p>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Support Chat Dialog */}
+      {/* Support Chat Modal */}
       <Dialog open={showSupportChat} onOpenChange={setShowSupportChat}>
         <DialogContent
           className="text-white max-w-lg border-0"
@@ -778,79 +604,64 @@ export default function LoginPage() {
             backdropFilter: "blur(20px)",
           }}
         >
-          <DialogHeader className="border-b border-white/10 pb-3 flex flex-row items-center justify-between">
+          <DialogHeader>
             <DialogTitle className="text-white text-lg font-semibold flex items-center gap-2">
-              <HelpCircle className="w-5 h-5 text-blue-400" /> Dúvida #{supportTicket?.id}
+              <MessageCircle className="w-5 h-5" /> Seu Chamado
             </DialogTitle>
-            <button
-              onClick={() => {
-                localStorage.removeItem(SUPPORT_STORAGE_KEY);
-                setSupportId(null);
-                setShowSupportChat(false);
-                setShowSupport(true);
-                setSupportForm({ name: "", email: "", subject: "", question: "" });
-              }}
-              className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
-            >
-              <HelpCircle className="w-3 h-3" /> Nova dúvida
-            </button>
           </DialogHeader>
-
-          <div
-            ref={supportScrollRef}
-            className="h-[320px] overflow-y-auto space-y-3 pr-1 my-3"
-          >
-            {isLoadingSupport ? (
-              <p className="text-center text-gray-500 text-sm py-10">Carregando...</p>
-            ) : supportTicket?.messages?.length === 0 ? (
-              <p className="text-center text-gray-500 text-sm py-10">Aguarde a resposta da administração.</p>
-            ) : (
-              supportTicket?.messages?.map((msg: any) => {
+          <div className="space-y-4 mt-2">
+            <div className="rounded-xl p-4 max-h-[400px] overflow-y-auto" style={{ background: "rgba(0,0,0,0.2)" }} ref={supportScrollRef}>
+              {supportTicket?.messages?.length === 0 && (
+                <p className="text-gray-500 text-sm text-center">Aguardando resposta do suporte.</p>
+              )}
+              {supportTicket?.messages?.map((msg: any) => {
                 const isUser = msg.senderType === "user";
                 return (
                   <div key={msg.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
                     <div
-                      className={`max-w-[80%] rounded-2xl px-4 py-3 ${isUser ? "rounded-tr-sm" : "rounded-tl-sm"}`}
-                      style={{
-                        background: isUser ? "linear-gradient(135deg, rgba(59,130,246,0.25), rgba(37,99,235,0.1))" : "rgba(255,255,255,0.05)",
-                        border: isUser ? "1px solid rgba(59,130,246,0.3)" : "1px solid rgba(255,255,255,0.08)",
-                      }}
+                      className={`max-w-[80%] rounded-2xl px-4 py-2.5 mb-2 text-sm ${isUser ? "bg-violet-600/30 text-violet-100 rounded-br-md" : "bg-white/10 text-gray-200 rounded-bl-md"}`}
                     >
-                      <p className="text-[10px] text-gray-500 mb-0.5 font-semibold uppercase">{isUser ? "Você" : "Admin"}</p>
-                      <p className="text-white text-sm whitespace-pre-wrap">{msg.message}</p>
-                      <p className="text-[10px] text-gray-500 mt-1 text-right">{formatDate(msg.createdAt)}</p>
+                      <p>{msg.content}</p>
+                      <p className="text-[10px] text-gray-500 mt-1">{formatDate(msg.createdAt)}</p>
                     </div>
                   </div>
                 );
-              })
-            )}
-          </div>
-
-          {supportTicket && supportTicket.status === "open" ? (
-            <form onSubmit={handleSupportChatSend} className="border-t border-white/10 pt-3">
-              <div className="flex items-end gap-2">
-                <Textarea
-                  value={supportChatText}
-                  onChange={(e) => setSupportChatText(e.target.value)}
-                  placeholder="Escreva uma mensagem..."
-                  className="flex-1 bg-white/5 border-white/10 text-white placeholder:text-gray-600 min-h-[60px] resize-none"
-                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSupportChatSend(e as any); } }}
-                />
-                <Button
-                  type="submit"
-                  disabled={sendSupportMessage.isPending || !supportChatText.trim()}
-                  className="h-[60px] w-12 p-0 text-white"
-                  style={{ background: "linear-gradient(135deg, #3b82f6, #2563eb)" }}
-                >
-                  <Send className="w-4 h-4" />
-                </Button>
-              </div>
+              })}
+            </div>
+            <form onSubmit={handleSupportChatSend} className="flex gap-2">
+              <Input
+                value={supportChatText}
+                onChange={(e) => setSupportChatText(e.target.value)}
+                placeholder="Digite sua mensagem..."
+                className="text-white border-white/10 bg-white/5"
+              />
+              <Button type="submit" size="icon" className="bg-violet-600 hover:bg-violet-500">
+                <Send className="w-4 h-4" />
+              </Button>
             </form>
-          ) : (
-            <p className="text-center text-gray-500 text-sm py-2 border-t border-white/10">Este ticket foi fechado. Caso ainda tenha dúvidas, abra um novo.</p>
-          )}
+          </div>
         </DialogContent>
       </Dialog>
+
+      {/* Floating Help */}
+      <button
+        onClick={() => setShowSupport(true)}
+        className="fixed bottom-6 right-6 w-12 h-12 rounded-full flex items-center justify-center z-30 transition-all hover:scale-110"
+        style={{ background: "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)", boxShadow: "0 4px 20px rgba(139,92,246,0.4)" }}
+      >
+        <HelpCircle className="w-5 h-5 text-white" />
+      </button>
+
+      {/* Floating Close App Chat */}
+      {hasApplication && isPreApproved && (
+        <button
+          onClick={() => setShowAppChat(true)}
+          className="fixed bottom-20 right-6 w-12 h-12 rounded-full flex items-center justify-center z-30 transition-all hover:scale-110"
+          style={{ background: "linear-gradient(135deg, #10b981 0%, #059669 100%)", boxShadow: "0 4px 20px rgba(16,185,129,0.4)" }}
+        >
+          <MessageCircle className="w-5 h-5 text-white" />
+        </button>
+      )}
     </div>
   );
 }
