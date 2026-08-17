@@ -996,7 +996,8 @@ async function getKeysByPaymentId(paymentId) {
   const rows = await db.select({ keyValue: licenseKeys.keyValue }).from(licenseKeys).where(
     or(
       eq(licenseKeys.note, `pix:${paymentId}`),
-      eq(licenseKeys.note, `ltc:${paymentId}`)
+      eq(licenseKeys.note, `ltc:${paymentId}`),
+      eq(licenseKeys.note, `other-store:${paymentId}`)
     )
   );
   return rows.map((r) => r.keyValue);

@@ -724,13 +724,14 @@ export async function getKeysByPaymentId(paymentId: string): Promise<string[]> {
   await ensureLicenseKeysSchema();
   const db = await getDb();
   if (!db) return [];
-  // Support both pix: and ltc: prefixes for payment notes
+  // Support pix, ltc and other-store prefixes for payment notes
   const rows = await db.select({ keyValue: licenseKeys.keyValue })
     .from(licenseKeys)
     .where(
       or(
         eq(licenseKeys.note, `pix:${paymentId}`),
-        eq(licenseKeys.note, `ltc:${paymentId}`)
+        eq(licenseKeys.note, `ltc:${paymentId}`),
+        eq(licenseKeys.note, `other-store:${paymentId}`)
       )
     );
   return rows.map(r => r.keyValue);
