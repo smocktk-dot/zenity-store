@@ -1407,7 +1407,7 @@ const resellerRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       const reseller = ctx.reseller;
-      if (reseller.resellerType !== "percentage") {
+      if (reseller.resellerType !== "percentage" && reseller.resellerType !== "other") {
         throw new TRPCError({ code: "FORBIDDEN", message: "Esta ação é apenas para resellers de porcentagem" });
       }
 
@@ -1541,7 +1541,7 @@ const resellerRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       const reseller = ctx.reseller;
-      if (reseller.resellerType !== "percentage") {
+      if (reseller.resellerType !== "percentage" && reseller.resellerType !== "other") {
         throw new TRPCError({ code: "FORBIDDEN", message: "Esta ação é apenas para resellers de porcentagem" });
       }
 

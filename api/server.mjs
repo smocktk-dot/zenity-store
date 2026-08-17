@@ -3454,7 +3454,7 @@ var resellerRouter = router({
     quantity: z2.number().min(1).max(100)
   })).mutation(async ({ ctx, input }) => {
     const reseller = ctx.reseller;
-    if (reseller.resellerType !== "percentage") {
+    if (reseller.resellerType !== "percentage" && reseller.resellerType !== "other") {
       throw new TRPCError3({ code: "FORBIDDEN", message: "Esta a\xE7\xE3o \xE9 apenas para resellers de porcentagem" });
     }
     const PURIN_API_KEY2 = process.env.PURIN_CASH_API_KEY;
@@ -3566,7 +3566,7 @@ var resellerRouter = router({
     quantity: z2.number().min(1).max(100)
   })).mutation(async ({ ctx, input }) => {
     const reseller = ctx.reseller;
-    if (reseller.resellerType !== "percentage") {
+    if (reseller.resellerType !== "percentage" && reseller.resellerType !== "other") {
       throw new TRPCError3({ code: "FORBIDDEN", message: "Esta a\xE7\xE3o \xE9 apenas para resellers de porcentagem" });
     }
     const PURIN_API_KEY2 = process.env.PURIN_CASH_API_KEY;
