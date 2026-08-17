@@ -3867,8 +3867,34 @@ async function createContext(opts) {
   let user = null;
   try {
     user = await sdk.authenticateRequest(opts.req);
-  } catch (error) {
+  } catch {
     user = null;
+  }
+  if (!user) {
+    try {
+      const token = getCustomToken(opts.req);
+      if (token) {
+        const payload = await verifyCustomJwt(token);
+        if (payload?.sub && typeof payload.sub === "string") {
+          const id = Number(payload.sub);
+          if (!Number.isNaN(id)) {
+            user = {
+              id,
+              openId: payload.sub,
+              name: payload.username || void 0,
+              email: null,
+              loginMethod: "cv_session",
+              role: payload.role === "admin" ? "admin" : "user",
+              createdAt: /* @__PURE__ */ new Date(),
+              updatedAt: /* @__PURE__ */ new Date(),
+              lastSignedIn: /* @__PURE__ */ new Date()
+            };
+          }
+        }
+      }
+    } catch (err) {
+      console.error("[Context] cv_session verification failed:", err);
+    }
   }
   return {
     req: opts.req,

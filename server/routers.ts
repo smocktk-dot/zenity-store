@@ -136,7 +136,7 @@ export async function signCustomJwt(payload: object) {
     .sign(JWT_SECRET);
 }
 
-async function verifyCustomJwt(token: string) {
+export async function verifyCustomJwt(token: string) {
   try {
     const { payload } = await jwtVerify(token, JWT_SECRET);
     return payload;
@@ -145,7 +145,7 @@ async function verifyCustomJwt(token: string) {
   }
 }
 
-function getCustomToken(req: any): string | null {
+export function getCustomToken(req: any): string | null {
   const cookieHeader = req.headers?.cookie || "";
   const match = cookieHeader.match(new RegExp(`${CUSTOM_COOKIE}=([^;]+)`));
   return match ? match[1] : null;
