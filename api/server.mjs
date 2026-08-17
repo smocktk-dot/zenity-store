@@ -3249,7 +3249,9 @@ var resellerRouter = router({
     if (available.length < qty) throw new TRPCError3({ code: "BAD_REQUEST", message: `Estoque insuficiente: ${available.length} dispon\xEDvel` });
     const price = parseFloat(String(plan.resellerSellingPrice));
     if (!price || price <= 0) throw new TRPCError3({ code: "BAD_REQUEST", message: "Pre\xE7o de venda n\xE3o configurado para este plano" });
-    const amountCents = Math.round(price * 100 * qty);
+    const discount = parseFloat(String(ctx.reseller.discountPercent));
+    const discountedPrice = price * (1 - discount / 100);
+    const amountCents = Math.round(discountedPrice * 100 * qty);
     const splitPercent = parseFloat(String(otherStore.splitPercent));
     const callbackUrl = `${process.env.VITE_APP_URL || "https://vgsellers.lat"}/api/webhooks/purincash`;
     const body = {
