@@ -206,6 +206,10 @@ export default function LoginPage() {
   useEffect(() => {
     try {
       const url = new URL("https://x" + location);
+      if (url.searchParams.get("discord") === "1") {
+        window.location.href = "/api/auth/discord";
+        return;
+      }
       const error = url.searchParams.get("error");
       if (error) {
         const msgs: Record<string, string> = {
