@@ -390,7 +390,7 @@ __export(db_exports, {
   isIpWhitelisted: () => isIpWhitelisted,
   isResellerIpAllowed: () => isResellerIpAllowed,
   listResellerApiKeys: () => listResellerApiKeys,
-  normalizeIp: () => normalizeIp,
+  normalizeIp: () => normalizeIp2,
   releaseStockReservation: () => releaseStockReservation,
   removeAppFromReseller: () => removeAppFromReseller,
   removeIpFromWhitelist: () => removeIpFromWhitelist,
@@ -912,7 +912,7 @@ async function createCreditTransaction(data) {
   if (!db) throw new Error("DB not available");
   await db.insert(creditTransactions).values(data);
 }
-function normalizeIp(raw) {
+function normalizeIp2(raw) {
   if (!raw) return "";
   const s = raw.trim();
   const mapped = s.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
@@ -928,7 +928,7 @@ async function getAllIpWhitelist() {
 async function addIpToWhitelist(ip, label, userType = "admin", userId) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  const normalized = normalizeIp(ip);
+  const normalized = normalizeIp2(ip);
   await db.insert(ipWhitelist).values({
     ip: normalized,
     label: label || null,
@@ -944,20 +944,20 @@ async function removeIpFromWhitelist(id) {
 async function isAdminIpAllowed(rawIp) {
   const db = await getDb();
   if (!db) return true;
-  const ip = normalizeIp(rawIp);
+  const ip = normalizeIp2(rawIp);
   const adminEntries = await db.select().from(ipWhitelist).where(eq(ipWhitelist.userType, "admin"));
   if (adminEntries.length === 0) return true;
-  return adminEntries.some((e) => normalizeIp(e.ip) === ip);
+  return adminEntries.some((e) => normalizeIp2(e.ip) === ip);
 }
 async function isResellerIpAllowed(rawIp, resellerId) {
   const db = await getDb();
   if (!db) return true;
-  const ip = normalizeIp(rawIp);
+  const ip = normalizeIp2(rawIp);
   const entries = await db.select().from(ipWhitelist).where(
     and(eq(ipWhitelist.userType, "reseller"), eq(ipWhitelist.userId, resellerId))
   );
   if (entries.length === 0) return true;
-  return entries.some((e) => normalizeIp(e.ip) === ip);
+  return entries.some((e) => normalizeIp2(e.ip) === ip);
 }
 async function isIpWhitelisted(ip) {
   return isAdminIpAllowed(ip);
@@ -2176,9 +2176,6 @@ function getCustomToken(req) {
 var authRouter = router({
   me: publicProcedure.query((opts) => opts.ctx.user),
   adminLogin: publicProcedure.input(z2.object({ username: z2.string(), password: z2.string() })).mutation(async ({ input, ctx }) => {
-    const clientIp = getClientIp(ctx.req);
-    const ipAllowed = await isAdminIpAllowed(clientIp);
-    if (!ipAllowed) throw new TRPCError3({ code: "FORBIDDEN", message: "Acesso negado: IP n\xE3o autorizado" });
     const admin = await getAdminByUsername(input.username);
     if (!admin) throw new TRPCError3({ code: "UNAUTHORIZED", message: "Credenciais inv\xE1lidas" });
     const valid = await bcrypt.compare(input.password, admin.passwordHash);
@@ -2197,9 +2194,6 @@ var authRouter = router({
     if (admin) {
       const validAdmin = await bcrypt.compare(input.password, admin.passwordHash);
       if (validAdmin) {
-        const clientIp = getClientIp(ctx.req);
-        const ipAllowed = await isAdminIpAllowed(clientIp);
-        if (!ipAllowed) throw new TRPCError3({ code: "FORBIDDEN", message: "Acesso negado: IP n\xE3o autorizado" });
         const token2 = await signCustomJwt({ sub: String(admin.id), role: "admin", username: admin.username });
         const maxAge2 = input.remember ? 30 * 24 * 3600 : 7 * 24 * 3600;
         ctx.res.cookie(CUSTOM_COOKIE, token2, { ...getSessionCookieOptions(ctx.req), maxAge: maxAge2 });
@@ -2211,9 +2205,6 @@ var authRouter = router({
     if (reseller.status !== "active") throw new TRPCError3({ code: "FORBIDDEN", message: "Conta desativada" });
     const valid = await bcrypt.compare(input.password, reseller.passwordHash);
     if (!valid) throw new TRPCError3({ code: "UNAUTHORIZED", message: "Credenciais inv\xE1lidas" });
-    const resellerIp = getClientIp(ctx.req);
-    const resellerIpAllowed = await isResellerIpAllowed(resellerIp, reseller.id);
-    if (!resellerIpAllowed) throw new TRPCError3({ code: "FORBIDDEN", message: "Acesso negado: IP n\xE3o autorizado para este reseller" });
     await updateReseller(reseller.id, { lastLoginAt: /* @__PURE__ */ new Date() });
     const otherStore = input.hwid ? await getOtherStoreResellerByHwid(input.hwid) : null;
     const tokenPayload = { sub: String(reseller.id), role: "reseller", username: reseller.username };
@@ -2224,11 +2215,6 @@ var authRouter = router({
     const maxAge = input.remember ? 30 * 24 * 3600 : 7 * 24 * 3600;
     ctx.res.cookie(CUSTOM_COOKIE, token, { ...getSessionCookieOptions(ctx.req), maxAge });
     return { success: true, role: "reseller", username: reseller.username };
-  }),
-  // Returns the real IP the server sees for this request (used by admin whitelist UI)
-  getMyIp: publicProcedure.query(({ ctx }) => {
-    const ip = getClientIp(ctx.req);
-    return { ip };
   }),
   session: publicProcedure.query(async ({ ctx }) => {
     const token = getCustomToken(ctx.req);

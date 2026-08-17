@@ -7,7 +7,6 @@ import InteractiveStars from "@/components/InteractiveStars";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useLanguage } from "@/contexts/LanguageContext";
 
-const LOGO_URL = "/logo.png";
 
 export default function ResellerLayout({ children }: { children: React.ReactNode }) {
   const [location, navigate] = useLocation();
@@ -71,16 +70,8 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
           {/* Left: Logo + Nav */}
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2.5">
-              {!isOtherStore && (
-                <img
-                  src={LOGO_URL}
-                alt="Zenity"
-                className="w-7 h-7 object-contain"
-                style={{ filter: "drop-shadow(0 0 6px rgba(16,185,129,0.7))" }}
-              />
-              )}
-              <span className={isOtherStore ? "text-white font-black text-sm tracking-wide" : "text-white font-black text-sm tracking-wide"}>
-                {isOtherStore ? "SELLERS" : <>VG <span className="font-normal text-emerald-400 text-xs tracking-widest">SELLERS</span></>}
+              <span className="text-white font-black text-sm tracking-[0.2em]">
+                SELLERS
               </span>
             </div>
 

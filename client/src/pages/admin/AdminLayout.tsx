@@ -7,7 +7,6 @@ import {
 } from "lucide-react";
 import InteractiveStars from "@/components/InteractiveStars";
 
-const LOGO_URL = "/logo.png";
 
 const navItems = [
   { href: "/admin", icon: LayoutDashboard, label: "Dashboard" },
@@ -70,15 +69,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       >
         {/* Logo */}
         <div className="flex items-center gap-3 px-5 py-6 border-b border-white/[0.06]">
-          <img
-            src={LOGO_URL}
-            alt="VG Sellers"
-            className="w-9 h-9 object-contain"
-            style={{ filter: "drop-shadow(0 0 10px rgba(16,185,129,0.6))" }}
-          />
           <div>
-            <p className="text-white font-black text-base leading-none tracking-tight">VG</p>
-            <p className="text-[10px] font-semibold tracking-[0.25em] mt-0.5" style={{ color: "#34d399" }}>SELLERS</p>
+            <p className="text-white font-black text-base leading-none tracking-[0.2em]">SELLERS</p>
           </div>
           <div className="ml-auto w-6 h-6 rounded-lg bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center">
             <Shield className="w-3 h-3 text-emerald-500" />

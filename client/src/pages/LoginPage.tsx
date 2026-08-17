@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Eye, EyeOff, LogIn, Send, MessageCircle, X, UserPlus, CheckCircle2, HelpCircle } from "lucide-react";
+import { Eye, EyeOff, LogIn, Send, MessageCircle, X, CheckCircle2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,6 @@ import InteractiveStars from "@/components/InteractiveStars";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useLanguage } from "@/contexts/LanguageContext";
 
-const LOGO_URL = "/logo.png";
 const APP_STORAGE_KEY = "zenity_application_id";
 const SUPPORT_STORAGE_KEY = "zenity_support_id";
 
@@ -622,25 +621,6 @@ export default function LoginPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Floating Help */}
-      <button
-        onClick={() => setShowSupport(true)}
-        className="fixed bottom-6 right-6 w-12 h-12 rounded-full flex items-center justify-center z-30 transition-all hover:scale-110"
-        style={{ background: "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)", boxShadow: "0 4px 20px rgba(139,92,246,0.4)" }}
-      >
-        <HelpCircle className="w-5 h-5 text-white" />
-      </button>
-
-      {/* Floating Close App Chat */}
-      {hasApplication && isPreApproved && (
-        <button
-          onClick={() => setShowAppChat(true)}
-          className="fixed bottom-20 right-6 w-12 h-12 rounded-full flex items-center justify-center z-30 transition-all hover:scale-110"
-          style={{ background: "linear-gradient(135deg, #10b981 0%, #059669 100%)", boxShadow: "0 4px 20px rgba(16,185,129,0.4)" }}
-        >
-          <MessageCircle className="w-5 h-5 text-white" />
-        </button>
-      )}
     </div>
   );
 }
