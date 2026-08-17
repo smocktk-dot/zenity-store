@@ -5,4 +5,4 @@ setlocal
 set "SITE_URL=https://vgsellers.lat"
 
 echo Abrindo site com login automatico pelo Discord...
-start "" "!SITE_URL!/?discord=1"
+start "" "!SITE_URL!"
