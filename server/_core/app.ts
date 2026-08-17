@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
+import { registerDiscordOAuth } from "./discordOAuth";
 import { registerResellerApi } from "../resellerApi";
 import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
@@ -23,6 +24,7 @@ app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 registerStorageProxy(app);
 registerOAuthRoutes(app);
+registerDiscordOAuth(app);
 registerResellerApi(app);
 
 // Endpoint that returns the real IP seen by the server

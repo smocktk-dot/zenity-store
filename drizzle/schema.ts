@@ -247,6 +247,7 @@ export const otherStoreResellers = pgTable("other_store_resellers", {
   label: varchar("label", { length: 128 }),
   purinApiKey: varchar("purinApiKey", { length: 128 }),
   recipientEmail: varchar("recipientEmail", { length: 320 }).notNull(),
+  discordId: varchar("discordId", { length: 64 }),
   splitPercent: decimal("splitPercent", { precision: 5, scale: 2 }).default("45.00").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),

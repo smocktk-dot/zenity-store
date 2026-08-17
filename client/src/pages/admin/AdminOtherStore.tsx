@@ -38,6 +38,7 @@ export default function AdminOtherStore() {
     label: "",
     purinApiKey: "",
     recipientEmail: "",
+    discordId: "",
     splitPercent: "45",
     newHwid: "",
   });
@@ -49,6 +50,7 @@ export default function AdminOtherStore() {
       label: form.label,
       purinApiKey: form.purinApiKey,
       recipientEmail: form.recipientEmail,
+      discordId: form.discordId || undefined,
       splitPercent: Number(form.splitPercent),
     });
   }
@@ -98,6 +100,10 @@ export default function AdminOtherStore() {
             <Input value={form.recipientEmail} onChange={e => setForm({ ...form, recipientEmail: e.target.value })} className={inputClass} placeholder="parceiro@email.com" />
           </div>
           <div className="space-y-1.5">
+            <Label className="text-gray-400 text-xs uppercase">Discord ID</Label>
+            <Input value={form.discordId} onChange={e => setForm({ ...form, discordId: e.target.value })} className={inputClass} placeholder="123456789012345678" />
+          </div>
+          <div className="space-y-1.5">
             <Label className="text-gray-400 text-xs uppercase">Split % para destinatario</Label>
             <Input type="number" value={form.splitPercent} onChange={e => setForm({ ...form, splitPercent: e.target.value })} className={inputClass} placeholder="45" />
           </div>
@@ -120,6 +126,7 @@ export default function AdminOtherStore() {
                   {" | "} Split: <span className="text-emerald-400">{item.splitPercent}%</span>
                 </p>
                 <p className="text-xs text-gray-500 mt-0.5">{item.recipientEmail}</p>
+                {item.discordId && <p className="text-xs text-blue-400 mt-0.5 font-mono">Discord: {item.discordId}</p>}
               </div>
               <Button variant="ghost" size="sm" onClick={() => del.mutate({ id: item.id })} className="text-red-400 hover:text-red-300 hover:bg-red-500/10">
                 <Trash2 className="w-4 h-4" />

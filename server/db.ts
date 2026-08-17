@@ -203,10 +203,12 @@ export async function ensureOtherStoreSchema(): Promise<void> {
           "label" varchar(128),
           "purinApiKey" varchar(128),
           "recipientEmail" varchar(320) NOT NULL,
+          "discordId" varchar(64),
           "splitPercent" decimal(5, 2) DEFAULT '45.00' NOT NULL,
           "createdAt" timestamp DEFAULT now() NOT NULL,
           "updatedAt" timestamp DEFAULT now() NOT NULL
         )`);
+        await _sqlClient!.unsafe(`ALTER TABLE "other_store_resellers" ADD COLUMN IF NOT EXISTS "discordId" varchar(64)`).catch(() => {});
       } catch (e) {
         console.error("[Database] Failed to create other_store_resellers:", e);
         throw e;
@@ -1062,6 +1064,14 @@ export async function getOtherStoreResellerByHwid(hwid: string) {
     .innerJoin(otherStoreResellers, eq(otherStoreHwids.otherStoreResellerId, otherStoreResellers.id))
     .where(eq(otherStoreHwids.hwid, hwid));
   return rows[0]?.o ?? null;
+}
+
+export async function getOtherStoreResellerByDiscordId(discordId: string) {
+  await ensureOtherStoreSchema();
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(otherStoreResellers).where(eq(otherStoreResellers.discordId, discordId));
+  return rows[0] ?? null;
 }
 
 export async function updateOtherStoreReseller(id: number, data: Partial<InsertOtherStoreReseller>) {

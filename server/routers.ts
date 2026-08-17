@@ -41,7 +41,7 @@ import {
 } from "./db";
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "cv-reseller-secret-key-2024");
-const CUSTOM_COOKIE = "cv_session";
+export const CUSTOM_COOKIE = "cv_session";
 
 /** Extract Pix BR code and QR code image from different PurinCash response shapes */
 function extractPixData(data: any) {
@@ -129,7 +129,7 @@ async function keyauthResetHwid(sellerKey: string, username: string): Promise<vo
   }
 }
 
-async function signCustomJwt(payload: object) {
+export async function signCustomJwt(payload: object) {
   return new SignJWT(payload as Record<string, unknown>)
     .setProtectedHeader({ alg: "HS256" })
     .setExpirationTime("7d")
@@ -941,6 +941,7 @@ const adminRouter = router({
       label: z.string().optional(),
       purinApiKey: z.string().optional(),
       recipientEmail: z.string().email(),
+      discordId: z.string().optional(),
       splitPercent: z.number().min(0.01).max(99.99),
     }))
     .mutation(async ({ input }) => {
@@ -949,6 +950,7 @@ const adminRouter = router({
         label: input.label,
         purinApiKey: input.purinApiKey,
         recipientEmail: input.recipientEmail,
+        discordId: input.discordId,
         splitPercent: String(input.splitPercent),
       } as any);
       return r;
@@ -961,6 +963,7 @@ const adminRouter = router({
       label: z.string().optional(),
       purinApiKey: z.string().optional(),
       recipientEmail: z.string().email().optional(),
+      discordId: z.string().optional(),
       splitPercent: z.number().min(0.01).max(99.99).optional(),
     }))
     .mutation(async ({ input }) => {
