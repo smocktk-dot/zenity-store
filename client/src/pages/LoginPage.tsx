@@ -126,7 +126,7 @@ export default function LoginPage() {
   useEffect(() => {
     if (!meLoading && me) {
       if (me.role === "admin") navigate("/admin");
-      else if (me.role === "reseller") navigate("/reseller");
+      else navigate("/reseller");
     }
   }, [me, meLoading, navigate]);
 
