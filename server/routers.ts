@@ -1,4 +1,4 @@
-import { z } from "zod";
+                                                                                                                                                                                                                                                                                                                                                                                  import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import bcrypt from "bcryptjs";
 import { SignJWT, jwtVerify } from "jose";
@@ -35,6 +35,9 @@ import {
   createSupportTicket, getSupportTicketById, getAllSupportTickets,
   updateSupportTicketStatus, updateSupportTicketTimestamp, deleteSupportTicket,
   getSupportMessages, createSupportMessage,
+  getOtherStoreResellers, createOtherStoreReseller, updateOtherStoreReseller, deleteOtherStoreReseller,
+  getOtherStoreResellerById, getOtherStoreResellerByIp, getOtherStoreIpsByResellerId,
+  createOtherStoreIp, deleteOtherStoreIp,
 } from "./db";
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "cv-reseller-secret-key-2024");
@@ -201,7 +204,12 @@ const authRouter = router({
       const resellerIpAllowed = await isResellerIpAllowed(resellerIp, reseller.id);
       if (!resellerIpAllowed) throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado: IP não autorizado para este reseller" });
       await updateReseller(reseller.id, { lastLoginAt: new Date() });
-      const token = await signCustomJwt({ sub: String(reseller.id), role: "reseller", username: reseller.username });
+      const otherStore = await getOtherStoreResellerByIp(resellerIp);
+      const tokenPayload: Record<string, any> = { sub: String(reseller.id), role: "reseller", username: reseller.username };
+      if (otherStore && otherStore.resellerId === reseller.id) {
+        tokenPayload.otherStoreId = otherStore.id;
+      }
+      const token = await signCustomJwt(tokenPayload);
       const maxAge = input.remember ? 30 * 24 * 3600 : 7 * 24 * 3600;
       ctx.res.cookie(CUSTOM_COOKIE, token, { ...getSessionCookieOptions(ctx.req), maxAge });
       return { success: true, role: "reseller" as const, username: reseller.username };
@@ -226,10 +234,17 @@ const authRouter = router({
     } else {
       const reseller = await getResellerById(id);
       if (!reseller) return null;
+      const otherStoreId = (payload?.otherStoreId as number | undefined) ?? null;
+      const otherStore = otherStoreId ? await getOtherStoreResellerById(otherStoreId) : null;
       return {
         id: reseller.id, username: reseller.username, role: "reseller" as const,
         credits: reseller.credits, discountPercent: reseller.discountPercent,
         totalPurchases: reseller.totalPurchases, status: reseller.status,
+        otherStore: otherStore ? {
+          id: otherStore.id,
+          label: otherStore.label,
+          splitPercent: otherStore.splitPercent,
+        } : null,
       };
     }
   }),
@@ -372,7 +387,9 @@ const resellerProcedure = publicProcedure.use(async ({ ctx, next }) => {
   const resellerId = parseInt(payload.sub as string);
   const reseller = await getResellerById(resellerId);
   if (!reseller || reseller.status !== "active") throw new TRPCError({ code: "FORBIDDEN", message: "Conta desativada" });
-  return next({ ctx: { ...ctx, resellerId, reseller } });
+  const otherStoreId = payload?.otherStoreId as number | undefined;
+  const otherStore = otherStoreId ? await getOtherStoreResellerById(otherStoreId) : null;
+  return next({ ctx: { ...ctx, resellerId, reseller, otherStore } });
 });
 
 // ─── Admin Router ─────────────────────────────────────────────────────────────
@@ -900,6 +917,80 @@ const adminRouter = router({
       await deleteSupportTicket(input.id);
       return { success: true };
     }),
+
+  // ─── Other Store ─────────────────────────────────────────────────────────────
+  listOtherStoreResellers: adminProcedure.query(async () => {
+    const list = await getOtherStoreResellers();
+    const ips = await Promise.all(list.map(r => getOtherStoreIpsByResellerId(r.id)));
+    return list.map((r, i) => ({ ...r, ips: ips[i] }));
+  }),
+
+  getOtherStoreReseller: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ input }) => {
+      const r = await getOtherStoreResellerById(input.id);
+      if (!r) throw new TRPCError({ code: "NOT_FOUND" });
+      const ips = await getOtherStoreIpsByResellerId(r.id);
+      return { ...r, ips };
+    }),
+
+  createOtherStoreReseller: adminProcedure
+    .input(z.object({
+      resellerId: z.number(),
+      label: z.string().optional(),
+      purinApiKey: z.string().optional(),
+      recipientEmail: z.string().email(),
+      splitPercent: z.number().min(0.01).max(99.99),
+    }))
+    .mutation(async ({ input }) => {
+      const r = await createOtherStoreReseller({
+        resellerId: input.resellerId,
+        label: input.label,
+        purinApiKey: input.purinApiKey,
+        recipientEmail: input.recipientEmail,
+        splitPercent: String(input.splitPercent),
+      } as any);
+      return r;
+    }),
+
+  updateOtherStoreReseller: adminProcedure
+    .input(z.object({
+      id: z.number(),
+      resellerId: z.number().optional(),
+      label: z.string().optional(),
+      purinApiKey: z.string().optional(),
+      recipientEmail: z.string().email().optional(),
+      splitPercent: z.number().min(0.01).max(99.99).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { id, ...data } = input;
+      const r = await updateOtherStoreReseller(id, data as any);
+      return r;
+    }),
+
+  deleteOtherStoreReseller: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      await deleteOtherStoreReseller(input.id);
+      return { success: true };
+    }),
+
+  addOtherStoreIp: adminProcedure
+    .input(z.object({ otherStoreResellerId: z.number(), ip: z.string().min(1) }))
+    .mutation(async ({ input }) => {
+      const row = await createOtherStoreIp({
+        otherStoreResellerId: input.otherStoreResellerId,
+        ip: input.ip,
+      } as any);
+      return row;
+    }),
+
+  removeOtherStoreIp: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      await deleteOtherStoreIp(input.id);
+      return { success: true };
+    }),
 });
 
 // ─── Reseller Router ──────────────────────────────────────────────────────────
@@ -1046,6 +1137,81 @@ const resellerRouter = router({
       if (key.status === "used") throw new TRPCError({ code: "BAD_REQUEST", message: "Key já utilizada não pode ser revogada" });
       await updateLicenseKey(input.keyId, { status: "revoked" });
       return { success: true };
+    }),
+
+  // ─── Other Store (split) ─────────────────────────────────────────────────────
+  createOtherStoreSplitCharge: resellerProcedure
+    .input(z.object({
+      appId: z.number(),
+      planId: z.number(),
+      quantity: z.number().min(1).max(100),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const PURIN_API_KEY = process.env.PURIN_CASH_API_KEY;
+      if (!PURIN_API_KEY) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Pagamento não configurado" });
+      const otherStore = ctx.otherStore;
+      if (!otherStore) throw new TRPCError({ code: "FORBIDDEN", message: "Acesso Other Store não autorizado" });
+      const plan = await getPlanById(input.planId);
+      if (!plan || plan.appId !== input.appId) throw new TRPCError({ code: "NOT_FOUND", message: "Plano não encontrado" });
+      const assigned = await getAssignedAppIds(ctx.resellerId);
+      if (!assigned.includes(input.appId)) throw new TRPCError({ code: "FORBIDDEN", message: "App não atribuído" });
+      const qty = input.quantity;
+      const available = await getAvailableStockForPlan(input.appId, input.planId, qty);
+      if (available.length < qty) throw new TRPCError({ code: "BAD_REQUEST", message: `Estoque insuficiente: ${available.length} disponível` });
+      const price = parseFloat(String(plan.resellerSellingPrice));
+      if (!price || price <= 0) throw new TRPCError({ code: "BAD_REQUEST", message: "Preço de venda não configurado para este plano" });
+      const amountCents = Math.round(price * 100 * qty);
+      const splitPercent = parseFloat(String(otherStore.splitPercent));
+      const callbackUrl = `${process.env.VITE_APP_URL || "https://vgsellers.lat"}/api/webhooks/purincash`;
+      const body = {
+        amountCents,
+        description: `Key ${plan.name} - Other Store`,
+        splits: [{ recipientEmail: otherStore.recipientEmail, percentage: splitPercent }],
+        callbackUrl,
+        customer: {
+          name: ctx.reseller.username,
+          email: ctx.reseller.email || `${ctx.reseller.username}@other-store.local`,
+          externalId: String(ctx.resellerId),
+        },
+      };
+      const response = await fetch("https://api.purincash.com/v1/split-charges", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${PURIN_API_KEY}`,
+        },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) {
+        const err = await response.text();
+        console.error("[PurinCash] Error creating split charge:", err);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Erro ao criar cobrança split" });
+      }
+      const data = await response.json() as any;
+      const { brCode, qrCodeImage } = extractPixData(data);
+      await createPixPayment({
+        resellerId: ctx.resellerId,
+        paymentId: data.paymentId,
+        amountCents,
+        credits: "0",
+        status: "pending",
+        brCode,
+        qrCodeImage,
+        expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
+        paymentType: "other-store",
+        paymentMethod: "pix",
+        appId: input.appId,
+        planId: input.planId,
+        quantity: qty,
+      } as any);
+      return {
+        paymentId: data.paymentId,
+        amountCents,
+        brCode,
+        qrCodeImage,
+        expiresAt: data.expiresAt,
+        status: "pending" as const,
+      };
     }),
 
   // ─── Pix / Purin Cash ──────────────────────────────────────────────────────

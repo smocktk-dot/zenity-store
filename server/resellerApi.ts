@@ -4,6 +4,7 @@ import {
   getAppById, getPlansByAppId, getPlanById, getStockByApp,
   getAvailableStockForPlan, reserveStockForReseller, releaseStockReservation, createLicenseKey,
   updateResellerCredits, createCreditTransaction,
+  getOtherStoreResellerByIp, getOtherStoreIpsByResellerId,
 } from "./db";
 import type { Reseller } from "../drizzle/schema";
 
@@ -44,11 +45,80 @@ export function registerResellerApi(app: Express) {
         name: p.name,
         durationDays: p.durationDays,
         priceCredits: p.priceCredits,
+        resellerSellingPrice: p.resellerSellingPrice,
         stockCount: stock.filter(s => s.planId === p.id && s.status === "available").length,
       }));
       return { id: app.id, name: app.name, description: app.description, version: app.version, plans: planList };
     }));
     res.json(result);
+  });
+
+  app.get("/api/reseller/v1/stock", async (req, res) => {
+    const reseller = await authReseller(req);
+    if (!reseller) return res.status(401).json({ error: "Invalid API key" });
+    const appId = req.query.appId ? Number(req.query.appId) : undefined;
+    const rows = await getAppsByResellerId(reseller.id);
+    const apps = appId ? rows.filter(r => r.app.id === appId) : rows;
+    const result = await Promise.all(apps.map(async ({ app }) => {
+      const plans = await getPlansByAppId(app.id);
+      const stock = await Promise.all(plans.map(async (p) => {
+        const available = await getAvailableStockForPlan(app.id, p.id, 1000);
+        return {
+          id: p.id,
+          name: p.name,
+          durationDays: p.durationDays,
+          priceCredits: p.priceCredits,
+          resellerSellingPrice: p.resellerSellingPrice,
+          stockCount: available.length,
+          inStock: available.length > 0,
+        };
+      }));
+      return { id: app.id, name: app.name, stock };
+    }));
+    res.json(result);
+  });
+
+  app.post("/api/reseller/v1/stock/take", async (req, res) => {
+    const reseller = await authReseller(req);
+    if (!reseller) return res.status(401).json({ error: "Invalid API key" });
+    const { appId, planId, planName, quantity = 1, customer, note } = req.body;
+    if (!appId) return res.status(400).json({ error: "appId is required" });
+    if (!planId && !planName) return res.status(400).json({ error: "planId or planName is required" });
+    const app = await getAppById(Number(appId));
+    if (!app) return res.status(404).json({ error: "App not found" });
+    const assigned = await getAssignedAppIds(reseller.id);
+    if (!assigned.includes(app.id)) return res.status(403).json({ error: "App not assigned" });
+    const plan = await resolvePlan(app.id, planId ? Number(planId) : undefined, planName);
+    if (!plan) return res.status(404).json({ error: "Plan not found" });
+    const qty = Math.max(1, Math.min(100, Number(quantity) || 1));
+    const stock = await getAvailableStockForPlan(app.id, plan.id, qty);
+    if (stock.length < qty) return res.status(409).json({ error: `Insufficient stock. Available: ${stock.length}, requested: ${qty}` });
+    const reserved: any[] = [];
+    for (const s of stock) {
+      const r = await reserveStockForReseller(s.id, reseller.id);
+      if (!r) return res.status(409).json({ error: "Stock reservation failed" });
+      reserved.push(r);
+    }
+    const noteParts: string[] = [];
+    if (customer) noteParts.push(`customer: ${customer}`);
+    if (note) noteParts.push(note);
+    const noteValue = noteParts.length ? noteParts.join(" | ") : undefined;
+    const keys: string[] = [];
+    for (const r of reserved) {
+      await createLicenseKey({
+        keyValue: r.keyValue,
+        resellerId: reseller.id,
+        appId: app.id,
+        planId: plan.id,
+        planName: plan.name,
+        durationDays: plan.durationDays,
+        creditsSpent: "0",
+        source: "api",
+        ...(noteValue ? { note: noteValue } : {}),
+      } as any);
+      keys.push(r.keyValue);
+    }
+    res.json({ keys, plan: { id: plan.id, name: plan.name, durationDays: plan.durationDays } });
   });
 
   app.post("/api/reseller/v1/buy", async (req, res) => {
@@ -117,5 +187,54 @@ export function registerResellerApi(app: Express) {
       description: `API buy ${qty}x ${app.name} (${plan.name})`,
     });
     res.json({ keys, cost: totalCost.toFixed(2), balanceAfter: newCredits.toFixed(2), plan: { id: plan.id, name: plan.name, durationDays: plan.durationDays } });
+  });
+
+  app.post("/api/reseller/v1/other-store/charge", async (req, res) => {
+    const reseller = await authReseller(req);
+    if (!reseller) return res.status(401).json({ error: "Invalid API key" });
+    const clientIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "";
+    const ip = String(clientIp).split(",")[0]?.trim() || "";
+    const otherStore = await getOtherStoreResellerByIp(ip);
+    if (!otherStore || otherStore.resellerId !== reseller.id) return res.status(403).json({ error: "IP not authorized for Other Store" });
+    const { appId, planName, quantity = 1, customer } = req.body;
+    if (!appId) return res.status(400).json({ error: "appId is required" });
+    if (!planName) return res.status(400).json({ error: "planName is required" });
+    const app = await getAppById(Number(appId));
+    if (!app) return res.status(404).json({ error: "App not found" });
+    const assigned = await getAssignedAppIds(reseller.id);
+    if (!assigned.includes(app.id)) return res.status(403).json({ error: "App not assigned" });
+    const plan = await resolvePlan(app.id, undefined, planName);
+    if (!plan) return res.status(404).json({ error: "Plan not found" });
+    const qty = Math.max(1, Math.min(100, Number(quantity) || 1));
+    const available = await getAvailableStockForPlan(app.id, plan.id, qty);
+    if (available.length < qty) return res.status(409).json({ error: `Insufficient stock. Available: ${available.length}, requested: ${qty}` });
+    const price = parseFloat(String(plan.resellerSellingPrice));
+    if (!price || price <= 0) return res.status(400).json({ error: "Reseller selling price not set for plan" });
+    const amountCents = Math.round(price * 100 * qty);
+    const splitPercent = parseFloat(String(otherStore.splitPercent));
+    const PURIN_API_KEY = process.env.PURIN_CASH_API_KEY;
+    if (!PURIN_API_KEY) return res.status(500).json({ error: "PurinCash not configured" });
+    const callbackUrl = `${process.env.VITE_APP_URL || "https://vgsellers.lat"}/api/webhooks/purincash`;
+    const body = {
+      amountCents,
+      description: `Key ${plan.name} - Other Store`,
+      splits: [{ recipientEmail: otherStore.recipientEmail, percentage: splitPercent }],
+      callbackUrl,
+      customer: customer ? { name: reseller.username, email: customer } : { name: reseller.username, email: reseller.email || `${reseller.username}@other-store.local` },
+    };
+    const response = await fetch("https://api.purincash.com/v1/split-charges", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${PURIN_API_KEY}` },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const err = await response.text();
+      console.error("[PurinCash] split charge error:", err);
+      return res.status(500).json({ error: "Failed to create split charge" });
+    }
+    const data = await response.json() as any;
+    const brCode = data?.pix?.brCode || data?.brCode || null;
+    const qrCodeImage = data?.pix?.qrCodeImage || data?.qrCodeImage || null;
+    res.json({ paymentId: data.paymentId, amountCents, brCode, qrCodeImage, expiresAt: data.expiresAt, plan: { id: plan.id, name: plan.name, durationDays: plan.durationDays } });
   });
 }

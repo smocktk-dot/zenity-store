@@ -240,6 +240,31 @@ export const ipWhitelist = pgTable("ip_whitelist", {
 export type IpWhitelist = typeof ipWhitelist.$inferSelect;
 export type InsertIpWhitelist = typeof ipWhitelist.$inferInsert;
 
+// ─── Other Store (IP-whitelisted split resellers) ─────────────────────────────
+export const otherStoreResellers = pgTable("other_store_resellers", {
+  id: serial("id").primaryKey(),
+  resellerId: integer("resellerId").notNull().references(() => resellers.id),
+  label: varchar("label", { length: 128 }),
+  purinApiKey: varchar("purinApiKey", { length: 128 }),
+  recipientEmail: varchar("recipientEmail", { length: 320 }).notNull(),
+  splitPercent: decimal("splitPercent", { precision: 5, scale: 2 }).default("45.00").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
+export type OtherStoreReseller = typeof otherStoreResellers.$inferSelect;
+export type InsertOtherStoreReseller = typeof otherStoreResellers.$inferInsert;
+
+export const otherStoreIps = pgTable("other_store_ips", {
+  id: serial("id").primaryKey(),
+  otherStoreResellerId: integer("otherStoreResellerId").notNull().references(() => otherStoreResellers.id, { onDelete: "cascade" }),
+  ip: varchar("ip", { length: 64 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type OtherStoreIp = typeof otherStoreIps.$inferSelect;
+export type InsertOtherStoreIp = typeof otherStoreIps.$inferInsert;
+
 // ─── Tickets ──────────────────────────────────────────────────────────────────
 export const tickets = pgTable("tickets", {
   id: serial("id").primaryKey(),

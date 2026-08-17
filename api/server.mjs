@@ -20,7 +20,7 @@ import {
   boolean,
   serial
 } from "drizzle-orm/pg-core";
-var userRoleEnum, resellerTypeEnum, resellerStatusEnum, appStatusEnum, planLevelEnum, keyStatusEnum, transactionTypeEnum, pixPaymentStatusEnum, ticketStatusEnum, ticketSenderEnum, applicationStatusEnum, applicationSenderEnum, supportTicketStatusEnum, supportMessageSenderEnum, appDownloadTypeEnum, users, admins, resellers, resellerApiKeys, categories, apps, stockStatusEnum, subscriptionPlans, resellerApps, licenseKeys, appStock, creditTransactions, pixPayments, ipWhitelist, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages, appDownloads;
+var userRoleEnum, resellerTypeEnum, resellerStatusEnum, appStatusEnum, planLevelEnum, keyStatusEnum, transactionTypeEnum, pixPaymentStatusEnum, ticketStatusEnum, ticketSenderEnum, applicationStatusEnum, applicationSenderEnum, supportTicketStatusEnum, supportMessageSenderEnum, appDownloadTypeEnum, users, admins, resellers, resellerApiKeys, categories, apps, stockStatusEnum, subscriptionPlans, resellerApps, licenseKeys, appStock, creditTransactions, pixPayments, ipWhitelist, otherStoreResellers, otherStoreIps, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages, appDownloads;
 var init_schema = __esm({
   "drizzle/schema.ts"() {
     "use strict";
@@ -197,6 +197,22 @@ var init_schema = __esm({
       // null = any admin; for reseller = reseller.id
       createdAt: timestamp("createdAt").defaultNow().notNull()
     });
+    otherStoreResellers = pgTable("other_store_resellers", {
+      id: serial("id").primaryKey(),
+      resellerId: integer("resellerId").notNull().references(() => resellers.id),
+      label: varchar("label", { length: 128 }),
+      purinApiKey: varchar("purinApiKey", { length: 128 }),
+      recipientEmail: varchar("recipientEmail", { length: 320 }).notNull(),
+      splitPercent: decimal("splitPercent", { precision: 5, scale: 2 }).default("45.00").notNull(),
+      createdAt: timestamp("createdAt").defaultNow().notNull(),
+      updatedAt: timestamp("updatedAt").defaultNow().notNull()
+    });
+    otherStoreIps = pgTable("other_store_ips", {
+      id: serial("id").primaryKey(),
+      otherStoreResellerId: integer("otherStoreResellerId").notNull().references(() => otherStoreResellers.id, { onDelete: "cascade" }),
+      ip: varchar("ip", { length: 64 }).notNull(),
+      createdAt: timestamp("createdAt").defaultNow().notNull()
+    });
     tickets = pgTable("tickets", {
       id: serial("id").primaryKey(),
       resellerId: integer("resellerId").notNull().references(() => resellers.id),
@@ -295,6 +311,8 @@ __export(db_exports, {
   createCategory: () => createCategory,
   createCreditTransaction: () => createCreditTransaction,
   createLicenseKey: () => createLicenseKey,
+  createOtherStoreIp: () => createOtherStoreIp,
+  createOtherStoreReseller: () => createOtherStoreReseller,
   createPixPayment: () => createPixPayment,
   createPlan: () => createPlan,
   createReseller: () => createReseller,
@@ -307,6 +325,8 @@ __export(db_exports, {
   deleteApp: () => deleteApp,
   deleteAppDownload: () => deleteAppDownload,
   deleteCategory: () => deleteCategory,
+  deleteOtherStoreIp: () => deleteOtherStoreIp,
+  deleteOtherStoreReseller: () => deleteOtherStoreReseller,
   deletePlan: () => deletePlan,
   deleteResellerApplication: () => deleteResellerApplication,
   deleteStock: () => deleteStock,
@@ -315,6 +335,7 @@ __export(db_exports, {
   ensureAppDownloadsSchema: () => ensureAppDownloadsSchema,
   ensureAppStockSchema: () => ensureAppStockSchema,
   ensureLicenseKeysSchema: () => ensureLicenseKeysSchema,
+  ensureOtherStoreSchema: () => ensureOtherStoreSchema,
   ensurePixPaymentSchema: () => ensurePixPaymentSchema,
   ensureResellerApiKeySchema: () => ensureResellerApiKeySchema,
   getAdminById: () => getAdminById,
@@ -339,6 +360,10 @@ __export(db_exports, {
   getKeyById: () => getKeyById,
   getKeysByPaymentId: () => getKeysByPaymentId,
   getKeysByResellerId: () => getKeysByResellerId,
+  getOtherStoreIpsByResellerId: () => getOtherStoreIpsByResellerId,
+  getOtherStoreResellerById: () => getOtherStoreResellerById,
+  getOtherStoreResellerByIp: () => getOtherStoreResellerByIp,
+  getOtherStoreResellers: () => getOtherStoreResellers,
   getPendingPixPaymentsByReseller: () => getPendingPixPaymentsByReseller,
   getPixPaymentByPaymentId: () => getPixPaymentByPaymentId,
   getPixPaymentsByReseller: () => getPixPaymentsByReseller,
@@ -374,6 +399,7 @@ __export(db_exports, {
   updateAppDownload: () => updateAppDownload,
   updateCategory: () => updateCategory,
   updateLicenseKey: () => updateLicenseKey,
+  updateOtherStoreReseller: () => updateOtherStoreReseller,
   updatePixPaymentStatus: () => updatePixPaymentStatus,
   updatePlan: () => updatePlan,
   updateReseller: () => updateReseller,
@@ -538,6 +564,45 @@ async function ensureResellerApiKeySchema() {
     });
   }
   return _resellerApiKeysSchemaReady;
+}
+async function ensureOtherStoreSchema() {
+  await getDb();
+  if (!_sqlClient) throw new Error("DB not available");
+  if (!_otherStoreSchemaReady) {
+    _otherStoreSchemaReady = (async () => {
+      try {
+        await _sqlClient.unsafe(`CREATE TABLE IF NOT EXISTS "other_store_resellers" (
+          "id" serial PRIMARY KEY,
+          "resellerId" integer NOT NULL REFERENCES "resellers"("id"),
+          "label" varchar(128),
+          "purinApiKey" varchar(128),
+          "recipientEmail" varchar(320) NOT NULL,
+          "splitPercent" decimal(5, 2) DEFAULT '45.00' NOT NULL,
+          "createdAt" timestamp DEFAULT now() NOT NULL,
+          "updatedAt" timestamp DEFAULT now() NOT NULL
+        )`);
+      } catch (e) {
+        console.error("[Database] Failed to create other_store_resellers:", e);
+        throw e;
+      }
+      try {
+        await _sqlClient.unsafe(`CREATE TABLE IF NOT EXISTS "other_store_ips" (
+          "id" serial PRIMARY KEY,
+          "otherStoreResellerId" integer NOT NULL REFERENCES "other_store_resellers"("id") ON DELETE CASCADE,
+          "ip" varchar(64) NOT NULL,
+          "createdAt" timestamp DEFAULT now() NOT NULL
+        )`);
+      } catch (e) {
+        console.error("[Database] Failed to create other_store_ips:", e);
+        throw e;
+      }
+    })().then(() => void 0).catch((error) => {
+      _otherStoreSchemaReady = null;
+      console.error("[Database] Failed to ensure other store schema:", error);
+      throw new Error("N\xE3o foi poss\xEDvel preparar o banco para other store");
+    });
+  }
+  return _otherStoreSchemaReady;
 }
 async function upsertUser(user) {
   if (!user.openId) throw new Error("User openId is required for upsert");
@@ -1173,7 +1238,66 @@ async function deleteAppDownload(id) {
   if (!db) throw new Error("DB not available");
   await db.delete(appDownloads).where(eq(appDownloads.id, id));
 }
-var _db, _sqlClient, _pixPaymentSchemaReady, _appStockSchemaReady, _licenseKeysSchemaReady, _appDownloadsSchemaReady, _resellerApiKeysSchemaReady;
+async function createOtherStoreReseller(data) {
+  await ensureOtherStoreSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.insert(otherStoreResellers).values(data).returning();
+  return row;
+}
+async function getOtherStoreResellers() {
+  await ensureOtherStoreSchema();
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(otherStoreResellers).orderBy(desc(otherStoreResellers.createdAt));
+}
+async function getOtherStoreResellerById(id) {
+  await ensureOtherStoreSchema();
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db.select().from(otherStoreResellers).where(eq(otherStoreResellers.id, id));
+  return row;
+}
+async function getOtherStoreResellerByIp(ip) {
+  await ensureOtherStoreSchema();
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select({ o: otherStoreResellers, i: otherStoreIps }).from(otherStoreIps).innerJoin(otherStoreResellers, eq(otherStoreIps.otherStoreResellerId, otherStoreResellers.id)).where(eq(otherStoreIps.ip, ip));
+  return rows[0]?.o ?? null;
+}
+async function updateOtherStoreReseller(id, data) {
+  await ensureOtherStoreSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.update(otherStoreResellers).set(data).where(eq(otherStoreResellers.id, id)).returning();
+  return row;
+}
+async function deleteOtherStoreReseller(id) {
+  await ensureOtherStoreSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.delete(otherStoreResellers).where(eq(otherStoreResellers.id, id));
+}
+async function createOtherStoreIp(data) {
+  await ensureOtherStoreSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.insert(otherStoreIps).values(data).returning();
+  return row;
+}
+async function getOtherStoreIpsByResellerId(otherStoreResellerId) {
+  await ensureOtherStoreSchema();
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(otherStoreIps).where(eq(otherStoreIps.otherStoreResellerId, otherStoreResellerId));
+}
+async function deleteOtherStoreIp(id) {
+  await ensureOtherStoreSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.delete(otherStoreIps).where(eq(otherStoreIps.id, id));
+}
+var _db, _sqlClient, _pixPaymentSchemaReady, _appStockSchemaReady, _licenseKeysSchemaReady, _appDownloadsSchemaReady, _resellerApiKeysSchemaReady, _otherStoreSchemaReady;
 var init_db = __esm({
   "server/db.ts"() {
     "use strict";
@@ -1186,6 +1310,7 @@ var init_db = __esm({
     _licenseKeysSchemaReady = null;
     _appDownloadsSchemaReady = null;
     _resellerApiKeysSchemaReady = null;
+    _otherStoreSchemaReady = null;
   }
 });
 
@@ -1577,11 +1702,78 @@ function registerResellerApi(app2) {
         name: p.name,
         durationDays: p.durationDays,
         priceCredits: p.priceCredits,
+        resellerSellingPrice: p.resellerSellingPrice,
         stockCount: stock.filter((s) => s.planId === p.id && s.status === "available").length
       }));
       return { id: app3.id, name: app3.name, description: app3.description, version: app3.version, plans: planList };
     }));
     res.json(result);
+  });
+  app2.get("/api/reseller/v1/stock", async (req, res) => {
+    const reseller = await authReseller(req);
+    if (!reseller) return res.status(401).json({ error: "Invalid API key" });
+    const appId = req.query.appId ? Number(req.query.appId) : void 0;
+    const rows = await getAppsByResellerId(reseller.id);
+    const apps2 = appId ? rows.filter((r) => r.app.id === appId) : rows;
+    const result = await Promise.all(apps2.map(async ({ app: app3 }) => {
+      const plans = await getPlansByAppId(app3.id);
+      const stock = await Promise.all(plans.map(async (p) => {
+        const available = await getAvailableStockForPlan(app3.id, p.id, 1e3);
+        return {
+          id: p.id,
+          name: p.name,
+          durationDays: p.durationDays,
+          priceCredits: p.priceCredits,
+          resellerSellingPrice: p.resellerSellingPrice,
+          stockCount: available.length,
+          inStock: available.length > 0
+        };
+      }));
+      return { id: app3.id, name: app3.name, stock };
+    }));
+    res.json(result);
+  });
+  app2.post("/api/reseller/v1/stock/take", async (req, res) => {
+    const reseller = await authReseller(req);
+    if (!reseller) return res.status(401).json({ error: "Invalid API key" });
+    const { appId, planId, planName, quantity = 1, customer, note } = req.body;
+    if (!appId) return res.status(400).json({ error: "appId is required" });
+    if (!planId && !planName) return res.status(400).json({ error: "planId or planName is required" });
+    const app3 = await getAppById(Number(appId));
+    if (!app3) return res.status(404).json({ error: "App not found" });
+    const assigned = await getAssignedAppIds(reseller.id);
+    if (!assigned.includes(app3.id)) return res.status(403).json({ error: "App not assigned" });
+    const plan = await resolvePlan(app3.id, planId ? Number(planId) : void 0, planName);
+    if (!plan) return res.status(404).json({ error: "Plan not found" });
+    const qty = Math.max(1, Math.min(100, Number(quantity) || 1));
+    const stock = await getAvailableStockForPlan(app3.id, plan.id, qty);
+    if (stock.length < qty) return res.status(409).json({ error: `Insufficient stock. Available: ${stock.length}, requested: ${qty}` });
+    const reserved = [];
+    for (const s of stock) {
+      const r = await reserveStockForReseller(s.id, reseller.id);
+      if (!r) return res.status(409).json({ error: "Stock reservation failed" });
+      reserved.push(r);
+    }
+    const noteParts = [];
+    if (customer) noteParts.push(`customer: ${customer}`);
+    if (note) noteParts.push(note);
+    const noteValue = noteParts.length ? noteParts.join(" | ") : void 0;
+    const keys = [];
+    for (const r of reserved) {
+      await createLicenseKey({
+        keyValue: r.keyValue,
+        resellerId: reseller.id,
+        appId: app3.id,
+        planId: plan.id,
+        planName: plan.name,
+        durationDays: plan.durationDays,
+        creditsSpent: "0",
+        source: "api",
+        ...noteValue ? { note: noteValue } : {}
+      });
+      keys.push(r.keyValue);
+    }
+    res.json({ keys, plan: { id: plan.id, name: plan.name, durationDays: plan.durationDays } });
   });
   app2.post("/api/reseller/v1/buy", async (req, res) => {
     const reseller = await authReseller(req);
@@ -1649,6 +1841,54 @@ function registerResellerApi(app2) {
       description: `API buy ${qty}x ${app3.name} (${plan.name})`
     });
     res.json({ keys, cost: totalCost.toFixed(2), balanceAfter: newCredits.toFixed(2), plan: { id: plan.id, name: plan.name, durationDays: plan.durationDays } });
+  });
+  app2.post("/api/reseller/v1/other-store/charge", async (req, res) => {
+    const reseller = await authReseller(req);
+    if (!reseller) return res.status(401).json({ error: "Invalid API key" });
+    const clientIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "";
+    const ip = String(clientIp).split(",")[0]?.trim() || "";
+    const otherStore = await getOtherStoreResellerByIp(ip);
+    if (!otherStore || otherStore.resellerId !== reseller.id) return res.status(403).json({ error: "IP not authorized for Other Store" });
+    const { appId, planName, quantity = 1, customer } = req.body;
+    if (!appId) return res.status(400).json({ error: "appId is required" });
+    if (!planName) return res.status(400).json({ error: "planName is required" });
+    const app3 = await getAppById(Number(appId));
+    if (!app3) return res.status(404).json({ error: "App not found" });
+    const assigned = await getAssignedAppIds(reseller.id);
+    if (!assigned.includes(app3.id)) return res.status(403).json({ error: "App not assigned" });
+    const plan = await resolvePlan(app3.id, void 0, planName);
+    if (!plan) return res.status(404).json({ error: "Plan not found" });
+    const qty = Math.max(1, Math.min(100, Number(quantity) || 1));
+    const available = await getAvailableStockForPlan(app3.id, plan.id, qty);
+    if (available.length < qty) return res.status(409).json({ error: `Insufficient stock. Available: ${available.length}, requested: ${qty}` });
+    const price = parseFloat(String(plan.resellerSellingPrice));
+    if (!price || price <= 0) return res.status(400).json({ error: "Reseller selling price not set for plan" });
+    const amountCents = Math.round(price * 100 * qty);
+    const splitPercent = parseFloat(String(otherStore.splitPercent));
+    const PURIN_API_KEY2 = process.env.PURIN_CASH_API_KEY;
+    if (!PURIN_API_KEY2) return res.status(500).json({ error: "PurinCash not configured" });
+    const callbackUrl = `${process.env.VITE_APP_URL || "https://vgsellers.lat"}/api/webhooks/purincash`;
+    const body = {
+      amountCents,
+      description: `Key ${plan.name} - Other Store`,
+      splits: [{ recipientEmail: otherStore.recipientEmail, percentage: splitPercent }],
+      callbackUrl,
+      customer: customer ? { name: reseller.username, email: customer } : { name: reseller.username, email: reseller.email || `${reseller.username}@other-store.local` }
+    };
+    const response = await fetch("https://api.purincash.com/v1/split-charges", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${PURIN_API_KEY2}` },
+      body: JSON.stringify(body)
+    });
+    if (!response.ok) {
+      const err = await response.text();
+      console.error("[PurinCash] split charge error:", err);
+      return res.status(500).json({ error: "Failed to create split charge" });
+    }
+    const data = await response.json();
+    const brCode = data?.pix?.brCode || data?.brCode || null;
+    const qrCodeImage = data?.pix?.qrCodeImage || data?.qrCodeImage || null;
+    res.json({ paymentId: data.paymentId, amountCents, brCode, qrCodeImage, expiresAt: data.expiresAt, plan: { id: plan.id, name: plan.name, durationDays: plan.durationDays } });
   });
 }
 
@@ -1900,8 +2140,9 @@ async function handlePurinCashWebhook(req, res) {
 }
 async function checkPurinPaymentStatus(paymentId) {
   if (!PURIN_API_KEY) return null;
-  const isCharge = paymentId.startsWith("psc_") || paymentId.startsWith("psplit_");
-  const url = isCharge ? `https://api.purincash.com/v1/charges/${paymentId}` : `https://api.purincash.com/v1/payments/${paymentId}`;
+  const isSplit = paymentId.startsWith("psplit_");
+  const isCharge = paymentId.startsWith("psc_") || isSplit;
+  const url = isSplit ? `https://api.purincash.com/v1/split-charges/${paymentId}` : isCharge ? `https://api.purincash.com/v1/charges/${paymentId}` : `https://api.purincash.com/v1/payments/${paymentId}`;
   try {
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${PURIN_API_KEY}` }
@@ -1929,7 +2170,60 @@ async function processPurinPaymentUpdate(paymentId, status, paidAt) {
     if (!reseller) {
       return { status: 404, body: { error: "Reseller not found" } };
     }
-    if (payment.paymentType === "key") {
+    if (payment.paymentType === "other-store") {
+      const appId = payment.appId;
+      const planId = payment.planId;
+      const quantity = payment.quantity ?? 1;
+      if (!appId || !planId || quantity < 1) {
+        throw new Error(`Pagamento other-store ${paymentId} sem app, plano ou quantidade v\xE1lida`);
+      }
+      const existingKeys = await getKeysByPaymentId(paymentId);
+      if (payment.status === "paid" && existingKeys.length >= quantity) {
+        return { status: 200, body: { ok: true, message: "Already processed" } };
+      }
+      const app2 = await getAppById(appId);
+      const plan = await getPlanById(planId);
+      if (!app2 || !plan || plan.appId !== appId) {
+        throw new Error(`App ou plano n\xE3o encontrado para o pagamento other-store ${paymentId}`);
+      }
+      const missingQuantity = Math.max(0, quantity - existingKeys.length);
+      if (missingQuantity > 0) {
+        const stockItems = await getAvailableStockForPlan(appId, planId, missingQuantity);
+        if (stockItems.length < missingQuantity) {
+          throw new Error(`Estoque insuficiente para ${plan.name}: tem ${stockItems.length}, precisa ${missingQuantity}`);
+        }
+        for (const item of stockItems) {
+          const reserved = await reserveStockForReseller(item.id, payment.resellerId);
+          if (!reserved) {
+            throw new Error(`Falha ao reservar key do estoque: ${item.id}`);
+          }
+          await createLicenseKey({
+            keyValue: reserved.keyValue,
+            resellerId: payment.resellerId,
+            appId,
+            planId: plan.id,
+            planName: plan.name,
+            durationDays: plan.durationDays,
+            creditsSpent: "0",
+            resellerCredits: reseller.credits,
+            note: `other-store:${paymentId}`,
+            source: "other-store"
+          });
+        }
+      }
+      if (payment.status !== "paid") {
+        const newPurchases = reseller.totalPurchases + quantity;
+        await updateResellerCredits(
+          payment.resellerId,
+          reseller.credits,
+          newPurchases,
+          reseller.discountPercent
+        );
+      }
+      await updatePixPaymentStatus(paymentId, "paid", paidAt);
+      console.log(`[PurinCash] Delivered ${quantity} key(s) for other-store payment ${paymentId}`);
+      return { status: 200, body: { ok: true } };
+    } else if (payment.paymentType === "key") {
       const appId = payment.appId;
       const planId = payment.planId;
       const quantity = payment.quantity ?? 1;
@@ -2172,7 +2466,12 @@ var authRouter = router({
     const resellerIpAllowed = await isResellerIpAllowed(resellerIp, reseller.id);
     if (!resellerIpAllowed) throw new TRPCError3({ code: "FORBIDDEN", message: "Acesso negado: IP n\xE3o autorizado para este reseller" });
     await updateReseller(reseller.id, { lastLoginAt: /* @__PURE__ */ new Date() });
-    const token = await signCustomJwt({ sub: String(reseller.id), role: "reseller", username: reseller.username });
+    const otherStore = await getOtherStoreResellerByIp(resellerIp);
+    const tokenPayload = { sub: String(reseller.id), role: "reseller", username: reseller.username };
+    if (otherStore && otherStore.resellerId === reseller.id) {
+      tokenPayload.otherStoreId = otherStore.id;
+    }
+    const token = await signCustomJwt(tokenPayload);
     const maxAge = input.remember ? 30 * 24 * 3600 : 7 * 24 * 3600;
     ctx.res.cookie(CUSTOM_COOKIE, token, { ...getSessionCookieOptions(ctx.req), maxAge });
     return { success: true, role: "reseller", username: reseller.username };
@@ -2195,6 +2494,8 @@ var authRouter = router({
     } else {
       const reseller = await getResellerById(id);
       if (!reseller) return null;
+      const otherStoreId = payload?.otherStoreId ?? null;
+      const otherStore = otherStoreId ? await getOtherStoreResellerById(otherStoreId) : null;
       return {
         id: reseller.id,
         username: reseller.username,
@@ -2202,7 +2503,12 @@ var authRouter = router({
         credits: reseller.credits,
         discountPercent: reseller.discountPercent,
         totalPurchases: reseller.totalPurchases,
-        status: reseller.status
+        status: reseller.status,
+        otherStore: otherStore ? {
+          id: otherStore.id,
+          label: otherStore.label,
+          splitPercent: otherStore.splitPercent
+        } : null
       };
     }
   }),
@@ -2319,7 +2625,9 @@ var resellerProcedure = publicProcedure.use(async ({ ctx, next }) => {
   const resellerId = parseInt(payload.sub);
   const reseller = await getResellerById(resellerId);
   if (!reseller || reseller.status !== "active") throw new TRPCError3({ code: "FORBIDDEN", message: "Conta desativada" });
-  return next({ ctx: { ...ctx, resellerId, reseller } });
+  const otherStoreId = payload?.otherStoreId;
+  const otherStore = otherStoreId ? await getOtherStoreResellerById(otherStoreId) : null;
+  return next({ ctx: { ...ctx, resellerId, reseller, otherStore } });
 });
 var adminRouter = router({
   // Resellers
@@ -2736,6 +3044,61 @@ var adminRouter = router({
   deleteSupportTicket: adminProcedure2.input(z2.object({ id: z2.number() })).mutation(async ({ input }) => {
     await deleteSupportTicket(input.id);
     return { success: true };
+  }),
+  // ─── Other Store ─────────────────────────────────────────────────────────────
+  listOtherStoreResellers: adminProcedure2.query(async () => {
+    const list = await getOtherStoreResellers();
+    const ips = await Promise.all(list.map((r) => getOtherStoreIpsByResellerId(r.id)));
+    return list.map((r, i) => ({ ...r, ips: ips[i] }));
+  }),
+  getOtherStoreReseller: adminProcedure2.input(z2.object({ id: z2.number() })).query(async ({ input }) => {
+    const r = await getOtherStoreResellerById(input.id);
+    if (!r) throw new TRPCError3({ code: "NOT_FOUND" });
+    const ips = await getOtherStoreIpsByResellerId(r.id);
+    return { ...r, ips };
+  }),
+  createOtherStoreReseller: adminProcedure2.input(z2.object({
+    resellerId: z2.number(),
+    label: z2.string().optional(),
+    purinApiKey: z2.string().optional(),
+    recipientEmail: z2.string().email(),
+    splitPercent: z2.number().min(0.01).max(99.99)
+  })).mutation(async ({ input }) => {
+    const r = await createOtherStoreReseller({
+      resellerId: input.resellerId,
+      label: input.label,
+      purinApiKey: input.purinApiKey,
+      recipientEmail: input.recipientEmail,
+      splitPercent: String(input.splitPercent)
+    });
+    return r;
+  }),
+  updateOtherStoreReseller: adminProcedure2.input(z2.object({
+    id: z2.number(),
+    resellerId: z2.number().optional(),
+    label: z2.string().optional(),
+    purinApiKey: z2.string().optional(),
+    recipientEmail: z2.string().email().optional(),
+    splitPercent: z2.number().min(0.01).max(99.99).optional()
+  })).mutation(async ({ input }) => {
+    const { id, ...data } = input;
+    const r = await updateOtherStoreReseller(id, data);
+    return r;
+  }),
+  deleteOtherStoreReseller: adminProcedure2.input(z2.object({ id: z2.number() })).mutation(async ({ input }) => {
+    await deleteOtherStoreReseller(input.id);
+    return { success: true };
+  }),
+  addOtherStoreIp: adminProcedure2.input(z2.object({ otherStoreResellerId: z2.number(), ip: z2.string().min(1) })).mutation(async ({ input }) => {
+    const row = await createOtherStoreIp({
+      otherStoreResellerId: input.otherStoreResellerId,
+      ip: input.ip
+    });
+    return row;
+  }),
+  removeOtherStoreIp: adminProcedure2.input(z2.object({ id: z2.number() })).mutation(async ({ input }) => {
+    await deleteOtherStoreIp(input.id);
+    return { success: true };
   })
 });
 var resellerRouter = router({
@@ -2865,6 +3228,78 @@ var resellerRouter = router({
     if (key.status === "used") throw new TRPCError3({ code: "BAD_REQUEST", message: "Key j\xE1 utilizada n\xE3o pode ser revogada" });
     await updateLicenseKey(input.keyId, { status: "revoked" });
     return { success: true };
+  }),
+  // ─── Other Store (split) ─────────────────────────────────────────────────────
+  createOtherStoreSplitCharge: resellerProcedure.input(z2.object({
+    appId: z2.number(),
+    planId: z2.number(),
+    quantity: z2.number().min(1).max(100)
+  })).mutation(async ({ ctx, input }) => {
+    const PURIN_API_KEY2 = process.env.PURIN_CASH_API_KEY;
+    if (!PURIN_API_KEY2) throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: "Pagamento n\xE3o configurado" });
+    const otherStore = ctx.otherStore;
+    if (!otherStore) throw new TRPCError3({ code: "FORBIDDEN", message: "Acesso Other Store n\xE3o autorizado" });
+    const plan = await getPlanById(input.planId);
+    if (!plan || plan.appId !== input.appId) throw new TRPCError3({ code: "NOT_FOUND", message: "Plano n\xE3o encontrado" });
+    const assigned = await getAssignedAppIds(ctx.resellerId);
+    if (!assigned.includes(input.appId)) throw new TRPCError3({ code: "FORBIDDEN", message: "App n\xE3o atribu\xEDdo" });
+    const qty = input.quantity;
+    const available = await getAvailableStockForPlan(input.appId, input.planId, qty);
+    if (available.length < qty) throw new TRPCError3({ code: "BAD_REQUEST", message: `Estoque insuficiente: ${available.length} dispon\xEDvel` });
+    const price = parseFloat(String(plan.resellerSellingPrice));
+    if (!price || price <= 0) throw new TRPCError3({ code: "BAD_REQUEST", message: "Pre\xE7o de venda n\xE3o configurado para este plano" });
+    const amountCents = Math.round(price * 100 * qty);
+    const splitPercent = parseFloat(String(otherStore.splitPercent));
+    const callbackUrl = `${process.env.VITE_APP_URL || "https://vgsellers.lat"}/api/webhooks/purincash`;
+    const body = {
+      amountCents,
+      description: `Key ${plan.name} - Other Store`,
+      splits: [{ recipientEmail: otherStore.recipientEmail, percentage: splitPercent }],
+      callbackUrl,
+      customer: {
+        name: ctx.reseller.username,
+        email: ctx.reseller.email || `${ctx.reseller.username}@other-store.local`,
+        externalId: String(ctx.resellerId)
+      }
+    };
+    const response = await fetch("https://api.purincash.com/v1/split-charges", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${PURIN_API_KEY2}`
+      },
+      body: JSON.stringify(body)
+    });
+    if (!response.ok) {
+      const err = await response.text();
+      console.error("[PurinCash] Error creating split charge:", err);
+      throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: "Erro ao criar cobran\xE7a split" });
+    }
+    const data = await response.json();
+    const { brCode, qrCodeImage } = extractPixData(data);
+    await createPixPayment({
+      resellerId: ctx.resellerId,
+      paymentId: data.paymentId,
+      amountCents,
+      credits: "0",
+      status: "pending",
+      brCode,
+      qrCodeImage,
+      expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
+      paymentType: "other-store",
+      paymentMethod: "pix",
+      appId: input.appId,
+      planId: input.planId,
+      quantity: qty
+    });
+    return {
+      paymentId: data.paymentId,
+      amountCents,
+      brCode,
+      qrCodeImage,
+      expiresAt: data.expiresAt,
+      status: "pending"
+    };
   }),
   // ─── Pix / Purin Cash ──────────────────────────────────────────────────────
   createPixCharge: resellerProcedure.input(z2.object({

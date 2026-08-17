@@ -86,10 +86,13 @@ export async function handlePurinCashWebhook(req: Request, res: Response) {
 export async function checkPurinPaymentStatus(paymentId: string) {
   if (!PURIN_API_KEY) return null;
 
-  const isCharge = paymentId.startsWith("psc_") || paymentId.startsWith("psplit_");
-  const url = isCharge
-    ? `https://api.purincash.com/v1/charges/${paymentId}`
-    : `https://api.purincash.com/v1/payments/${paymentId}`;
+  const isSplit = paymentId.startsWith("psplit_");
+  const isCharge = paymentId.startsWith("psc_") || isSplit;
+  const url = isSplit
+    ? `https://api.purincash.com/v1/split-charges/${paymentId}`
+    : isCharge
+      ? `https://api.purincash.com/v1/charges/${paymentId}`
+      : `https://api.purincash.com/v1/payments/${paymentId}`;
 
   try {
     const response = await fetch(url, {
@@ -125,7 +128,60 @@ export async function processPurinPaymentUpdate(
       return { status: 404, body: { error: "Reseller not found" } };
     }
 
-    if (payment.paymentType === "key") {
+    if (payment.paymentType === "other-store") {
+      const appId = payment.appId;
+      const planId = payment.planId;
+      const quantity = payment.quantity ?? 1;
+      if (!appId || !planId || quantity < 1) {
+        throw new Error(`Pagamento other-store ${paymentId} sem app, plano ou quantidade válida`);
+      }
+      const existingKeys = await getKeysByPaymentId(paymentId);
+      if (payment.status === "paid" && existingKeys.length >= quantity) {
+        return { status: 200, body: { ok: true, message: "Already processed" } };
+      }
+      const app = await getAppById(appId);
+      const plan = await getPlanById(planId);
+      if (!app || !plan || plan.appId !== appId) {
+        throw new Error(`App ou plano não encontrado para o pagamento other-store ${paymentId}`);
+      }
+      const missingQuantity = Math.max(0, quantity - existingKeys.length);
+      if (missingQuantity > 0) {
+        const stockItems = await getAvailableStockForPlan(appId, planId, missingQuantity);
+        if (stockItems.length < missingQuantity) {
+          throw new Error(`Estoque insuficiente para ${plan.name}: tem ${stockItems.length}, precisa ${missingQuantity}`);
+        }
+        for (const item of stockItems) {
+          const reserved = await reserveStockForReseller(item.id, payment.resellerId);
+          if (!reserved) {
+            throw new Error(`Falha ao reservar key do estoque: ${item.id}`);
+          }
+          await createLicenseKey({
+            keyValue: reserved.keyValue,
+            resellerId: payment.resellerId,
+            appId,
+            planId: plan.id,
+            planName: plan.name,
+            durationDays: plan.durationDays,
+            creditsSpent: "0",
+            resellerCredits: reseller.credits as string,
+            note: `other-store:${paymentId}`,
+            source: "other-store",
+          });
+        }
+      }
+      if (payment.status !== "paid") {
+        const newPurchases = reseller.totalPurchases + quantity;
+        await updateResellerCredits(
+          payment.resellerId,
+          reseller.credits as string,
+          newPurchases,
+          reseller.discountPercent as string,
+        );
+      }
+      await updatePixPaymentStatus(paymentId, "paid", paidAt);
+      console.log(`[PurinCash] Delivered ${quantity} key(s) for other-store payment ${paymentId}`);
+      return { status: 200, body: { ok: true } };
+    } else if (payment.paymentType === "key") {
       const appId = payment.appId;
       const planId = payment.planId;
       const quantity = payment.quantity ?? 1;

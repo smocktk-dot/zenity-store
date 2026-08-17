@@ -46,6 +46,7 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
   const isAdmin = session?.role === "admin";
   const resellerSession = session?.role === "reseller" ? session : null;
   const isCredits = !resellerSession || (resellerSession as any).resellerType !== "percentage";
+  const isOtherStore = !!(resellerSession as any)?.otherStore;
   const displayUsername = session?.username ?? "User";
 
   return (
@@ -70,13 +71,17 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
           {/* Left: Logo + Nav */}
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2.5">
-              <img
-                src={LOGO_URL}
+              {!isOtherStore && (
+                <img
+                  src={LOGO_URL}
                 alt="Zenity"
                 className="w-7 h-7 object-contain"
                 style={{ filter: "drop-shadow(0 0 6px rgba(16,185,129,0.7))" }}
               />
-              <span className="text-white font-black text-sm tracking-wide">VG <span className="font-normal text-emerald-400 text-xs tracking-widest">SELLERS</span></span>
+              )}
+              <span className={isOtherStore ? "text-white font-black text-sm tracking-wide" : "text-white font-black text-sm tracking-wide"}>
+                {isOtherStore ? "SELLERS" : <>VG <span className="font-normal text-emerald-400 text-xs tracking-widest">SELLERS</span></>}
+              </span>
             </div>
 
             <nav className="flex items-center gap-0.5 ml-2">
