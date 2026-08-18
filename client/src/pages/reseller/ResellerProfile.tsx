@@ -2,7 +2,7 @@ import { trpc } from "@/lib/trpc";
 import {
   CreditCard, Percent, TrendingUp, ShoppingBag, Calendar, MapPin, Clock,
   ArrowUpRight, ArrowDownRight, ArrowRight, Plus, User, Mail, QrCode, Copy, CheckCircle2,
-  Loader2, RefreshCw, X, Zap, Bitcoin,
+  Loader2, RefreshCw, X, Zap, Bitcoin, Trash2,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useState, useEffect, useCallback } from "react";
@@ -729,6 +729,10 @@ function SubResellersSection() {
     onSuccess: () => { toast.success("Reseller criado"); setOpen(false); setUsername(""); setPassword(""); setEmail(""); setDiscount("35"); refetch(); },
     onError: (e) => toast.error(e.message),
   });
+  const remove = trpc.reseller.deleteSubReseller.useMutation({
+    onSuccess: () => { toast.success("Reseller removido"); refetch(); },
+    onError: (e) => toast.error(e.message),
+  });
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
@@ -760,7 +764,16 @@ function SubResellersSection() {
                   <p className="text-gray-500 text-xs">{r.email || "sem email"} · {r.discountPercent}%</p>
                 </div>
               </div>
-              <span className={`text-xs px-2 py-1 rounded-full ${r.status === "active" ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400"}`}>{r.status}</span>
+              <div className="flex items-center gap-2">
+                <span className={`text-xs px-2 py-1 rounded-full ${r.status === "active" ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400"}`}>{r.status}</span>
+                <button
+                  onClick={() => remove.mutate({ id: r.id })}
+                  disabled={remove.isPending}
+                  className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           ))}
         </div>

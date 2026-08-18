@@ -3819,6 +3819,12 @@ var resellerRouter = router({
   listSubResellers: resellerProcedure.query(async ({ ctx }) => {
     return getResellersByParentId(ctx.resellerId);
   }),
+  deleteSubReseller: resellerProcedure.input(z2.object({ id: z2.number() })).mutation(async ({ ctx, input }) => {
+    const sub = await getResellerById(input.id);
+    if (!sub || sub.parentResellerId !== ctx.resellerId) throw new TRPCError3({ code: "FORBIDDEN", message: "Reseller nao pertence a voce" });
+    await updateReseller(input.id, { status: "inactive" });
+    return { success: true };
+  }),
   createSubReseller: resellerProcedure.input(z2.object({
     username: z2.string().min(3).max(32),
     password: z2.string().min(6),

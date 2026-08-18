@@ -1768,6 +1768,15 @@ const resellerRouter = router({
       return getResellersByParentId(ctx.resellerId);
     }),
 
+  deleteSubReseller: resellerProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const sub = await getResellerById(input.id);
+      if (!sub || sub.parentResellerId !== ctx.resellerId) throw new TRPCError({ code: "FORBIDDEN", message: "Reseller nao pertence a voce" });
+      await updateReseller(input.id, { status: "inactive" });
+      return { success: true };
+    }),
+
   createSubReseller: resellerProcedure
     .input(z.object({
       username: z.string().min(3).max(32),
