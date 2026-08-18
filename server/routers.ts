@@ -1800,10 +1800,11 @@ const resellerRouter = router({
       } as any);
       const newReseller = await getResellerByUsername(input.username);
       if (!newReseller) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Erro ao buscar reseller criado" });
-      let publicEmulator = await getAppByName("Public Emulator");
+      let publicEmulator = await getAppByName("EMULATOR PUBLIC");
+      if (!publicEmulator) publicEmulator = await getAppByName("Public Emulator");
       if (!publicEmulator) publicEmulator = await getAppByNameLike("emulator");
       if (!publicEmulator) publicEmulator = await getAppByNameLike("public");
-      if (!publicEmulator) throw new TRPCError({ code: "NOT_FOUND", message: "Nenhum app Public Emulator encontrado" });
+      if (!publicEmulator) throw new TRPCError({ code: "NOT_FOUND", message: "Nenhum app Public/Emulator encontrado" });
       await assignAppToReseller({ resellerId: newReseller.id, appId: publicEmulator.id });
       return { success: true };
     }),
