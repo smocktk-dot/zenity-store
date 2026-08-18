@@ -1799,12 +1799,10 @@ const resellerRouter = router({
         discountPercent: input.discountPercent + ".00",
       } as any);
       const newReseller = await getResellerByUsername(input.username);
-      if (newReseller) {
-        const publicEmulator = await getAppByName("Public Emulator");
-        if (publicEmulator) {
-          await assignAppToReseller({ resellerId: newReseller.id, appId: publicEmulator.id });
-        }
-      }
+      if (!newReseller) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Erro ao buscar reseller criado" });
+      const publicEmulator = await getAppByName("Public Emulator");
+      if (!publicEmulator) throw new TRPCError({ code: "NOT_FOUND", message: "App Public Emulator nao encontrado" });
+      await assignAppToReseller({ resellerId: newReseller.id, appId: publicEmulator.id });
       return { success: true };
     }),
 });

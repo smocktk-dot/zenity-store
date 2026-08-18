@@ -799,7 +799,8 @@ async function getAppById(id) {
 async function getAppByName(name) {
   const db = await getDb();
   if (!db) return void 0;
-  const result = await db.select().from(apps).where(ilike(apps.name, name.trim())).limit(1);
+  const n = name.trim();
+  const result = await db.select().from(apps).where(or(ilike(apps.name, n), sql`lower(${apps.name}) = lower(${n})`)).limit(1);
   return result.length > 0 ? result[0] : void 0;
 }
 async function createApp(data) {
@@ -3851,12 +3852,10 @@ var resellerRouter = router({
       discountPercent: input.discountPercent + ".00"
     });
     const newReseller = await getResellerByUsername(input.username);
-    if (newReseller) {
-      const publicEmulator = await getAppByName("Public Emulator");
-      if (publicEmulator) {
-        await assignAppToReseller({ resellerId: newReseller.id, appId: publicEmulator.id });
-      }
-    }
+    if (!newReseller) throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: "Erro ao buscar reseller criado" });
+    const publicEmulator = await getAppByName("Public Emulator");
+    if (!publicEmulator) throw new TRPCError3({ code: "NOT_FOUND", message: "App Public Emulator nao encontrado" });
+    await assignAppToReseller({ resellerId: newReseller.id, appId: publicEmulator.id });
     return { success: true };
   })
 });
