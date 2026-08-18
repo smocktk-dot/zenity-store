@@ -813,7 +813,7 @@ export default function ResellerProfile() {
       {profile.resellerType === "credits"
         ? <CreditsProfile profile={profile} refetch={refetch} />
         : <PercentageProfile profile={profile} otherStore={profile.resellerType === "other"} />}
-      <SubResellersSection />
+      {profile.canCreateSubResellers && <SubResellersSection />}
     </div>
   );
 }

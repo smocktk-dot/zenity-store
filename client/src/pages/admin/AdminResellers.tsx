@@ -31,8 +31,8 @@ function TypeBadge({ type }: { type: string }) {
   return <span className="text-xs px-2 py-0.5 rounded-full border font-medium bg-purple-500/20 text-purple-400 border-purple-500/30 flex items-center gap-1 w-fit"><Percent className="w-3 h-3" />Porcentagem</span>;
 }
 
-const emptyCreate = { username: "", password: "", email: "", location: "", resellerType: "credits" as "credits" | "percentage" | "other" };
-const emptyEdit = { email: "", location: "", status: "active" as string, password: "", resellerType: "credits" as "credits" | "percentage" | "other", discountPercent: "0" };
+const emptyCreate = { username: "", password: "", email: "", location: "", resellerType: "credits" as "credits" | "percentage" | "other", canCreateSubResellers: false };
+const emptyEdit = { email: "", location: "", status: "active" as string, password: "", resellerType: "credits" as "credits" | "percentage" | "other", discountPercent: "0", canCreateSubResellers: false };
 
 export default function AdminResellers() {
   const [, navigate] = useLocation();
@@ -78,6 +78,7 @@ export default function AdminResellers() {
       password: "",
       resellerType: (r.resellerType as "credits" | "percentage" | "other") || "credits",
       discountPercent: String(parseFloat(String(r.discountPercent ?? 0))),
+      canCreateSubResellers: (r as any).canCreateSubResellers === true,
     });
   };
 
@@ -292,6 +293,16 @@ export default function AdminResellers() {
                 O reseller terá desconto progressivo: 35% inicial → 40% após 10 compras → 50% após 20 compras (máximo).
               </div>
             )}
+            <div className="flex items-center gap-3 py-1">
+              <input
+                id="canCreateSubResellers"
+                type="checkbox"
+                checked={cf.canCreateSubResellers}
+                onChange={e => setCf(f => ({ ...f, canCreateSubResellers: e.target.checked }))}
+                className="w-4 h-4 accent-emerald-500 rounded cursor-pointer"
+              />
+              <label htmlFor="canCreateSubResellers" className="text-gray-300 text-sm cursor-pointer select-none">Pode criar logins de resellers</label>
+            </div>
             {cf.resellerType === "other" && (
               <div className="rounded-lg border border-emerald-500/20 p-3 text-xs text-emerald-400/80" style={{ background: "rgba(16,185,129,0.05)" }}>
                 Reseller Other Store. Configure o acesso por IP e split na aba Other Store do menu.
@@ -339,6 +350,7 @@ export default function AdminResellers() {
                 password: ef.password || undefined,
                 resellerType: ef.resellerType,
                 discountPercent: !isNaN(discount) && discount >= 0 && discount <= 100 ? discount : undefined,
+                canCreateSubResellers: ef.canCreateSubResellers,
               });
             }
           }} className="space-y-4 mt-3">
@@ -379,6 +391,16 @@ export default function AdminResellers() {
                 style={{ background: "rgba(255,255,255,0.05)" }}
               />
               <p className="text-gray-600 text-xs mt-1">Ex: 35, 40, 50. Usado para resellers de porcentagem e progressão de créditos.</p>
+            </div>
+            <div className="flex items-center gap-3 py-1">
+              <input
+                id="ef-canCreateSubResellers"
+                type="checkbox"
+                checked={ef.canCreateSubResellers}
+                onChange={e => setEf(f => ({ ...f, canCreateSubResellers: e.target.checked }))}
+                className="w-4 h-4 accent-emerald-500 rounded cursor-pointer"
+              />
+              <label htmlFor="ef-canCreateSubResellers" className="text-gray-300 text-sm cursor-pointer select-none">Pode criar logins de resellers</label>
             </div>
             <div><Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Nova Senha (opcional)</Label><Input type="password" value={ef.password} onChange={e => setEf(f => ({...f, password: e.target.value}))} placeholder="Deixe vazio para manter" className="mt-1.5 text-white border-white/[0.06] focus:border-emerald-500/60 transition-colors" style={{ background: "rgba(255,255,255,0.05)" }} /></div>
             <div className="flex gap-3 pt-2">

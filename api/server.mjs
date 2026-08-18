@@ -67,6 +67,7 @@ var init_schema = __esm({
       discountPercent: decimal("discountPercent", { precision: 5, scale: 2 }).default("35.00").notNull(),
       resellerType: resellerTypeEnum("resellerType").default("credits").notNull(),
       parentResellerId: integer("parentResellerId"),
+      canCreateSubResellers: boolean("canCreateSubResellers").default(false).notNull(),
       status: resellerStatusEnum("status").default("active").notNull(),
       location: varchar("location", { length: 255 }),
       createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -666,13 +667,15 @@ async function getAdminById(id) {
   const result = await db.select().from(admins).where(eq(admins.id, id)).limit(1);
   return result.length > 0 ? result[0] : void 0;
 }
-async function ensureResellerParentColumn() {
+async function ensureResellerColumns() {
   if (!_sqlClient) return;
   await _sqlClient.unsafe(`ALTER TABLE "resellers" ADD COLUMN IF NOT EXISTS "parentResellerId" integer`).catch(() => {
   });
+  await _sqlClient.unsafe(`ALTER TABLE "resellers" ADD COLUMN IF NOT EXISTS "canCreateSubResellers" boolean DEFAULT false`).catch(() => {
+  });
 }
 async function getResellerByUsername(username) {
-  await ensureResellerParentColumn();
+  await ensureResellerColumns();
   const db = await getDb();
   if (!db) return void 0;
   const result = await db.select().from(resellers).where(eq(resellers.username, username)).limit(1);
@@ -685,7 +688,7 @@ async function getResellerById(id) {
   return result.length > 0 ? result[0] : void 0;
 }
 async function getResellersByParentId2(parentResellerId) {
-  await ensureResellerParentColumn();
+  await ensureResellerColumns();
   const db = await getDb();
   if (!db) return [];
   return db.select().from(resellers).where(eq(resellers.parentResellerId, parentResellerId)).orderBy(desc(resellers.createdAt));
@@ -694,7 +697,7 @@ async function getResellerParent(parentResellerId) {
   return getResellerById(parentResellerId);
 }
 async function getAllResellers() {
-  await ensureResellerParentColumn();
+  await ensureResellerColumns();
   const db = await getDb();
   if (!db) return [];
   return db.select().from(resellers).orderBy(desc(resellers.createdAt));
@@ -878,7 +881,7 @@ async function getAllKeys() {
 }
 async function getAllKeysWithReseller() {
   await ensureLicenseKeysSchema();
-  await ensureResellerParentColumn();
+  await ensureResellerColumns();
   const db = await getDb();
   if (!db) return [];
   const parentResellers = aliasedTable(resellers, "parentResellers");
@@ -2691,12 +2694,20 @@ var adminRouter = router({
     password: z2.string().min(6),
     email: z2.string().email().optional(),
     location: z2.string().optional(),
-    resellerType: z2.enum(["credits", "percentage", "other"]).default("credits")
+    resellerType: z2.enum(["credits", "percentage", "other"]).default("credits"),
+    canCreateSubResellers: z2.boolean().default(false)
   })).mutation(async ({ input }) => {
     const existing = await getResellerByUsername(input.username);
     if (existing) throw new TRPCError3({ code: "CONFLICT", message: "Username j\xE1 existe" });
     const passwordHash = await bcrypt.hash(input.password, 10);
-    await createReseller({ username: input.username, passwordHash, email: input.email, location: input.location, resellerType: input.resellerType });
+    await createReseller({
+      username: input.username,
+      passwordHash,
+      email: input.email,
+      location: input.location,
+      resellerType: input.resellerType,
+      canCreateSubResellers: input.canCreateSubResellers
+    });
     return { success: true };
   }),
   updateReseller: adminProcedure2.input(z2.object({
@@ -2706,7 +2717,8 @@ var adminRouter = router({
     status: z2.enum(["active", "inactive", "banned"]).optional(),
     password: z2.string().min(6).optional(),
     resellerType: z2.enum(["credits", "percentage", "other"]).optional(),
-    discountPercent: z2.number().min(0).max(100).optional()
+    discountPercent: z2.number().min(0).max(100).optional(),
+    canCreateSubResellers: z2.boolean().optional()
   })).mutation(async ({ input }) => {
     const { id, password, discountPercent, ...rest } = input;
     const data = { ...rest };
@@ -3172,6 +3184,7 @@ var resellerRouter = router({
       discountPercent: discount,
       totalPurchases: purchases,
       resellerType: r.resellerType,
+      canCreateSubResellers: r.canCreateSubResellers,
       status: r.status,
       createdAt: r.createdAt,
       lastLoginAt: r.lastLoginAt,
@@ -3804,6 +3817,7 @@ var resellerRouter = router({
     password: z2.string().min(6),
     email: z2.string().email().optional()
   })).mutation(async ({ ctx, input }) => {
+    if (!ctx.reseller.canCreateSubResellers) throw new TRPCError3({ code: "FORBIDDEN", message: "Sem permissao para criar resellers" });
     const existing = await getResellerByUsername(input.username);
     if (existing) throw new TRPCError3({ code: "CONFLICT", message: "Username ja existe" });
     const passwordHash = await bcrypt.hash(input.password, 10);

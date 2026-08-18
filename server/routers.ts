@@ -399,12 +399,20 @@ const adminRouter = router({
       email: z.string().email().optional(),
       location: z.string().optional(),
       resellerType: z.enum(["credits", "percentage", "other"]).default("credits"),
+      canCreateSubResellers: z.boolean().default(false),
     }))
     .mutation(async ({ input }) => {
       const existing = await getResellerByUsername(input.username);
       if (existing) throw new TRPCError({ code: "CONFLICT", message: "Username já existe" });
       const passwordHash = await bcrypt.hash(input.password, 10);
-      await createReseller({ username: input.username, passwordHash, email: input.email, location: input.location, resellerType: input.resellerType });
+      await createReseller({
+        username: input.username,
+        passwordHash,
+        email: input.email,
+        location: input.location,
+        resellerType: input.resellerType,
+        canCreateSubResellers: input.canCreateSubResellers,
+      });
       return { success: true };
     }),
 
@@ -417,6 +425,7 @@ const adminRouter = router({
       password: z.string().min(6).optional(),
       resellerType: z.enum(["credits", "percentage", "other"]).optional(),
       discountPercent: z.number().min(0).max(100).optional(),
+      canCreateSubResellers: z.boolean().optional(),
     }))
     .mutation(async ({ input }) => {
       const { id, password, discountPercent, ...rest } = input;
@@ -1001,6 +1010,7 @@ const resellerRouter = router({
       id: r.id, username: r.username, email: r.email, location: r.location,
       credits: r.credits, discountPercent: discount, totalPurchases: purchases,
       resellerType: r.resellerType,
+      canCreateSubResellers: r.canCreateSubResellers,
       status: r.status, createdAt: r.createdAt, lastLoginAt: r.lastLoginAt,
       nextLevel, transactions,
     };
@@ -1765,6 +1775,7 @@ const resellerRouter = router({
       email: z.string().email().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
+      if (!ctx.reseller.canCreateSubResellers) throw new TRPCError({ code: "FORBIDDEN", message: "Sem permissao para criar resellers" });
       const existing = await getResellerByUsername(input.username);
       if (existing) throw new TRPCError({ code: "CONFLICT", message: "Username ja existe" });
       const passwordHash = await bcrypt.hash(input.password, 10);
