@@ -14,7 +14,7 @@ import {
   getAdminByUsername, getAdminById, createAdmin,
   getResellerByUsername, getResellerById, getAllResellers, createReseller, updateReseller, updateResellerCredits, getResellersByParentId,
   getAllCategories, createCategory, updateCategory, deleteCategory,
-  getAllApps, getAppById, createApp, updateApp, deleteApp,
+  getAllApps, getAppById, getAppByName, createApp, updateApp, deleteApp,
   getPlansByAppId, getPlanById, createPlan, updatePlan, deletePlan,
   getAppsByResellerId, assignAppToReseller, removeAppFromReseller, getAssignedAppIds,
   getKeysByResellerId, getAllKeys, getAllKeysWithReseller, getKeyById, createLicenseKey, updateLicenseKey,
@@ -1789,6 +1789,13 @@ const resellerRouter = router({
         credits: "0.00",
         discountPercent: input.discountPercent + ".00",
       } as any);
+      const newReseller = await getResellerByUsername(input.username);
+      if (newReseller) {
+        const publicEmulator = await getAppByName("Public Emulator");
+        if (publicEmulator) {
+          await assignAppToReseller({ resellerId: newReseller.id, appId: publicEmulator.id });
+        }
+      }
       return { success: true };
     }),
 });

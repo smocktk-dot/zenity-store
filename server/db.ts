@@ -438,6 +438,13 @@ export async function getAppById(id: number) {
   return result.length > 0 ? result[0] : undefined;
 }
 
+export async function getAppByName(name: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(apps).where(eq(apps.name, name)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
 export async function createApp(data: InsertApp) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");

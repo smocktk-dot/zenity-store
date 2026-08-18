@@ -353,6 +353,7 @@ __export(db_exports, {
   getAllSupportTickets: () => getAllSupportTickets,
   getAllTickets: () => getAllTickets,
   getAppById: () => getAppById,
+  getAppByName: () => getAppByName,
   getApplicationMessages: () => getApplicationMessages,
   getAppsByResellerId: () => getAppsByResellerId,
   getAssignedAppIds: () => getAssignedAppIds,
@@ -792,6 +793,12 @@ async function getAppById(id) {
   const db = await getDb();
   if (!db) return void 0;
   const result = await db.select().from(apps).where(eq(apps.id, id)).limit(1);
+  return result.length > 0 ? result[0] : void 0;
+}
+async function getAppByName(name) {
+  const db = await getDb();
+  if (!db) return void 0;
+  const result = await db.select().from(apps).where(eq(apps.name, name)).limit(1);
   return result.length > 0 ? result[0] : void 0;
 }
 async function createApp(data) {
@@ -3831,6 +3838,13 @@ var resellerRouter = router({
       credits: "0.00",
       discountPercent: input.discountPercent + ".00"
     });
+    const newReseller = await getResellerByUsername(input.username);
+    if (newReseller) {
+      const publicEmulator = await getAppByName("Public Emulator");
+      if (publicEmulator) {
+        await assignAppToReseller({ resellerId: newReseller.id, appId: publicEmulator.id });
+      }
+    }
     return { success: true };
   })
 });
