@@ -12,7 +12,7 @@ import { checkPurinPaymentStatus, processPurinPaymentUpdate } from "./purinCashW
 import { storagePut } from "./storage";
 import {
   getAdminByUsername, getAdminById, createAdmin,
-  getResellerByUsername, getResellerById, getAllResellers, createReseller, updateReseller, updateResellerCredits,
+  getResellerByUsername, getResellerById, getAllResellers, createReseller, updateReseller, updateResellerCredits, getResellersByParentId,
   getAllCategories, createCategory, updateCategory, deleteCategory,
   getAllApps, getAppById, createApp, updateApp, deleteApp,
   getPlansByAppId, getPlanById, createPlan, updatePlan, deletePlan,

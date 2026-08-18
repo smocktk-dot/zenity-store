@@ -732,7 +732,7 @@ function SubResellersSection() {
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
     if (!username || !password) return;
-    create.mutate({ username, password, email });
+    create.mutate({ username, password, email: email.trim() || undefined });
   };
 
   return (

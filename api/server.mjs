@@ -382,7 +382,7 @@ __export(db_exports, {
   getResellerById: () => getResellerById,
   getResellerByUsername: () => getResellerByUsername,
   getResellerParent: () => getResellerParent,
-  getResellersByParentId: () => getResellersByParentId2,
+  getResellersByParentId: () => getResellersByParentId,
   getStockByApp: () => getStockByApp,
   getStockCountsByApp: () => getStockCountsByApp,
   getSupportMessages: () => getSupportMessages,
@@ -687,7 +687,7 @@ async function getResellerById(id) {
   const result = await db.select().from(resellers).where(eq(resellers.id, id)).limit(1);
   return result.length > 0 ? result[0] : void 0;
 }
-async function getResellersByParentId2(parentResellerId) {
+async function getResellersByParentId(parentResellerId) {
   await ensureResellerColumns();
   const db = await getDb();
   if (!db) return [];
