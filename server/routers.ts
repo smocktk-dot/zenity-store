@@ -36,7 +36,7 @@ import {
   updateSupportTicketStatus, updateSupportTicketTimestamp, deleteSupportTicket,
   getSupportMessages, createSupportMessage,
   getOtherStoreResellers, createOtherStoreReseller, updateOtherStoreReseller, deleteOtherStoreReseller,
-  getOtherStoreResellerById, getOtherStoreResellerByResellerId, getOtherStoreHwidsByResellerId,
+  getOtherStoreResellerById, getOtherStoreResellerByResellerId, getOtherStoreResellerByOwnerResellerId, getOtherStoreHwidsByResellerId,
   createOtherStoreHwid, deleteOtherStoreHwid,
 } from "./db";
 
@@ -200,7 +200,8 @@ const authRouter = router({
       const valid = await bcrypt.compare(input.password, reseller.passwordHash);
       if (!valid) throw new TRPCError({ code: "UNAUTHORIZED", message: "Credenciais inválidas" });
       await updateReseller(reseller.id, { lastLoginAt: new Date() });
-      const otherStore = await getOtherStoreResellerByResellerId(reseller.id);
+      const otherStoreOwnerId = reseller.parentResellerId ?? reseller.id;
+      const otherStore = await getOtherStoreResellerByOwnerResellerId(otherStoreOwnerId);
       const tokenPayload: Record<string, any> = { sub: String(reseller.id), role: "reseller", username: reseller.username };
       if (otherStore && otherStore.resellerId === reseller.id) {
         tokenPayload.otherStoreId = otherStore.id;
@@ -1750,6 +1751,33 @@ const resellerRouter = router({
       });
       await updateTicketTimestamp(input.ticketId);
       return msg;
+    }),
+
+  listSubResellers: resellerProcedure
+    .query(async ({ ctx }) => {
+      return getResellersByParentId(ctx.resellerId);
+    }),
+
+  createSubReseller: resellerProcedure
+    .input(z.object({
+      username: z.string().min(3).max(32),
+      password: z.string().min(6),
+      email: z.string().email().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const existing = await getResellerByUsername(input.username);
+      if (existing) throw new TRPCError({ code: "CONFLICT", message: "Username ja existe" });
+      const passwordHash = await bcrypt.hash(input.password, 10);
+      await createReseller({
+        username: input.username,
+        passwordHash,
+        email: input.email,
+        resellerType: "other",
+        parentResellerId: ctx.resellerId,
+        credits: "0.00",
+        discountPercent: ctx.reseller.discountPercent,
+      } as any);
+      return { success: true };
     }),
 });
 

@@ -717,6 +717,80 @@ function PercentageProfile({ profile, otherStore }: { profile: any; otherStore?:
   );
 }
 
+// ─── Sub Resellers Section ─────────────────────────────────────────────────────
+function SubResellersSection() {
+  const [open, setOpen] = useState(false);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState("");
+  const { data, refetch } = trpc.reseller.listSubResellers.useQuery();
+  const create = trpc.reseller.createSubReseller.useMutation({
+    onSuccess: () => { toast.success("Reseller criado"); setOpen(false); setUsername(""); setPassword(""); setEmail(""); refetch(); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const handleCreate = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!username || !password) return;
+    create.mutate({ username, password, email });
+  };
+
+  return (
+    <div className="max-w-5xl mx-auto px-6 pb-10">
+      <div className="rounded-3xl border p-6" style={{ background: "rgba(8,8,10,0.6)", borderColor: "rgba(255,255,255,0.08)" }}>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-xl font-bold text-white">Meus Resellers</h2>
+            <p className="text-gray-500 text-sm">Crie logins de resellers para seu time.</p>
+          </div>
+          <Button onClick={() => setOpen(true)} className="gap-2 bg-emerald-600 hover:bg-emerald-500">
+            <Plus className="w-4 h-4" /> Criar
+          </Button>
+        </div>
+
+        {data?.length === 0 && <p className="text-gray-500 text-sm">Nenhum reseller criado ainda.</p>}
+        <div className="space-y-2">
+          {data?.map((r: any) => (
+            <div key={r.id} className="flex items-center justify-between p-3 rounded-xl" style={{ background: "rgba(255,255,255,0.03)" }}>
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center text-emerald-400 text-xs font-bold">{r.username[0].toUpperCase()}</div>
+                <div>
+                  <p className="text-white text-sm font-medium">{r.username}</p>
+                  <p className="text-gray-500 text-xs">{r.email || "sem email"} · {r.discountPercent}%</p>
+                </div>
+              </div>
+              <span className={`text-xs px-2 py-1 rounded-full ${r.status === "active" ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400"}`}>{r.status}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="text-white border-0" style={{ background: "linear-gradient(145deg, rgba(18,12,35,0.98) 0%, rgba(10,8,25,0.98) 100%)", boxShadow: "0 0 0 1px rgba(16,185,129,0.2), 0 25px 60px rgba(0,0,0,0.7)" }}>
+          <h3 className="text-lg font-bold text-white mb-4">Criar Reseller</h3>
+          <form onSubmit={handleCreate} className="space-y-4">
+            <div>
+              <Label className="text-gray-400 text-xs uppercase">Usuario</Label>
+              <Input value={username} onChange={(e) => setUsername(e.target.value)} className="mt-1.5 text-white border-white/10 bg-white/5" required />
+            </div>
+            <div>
+              <Label className="text-gray-400 text-xs uppercase">Senha</Label>
+              <Input value={password} onChange={(e) => setPassword(e.target.value)} className="mt-1.5 text-white border-white/10 bg-white/5" required />
+            </div>
+            <div>
+              <Label className="text-gray-400 text-xs uppercase">Email (opcional)</Label>
+              <Input value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1.5 text-white border-white/10 bg-white/5" />
+            </div>
+            <Button type="submit" disabled={create.isPending} className="w-full bg-emerald-600 hover:bg-emerald-500">
+              {create.isPending ? "Criando..." : "Criar"}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 // ─── Main Export ──────────────────────────────────────────────────────────────
 export default function ResellerProfile() {
   const { data: profile, isLoading, refetch } = trpc.reseller.profile.useQuery();
@@ -734,7 +808,12 @@ export default function ResellerProfile() {
     </div>
   );
 
-  return profile.resellerType === "credits"
-    ? <CreditsProfile profile={profile} refetch={refetch} />
-    : <PercentageProfile profile={profile} otherStore={profile.resellerType === "other"} />;
+  return (
+    <div className="space-y-6">
+      {profile.resellerType === "credits"
+        ? <CreditsProfile profile={profile} refetch={refetch} />
+        : <PercentageProfile profile={profile} otherStore={profile.resellerType === "other"} />}
+      <SubResellersSection />
+    </div>
+  );
 }

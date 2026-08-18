@@ -66,6 +66,7 @@ var init_schema = __esm({
       totalPurchases: integer("totalPurchases").default(0).notNull(),
       discountPercent: decimal("discountPercent", { precision: 5, scale: 2 }).default("35.00").notNull(),
       resellerType: resellerTypeEnum("resellerType").default("credits").notNull(),
+      parentResellerId: integer("parentResellerId"),
       status: resellerStatusEnum("status").default("active").notNull(),
       location: varchar("location", { length: 255 }),
       createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -365,6 +366,7 @@ __export(db_exports, {
   getOtherStoreResellerByDiscordId: () => getOtherStoreResellerByDiscordId,
   getOtherStoreResellerByHwid: () => getOtherStoreResellerByHwid,
   getOtherStoreResellerById: () => getOtherStoreResellerById,
+  getOtherStoreResellerByOwnerResellerId: () => getOtherStoreResellerByOwnerResellerId,
   getOtherStoreResellerByResellerId: () => getOtherStoreResellerByResellerId,
   getOtherStoreResellers: () => getOtherStoreResellers,
   getPendingPixPaymentsByReseller: () => getPendingPixPaymentsByReseller,
@@ -378,6 +380,8 @@ __export(db_exports, {
   getResellerByApiKey: () => getResellerByApiKey,
   getResellerById: () => getResellerById,
   getResellerByUsername: () => getResellerByUsername,
+  getResellerParent: () => getResellerParent,
+  getResellersByParentId: () => getResellersByParentId2,
   getStockByApp: () => getStockByApp,
   getStockCountsByApp: () => getStockCountsByApp,
   getSupportMessages: () => getSupportMessages,
@@ -416,7 +420,7 @@ __export(db_exports, {
   updateTicketTimestamp: () => updateTicketTimestamp,
   upsertUser: () => upsertUser
 });
-import { eq, and, desc, sql, or } from "drizzle-orm";
+import { eq, and, desc, sql, or, aliasedTable } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { randomUUID } from "crypto";
@@ -662,7 +666,13 @@ async function getAdminById(id) {
   const result = await db.select().from(admins).where(eq(admins.id, id)).limit(1);
   return result.length > 0 ? result[0] : void 0;
 }
+async function ensureResellerParentColumn() {
+  if (!_sqlClient) return;
+  await _sqlClient.unsafe(`ALTER TABLE "resellers" ADD COLUMN IF NOT EXISTS "parentResellerId" integer`).catch(() => {
+  });
+}
 async function getResellerByUsername(username) {
+  await ensureResellerParentColumn();
   const db = await getDb();
   if (!db) return void 0;
   const result = await db.select().from(resellers).where(eq(resellers.username, username)).limit(1);
@@ -673,6 +683,14 @@ async function getResellerById(id) {
   if (!db) return void 0;
   const result = await db.select().from(resellers).where(eq(resellers.id, id)).limit(1);
   return result.length > 0 ? result[0] : void 0;
+}
+async function getResellersByParentId2(parentResellerId) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(resellers).where(eq(resellers.parentResellerId, parentResellerId)).orderBy(desc(resellers.createdAt));
+}
+async function getResellerParent(parentResellerId) {
+  return getResellerById(parentResellerId);
 }
 async function getAllResellers() {
   const db = await getDb();
@@ -860,13 +878,16 @@ async function getAllKeysWithReseller() {
   await ensureLicenseKeysSchema();
   const db = await getDb();
   if (!db) return [];
+  const parentResellers = aliasedTable(resellers, "parentResellers");
   const rows = await db.select({
     key: licenseKeys,
-    reseller: resellers
-  }).from(licenseKeys).leftJoin(resellers, eq(licenseKeys.resellerId, resellers.id)).orderBy(desc(licenseKeys.createdAt));
+    reseller: resellers,
+    parent: parentResellers
+  }).from(licenseKeys).leftJoin(resellers, eq(licenseKeys.resellerId, resellers.id)).leftJoin(parentResellers, eq(resellers.parentResellerId, parentResellers.id)).orderBy(desc(licenseKeys.createdAt));
   return rows.map((r) => ({
     ...r.key,
     resellerName: r.reseller?.username ?? "\u2014",
+    parentResellerName: r.parent?.username,
     resellerType: r.reseller?.resellerType ?? "credits"
   }));
 }
@@ -1277,6 +1298,13 @@ async function getOtherStoreResellerByDiscordId(discordId) {
   const db = await getDb();
   if (!db) return null;
   const rows = await db.select().from(otherStoreResellers).where(eq(otherStoreResellers.discordId, discordId));
+  return rows[0] ?? null;
+}
+async function getOtherStoreResellerByOwnerResellerId(ownerResellerId) {
+  await ensureOtherStoreSchema();
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(otherStoreResellers).where(eq(otherStoreResellers.resellerId, ownerResellerId));
   return rows[0] ?? null;
 }
 async function getOtherStoreResellerByResellerId(resellerId) {
@@ -2490,7 +2518,8 @@ var authRouter = router({
     const valid = await bcrypt.compare(input.password, reseller.passwordHash);
     if (!valid) throw new TRPCError3({ code: "UNAUTHORIZED", message: "Credenciais inv\xE1lidas" });
     await updateReseller(reseller.id, { lastLoginAt: /* @__PURE__ */ new Date() });
-    const otherStore = await getOtherStoreResellerByResellerId(reseller.id);
+    const otherStoreOwnerId = reseller.parentResellerId ?? reseller.id;
+    const otherStore = await getOtherStoreResellerByOwnerResellerId(otherStoreOwnerId);
     const tokenPayload = { sub: String(reseller.id), role: "reseller", username: reseller.username };
     if (otherStore && otherStore.resellerId === reseller.id) {
       tokenPayload.otherStoreId = otherStore.id;
@@ -3763,6 +3792,28 @@ var resellerRouter = router({
     });
     await updateTicketTimestamp(input.ticketId);
     return msg;
+  }),
+  listSubResellers: resellerProcedure.query(async ({ ctx }) => {
+    return getResellersByParentId(ctx.resellerId);
+  }),
+  createSubReseller: resellerProcedure.input(z2.object({
+    username: z2.string().min(3).max(32),
+    password: z2.string().min(6),
+    email: z2.string().email().optional()
+  })).mutation(async ({ ctx, input }) => {
+    const existing = await getResellerByUsername(input.username);
+    if (existing) throw new TRPCError3({ code: "CONFLICT", message: "Username ja existe" });
+    const passwordHash = await bcrypt.hash(input.password, 10);
+    await createReseller({
+      username: input.username,
+      passwordHash,
+      email: input.email,
+      resellerType: "other",
+      parentResellerId: ctx.resellerId,
+      credits: "0.00",
+      discountPercent: ctx.reseller.discountPercent
+    });
+    return { success: true };
   })
 });
 var appRouter = router({

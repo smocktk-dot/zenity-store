@@ -1,4 +1,4 @@
-import { eq, and, desc, sql, inArray, or } from "drizzle-orm";
+import { eq, and, desc, sql, inArray, or, aliasedTable } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { InsertUser, users, admins, resellers, resellerApiKeys, categories, apps, subscriptionPlans, resellerApps, licenseKeys, appStock, appDownloads, creditTransactions, ipWhitelist, pixPayments, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages, otherStoreResellers, otherStoreHwids } from "../drizzle/schema";
@@ -287,7 +287,13 @@ export async function getAdminById(id: number) {
 }
 
 // ─── Resellers ────────────────────────────────────────────────────────────────
+async function ensureResellerParentColumn() {
+  if (!_sqlClient) return;
+  await _sqlClient.unsafe(`ALTER TABLE "resellers" ADD COLUMN IF NOT EXISTS "parentResellerId" integer`).catch(() => {});
+}
+
 export async function getResellerByUsername(username: string) {
+  await ensureResellerParentColumn();
   const db = await getDb();
   if (!db) return undefined;
   const result = await db.select().from(resellers).where(eq(resellers.username, username)).limit(1);
@@ -299,6 +305,16 @@ export async function getResellerById(id: number) {
   if (!db) return undefined;
   const result = await db.select().from(resellers).where(eq(resellers.id, id)).limit(1);
   return result.length > 0 ? result[0] : undefined;
+}
+
+export async function getResellersByParentId(parentResellerId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(resellers).where(eq(resellers.parentResellerId, parentResellerId)).orderBy(desc(resellers.createdAt));
+}
+
+export async function getResellerParent(parentResellerId: number) {
+  return getResellerById(parentResellerId);
 }
 
 export async function getAllResellers() {
@@ -535,16 +551,20 @@ export async function getAllKeysWithReseller() {
   await ensureLicenseKeysSchema();
   const db = await getDb();
   if (!db) return [];
+  const parentResellers = aliasedTable(resellers, "parentResellers");
   const rows = await db.select({
     key: licenseKeys,
     reseller: resellers,
+    parent: parentResellers,
   })
     .from(licenseKeys)
     .leftJoin(resellers, eq(licenseKeys.resellerId, resellers.id))
+    .leftJoin(parentResellers, eq(resellers.parentResellerId, parentResellers.id))
     .orderBy(desc(licenseKeys.createdAt));
   return rows.map(r => ({
     ...r.key,
     resellerName: r.reseller?.username ?? "—",
+    parentResellerName: r.parent?.username,
     resellerType: r.reseller?.resellerType ?? "credits",
   }));
 }
@@ -1071,6 +1091,14 @@ export async function getOtherStoreResellerByDiscordId(discordId: string) {
   const db = await getDb();
   if (!db) return null;
   const rows = await db.select().from(otherStoreResellers).where(eq(otherStoreResellers.discordId, discordId));
+  return rows[0] ?? null;
+}
+
+export async function getOtherStoreResellerByOwnerResellerId(ownerResellerId: number) {
+  await ensureOtherStoreSchema();
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(otherStoreResellers).where(eq(otherStoreResellers.resellerId, ownerResellerId));
   return rows[0] ?? null;
 }
 

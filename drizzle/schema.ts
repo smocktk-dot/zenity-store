@@ -65,6 +65,7 @@ export const resellers = pgTable("resellers", {
   totalPurchases: integer("totalPurchases").default(0).notNull(),
   discountPercent: decimal("discountPercent", { precision: 5, scale: 2 }).default("35.00").notNull(),
   resellerType: resellerTypeEnum("resellerType").default("credits").notNull(),
+  parentResellerId: integer("parentResellerId"),
   status: resellerStatusEnum("status").default("active").notNull(),
   location: varchar("location", { length: 255 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

@@ -94,8 +94,9 @@ export default function AdminKeys() {
                 </td>
                 <td className="px-5 py-4 text-gray-400 text-sm">App #{k.appId}</td>
                 <td className="px-5 py-4 text-gray-400 text-sm">{k.planName || "—"}</td>
-                <td className="px-5 py-4 text-gray-300 text-sm flex items-center gap-1.5">
-                  <User className="w-3 h-3 text-gray-500" /> {k.resellerName || "—"}
+                <td className="px-5 py-4 text-gray-300 text-sm flex flex-col gap-0.5">
+                  <div className="flex items-center gap-1.5"><User className="w-3 h-3 text-gray-500" /> {k.resellerName || "—"}</div>
+                  {k.parentResellerName && <div className="text-[10px] text-emerald-500/70 pl-4">Owner: {k.parentResellerName}</div>}
                 </td>
                 <td className="px-5 py-4"><TypeBadge type={k.resellerType} /></td>
                 <td className="px-5 py-4"><StatusBadge status={k.status} /></td>
@@ -103,9 +104,18 @@ export default function AdminKeys() {
                 <td className="px-5 py-4 text-yellow-400 text-sm font-mono">{parseFloat(k.creditsSpent).toFixed(2)}</td>
                 <td className="px-5 py-4 text-emerald-400 text-sm font-mono">{k.resellerCredits ? parseFloat(k.resellerCredits).toFixed(2) : "—"}</td>
                 <td className="px-5 py-4">
-                  <span className={`text-[10px] px-2 py-1 rounded-full border font-medium uppercase ${k.source === "api" ? "bg-blue-500/10 text-blue-400 border-blue-500/25" : "bg-emerald-500/10 text-emerald-400 border-emerald-500/25"}`}>
-                    {k.source === "api" ? "API" : "Painel"}
-                  </span>
+                  {(() => {
+                    const sourceConfig: Record<string, { label: string; className: string }> = {
+                      api: { label: "API", className: "bg-blue-500/10 text-blue-400 border-blue-500/25" },
+                      "other-store": { label: "Other Store", className: "bg-violet-500/10 text-violet-400 border-violet-500/25" },
+                    };
+                    const cfg = sourceConfig[k.source || ""] || { label: "Painel", className: "bg-emerald-500/10 text-emerald-400 border-emerald-500/25" };
+                    return (
+                      <span className={`text-[10px] px-2 py-1 rounded-full border font-medium uppercase ${cfg.className}`}>
+                        {cfg.label}
+                      </span>
+                    );
+                  })()}
                 </td>
                 <td className="px-5 py-4 text-gray-500 text-xs">{new Date(k.createdAt).toLocaleDateString("pt-BR")}</td>
                 <td className="px-5 py-4">
