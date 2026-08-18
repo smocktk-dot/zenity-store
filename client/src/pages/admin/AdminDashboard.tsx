@@ -1,11 +1,12 @@
 import { trpc } from "@/lib/trpc";
-import { Users, AppWindow, Key, Tag, TrendingUp, Activity } from "lucide-react";
+import { Users, AppWindow, Key, Tag, TrendingUp, Activity, Crown, CreditCard, Percent } from "lucide-react";
 
 export default function AdminDashboard() {
   const { data: resellers = [] } = trpc.admin.listResellers.useQuery();
   const { data: apps = [] } = trpc.admin.listApps.useQuery();
   const { data: keys = [] } = trpc.admin.listAllKeys.useQuery();
   const { data: categories = [] } = trpc.admin.listCategories.useQuery();
+  const { data: resellerStats } = trpc.admin.resellerStats.useQuery();
 
   const activeResellers = resellers.filter((r: any) => r.status === "active").length;
   const activeKeys = keys.filter((k: any) => k.status === "active").length;
@@ -100,6 +101,38 @@ export default function AdminDashboard() {
             ))}
           </div>
         </div>
+      </div>
+
+      {/* Top Resellers by Type */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {[
+          { type: "credits", label: "Top Créditos", icon: CreditCard, color: "text-yellow-400", data: resellerStats?.credits || [] },
+          { type: "percentage", label: "Top Porcentagem", icon: Percent, color: "text-purple-400", data: resellerStats?.percentage || [] },
+          { type: "other", label: "Top Other Store", icon: Crown, color: "text-emerald-400", data: resellerStats?.other || [] },
+        ].map(({ label, icon: Icon, color, data }) => (
+          <div key={label} className="rounded-3xl border border-white/[0.06] p-5" style={{ background: "rgba(255,255,255,0.02)" }}>
+            <div className="flex items-center gap-2 mb-4">
+              <Icon className={`w-4 h-4 ${color}`} />
+              <h2 className="text-white font-semibold text-sm">{label}</h2>
+            </div>
+            <div className="space-y-2">
+              {data.length === 0 ? (
+                <p className="text-gray-600 text-sm text-center py-4">Nenhuma compra</p>
+              ) : data.map((r: any, idx: number) => (
+                <div key={r.resellerId} className="flex items-center justify-between py-2 border-b border-white/[0.04] last:border-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-500 text-xs w-5">#{idx + 1}</span>
+                    <span className="text-gray-300 text-sm">{r.username}</span>
+                  </div>
+                  <div className="text-right">
+                    <p className={`text-sm font-medium ${color}`}>{r.count} keys</p>
+                    <p className="text-gray-600 text-xs">{Number(r.total || 0).toFixed(2)} cr</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

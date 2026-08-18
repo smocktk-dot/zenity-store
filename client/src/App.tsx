@@ -30,6 +30,7 @@ import ResellerApps from "./pages/reseller/ResellerApps";
 import ResellerAppDetail from "./pages/reseller/ResellerAppDetail";
 import ResellerKeys from "./pages/reseller/ResellerKeys";
 import ResellerTickets from "./pages/reseller/ResellerTickets";
+import ResellerStats from "./pages/reseller/ResellerStats";
 import SetupPage from "./pages/SetupPage";
 import { LanguageWelcomeModal } from "./components/LanguageWelcomeModal";
 
@@ -193,6 +194,13 @@ function Router() {
         {() => (
           <ResellerLayout>
             <ResellerTickets />
+          </ResellerLayout>
+        )}
+      </Route>
+      <Route path="/reseller/stats">
+        {() => (
+          <ResellerLayout>
+            <ResellerStats />
           </ResellerLayout>
         )}
       </Route>

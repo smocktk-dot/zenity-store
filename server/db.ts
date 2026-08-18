@@ -589,6 +589,61 @@ export async function getAllKeysWithReseller() {
   }));
 }
 
+export async function getSubResellerKeyStats(parentResellerId: number) {
+  await ensureLicenseKeysSchema();
+  await ensureResellerColumns();
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db.select({
+    resellerId: resellers.id,
+    username: resellers.username,
+    count: sql<number>`count(${licenseKeys.id})`.as("count"),
+    total: sql<string>`sum(${licenseKeys.creditsSpent})`.as("total"),
+  })
+    .from(resellers)
+    .leftJoin(licenseKeys, eq(resellers.id, licenseKeys.resellerId))
+    .where(eq(resellers.parentResellerId, parentResellerId))
+    .groupBy(resellers.id, resellers.username)
+    .orderBy(desc(sql`count`));
+  return rows;
+}
+
+export async function getSubResellerKeyLogs(parentResellerId: number) {
+  await ensureLicenseKeysSchema();
+  await ensureResellerColumns();
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db.select({
+    key: licenseKeys,
+    reseller: resellers,
+  })
+    .from(licenseKeys)
+    .innerJoin(resellers, eq(licenseKeys.resellerId, resellers.id))
+    .where(eq(resellers.parentResellerId, parentResellerId))
+    .orderBy(desc(licenseKeys.createdAt));
+  return rows.map(r => ({ ...r.key, resellerName: r.reseller?.username ?? "—" }));
+}
+
+export async function getResellerKeyStatsByType(resellerType: "credits" | "percentage" | "other", limit = 20) {
+  await ensureLicenseKeysSchema();
+  await ensureResellerColumns();
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db.select({
+    resellerId: resellers.id,
+    username: resellers.username,
+    count: sql<number>`count(${licenseKeys.id})`.as("count"),
+    total: sql<string>`sum(${licenseKeys.creditsSpent})`.as("total"),
+  })
+    .from(resellers)
+    .leftJoin(licenseKeys, eq(resellers.id, licenseKeys.resellerId))
+    .where(eq(resellers.resellerType, resellerType))
+    .groupBy(resellers.id, resellers.username)
+    .orderBy(desc(sql`count`))
+    .limit(limit);
+  return rows;
+}
+
 export async function getKeyById(id: number) {
   await ensureLicenseKeysSchema();
   const db = await getDb();

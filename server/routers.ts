@@ -13,6 +13,7 @@ import { storagePut } from "./storage";
 import {
   getAdminByUsername, getAdminById, createAdmin,
   getResellerByUsername, getResellerById, getAllResellers, createReseller, updateReseller, updateResellerCredits, deleteResellerById, getResellersByParentId,
+  getSubResellerKeyStats, getSubResellerKeyLogs, getResellerKeyStatsByType,
   getAllCategories, createCategory, updateCategory, deleteCategory,
   getAllApps, getAppById, getAppByName, getAppByNameLike, createApp, updateApp, deleteApp,
   getPlansByAppId, getPlanById, createPlan, updatePlan, deletePlan,
@@ -232,6 +233,7 @@ const authRouter = router({
         id: reseller.id, username: reseller.username, role: "reseller" as const,
         credits: reseller.credits, discountPercent: reseller.discountPercent,
         totalPurchases: reseller.totalPurchases, status: reseller.status,
+        canCreateSubResellers: reseller.canCreateSubResellers,
         otherStore: otherStore ? {
           id: otherStore.id,
           label: otherStore.label,
@@ -391,6 +393,16 @@ const adminRouter = router({
     const list = await getAllResellers();
     return list.map(r => ({ ...r, passwordHash: undefined }));
   }),
+
+  resellerStats: adminProcedure
+    .query(async () => {
+      const [credits, percentage, other] = await Promise.all([
+        getResellerKeyStatsByType("credits"),
+        getResellerKeyStatsByType("percentage"),
+        getResellerKeyStatsByType("other"),
+      ]);
+      return { credits, percentage, other };
+    }),
 
   createReseller: adminProcedure
     .input(z.object({
@@ -1775,6 +1787,13 @@ const resellerRouter = router({
       if (!sub || sub.parentResellerId !== ctx.resellerId) throw new TRPCError({ code: "FORBIDDEN", message: "Reseller nao pertence a voce" });
       await deleteResellerById(input.id);
       return { success: true };
+    }),
+
+  subResellerStats: resellerProcedure
+    .query(async ({ ctx }) => {
+      const stats = await getSubResellerKeyStats(ctx.resellerId);
+      const logs = await getSubResellerKeyLogs(ctx.resellerId);
+      return { stats, logs };
     }),
 
   createSubReseller: resellerProcedure

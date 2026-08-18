@@ -384,10 +384,13 @@ __export(db_exports, {
   getResellerByApiKey: () => getResellerByApiKey,
   getResellerById: () => getResellerById,
   getResellerByUsername: () => getResellerByUsername,
+  getResellerKeyStatsByType: () => getResellerKeyStatsByType,
   getResellerParent: () => getResellerParent,
   getResellersByParentId: () => getResellersByParentId,
   getStockByApp: () => getStockByApp,
   getStockCountsByApp: () => getStockCountsByApp,
+  getSubResellerKeyLogs: () => getSubResellerKeyLogs,
+  getSubResellerKeyStats: () => getSubResellerKeyStats,
   getSupportMessages: () => getSupportMessages,
   getSupportTicketById: () => getSupportTicketById,
   getTicketById: () => getTicketById,
@@ -913,6 +916,43 @@ async function getAllKeysWithReseller() {
     parentResellerName: r.parent?.username,
     resellerType: r.reseller?.resellerType ?? "credits"
   }));
+}
+async function getSubResellerKeyStats(parentResellerId) {
+  await ensureLicenseKeysSchema();
+  await ensureResellerColumns();
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db.select({
+    resellerId: resellers.id,
+    username: resellers.username,
+    count: sql`count(${licenseKeys.id})`.as("count"),
+    total: sql`sum(${licenseKeys.creditsSpent})`.as("total")
+  }).from(resellers).leftJoin(licenseKeys, eq(resellers.id, licenseKeys.resellerId)).where(eq(resellers.parentResellerId, parentResellerId)).groupBy(resellers.id, resellers.username).orderBy(desc(sql`count`));
+  return rows;
+}
+async function getSubResellerKeyLogs(parentResellerId) {
+  await ensureLicenseKeysSchema();
+  await ensureResellerColumns();
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db.select({
+    key: licenseKeys,
+    reseller: resellers
+  }).from(licenseKeys).innerJoin(resellers, eq(licenseKeys.resellerId, resellers.id)).where(eq(resellers.parentResellerId, parentResellerId)).orderBy(desc(licenseKeys.createdAt));
+  return rows.map((r) => ({ ...r.key, resellerName: r.reseller?.username ?? "\u2014" }));
+}
+async function getResellerKeyStatsByType(resellerType, limit = 20) {
+  await ensureLicenseKeysSchema();
+  await ensureResellerColumns();
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db.select({
+    resellerId: resellers.id,
+    username: resellers.username,
+    count: sql`count(${licenseKeys.id})`.as("count"),
+    total: sql`sum(${licenseKeys.creditsSpent})`.as("total")
+  }).from(resellers).leftJoin(licenseKeys, eq(resellers.id, licenseKeys.resellerId)).where(eq(resellers.resellerType, resellerType)).groupBy(resellers.id, resellers.username).orderBy(desc(sql`count`)).limit(limit);
+  return rows;
 }
 async function getKeyById(id) {
   await ensureLicenseKeysSchema();
@@ -2580,6 +2620,7 @@ var authRouter = router({
         discountPercent: reseller.discountPercent,
         totalPurchases: reseller.totalPurchases,
         status: reseller.status,
+        canCreateSubResellers: reseller.canCreateSubResellers,
         otherStore: otherStore ? {
           id: otherStore.id,
           label: otherStore.label,
@@ -2710,6 +2751,14 @@ var adminRouter = router({
   listResellers: adminProcedure2.query(async () => {
     const list = await getAllResellers();
     return list.map((r) => ({ ...r, passwordHash: void 0 }));
+  }),
+  resellerStats: adminProcedure2.query(async () => {
+    const [credits, percentage, other] = await Promise.all([
+      getResellerKeyStatsByType("credits"),
+      getResellerKeyStatsByType("percentage"),
+      getResellerKeyStatsByType("other")
+    ]);
+    return { credits, percentage, other };
   }),
   createReseller: adminProcedure2.input(z2.object({
     username: z2.string().min(3).max(64),
@@ -3839,6 +3888,11 @@ var resellerRouter = router({
     if (!sub || sub.parentResellerId !== ctx.resellerId) throw new TRPCError3({ code: "FORBIDDEN", message: "Reseller nao pertence a voce" });
     await deleteResellerById(input.id);
     return { success: true };
+  }),
+  subResellerStats: resellerProcedure.query(async ({ ctx }) => {
+    const stats = await getSubResellerKeyStats(ctx.resellerId);
+    const logs = await getSubResellerKeyLogs(ctx.resellerId);
+    return { stats, logs };
   }),
   createSubReseller: resellerProcedure.input(z2.object({
     username: z2.string().min(3).max(32),
