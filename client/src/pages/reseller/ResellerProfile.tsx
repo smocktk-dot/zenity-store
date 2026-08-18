@@ -723,16 +723,17 @@ function SubResellersSection() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [email, setEmail] = useState("");
+  const [discount, setDiscount] = useState<"35" | "40">("35");
   const { data, refetch } = trpc.reseller.listSubResellers.useQuery();
   const create = trpc.reseller.createSubReseller.useMutation({
-    onSuccess: () => { toast.success("Reseller criado"); setOpen(false); setUsername(""); setPassword(""); setEmail(""); refetch(); },
+    onSuccess: () => { toast.success("Reseller criado"); setOpen(false); setUsername(""); setPassword(""); setEmail(""); setDiscount("35"); refetch(); },
     onError: (e) => toast.error(e.message),
   });
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
     if (!username || !password) return;
-    create.mutate({ username, password, email: email.trim() || undefined });
+    create.mutate({ username, password, email: email.trim() || undefined, discountPercent: discount });
   };
 
   return (
@@ -780,6 +781,18 @@ function SubResellersSection() {
             <div>
               <Label className="text-gray-400 text-xs uppercase">Email (opcional)</Label>
               <Input value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1.5 text-white border-white/10 bg-white/5" />
+            </div>
+            <div>
+              <Label className="text-gray-400 text-xs uppercase">Desconto</Label>
+              <select
+                value={discount}
+                onChange={(e) => setDiscount(e.target.value as "35" | "40")}
+                className="w-full h-10 mt-1.5 rounded-md px-3 text-white border-white/10 bg-white/5 focus:outline-none focus:border-emerald-500"
+                style={{ background: "rgba(255,255,255,0.05)" }}
+              >
+                <option value="35" className="bg-[#0a0a0c] text-white">35%</option>
+                <option value="40" className="bg-[#0a0a0c] text-white">40%</option>
+              </select>
             </div>
             <Button type="submit" disabled={create.isPending} className="w-full bg-emerald-600 hover:bg-emerald-500">
               {create.isPending ? "Criando..." : "Criar"}
