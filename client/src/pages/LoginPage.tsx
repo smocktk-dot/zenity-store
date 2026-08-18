@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Eye, EyeOff, LogIn, Send, MessageCircle, X, UserPlus, CheckCircle2, HelpCircle, Zap, Shield, TrendingUp } from "lucide-react";
+import { Eye, EyeOff, LogIn, Send, MessageCircle, X, CheckCircle2, Zap, Shield, TrendingUp } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -377,19 +377,6 @@ export default function LoginPage() {
             </p>
           </div>
 
-          {/* Apply button */}
-          {!hasApplication && (
-            <div className="mt-5 text-center">
-              <Button
-                onClick={() => setShowApply(true)}
-                className="gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white"
-                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
-              >
-                <UserPlus className="w-4 h-4" /> Quero me tornar Reseller
-              </Button>
-            </div>
-          )}
-
           {hasApplication && application?.status === "pre_approved" && (
             <div className="mt-5 text-center">
               <p className="text-emerald-400 text-sm font-medium flex items-center justify-center gap-2">
@@ -565,27 +552,6 @@ export default function LoginPage() {
           </form>
         </DialogContent>
       </Dialog>
-
-      {/* Floating support button */}
-      <button
-        onClick={() => {
-          if (hasSupport) {
-            setShowSupportChat(true);
-          } else {
-            setShowSupport(true);
-          }
-        }}
-        className="fixed bottom-6 left-6 z-50 flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium text-white shadow-2xl transition-transform hover:scale-105"
-        style={{
-          background: hasSupport ? "linear-gradient(135deg, #3b82f6, #2563eb)" : "rgba(255,255,255,0.05)",
-          border: "1px solid rgba(255,255,255,0.1)",
-          backdropFilter: "blur(10px)",
-          boxShadow: hasSupport ? "0 4px 24px rgba(59,130,246,0.45)" : "none",
-        }}
-        title="Dúvidas"
-      >
-        <HelpCircle className="w-4 h-4" /> {hasSupport ? "Minha dúvida" : "Dúvidas"}
-      </button>
 
       {/* Application chat floating button */}
       {hasApplication && (
