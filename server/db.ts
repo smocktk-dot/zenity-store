@@ -446,6 +446,14 @@ export async function getAppByName(name: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
+export async function getAppByNameLike(term: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const t = `%${term.trim().toLowerCase()}%`;
+  const result = await db.select().from(apps).where(sql`lower(${apps.name}) like ${t}`).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
 export async function createApp(data: InsertApp) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");

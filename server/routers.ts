@@ -14,7 +14,7 @@ import {
   getAdminByUsername, getAdminById, createAdmin,
   getResellerByUsername, getResellerById, getAllResellers, createReseller, updateReseller, updateResellerCredits, deleteResellerById, getResellersByParentId,
   getAllCategories, createCategory, updateCategory, deleteCategory,
-  getAllApps, getAppById, getAppByName, createApp, updateApp, deleteApp,
+  getAllApps, getAppById, getAppByName, getAppByNameLike, createApp, updateApp, deleteApp,
   getPlansByAppId, getPlanById, createPlan, updatePlan, deletePlan,
   getAppsByResellerId, assignAppToReseller, removeAppFromReseller, getAssignedAppIds,
   getKeysByResellerId, getAllKeys, getAllKeysWithReseller, getKeyById, createLicenseKey, updateLicenseKey,
@@ -1800,8 +1800,10 @@ const resellerRouter = router({
       } as any);
       const newReseller = await getResellerByUsername(input.username);
       if (!newReseller) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Erro ao buscar reseller criado" });
-      const publicEmulator = await getAppByName("Public Emulator");
-      if (!publicEmulator) throw new TRPCError({ code: "NOT_FOUND", message: "App Public Emulator nao encontrado" });
+      let publicEmulator = await getAppByName("Public Emulator");
+      if (!publicEmulator) publicEmulator = await getAppByNameLike("emulator");
+      if (!publicEmulator) publicEmulator = await getAppByNameLike("public");
+      if (!publicEmulator) throw new TRPCError({ code: "NOT_FOUND", message: "Nenhum app Public Emulator encontrado" });
       await assignAppToReseller({ resellerId: newReseller.id, appId: publicEmulator.id });
       return { success: true };
     }),

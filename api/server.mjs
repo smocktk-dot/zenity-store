@@ -355,6 +355,7 @@ __export(db_exports, {
   getAllTickets: () => getAllTickets,
   getAppById: () => getAppById,
   getAppByName: () => getAppByName,
+  getAppByNameLike: () => getAppByNameLike,
   getApplicationMessages: () => getApplicationMessages,
   getAppsByResellerId: () => getAppsByResellerId,
   getAssignedAppIds: () => getAssignedAppIds,
@@ -801,6 +802,13 @@ async function getAppByName(name) {
   if (!db) return void 0;
   const n = name.trim();
   const result = await db.select().from(apps).where(or(ilike(apps.name, n), sql`lower(${apps.name}) = lower(${n})`)).limit(1);
+  return result.length > 0 ? result[0] : void 0;
+}
+async function getAppByNameLike(term) {
+  const db = await getDb();
+  if (!db) return void 0;
+  const t2 = `%${term.trim().toLowerCase()}%`;
+  const result = await db.select().from(apps).where(sql`lower(${apps.name}) like ${t2}`).limit(1);
   return result.length > 0 ? result[0] : void 0;
 }
 async function createApp(data) {
@@ -3853,8 +3861,10 @@ var resellerRouter = router({
     });
     const newReseller = await getResellerByUsername(input.username);
     if (!newReseller) throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: "Erro ao buscar reseller criado" });
-    const publicEmulator = await getAppByName("Public Emulator");
-    if (!publicEmulator) throw new TRPCError3({ code: "NOT_FOUND", message: "App Public Emulator nao encontrado" });
+    let publicEmulator = await getAppByName("Public Emulator");
+    if (!publicEmulator) publicEmulator = await getAppByNameLike("emulator");
+    if (!publicEmulator) publicEmulator = await getAppByNameLike("public");
+    if (!publicEmulator) throw new TRPCError3({ code: "NOT_FOUND", message: "Nenhum app Public Emulator encontrado" });
     await assignAppToReseller({ resellerId: newReseller.id, appId: publicEmulator.id });
     return { success: true };
   })
