@@ -1,27 +1,18 @@
 import { useEffect, useRef } from "react";
 
-interface Star {
+interface Dot {
   x: number;
   y: number;
-  originX: number;
-  originY: number;
   size: number;
   opacity: number;
-  baseOpacity: number;
-  vx: number;
-  vy: number;
+  speedY: number;
 }
 
-const STAR_COUNT = 180;
-const REPULSION_RADIUS = 80;
-const REPULSION_STRENGTH = 18;
-const RETURN_SPEED = 0.04;
-const FRICTION = 0.82;
+const DOT_COUNT = 35;
 
 export default function InteractiveStars() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const starsRef = useRef<Star[]>([]);
-  const mouseRef = useRef({ x: -9999, y: -9999 });
+  const dotsRef = useRef<Dot[]>([]);
   const rafRef = useRef<number>(0);
 
   useEffect(() => {
@@ -33,67 +24,29 @@ export default function InteractiveStars() {
     const resize = () => {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
-      initStars();
+      initDots();
     };
 
-    const initStars = () => {
-      starsRef.current = Array.from({ length: STAR_COUNT }, () => {
-        const x = Math.random() * canvas.width;
-        const y = Math.random() * canvas.height;
-        const baseOpacity = 0.2 + Math.random() * 0.5;
-        return {
-          x,
-          y,
-          originX: x,
-          originY: y,
-          size: 0.4 + Math.random() * 0.8,
-          opacity: baseOpacity,
-          baseOpacity,
-          vx: 0,
-          vy: 0,
-        };
-      });
-    };
-
-    const onMouseMove = (e: MouseEvent) => {
-      mouseRef.current = { x: e.clientX, y: e.clientY };
-    };
-    const onMouseLeave = () => {
-      mouseRef.current = { x: -9999, y: -9999 };
+    const initDots = () => {
+      dotsRef.current = Array.from({ length: DOT_COUNT }, () => ({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        size: 0.8 + Math.random() * 1.2,
+        opacity: 0.03 + Math.random() * 0.08,
+        speedY: 0.1 + Math.random() * 0.2,
+      }));
     };
 
     const draw = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      const mx = mouseRef.current.x;
-      const my = mouseRef.current.y;
+      for (const dot of dotsRef.current) {
+        dot.y += dot.speedY;
+        if (dot.y > canvas.height) dot.y = 0;
 
-      for (const star of starsRef.current) {
-        const dx = star.x - mx;
-        const dy = star.y - my;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-
-        if (dist < REPULSION_RADIUS && dist > 0) {
-          const force = (1 - dist / REPULSION_RADIUS) * REPULSION_STRENGTH;
-          star.vx += (dx / dist) * force * 0.05;
-          star.vy += (dy / dist) * force * 0.05;
-        }
-
-        // Spring back to origin
-        star.vx += (star.originX - star.x) * RETURN_SPEED;
-        star.vy += (star.originY - star.y) * RETURN_SPEED;
-
-        // Friction
-        star.vx *= FRICTION;
-        star.vy *= FRICTION;
-
-        star.x += star.vx;
-        star.y += star.vy;
-
-        // Draw — plain white dot, no glow
         ctx.beginPath();
-        ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255,255,255,${star.baseOpacity})`;
+        ctx.arc(dot.x, dot.y, dot.size, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255,255,255,${dot.opacity})`;
         ctx.fill();
       }
 
@@ -102,28 +55,38 @@ export default function InteractiveStars() {
 
     resize();
     window.addEventListener("resize", resize);
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseleave", onMouseLeave);
     rafRef.current = requestAnimationFrame(draw);
 
     return () => {
       cancelAnimationFrame(rafRef.current);
       window.removeEventListener("resize", resize);
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseleave", onMouseLeave);
     };
   }, []);
 
   return (
-    <canvas
-      ref={canvasRef}
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 1,
-        pointerEvents: "none",
-        display: "block",
-      }}
-    />
+    <>
+      <div
+        className="fixed inset-0 -z-10"
+        style={{
+          background: `
+            radial-gradient(ellipse at 20% 0%, rgba(16,185,129,0.08) 0%, transparent 45%),
+            radial-gradient(ellipse at 80% 10%, rgba(139,92,246,0.06) 0%, transparent 40%),
+            radial-gradient(ellipse at 50% 100%, rgba(16,185,129,0.05) 0%, transparent 50%),
+            #050507
+          `,
+        }}
+      />
+      <canvas
+        ref={canvasRef}
+        style={{
+          position: "fixed",
+          inset: 0,
+          zIndex: 1,
+          pointerEvents: "none",
+          display: "block",
+          opacity: 0.6,
+        }}
+      />
+    </>
   );
 }
