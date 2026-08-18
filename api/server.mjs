@@ -332,6 +332,7 @@ __export(db_exports, {
   deleteOtherStoreReseller: () => deleteOtherStoreReseller,
   deletePlan: () => deletePlan,
   deleteResellerApplication: () => deleteResellerApplication,
+  deleteResellerById: () => deleteResellerById,
   deleteStock: () => deleteStock,
   deleteSupportTicket: () => deleteSupportTicket,
   deleteTicket: () => deleteTicket,
@@ -422,7 +423,7 @@ __export(db_exports, {
   updateTicketTimestamp: () => updateTicketTimestamp,
   upsertUser: () => upsertUser
 });
-import { eq, and, desc, sql, or, aliasedTable } from "drizzle-orm";
+import { eq, and, desc, sql, or, aliasedTable, ilike } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { randomUUID } from "crypto";
@@ -798,7 +799,7 @@ async function getAppById(id) {
 async function getAppByName(name) {
   const db = await getDb();
   if (!db) return void 0;
-  const result = await db.select().from(apps).where(eq(apps.name, name)).limit(1);
+  const result = await db.select().from(apps).where(ilike(apps.name, name.trim())).limit(1);
   return result.length > 0 ? result[0] : void 0;
 }
 async function createApp(data) {
@@ -1051,6 +1052,11 @@ async function updateResellerPassword(id, passwordHash) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   await db.update(resellers).set({ passwordHash }).where(eq(resellers.id, id));
+}
+async function deleteResellerById(id) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.delete(resellers).where(eq(resellers.id, id));
 }
 async function getTicketsByResellerId(resellerId) {
   const db = await getDb();
@@ -3822,7 +3828,7 @@ var resellerRouter = router({
   deleteSubReseller: resellerProcedure.input(z2.object({ id: z2.number() })).mutation(async ({ ctx, input }) => {
     const sub = await getResellerById(input.id);
     if (!sub || sub.parentResellerId !== ctx.resellerId) throw new TRPCError3({ code: "FORBIDDEN", message: "Reseller nao pertence a voce" });
-    await updateReseller(input.id, { status: "inactive" });
+    await deleteResellerById(input.id);
     return { success: true };
   }),
   createSubReseller: resellerProcedure.input(z2.object({

@@ -1,4 +1,4 @@
-import { eq, and, desc, sql, inArray, or, aliasedTable } from "drizzle-orm";
+import { eq, and, desc, sql, inArray, or, aliasedTable, ilike } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { InsertUser, users, admins, resellers, resellerApiKeys, categories, apps, subscriptionPlans, resellerApps, licenseKeys, appStock, appDownloads, creditTransactions, ipWhitelist, pixPayments, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages, otherStoreResellers, otherStoreHwids } from "../drizzle/schema";
@@ -441,7 +441,7 @@ export async function getAppById(id: number) {
 export async function getAppByName(name: string) {
   const db = await getDb();
   if (!db) return undefined;
-  const result = await db.select().from(apps).where(eq(apps.name, name)).limit(1);
+  const result = await db.select().from(apps).where(ilike(apps.name, name.trim())).limit(1);
   return result.length > 0 ? result[0] : undefined;
 }
 
@@ -781,6 +781,12 @@ export async function updateResellerPassword(id: number, passwordHash: string) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   await db.update(resellers).set({ passwordHash }).where(eq(resellers.id, id));
+}
+
+export async function deleteResellerById(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.delete(resellers).where(eq(resellers.id, id));
 }
 
 // ─── Tickets ──────────────────────────────────────────────────────────────────

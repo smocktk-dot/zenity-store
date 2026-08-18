@@ -12,7 +12,7 @@ import { checkPurinPaymentStatus, processPurinPaymentUpdate } from "./purinCashW
 import { storagePut } from "./storage";
 import {
   getAdminByUsername, getAdminById, createAdmin,
-  getResellerByUsername, getResellerById, getAllResellers, createReseller, updateReseller, updateResellerCredits, getResellersByParentId,
+  getResellerByUsername, getResellerById, getAllResellers, createReseller, updateReseller, updateResellerCredits, deleteResellerById, getResellersByParentId,
   getAllCategories, createCategory, updateCategory, deleteCategory,
   getAllApps, getAppById, getAppByName, createApp, updateApp, deleteApp,
   getPlansByAppId, getPlanById, createPlan, updatePlan, deletePlan,
@@ -1773,7 +1773,7 @@ const resellerRouter = router({
     .mutation(async ({ ctx, input }) => {
       const sub = await getResellerById(input.id);
       if (!sub || sub.parentResellerId !== ctx.resellerId) throw new TRPCError({ code: "FORBIDDEN", message: "Reseller nao pertence a voce" });
-      await updateReseller(input.id, { status: "inactive" });
+      await deleteResellerById(input.id);
       return { success: true };
     }),
 
