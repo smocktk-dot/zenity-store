@@ -685,6 +685,7 @@ async function getResellerById(id) {
   return result.length > 0 ? result[0] : void 0;
 }
 async function getResellersByParentId2(parentResellerId) {
+  await ensureResellerParentColumn();
   const db = await getDb();
   if (!db) return [];
   return db.select().from(resellers).where(eq(resellers.parentResellerId, parentResellerId)).orderBy(desc(resellers.createdAt));
@@ -693,6 +694,7 @@ async function getResellerParent(parentResellerId) {
   return getResellerById(parentResellerId);
 }
 async function getAllResellers() {
+  await ensureResellerParentColumn();
   const db = await getDb();
   if (!db) return [];
   return db.select().from(resellers).orderBy(desc(resellers.createdAt));
@@ -876,6 +878,7 @@ async function getAllKeys() {
 }
 async function getAllKeysWithReseller() {
   await ensureLicenseKeysSchema();
+  await ensureResellerParentColumn();
   const db = await getDb();
   if (!db) return [];
   const parentResellers = aliasedTable(resellers, "parentResellers");
