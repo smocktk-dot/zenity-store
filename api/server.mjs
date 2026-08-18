@@ -3898,7 +3898,7 @@ var resellerRouter = router({
     username: z2.string().min(3).max(32),
     password: z2.string().min(6),
     email: z2.string().email().optional(),
-    discountPercent: z2.enum(["35", "40"]).default("35")
+    discountPercent: z2.enum(["35", "40", "50"]).default("35")
   })).mutation(async ({ ctx, input }) => {
     if (!ctx.reseller.canCreateSubResellers) throw new TRPCError3({ code: "FORBIDDEN", message: "Sem permissao para criar resellers" });
     const existing = await getResellerByUsername(input.username);

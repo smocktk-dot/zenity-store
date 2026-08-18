@@ -723,7 +723,7 @@ function SubResellersSection() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [email, setEmail] = useState("");
-  const [discount, setDiscount] = useState<"35" | "40">("35");
+  const [discount, setDiscount] = useState<"35" | "40" | "50">("35");
   const { data, refetch } = trpc.reseller.listSubResellers.useQuery();
   const create = trpc.reseller.createSubReseller.useMutation({
     onSuccess: () => { toast.success("Reseller criado"); setOpen(false); setUsername(""); setPassword(""); setEmail(""); setDiscount("35"); refetch(); },
@@ -799,12 +799,13 @@ function SubResellersSection() {
               <Label className="text-gray-400 text-xs uppercase">Desconto</Label>
               <select
                 value={discount}
-                onChange={(e) => setDiscount(e.target.value as "35" | "40")}
+                onChange={(e) => setDiscount(e.target.value as "35" | "40" | "50")}
                 className="w-full h-10 mt-1.5 rounded-md px-3 text-white border-white/10 bg-white/5 focus:outline-none focus:border-emerald-500"
                 style={{ background: "rgba(255,255,255,0.05)" }}
               >
                 <option value="35" className="bg-[#0a0a0c] text-white">35%</option>
                 <option value="40" className="bg-[#0a0a0c] text-white">40%</option>
+                <option value="50" className="bg-[#0a0a0c] text-white">50%</option>
               </select>
             </div>
             <Button type="submit" disabled={create.isPending} className="w-full bg-emerald-600 hover:bg-emerald-500">

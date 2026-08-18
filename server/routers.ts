@@ -1801,7 +1801,7 @@ const resellerRouter = router({
       username: z.string().min(3).max(32),
       password: z.string().min(6),
       email: z.string().email().optional(),
-      discountPercent: z.enum(["35", "40"]).default("35"),
+      discountPercent: z.enum(["35", "40", "50"]).default("35"),
     }))
     .mutation(async ({ ctx, input }) => {
       if (!ctx.reseller.canCreateSubResellers) throw new TRPCError({ code: "FORBIDDEN", message: "Sem permissao para criar resellers" });
