@@ -2701,8 +2701,8 @@ var resellerProcedure = publicProcedure.use(async ({ ctx, next }) => {
   const resellerId = parseInt(payload.sub);
   const reseller = await getResellerById(resellerId);
   if (!reseller || reseller.status !== "active") throw new TRPCError3({ code: "FORBIDDEN", message: "Conta desativada" });
-  const otherStoreId = payload?.otherStoreId;
-  const otherStore = otherStoreId ? await getOtherStoreResellerById(otherStoreId) : null;
+  const otherStoreOwnerId = reseller.parentResellerId ?? reseller.id;
+  const otherStore = await getOtherStoreResellerByOwnerResellerId(otherStoreOwnerId);
   return next({ ctx: { ...ctx, resellerId, reseller, otherStore } });
 });
 var adminRouter = router({
