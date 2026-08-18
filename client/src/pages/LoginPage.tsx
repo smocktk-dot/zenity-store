@@ -659,7 +659,7 @@ export default function LoginPage() {
         >
           <DialogHeader className="border-b border-white/10 pb-3 flex flex-row items-center justify-between">
             <DialogTitle className="text-white text-lg font-semibold flex items-center gap-2">
-              <HelpCircle className="w-5 h-5 text-blue-400" /> Dúvida #{supportTicket?.id}
+              <MessageCircle className="w-5 h-5 text-blue-400" /> Dúvida #{supportTicket?.id}
             </DialogTitle>
             <button
               onClick={() => {
@@ -671,7 +671,7 @@ export default function LoginPage() {
               }}
               className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
             >
-              <HelpCircle className="w-3 h-3" /> Nova dúvida
+              <MessageCircle className="w-3 h-3" /> Nova dúvida
             </button>
           </DialogHeader>
 
