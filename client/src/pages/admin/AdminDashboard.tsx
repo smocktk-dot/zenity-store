@@ -5,7 +5,7 @@ import {
   BarChart3, MapPin, User, Filter, Package
 } from "lucide-react";
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, Cell
 } from "recharts";
 
@@ -47,8 +47,13 @@ export default function AdminDashboard() {
 
   // Monthly data from real stats, filtered by year
   const monthlyData = useMemo(() => {
-    const list = (stats?.months || []).map((m: any) => ({ ...m, label: months[Number(m.month.slice(5)) - 1] || m.month }));
-    return list.filter((m: any) => m.month.startsWith(selectedYear));
+    const filtered = (stats?.months || []).filter((m: any) => m.month.startsWith(selectedYear));
+    const data = months.map((label, idx) => {
+      const key = `${selectedYear}-${String(idx + 1).padStart(2, "0")}`;
+      const found = filtered.find((m: any) => m.month === key);
+      return { month: key, label, count: found ? Number(found.count) : 0, total: found ? Number(found.total) : 0 };
+    });
+    return data;
   }, [stats?.months, selectedYear]);
 
   // Top apps as regions (since we don't have real regions)
@@ -203,22 +208,34 @@ export default function AdminDashboard() {
               <h2 className="text-white font-semibold text-sm">Keys por Mês</h2>
             </div>
             <div className="h-72">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={monthlyData} margin={{ top: 20, right: 20, left: 0, bottom: 0 }}>
-                  <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
-                  <XAxis dataKey="label" stroke="#6b7280" fontSize={12} tick={{ fill: "#9ca3af" }} />
-                  <YAxis stroke="#6b7280" fontSize={12} tick={{ fill: "#9ca3af" }} />
-                  <Tooltip contentStyle={chartTooltipStyle} />
-                  <Line
-                    type="monotone"
-                    dataKey="count"
-                    stroke="#34d399"
-                    strokeWidth={2}
-                    dot={{ r: 4, fill: "#34d399" }}
-                    activeDot={{ r: 6 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+              {monthlyData.every((d) => d.count === 0) ? (
+                <div className="h-full flex items-center justify-center text-gray-500 text-sm">Nenhuma key neste ano</div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={monthlyData} margin={{ top: 20, right: 20, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#34d399" stopOpacity={0.35} />
+                        <stop offset="95%" stopColor="#34d399" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
+                    <XAxis dataKey="label" stroke="#6b7280" fontSize={12} tick={{ fill: "#9ca3af" }} />
+                    <YAxis stroke="#6b7280" fontSize={12} tick={{ fill: "#9ca3af" }} allowDecimals={false} />
+                    <Tooltip contentStyle={chartTooltipStyle} />
+                    <Area
+                      type="monotone"
+                      dataKey="count"
+                      stroke="#34d399"
+                      strokeWidth={2}
+                      fillOpacity={1}
+                      fill="url(#colorCount)"
+                      dot={{ r: 3, fill: "#34d399" }}
+                      activeDot={{ r: 6 }}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </div>
 
