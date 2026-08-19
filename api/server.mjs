@@ -387,6 +387,8 @@ __export(db_exports, {
   getResellerById: () => getResellerById,
   getResellerByUsername: () => getResellerByUsername,
   getResellerKeyStatsByType: () => getResellerKeyStatsByType,
+  getResellerKeysByApp: () => getResellerKeysByApp,
+  getResellerKeysByMonth: () => getResellerKeysByMonth,
   getResellerParent: () => getResellerParent,
   getResellersByParentId: () => getResellersByParentId,
   getStockByApp: () => getStockByApp,
@@ -976,6 +978,27 @@ async function getDashboardTopApps(limit = 6) {
     count: sql`count(${licenseKeys.id})`.as("count"),
     total: sql`sum(${licenseKeys.creditsSpent})`.as("total")
   }).from(licenseKeys).groupBy(licenseKeys.appId).orderBy(desc(sql`count`)).limit(limit);
+  return result;
+}
+async function getResellerKeysByMonth(resellerId) {
+  await ensureLicenseKeysSchema();
+  const db = await getDb();
+  if (!db) return [];
+  const result = await db.select({
+    month: sql`to_char(${licenseKeys.createdAt}, 'YYYY-MM')`.as("month"),
+    count: sql`count(${licenseKeys.id})`.as("count"),
+    total: sql`sum(${licenseKeys.creditsSpent})`.as("total")
+  }).from(licenseKeys).where(and(eq(licenseKeys.resellerId, resellerId), sql`${licenseKeys.createdAt} >= now() - interval '6 months'`)).groupBy(sql`to_char(${licenseKeys.createdAt}, 'YYYY-MM')`).orderBy(sql`month`);
+  return result;
+}
+async function getResellerKeysByApp(resellerId) {
+  await ensureLicenseKeysSchema();
+  const db = await getDb();
+  if (!db) return [];
+  const result = await db.select({
+    appId: licenseKeys.appId,
+    count: sql`count(${licenseKeys.id})`.as("count")
+  }).from(licenseKeys).where(eq(licenseKeys.resellerId, resellerId)).groupBy(licenseKeys.appId).orderBy(desc(sql`count`)).limit(5);
   return result;
 }
 async function getKeyById(id) {
@@ -3282,6 +3305,24 @@ var adminRouter = router({
   })
 });
 var resellerRouter = router({
+  dashboard: resellerProcedure.query(async ({ ctx }) => {
+    const [monthly, byApp, myKeys, subs] = await Promise.all([
+      getResellerKeysByMonth(ctx.resellerId),
+      getResellerKeysByApp(ctx.resellerId),
+      getKeysByResellerId(ctx.resellerId),
+      getSubResellerKeyStats(ctx.resellerId)
+    ]);
+    const apps2 = await getAllApps();
+    const appsById = new Map(apps2.map((a) => [a.id, a]));
+    const totalSpent = myKeys.reduce((sum, k) => sum + (parseFloat(String(k.creditsSpent)) || 0), 0);
+    const totalKeys = myKeys.length;
+    return {
+      monthly,
+      byApp: byApp.map((a) => ({ ...a, appName: appsById.get(a.appId)?.name || `App #${a.appId}` })),
+      counts: { totalKeys, totalSpent: totalSpent.toFixed(2), activeKeys: myKeys.filter((k) => k.status === "active").length, usedKeys: myKeys.filter((k) => k.status === "used").length },
+      subResellers: subs
+    };
+  }),
   profile: resellerProcedure.query(async ({ ctx }) => {
     const r = ctx.reseller;
     const purchases = r.totalPurchases;

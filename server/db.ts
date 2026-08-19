@@ -676,6 +676,38 @@ export async function getDashboardTopApps(limit = 6) {
   return result;
 }
 
+export async function getResellerKeysByMonth(resellerId: number) {
+  await ensureLicenseKeysSchema();
+  const db = await getDb();
+  if (!db) return [];
+  const result = await db.select({
+    month: sql<string>`to_char(${licenseKeys.createdAt}, 'YYYY-MM')`.as("month"),
+    count: sql<number>`count(${licenseKeys.id})`.as("count"),
+    total: sql<string>`sum(${licenseKeys.creditsSpent})`.as("total"),
+  })
+    .from(licenseKeys)
+    .where(and(eq(licenseKeys.resellerId, resellerId), sql`${licenseKeys.createdAt} >= now() - interval '6 months'`))
+    .groupBy(sql`to_char(${licenseKeys.createdAt}, 'YYYY-MM')`)
+    .orderBy(sql`month`);
+  return result;
+}
+
+export async function getResellerKeysByApp(resellerId: number) {
+  await ensureLicenseKeysSchema();
+  const db = await getDb();
+  if (!db) return [];
+  const result = await db.select({
+    appId: licenseKeys.appId,
+    count: sql<number>`count(${licenseKeys.id})`.as("count"),
+  })
+    .from(licenseKeys)
+    .where(eq(licenseKeys.resellerId, resellerId))
+    .groupBy(licenseKeys.appId)
+    .orderBy(desc(sql`count`))
+    .limit(5);
+  return result;
+}
+
 export async function getKeyById(id: number) {
   await ensureLicenseKeysSchema();
   const db = await getDb();

@@ -27,10 +27,11 @@ import {
   updateAdminPassword, updateResellerPassword,
   createPixPayment, getPixPaymentByPaymentId, updatePixPaymentStatus,
   getPendingPixPaymentsByReseller, getPixPaymentsByReseller,
-  getTicketsByResellerId, getAllTickets, getTicketById, createTicket, updateTicketStatus, updateTicketTimestamp, deleteTicket,
-  getTicketMessages, createTicketMessage,
+                                                                                                                                                                                                                                        getTicketsByResellerId, getAllTickets, getTicketById, createTicket, updateTicketStatus, updateTicketTimestamp, deleteTicket,
+                                                                                                                                                                                                                                        getTicketMessages, createTicketMessage,
   getAvailableStockForPlan, reserveStockForReseller, addStockBatch, getStockByApp, getStockCountsByApp, deleteStock,
   getDownloadsByAppId, getDownloadById, createAppDownload, updateAppDownload, deleteAppDownload,
+  getResellerKeysByMonth, getResellerKeysByApp,
   createResellerApplication, getResellerApplicationById, getResellerApplicationByEmail, getAllResellerApplications,
   updateResellerApplicationStatus, updateResellerApplicationTimestamp, deleteResellerApplication,
   getApplicationMessages, createApplicationMessage,
@@ -1033,6 +1034,25 @@ const adminRouter = router({
 
 // ─── Reseller Router ──────────────────────────────────────────────────────────
 const resellerRouter = router({
+  dashboard: resellerProcedure.query(async ({ ctx }) => {
+    const [monthly, byApp, myKeys, subs] = await Promise.all([
+      getResellerKeysByMonth(ctx.resellerId),
+      getResellerKeysByApp(ctx.resellerId),
+      getKeysByResellerId(ctx.resellerId),
+      getSubResellerKeyStats(ctx.resellerId),
+    ]);
+    const apps = await getAllApps();
+    const appsById = new Map(apps.map(a => [a.id, a]));
+    const totalSpent = myKeys.reduce((sum, k) => sum + (parseFloat(String(k.creditsSpent)) || 0), 0);
+    const totalKeys = myKeys.length;
+    return {
+      monthly,
+      byApp: byApp.map(a => ({ ...a, appName: appsById.get(a.appId)?.name || `App #${a.appId}` })),
+      counts: { totalKeys, totalSpent: totalSpent.toFixed(2), activeKeys: myKeys.filter(k => k.status === "active").length, usedKeys: myKeys.filter(k => k.status === "used").length },
+      subResellers: subs,
+    };
+  }),
+
   profile: resellerProcedure.query(async ({ ctx }) => {
     const r = ctx.reseller;
     const purchases = r.totalPurchases;
