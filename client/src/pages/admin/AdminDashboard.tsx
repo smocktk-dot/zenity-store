@@ -124,21 +124,41 @@ export default function AdminDashboard() {
           </div>
 
           <div>
-            <p className="text-gray-400 text-xs uppercase tracking-wide mb-3">Melhor Vendedor</p>
-            {bestSeller ? (
-              <div className="flex flex-col items-center p-4 rounded-2xl" style={{ background: "rgba(255,255,255,0.03)" }}>
-                <div className="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 text-xl font-bold">
-                  {bestSeller.name[0].toUpperCase()}
-                </div>
-                <p className="text-white text-sm font-semibold mt-3">{bestSeller.name}</p>
-                <div className="w-full mt-3 space-y-1 text-xs">
-                  <div className="flex justify-between text-gray-500"><span>Keys</span><span className="text-white">{allSellers[0]?.count || 0}</span></div>
-                  <div className="flex justify-between text-gray-500"><span>Faturamento</span><span className="text-emerald-400">{formatCurrency(bestSeller.value)}</span></div>
-                </div>
-              </div>
-            ) : (
-              <p className="text-gray-600 text-xs">Sem dados</p>
-            )}
+            <p className="text-gray-400 text-xs uppercase tracking-wide mb-3">Melhores Vendedores</p>
+            <div className="space-y-3">
+              {[
+                { type: "Créditos", data: resellerStats?.credits || [], color: "text-yellow-400", bg: "bg-yellow-500/10", border: "border-yellow-500/20" },
+                { type: "Porcentagem", data: resellerStats?.percentage || [], color: "text-purple-400", bg: "bg-purple-500/10", border: "border-purple-500/20" },
+                { type: "Other Store", data: resellerStats?.other || [], color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/20" },
+              ].map(({ type, data, color, bg, border }) => {
+                const top = data[0];
+                return (
+                  <div key={type} className={`p-4 rounded-2xl border ${border} ${bg}`}>
+                    <p className={`text-xs font-semibold mb-2 ${color}`}>{type}</p>
+                    {top ? (
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-black/20 flex items-center justify-center text-white text-xs font-bold">
+                            {top.username[0].toUpperCase()}
+                          </div>
+                          <p className="text-white text-sm font-semibold">{top.username}</p>
+                        </div>
+                        <div className="flex justify-between text-xs">
+                          <span className="text-gray-500">Keys</span>
+                          <span className="text-white font-semibold">{top.count}</span>
+                        </div>
+                        <div className="flex justify-between text-xs">
+                          <span className="text-gray-500">Total</span>
+                          <span className="text-emerald-400 font-semibold">{formatCurrency(top.total)}</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-gray-500 text-xs">Sem dados</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </aside>
 
