@@ -18,7 +18,6 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
   });
 
   const navItems = [
-    { href: "/reseller/dashboard", icon: LayoutDashboard, label: "Dashboard" },
     { href: "/reseller", icon: User, label: t.nav_profile },
     { href: "/reseller/apps", icon: AppWindow, label: t.nav_apps },
     { href: "/reseller/keys", icon: Key, label: t.nav_my_keys },
