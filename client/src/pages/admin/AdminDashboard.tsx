@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import {
   Users, AppWindow, Key, TrendingUp, ShoppingBag, DollarSign,
-  BarChart3, MapPin, User, Filter
+  BarChart3, MapPin, User, Filter, Package
 } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -14,6 +14,8 @@ function formatCurrency(val: string | number) {
   return `R$ ${n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+const months = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+
 const chartTooltipStyle = {
   backgroundColor: "rgba(8,8,10,0.95)",
   border: "1px solid rgba(255,255,255,0.08)",
@@ -21,62 +23,71 @@ const chartTooltipStyle = {
   color: "#fff",
 };
 
-const months = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
-
 export default function AdminDashboard() {
   const { data: stats } = trpc.admin.dashboardStats.useQuery();
   const { data: resellerStats } = trpc.admin.resellerStats.useQuery();
   const { data: resellers = [] } = trpc.admin.listResellers.useQuery();
+  const { data: apps = [] } = trpc.admin.listApps.useQuery();
   const { data: keys = [] } = trpc.admin.listAllKeys.useQuery();
 
-  const counts = stats?.counts ?? { resellers: resellers.length, activeResellers: 0, keys: keys.length, activeKeys: 0, usedKeys: 0, totalCredits: "0.00" };
-  const topApps = stats?.topApps ?? [];
+  const counts = stats?.counts ?? { resellers: resellers.length, activeResellers: resellers.filter((r: any) => r.status === "active").length, apps: apps.length, keys: keys.length, activeKeys: keys.filter((k: any) => k.status === "active").length, usedKeys: keys.filter((k: any) => k.status === "used").length, totalCredits: "0.00" };
 
-  // Mock monthly data inspired by the reference; in real use it would come from API
-  const monthlyData = (stats?.months ?? [
-    { month: "01", count: 12 },
-    { month: "02", count: 17 },
-    { month: "03", count: 15 },
-    { month: "04", count: 15 },
-    { month: "05", count: 18 },
-    { month: "06", count: 16 },
-    { month: "07", count: 20 },
-    { month: "08", count: 19 },
-    { month: "09", count: 17 },
-    { month: "10", count: 22 },
-    { month: "11", count: 21 },
-    { month: "12", count: 23 },
-  ]).map((m) => ({ ...m, label: months[Number(m.month) - 1] || m.month }));
+  // Products from real apps
+  const productOptions = useMemo(() => apps.map((a: any) => a.name).slice(0, 6), [apps]);
+  const [selectedProduct, setSelectedProduct] = useState(productOptions[0] || "Todos");
 
-  const regionData = [
-    { region: "Norte", value: 24500 },
-    { region: "Nordeste", value: 18200 },
-    { region: "Centro-Oeste", value: 33100 },
-    { region: "Sudeste", value: 28700 },
-    { region: "Sul", value: 15600 },
-  ];
+  // Years from real keys
+  const years = useMemo(() => {
+    const y = new Set<string>();
+    keys.forEach((k: any) => { if (k.createdAt) y.add(new Date(k.createdAt).getFullYear().toString()); });
+    const list = Array.from(y).sort().reverse();
+    return list.length ? list : [new Date().getFullYear().toString()];
+  }, [keys]);
+  const [selectedYear, setSelectedYear] = useState(years[0]);
 
-  const sellerData = (resellerStats?.credits || []).slice(0, 6).map((r: any, i: number) => ({
-    name: r.username,
-    value: Number(r.total || 0) + i * 1200,
-  }));
+  // Monthly data from real stats, filtered by year
+  const monthlyData = useMemo(() => {
+    const list = (stats?.months || []).map((m: any) => ({ ...m, label: months[Number(m.month.slice(5)) - 1] || m.month }));
+    return list.filter((m: any) => m.month.startsWith(selectedYear));
+  }, [stats?.months, selectedYear]);
+
+  // Top apps as regions (since we don't have real regions)
+  const regionData = useMemo(() => (stats?.topApps || []).map((a: any) => ({ region: a.appName, value: Number(a.total || 0) })).slice(0, 5), [stats?.topApps]);
+
+  // Real seller data
+  const allSellers = useMemo(() => {
+    const data: any[] = [];
+    if (resellerStats?.credits) data.push(...resellerStats.credits);
+    if (resellerStats?.percentage) data.push(...resellerStats.percentage);
+    if (resellerStats?.other) data.push(...resellerStats.other);
+    return data
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 6)
+      .map((r) => ({ name: r.username, value: Number(r.total || 0) }));
+  }, [resellerStats]);
+
+  // Best seller
+  const bestSeller = allSellers[0];
 
   const summaryCards = [
-    { label: "Quantidade Total", value: counts.keys, icon: Key, color: "text-white", bg: "#1e40af" },
-    { label: "Faturamento Total", value: formatCurrency(counts.totalCredits), icon: DollarSign, color: "text-white", bg: "#1d4ed8" },
-    { label: "Boleto Bancário", value: "R$ 0,00", icon: BarChart3, color: "text-white", bg: "#2563eb" },
-    { label: "Cartão de Crédito", value: "R$ 0,00", icon: ShoppingBag, color: "text-white", bg: "#3b82f6" },
-    { label: "Cartão de Débito", value: "R$ 0,00", icon: TrendingUp, color: "text-white", bg: "#60a5fa" },
+    { label: "Quantidade Total", value: counts.keys, sub: "keys no sistema", icon: Key, color: "text-white" },
+    { label: "Faturamento Total", value: formatCurrency(counts.totalCredits), sub: "créditos movimentados", icon: DollarSign, color: "text-white" },
+    { label: "Resellers Ativos", value: counts.activeResellers, sub: "de " + counts.resellers, icon: Users, color: "text-white" },
+    { label: "Apps Cadastrados", value: counts.apps, sub: "disponíveis", icon: AppWindow, color: "text-white" },
+    { label: "Keys Usadas", value: counts.usedKeys, sub: "consumidas", icon: ShoppingBag, color: "text-white" },
   ];
 
-  const [selectedProduct, setSelectedProduct] = useState("Power BI");
-  const [selectedYear, setSelectedYear] = useState("2024");
+  const topResellers = [
+    { label: "Créditos", data: resellerStats?.credits || [] },
+    { label: "Porcentagem", data: resellerStats?.percentage || [] },
+    { label: "Other Store", data: resellerStats?.other || [] },
+  ];
 
   return (
     <div className="min-h-screen p-6 pl-4">
-      <div className="max-w-[1600px] mx-auto grid grid-cols-[240px_1fr] gap-6">
+      <div className="max-w-[1600px] mx-auto grid grid-cols-[260px_1fr] gap-6">
         {/* Sidebar filters */}
-        <aside className="rounded-3xl p-5 space-y-8" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", minHeight: 750 }}>
+        <aside className="rounded-3xl p-5 space-y-8 h-fit" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
           <div className="flex items-center gap-2 text-white font-semibold">
             <Filter className="w-4 h-4 text-emerald-400" /> Filtros
           </div>
@@ -84,7 +95,8 @@ export default function AdminDashboard() {
           <div>
             <p className="text-gray-400 text-xs uppercase tracking-wide mb-3">Produto</p>
             <div className="space-y-2">
-              {["Power BI", "Excel", "Python", "VBA"].map((p) => (
+              {productOptions.length === 0 && <p className="text-gray-600 text-xs">Nenhum app</p>}
+              {productOptions.map((p: string) => (
                 <button
                   key={p}
                   onClick={() => setSelectedProduct(p)}
@@ -99,34 +111,34 @@ export default function AdminDashboard() {
           <div>
             <p className="text-gray-400 text-xs uppercase tracking-wide mb-3">Ano</p>
             <div className="space-y-2">
-              {["2022", "2023", "2024"].map((y) => (
+              {years.map((y: string) => (
                 <button
                   key={y}
                   onClick={() => setSelectedYear(y)}
-                  className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${selectedYear === y ? "text-emerald-400 bg-emerald-500/10 border border-emerald-500/20" : "text-gray-400 hover:text-white hover:bg-white/5"}`}
-                >
-                  {y}
-                </button>
+                className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${selectedYear === y ? "text-emerald-400 bg-emerald-500/10 border border-emerald-500/20" : "text-gray-400 hover:text-white hover:bg-white/5"}`}
+              >
+                {y}
+              </button>
               ))}
             </div>
           </div>
 
           <div>
             <p className="text-gray-400 text-xs uppercase tracking-wide mb-3">Melhor Vendedor</p>
-            <div className="flex flex-col items-center p-4 rounded-2xl" style={{ background: "rgba(255,255,255,0.03)" }}>
-              <div className="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 text-xl font-bold">
-                JM
+            {bestSeller ? (
+              <div className="flex flex-col items-center p-4 rounded-2xl" style={{ background: "rgba(255,255,255,0.03)" }}>
+                <div className="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 text-xl font-bold">
+                  {bestSeller.name[0].toUpperCase()}
+                </div>
+                <p className="text-white text-sm font-semibold mt-3">{bestSeller.name}</p>
+                <div className="w-full mt-3 space-y-1 text-xs">
+                  <div className="flex justify-between text-gray-500"><span>Keys</span><span className="text-white">{allSellers[0]?.count || 0}</span></div>
+                  <div className="flex justify-between text-gray-500"><span>Faturamento</span><span className="text-emerald-400">{formatCurrency(bestSeller.value)}</span></div>
+                </div>
               </div>
-              <p className="text-white text-sm font-semibold mt-3">João Martins</p>
-              <div className="w-full mt-3 space-y-1 text-xs">
-                <div className="flex justify-between text-gray-500"><span>S</span><span>R$ 4.050</span></div>
-                <div className="flex justify-between text-gray-500"><span>SE</span><span>R$ 3.900</span></div>
-                <div className="flex justify-between text-gray-500"><span>CO</span><span>R$ 6.650</span></div>
-                <div className="flex justify-between text-gray-500"><span>CD</span><span>R$ 2.000</span></div>
-                <div className="flex justify-between text-gray-500"><span>NE</span><span>R$ 3.850</span></div>
-                <div className="flex justify-between text-white font-semibold border-t border-white/10 pt-1 mt-1"><span>Total</span><span>R$ 20.450</span></div>
-              </div>
-            </div>
+            ) : (
+              <p className="text-gray-600 text-xs">Sem dados</p>
+            )}
           </div>
         </aside>
 
@@ -146,18 +158,19 @@ export default function AdminDashboard() {
 
           {/* Summary cards */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-            {summaryCards.map(({ label, value, icon: Icon, color, bg }) => (
+            {summaryCards.map(({ label, value, sub, icon: Icon, color }) => (
               <div
                 key={label}
                 className="rounded-2xl p-4 flex items-center gap-3"
-                style={{ background: bg, border: "1px solid rgba(255,255,255,0.08)" }}
+                style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.15) 0%, rgba(16,185,129,0.05) 100%)", border: "1px solid rgba(16,185,129,0.20)" }}
               >
-                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-xl bg-black/20 flex items-center justify-center">
                   <Icon className={`w-5 h-5 ${color}`} />
                 </div>
                 <div>
                   <p className="text-white text-xl font-bold leading-none">{value}</p>
                   <p className="text-white/80 text-xs mt-1">{label}</p>
+                  <p className="text-emerald-400/80 text-[10px]">{sub}</p>
                 </div>
               </div>
             ))}
@@ -167,14 +180,14 @@ export default function AdminDashboard() {
           <div className="rounded-3xl p-5" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
             <div className="flex items-center gap-2 mb-4">
               <BarChart3 className="w-4 h-4 text-emerald-400" />
-              <h2 className="text-white font-semibold text-sm">Faturamento por Mês</h2>
+              <h2 className="text-white font-semibold text-sm">Keys por Mês</h2>
             </div>
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={monthlyData} margin={{ top: 20, right: 20, left: 0, bottom: 0 }}>
                   <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
                   <XAxis dataKey="label" stroke="#6b7280" fontSize={12} tick={{ fill: "#9ca3af" }} />
-                  <YAxis stroke="#6b7280" fontSize={12} tick={{ fill: "#9ca3af" }} hide />
+                  <YAxis stroke="#6b7280" fontSize={12} tick={{ fill: "#9ca3af" }} />
                   <Tooltip contentStyle={chartTooltipStyle} />
                   <Line
                     type="monotone"
@@ -183,7 +196,6 @@ export default function AdminDashboard() {
                     strokeWidth={2}
                     dot={{ r: 4, fill: "#34d399" }}
                     activeDot={{ r: 6 }}
-                    label={{ position: "top", fill: "#fff", fontSize: 10, formatter: (v: number) => `R$ ${v}.000` }}
                   />
                 </LineChart>
               </ResponsiveContainer>
@@ -192,18 +204,18 @@ export default function AdminDashboard() {
 
           {/* Bottom charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            {/* Region horizontal bar */}
+            {/* Top apps */}
             <div className="rounded-3xl p-5" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
               <div className="flex items-center gap-2 mb-4">
-                <MapPin className="w-4 h-4 text-emerald-400" />
-                <h2 className="text-white font-semibold text-sm">Faturamento por Região</h2>
+                <Package className="w-4 h-4 text-emerald-400" />
+                <h2 className="text-white font-semibold text-sm">Faturamento por App</h2>
               </div>
               <div className="h-72">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={regionData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                     <CartesianGrid stroke="rgba(255,255,255,0.05)" horizontal={false} />
                     <XAxis type="number" stroke="#6b7280" fontSize={11} tick={{ fill: "#9ca3af" }} />
-                    <YAxis type="category" dataKey="region" stroke="#9ca3af" fontSize={12} width={80} />
+                    <YAxis type="category" dataKey="region" stroke="#9ca3af" fontSize={10} width={90} />
                     <Tooltip contentStyle={chartTooltipStyle} formatter={(v: number) => formatCurrency(v)} />
                     <Bar dataKey="value" radius={[0, 8, 8, 0]}>
                       {regionData.map((_, i) => (
@@ -223,13 +235,13 @@ export default function AdminDashboard() {
               </div>
               <div className="h-72">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={sellerData} margin={{ top: 20, right: 10, left: 0, bottom: 0 }}>
+                  <BarChart data={allSellers} margin={{ top: 20, right: 10, left: 0, bottom: 0 }}>
                     <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
                     <XAxis dataKey="name" stroke="#6b7280" fontSize={10} tick={{ fill: "#9ca3af" }} interval={0} />
                     <YAxis stroke="#6b7280" fontSize={11} tick={{ fill: "#9ca3af" }} hide />
                     <Tooltip contentStyle={chartTooltipStyle} formatter={(v: number) => formatCurrency(v)} />
                     <Bar dataKey="value" radius={[8, 8, 0, 0]}>
-                      {sellerData.map((_, i) => (
+                      {allSellers.map((_, i) => (
                         <Cell key={`cell2-${i}`} fill={i % 2 === 0 ? "#34d399" : "#10b981"} />
                       ))}
                     </Bar>
@@ -241,11 +253,7 @@ export default function AdminDashboard() {
 
           {/* Top resellers small */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-            {[
-              { label: "Créditos", data: resellerStats?.credits || [] },
-              { label: "Porcentagem", data: resellerStats?.percentage || [] },
-              { label: "Other Store", data: resellerStats?.other || [] },
-            ].map(({ label, data }) => (
+            {topResellers.map(({ label, data }) => (
               <div key={label} className="rounded-3xl p-5" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
                 <h2 className="text-white font-semibold text-sm mb-4">Top {label}</h2>
                 <div className="space-y-2">
