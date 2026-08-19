@@ -2,8 +2,9 @@ import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import {
   Percent, TrendingUp, ShoppingBag, Calendar, MapPin, Clock,
-  User, Mail, BarChart3, Package, DollarSign, Key, LayoutDashboard, Award,
+  User, Mail, BarChart3, Package, DollarSign, Key, LayoutDashboard, Award, Users,
 } from "lucide-react";
+import SubResellersSection from "./SubResellersSection";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, Cell
@@ -29,7 +30,7 @@ function formatDate(d: Date | null | undefined, lang: "pt" | "en") {
 export default function PercentageProfile({ profile, otherStore }: { profile: any; otherStore?: boolean }) {
   const { t, language } = useLanguage();
   const { data: dashboard, isLoading: dashLoading } = trpc.reseller.dashboard.useQuery();
-  const [activeTab, setActiveTab] = useState<"overview" | "discount">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "discount" | "subresellers">("overview");
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
 
   const purchases = profile.totalPurchases ?? 0;
@@ -74,7 +75,7 @@ export default function PercentageProfile({ profile, otherStore }: { profile: an
 
   const topApps = (dashboard?.byApp || []).map((a: any) => ({ region: a.appName, value: a.count }));
 
-  const tabButton = (id: "overview" | "discount", label: string, icon: any) => {
+  const tabButton = (id: "overview" | "discount" | "subresellers", label: string, icon: any) => {
     const Icon = icon;
     const active = activeTab === id;
     return (
@@ -110,6 +111,7 @@ export default function PercentageProfile({ profile, otherStore }: { profile: an
       <div className="flex items-center gap-2 border-b border-white/[0.06] pb-3">
         {tabButton("overview", language === "en" ? "Overview" : "Visão Geral", LayoutDashboard)}
         {tabButton("discount", language === "en" ? "My Discount" : "Meu Desconto", Award)}
+        {profile.canCreateSubResellers && tabButton("subresellers", language === "en" ? "Sub Resellers" : "Sub Resellers", Users)}
       </div>
 
       {activeTab === "overview" && (
@@ -335,6 +337,12 @@ export default function PercentageProfile({ profile, otherStore }: { profile: an
               })}
             </div>
           </div>
+        </div>
+      )}
+
+      {activeTab === "subresellers" && (
+        <div className="space-y-5 animate-in fade-in duration-300">
+          <SubResellersSection />
         </div>
       )}
     </div>

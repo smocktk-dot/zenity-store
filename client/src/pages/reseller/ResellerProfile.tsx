@@ -2,10 +2,10 @@ import { trpc } from "@/lib/trpc";
 import {
   CreditCard, TrendingUp, ShoppingBag, Calendar, MapPin, Clock,
   ArrowUpRight, ArrowDownRight, ArrowRight, Plus, User, Mail, QrCode, Copy, CheckCircle2,
-  Loader2, RefreshCw, X, Zap, Bitcoin, Trash2,
+  Loader2, RefreshCw, X, Zap, Bitcoin, Trash2, LayoutDashboard, Users,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +14,10 @@ import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useCurrency } from "@/hooks/useCurrency";
 import PercentageProfile from "./PercentageProfile";
+import SubResellersSection from "./SubResellersSection";
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+} from "recharts";
 
 function formatDate(d: Date | null | undefined, lang: "pt" | "en") {
   if (!d) return "—";
@@ -464,115 +468,210 @@ function BuyCreditsModal({ open, onClose, currentCredits, onSuccess }: PixModalP
 }
 
 // ─── Credits Profile ──────────────────────────────────────────────────────────
+const chartTooltipStyle = {
+  backgroundColor: "rgba(8,8,10,0.95)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  borderRadius: 12,
+  color: "#fff",
+};
+
 function CreditsProfile({ profile, refetch }: { profile: any; refetch: () => void }) {
   const { t, language } = useLanguage();
   const { fmt } = useCurrency();
   const [showBuy, setShowBuy] = useState(false);
+  const [activeTab, setActiveTab] = useState<"overview" | "credits" | "subresellers">("overview");
   const credits = parseFloat(String(profile.credits ?? "0"));
 
+  const monthlyData = useMemo(() => {
+    const groups: Record<string, number> = {};
+    (profile.transactions || []).forEach((tx: any) => {
+      const m = new Date(tx.createdAt).toISOString().slice(0, 7);
+      groups[m] = (groups[m] || 0) + 1;
+    });
+    const months = ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];
+    const year = new Date().getFullYear().toString();
+    return months.map((label, idx) => {
+      const key = `${year}-${String(idx + 1).padStart(2, "0")}`;
+      return { label, count: groups[key] || 0 };
+    });
+  }, [profile.transactions]);
+
+  const tabButton = (id: "overview" | "credits" | "subresellers", label: string, icon: any) => {
+    const Icon = icon;
+    const active = activeTab === id;
+    return (
+      <button
+        key={id}
+        onClick={() => setActiveTab(id)}
+        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
+          active
+            ? "text-emerald-400 bg-emerald-500/10 border border-emerald-500/20"
+            : "text-gray-400 hover:text-white hover:bg-white/5 border border-transparent"
+        }`}
+      >
+        <Icon className="w-4 h-4" /> {label}
+      </button>
+    );
+  };
+
+  const summaryCards = [
+    { label: "Saldo", value: `${credits.toFixed(2)} cr`, sub: "disponível", icon: CreditCard },
+    { label: t.profile_total_purchases, value: profile.totalPurchases, sub: "compras", icon: ShoppingBag },
+    { label: t.profile_member_since, value: formatDate(profile.createdAt, language), sub: "registro", icon: Calendar },
+    { label: language === "en" ? "Last access" : "Último acesso", value: formatDate(profile.lastLoginAt, language), sub: "login", icon: Clock },
+  ];
+
   return (
-    <div className="p-6 space-y-6 max-w-5xl mx-auto">
-      <div className="flex items-start justify-between">
+    <div className="p-4 sm:p-6 space-y-5 max-w-6xl mx-auto">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">{t.profile_title}</h1>
+          <h1 className="text-2xl font-bold text-white tracking-tight">{t.profile_title}</h1>
           <p className="text-gray-500 text-sm mt-1">{t.profile_type_credits}</p>
         </div>
-        <span className="text-xs px-3 py-1.5 rounded-full border font-medium bg-yellow-500/15 text-yellow-400 border-yellow-500/30 flex items-center gap-1.5">
-          <CreditCard className="w-3 h-3" /> {language === "en" ? "Credits Reseller" : "Reseller Créditos"}
+        <span className="self-start sm:self-auto text-xs px-3 py-2 rounded-full border font-semibold bg-yellow-500/15 text-yellow-400 border-yellow-500/30 flex items-center gap-1.5">
+          <CreditCard className="w-3.5 h-3.5" /> {language === "en" ? "Credits Reseller" : "Reseller Créditos"}
         </span>
       </div>
 
-      {/* Hero balance */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        <div className="lg:col-span-2 rounded-3xl p-8 relative overflow-hidden" style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.12) 0%, rgba(16,185,129,0.04) 100%)", border: "1px solid rgba(16,185,129,0.25)" }}>
-          <div className="absolute top-0 right-0 w-64 h-64 rounded-full opacity-10 pointer-events-none" style={{ background: "radial-gradient(circle, #10b981, transparent)", transform: "translate(30%, -30%)" }} />
-          <div className="relative z-10">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center">
-                <CreditCard className="w-5 h-5 text-emerald-400" />
-              </div>
-              <p className="text-emerald-400/80 text-sm font-medium">{t.profile_balance}</p>
-            </div>
-            <p className="text-white text-6xl font-bold font-mono tracking-tight mb-6">{credits.toFixed(2)} <span className="text-2xl text-emerald-400/70">cr</span></p>
-            <div className="flex items-center gap-4">
-              <Button
-                onClick={() => setShowBuy(true)}
-                className="font-semibold gap-2 h-11 px-5 text-sm text-white rounded-xl"
-                style={{ background: "linear-gradient(135deg, #10b981, #059669)", boxShadow: "0 4px 20px rgba(16,185,129,0.35)" }}
-              >
-                <Plus className="w-4 h-4" /> {t.profile_buy_credits}
-              </Button>
-              <p className="text-gray-500 text-sm"><span className="text-white font-medium">{profile.totalPurchases}</span> {language === "en" ? "purchases made" : "compras realizadas"}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-3xl p-6" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
-          <h2 className="text-white font-semibold text-sm mb-4">{language === "en" ? "Account" : "Conta"}</h2>
-          <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-red-500/15 flex items-center justify-center"><User className="w-4 h-4 text-red-400" /></div>
-              <div><p className="text-gray-500 text-xs">Username</p><p className="text-white text-sm font-medium">{profile.username}</p></div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-blue-500/15 flex items-center justify-center"><Mail className="w-4 h-4 text-blue-400" /></div>
-              <div><p className="text-gray-500 text-xs">{t.profile_email}</p><p className="text-white text-sm font-medium">{profile.email || "—"}</p></div>
-            </div>
-          </div>
-        </div>
+      <div className="flex items-center gap-2 border-b border-white/[0.06] pb-3">
+        {tabButton("overview", language === "en" ? "Overview" : "Visão Geral", LayoutDashboard)}
+        {tabButton("credits", language === "en" ? "My Credits" : "Meus Créditos", CreditCard)}
+        {profile.canCreateSubResellers && tabButton("subresellers", language === "en" ? "Sub Resellers" : "Sub Resellers", Users)}
       </div>
 
-      {/* Info grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: t.profile_total_purchases, value: profile.totalPurchases, icon: ShoppingBag, color: "text-emerald-400", bg: "bg-emerald-500/15" },
-          { label: t.profile_member_since, value: formatDate(profile.createdAt, language), icon: Calendar, color: "text-blue-400", bg: "bg-blue-500/15" },
-          { label: language === "en" ? "Last access" : "Último acesso", value: formatDate(profile.lastLoginAt, language), icon: Clock, color: "text-yellow-400", bg: "bg-yellow-500/15" },
-          { label: t.profile_location, value: profile.location || "—", icon: MapPin, color: "text-orange-400", bg: "bg-orange-500/15" },
-        ].map(({ label, value, icon: Icon, color, bg }) => (
-          <div key={label} className="rounded-2xl border border-white/[0.06] p-4" style={{ background: "rgba(255,255,255,0.02)" }}>
-            <div className={`w-9 h-9 rounded-xl ${bg} flex items-center justify-center mb-3`}>
-              <Icon className={`w-4 h-4 ${color}`} />
-            </div>
-            <p className="text-gray-500 text-xs">{label}</p>
-            <p className="text-white text-sm font-semibold mt-0.5 truncate">{String(value)}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Transaction history */}
-      <div className="rounded-3xl border border-white/[0.06] p-5" style={{ background: "rgba(255,255,255,0.02)" }}>
-        <h2 className="text-white font-semibold mb-4 flex items-center gap-2">
-          <TrendingUp className="w-4 h-4 text-emerald-400" /> {t.profile_recent_transactions}
-        </h2>
-        {!profile.transactions?.length ? (
-          <p className="text-gray-600 text-sm text-center py-8">{t.profile_no_transactions}</p>
-        ) : (
-          <div className="space-y-2">
-            {profile.transactions.slice(0, 20).map((tx: any) => (
-              <div key={tx.id} className="flex items-center justify-between p-4 rounded-2xl border border-white/[0.04] hover:bg-white/[0.02] transition-colors" style={{ background: "rgba(255,255,255,0.01)" }}>
-                <div className="flex items-center gap-4">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${tx.type === "add" ? "bg-emerald-500/15" : "bg-red-500/15"}`}>
-                    {tx.type === "add"
-                      ? <ArrowUpRight className="w-4 h-4 text-emerald-400" />
-                      : <ArrowDownRight className="w-4 h-4 text-red-400" />}
-                  </div>
-                  <div>
-                    <p className="text-white text-sm font-medium">{tx.description}</p>
-                    <p className="text-gray-600 text-xs">{formatDate(tx.createdAt, language)}</p>
-                  </div>
+      {activeTab === "overview" && (
+        <div className="space-y-5 animate-in fade-in duration-300">
+          {/* Summary */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {summaryCards.map(({ label, value, sub, icon: Icon }) => (
+              <div key={label} className="rounded-2xl p-4" style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.15) 0%, rgba(16,185,129,0.05) 100%)", border: "1px solid rgba(16,185,129,0.20)" }}>
+                <div className="w-9 h-9 rounded-xl bg-black/20 flex items-center justify-center mb-3">
+                  <Icon className="w-4 h-4 text-emerald-400" />
                 </div>
-                <div className="text-right">
-                  <p className={`font-mono font-bold text-sm ${tx.type === "add" ? "text-emerald-400" : "text-red-400"}`}>
-                    {tx.type === "add" ? "+" : "-"}{parseFloat(tx.amount).toFixed(2)} cr
-                  </p>
-                  <p className="text-gray-600 text-xs font-mono">{language === "en" ? "Balance:" : "Saldo:"} {parseFloat(tx.balanceAfter).toFixed(2)} cr</p>
-                </div>
+                <p className="text-white text-xl font-bold leading-none">{String(value)}</p>
+                <p className="text-white/80 text-xs mt-1">{label}</p>
+                <p className="text-emerald-400/80 text-[10px]">{sub}</p>
               </div>
             ))}
           </div>
-        )}
-      </div>
+
+          {/* Account */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="rounded-3xl p-5" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center"><User className="w-4 h-4 text-emerald-400" /></div>
+                <div><p className="text-gray-500 text-xs">Username</p><p className="text-white text-sm font-semibold">{profile.username}</p></div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center"><Mail className="w-4 h-4 text-blue-400" /></div>
+                <div><p className="text-gray-500 text-xs">{t.profile_email}</p><p className="text-white text-sm font-semibold">{profile.email || "—"}</p></div>
+              </div>
+            </div>
+            {[
+              { label: t.profile_location, value: profile.location || "—", icon: MapPin, color: "text-orange-400", bg: "bg-orange-500/10", border: "border-orange-500/20" },
+            ].map(({ label, value, icon: Icon, color, bg, border }) => (
+              <div key={label} className={`rounded-3xl p-5 ${bg} border ${border}`}>
+                <div className="w-10 h-10 rounded-xl bg-black/20 flex items-center justify-center mb-4">
+                  <Icon className={`w-4 h-4 ${color}`} />
+                </div>
+                <p className="text-gray-500 text-xs">{label}</p>
+                <p className="text-white text-lg font-semibold mt-1 truncate">{String(value)}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Activity chart */}
+          <div className="rounded-3xl p-5" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            <h2 className="text-white font-semibold text-sm mb-4 flex items-center gap-2"><TrendingUp className="w-4 h-4 text-emerald-400" /> {language === "en" ? "Activity by month" : "Atividade por mês"}</h2>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={monthlyData} margin={{ top: 20, right: 20, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorCredit" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#34d399" stopOpacity={0.35} />
+                      <stop offset="95%" stopColor="#34d399" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
+                  <XAxis dataKey="label" stroke="#6b7280" fontSize={12} tick={{ fill: "#9ca3af" }} />
+                  <YAxis stroke="#6b7280" fontSize={12} tick={{ fill: "#9ca3af" }} allowDecimals={false} />
+                  <Tooltip contentStyle={chartTooltipStyle} />
+                  <Area
+                    type="monotone"
+                    dataKey="count"
+                    stroke="#34d399"
+                    strokeWidth={2}
+                    fillOpacity={1}
+                    fill="url(#colorCredit)"
+                    dot={{ r: 3, fill: "#34d399" }}
+                    activeDot={{ r: 6 }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === "credits" && (
+        <div className="space-y-5 animate-in fade-in duration-300">
+          {/* Balance card */}
+          <div className="rounded-3xl p-8 text-center" style={{ background: "linear-gradient(145deg, rgba(16,185,129,0.15) 0%, rgba(8,8,10,0.75) 55%)", border: "1px solid rgba(16,185,129,0.25)" }}>
+            <div className="flex items-center justify-center gap-2 mb-3">
+              <CreditCard className="w-5 h-5 text-emerald-400" />
+              <p className="text-emerald-400/80 text-sm font-medium">{t.profile_balance}</p>
+            </div>
+            <p className="text-white text-5xl sm:text-6xl font-bold tracking-tight mb-6">{credits.toFixed(2)} <span className="text-xl sm:text-2xl text-emerald-400/70">cr</span></p>
+            <Button
+              onClick={() => setShowBuy(true)}
+              className="font-semibold gap-2 h-11 px-6 text-sm text-white rounded-xl"
+              style={{ background: "linear-gradient(135deg, #10b981, #059669)", boxShadow: "0 4px 20px rgba(16,185,129,0.35)" }}
+            >
+              <Plus className="w-4 h-4" /> {t.profile_buy_credits}
+            </Button>
+          </div>
+
+          {/* Transactions */}
+          <div className="rounded-3xl p-5" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            <h2 className="text-white font-semibold text-sm mb-4 flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-emerald-400" /> {t.profile_recent_transactions}
+            </h2>
+            {!profile.transactions?.length ? (
+              <p className="text-gray-600 text-sm text-center py-8">{t.profile_no_transactions}</p>
+            ) : (
+              <div className="space-y-2">
+                {profile.transactions.slice(0, 20).map((tx: any) => (
+                  <div key={tx.id} className="flex items-center justify-between p-4 rounded-2xl border border-white/[0.04] hover:bg-white/[0.02] transition-colors" style={{ background: "rgba(255,255,255,0.01)" }}>
+                    <div className="flex items-center gap-4">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${tx.type === "add" ? "bg-emerald-500/15" : "bg-red-500/15"}`}>
+                        {tx.type === "add"
+                          ? <ArrowUpRight className="w-4 h-4 text-emerald-400" />
+                          : <ArrowDownRight className="w-4 h-4 text-red-400" />}
+                      </div>
+                      <div>
+                        <p className="text-white text-sm font-medium">{tx.description}</p>
+                        <p className="text-gray-600 text-xs">{formatDate(tx.createdAt, language)}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className={`font-mono font-bold text-sm ${tx.type === "add" ? "text-emerald-400" : "text-red-400"}`}>
+                        {tx.type === "add" ? "+" : "-"}{parseFloat(tx.amount).toFixed(2)} cr
+                      </p>
+                      <p className="text-gray-600 text-xs font-mono">{language === "en" ? "Balance:" : "Saldo:"} {parseFloat(tx.balanceAfter).toFixed(2)} cr</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeTab === "subresellers" && (
+        <div className="space-y-5 animate-in fade-in duration-300">
+          <SubResellersSection />
+        </div>
+      )}
 
       <BuyCreditsModal
         open={showBuy}
@@ -580,107 +679,6 @@ function CreditsProfile({ profile, refetch }: { profile: any; refetch: () => voi
         currentCredits={credits}
         onSuccess={() => { refetch(); }}
       />
-    </div>
-  );
-}
-
-// ─── Sub Resellers Section ─────────────────────────────────────────────────────
-function SubResellersSection() {
-  const [open, setOpen] = useState(false);
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [email, setEmail] = useState("");
-  const [discount, setDiscount] = useState<"35" | "40" | "50">("35");
-  const { data, refetch } = trpc.reseller.listSubResellers.useQuery();
-  const create = trpc.reseller.createSubReseller.useMutation({
-    onSuccess: () => { toast.success("Reseller criado"); setOpen(false); setUsername(""); setPassword(""); setEmail(""); setDiscount("35"); refetch(); },
-    onError: (e) => toast.error(e.message),
-  });
-  const remove = trpc.reseller.deleteSubReseller.useMutation({
-    onSuccess: () => { toast.success("Reseller removido"); refetch(); },
-    onError: (e) => toast.error(e.message),
-  });
-
-  const handleCreate = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!username || !password) return;
-    create.mutate({ username, password, email: email.trim() || undefined, discountPercent: discount });
-  };
-
-  return (
-    <div className="max-w-5xl mx-auto px-6 pb-10">
-      <div className="rounded-3xl border p-6" style={{ background: "rgba(8,8,10,0.6)", borderColor: "rgba(255,255,255,0.08)" }}>
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-xl font-bold text-white">Meus Resellers</h2>
-            <p className="text-gray-500 text-sm">Crie logins de resellers para seu time.</p>
-          </div>
-          <Button onClick={() => setOpen(true)} className="gap-2 bg-emerald-600 hover:bg-emerald-500">
-            <Plus className="w-4 h-4" /> Criar
-          </Button>
-        </div>
-
-        {data?.length === 0 && <p className="text-gray-500 text-sm">Nenhum reseller criado ainda.</p>}
-        <div className="space-y-2">
-          {data?.map((r: any) => (
-            <div key={r.id} className="flex items-center justify-between p-3 rounded-xl" style={{ background: "rgba(255,255,255,0.03)" }}>
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center text-emerald-400 text-xs font-bold">{r.username[0].toUpperCase()}</div>
-                <div>
-                  <p className="text-white text-sm font-medium">{r.username}</p>
-                  <p className="text-gray-500 text-xs">{r.email || "sem email"} · {r.discountPercent}%</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className={`text-xs px-2 py-1 rounded-full ${r.status === "active" ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400"}`}>{r.status}</span>
-                <button
-                  onClick={() => remove.mutate({ id: r.id })}
-                  disabled={remove.isPending}
-                  className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="text-white border-0" style={{ background: "linear-gradient(145deg, rgba(18,12,35,0.98) 0%, rgba(10,8,25,0.98) 100%)", boxShadow: "0 0 0 1px rgba(16,185,129,0.2), 0 25px 60px rgba(0,0,0,0.7)" }}>
-          <h3 className="text-lg font-bold text-white mb-4">Criar Reseller</h3>
-          <form onSubmit={handleCreate} className="space-y-4">
-            <div>
-              <Label className="text-gray-400 text-xs uppercase">Usuario</Label>
-              <Input value={username} onChange={(e) => setUsername(e.target.value)} className="mt-1.5 text-white border-white/10 bg-white/5" required />
-            </div>
-            <div>
-              <Label className="text-gray-400 text-xs uppercase">Senha</Label>
-              <Input value={password} onChange={(e) => setPassword(e.target.value)} className="mt-1.5 text-white border-white/10 bg-white/5" required />
-            </div>
-            <div>
-              <Label className="text-gray-400 text-xs uppercase">Email (opcional)</Label>
-              <Input value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1.5 text-white border-white/10 bg-white/5" />
-            </div>
-            <div>
-              <Label className="text-gray-400 text-xs uppercase">Desconto</Label>
-              <select
-                value={discount}
-                onChange={(e) => setDiscount(e.target.value as "35" | "40" | "50")}
-                className="w-full h-10 mt-1.5 rounded-md px-3 text-white border-white/10 bg-white/5 focus:outline-none focus:border-emerald-500"
-                style={{ background: "rgba(255,255,255,0.05)" }}
-              >
-                <option value="35" className="bg-[#0a0a0c] text-white">35%</option>
-                <option value="40" className="bg-[#0a0a0c] text-white">40%</option>
-                <option value="50" className="bg-[#0a0a0c] text-white">50%</option>
-              </select>
-            </div>
-            <Button type="submit" disabled={create.isPending} className="w-full bg-emerald-600 hover:bg-emerald-500">
-              {create.isPending ? "Criando..." : "Criar"}
-            </Button>
-          </form>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
@@ -707,7 +705,6 @@ export default function ResellerProfile() {
       {profile.resellerType === "credits"
         ? <CreditsProfile profile={profile} refetch={refetch} />
         : <PercentageProfile profile={profile} otherStore={profile.resellerType === "other"} />}
-      {profile.canCreateSubResellers && <SubResellersSection />}
     </div>
   );
 }
