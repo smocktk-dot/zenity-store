@@ -1,6 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import {
-  CreditCard, Percent, TrendingUp, ShoppingBag, Calendar, MapPin, Clock,
+  CreditCard, TrendingUp, ShoppingBag, Calendar, MapPin, Clock,
   ArrowUpRight, ArrowDownRight, ArrowRight, Plus, User, Mail, QrCode, Copy, CheckCircle2,
   Loader2, RefreshCw, X, Zap, Bitcoin, Trash2,
 } from "lucide-react";
@@ -13,6 +13,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useCurrency } from "@/hooks/useCurrency";
+import PercentageProfile from "./PercentageProfile";
 
 function formatDate(d: Date | null | undefined, lang: "pt" | "en") {
   if (!d) return "—";
@@ -579,155 +580,6 @@ function CreditsProfile({ profile, refetch }: { profile: any; refetch: () => voi
         currentCredits={credits}
         onSuccess={() => { refetch(); }}
       />
-    </div>
-  );
-}
-
-// ─── Percentage Profile ───────────────────────────────────────────────────────
-function PercentageProfile({ profile, otherStore }: { profile: any; otherStore?: boolean }) {
-  const { t, language } = useLanguage();
-  const purchases = profile.totalPurchases ?? 0;
-  const discount = parseFloat(String(profile.discountPercent ?? 0));
-
-  const levels = [
-    { label: language === "en" ? "Starter" : "Iniciante", discount: 35, from: 0, to: 10, color: "text-blue-400", bg: "bg-blue-500/10", border: "border-blue-500/30", ring: "ring-blue-500/20" },
-    { label: language === "en" ? "Advanced" : "Avançado", discount: 40, from: 10, to: 20, color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/30", ring: "ring-emerald-500/20" },
-    { label: language === "en" ? "Elite" : "Elite", discount: 50, from: 20, to: Infinity, color: "text-yellow-400", bg: "bg-yellow-500/10", border: "border-yellow-500/30", ring: "ring-yellow-500/20" },
-  ];
-
-  const currentLevelIdx = purchases >= 20 ? 2 : purchases >= 10 ? 1 : 0;
-  const currentLevel = levels[currentLevelIdx];
-  const nextLevel = currentLevelIdx < 2 ? levels[currentLevelIdx + 1] : null;
-  const progressInLevel = purchases >= 20 ? 10 : purchases >= 10 ? purchases - 10 : purchases;
-  const progressPct = nextLevel ? Math.min(100, (progressInLevel / 10) * 100) : 100;
-
-  return (
-    <div className="p-4 sm:p-6 space-y-5 max-w-5xl mx-auto">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">{t.profile_title}</h1>
-          <p className="text-gray-500 text-sm mt-1">{otherStore ? "Reseller Other Store" : t.profile_type_percentage}</p>
-        </div>
-        <span className="self-start sm:self-auto text-xs px-4 py-2 rounded-full border font-semibold bg-emerald-500/10 text-emerald-400 border-emerald-500/30 flex items-center gap-2">
-          <Percent className="w-3.5 h-3.5" />
-          {otherStore ? "Other Store" : (language === "en" ? "Percentage Reseller" : "Reseller Porcentagem")}
-        </span>
-      </div>
-
-      {/* Main dashboard card */}
-      <div className="rounded-3xl p-6 sm:p-8 relative overflow-hidden" style={{ background: "linear-gradient(145deg, rgba(16,185,129,0.10) 0%, rgba(8,8,10,0.75) 55%)", border: "1px solid rgba(16,185,129,0.20)" }}>
-        <div className="absolute top-0 right-0 w-72 h-72 rounded-full opacity-10 pointer-events-none" style={{ background: "radial-gradient(circle, #10b981, transparent)", transform: "translate(40%, -40%)" }} />
-
-        <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-          {/* Big discount */}
-          <div>
-            <p className="text-emerald-400/80 text-sm font-medium mb-2 flex items-center gap-2">
-              <Percent className="w-4 h-4" /> {t.profile_current_discount}
-            </p>
-            <div className="flex items-end gap-4">
-              <p className="text-white text-7xl font-bold tracking-tighter">{discount}<span className="text-3xl text-emerald-400 font-semibold">%</span></p>
-              <div className="mb-3">
-                <span className={`text-xs px-3 py-1.5 rounded-full border font-semibold ${currentLevel.border} ${currentLevel.color}`} style={{ background: "rgba(16,185,129,0.08)" }}>
-                  {currentLevel.label}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Progress */}
-          <div className="space-y-4">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
-                <TrendingUp className="w-5 h-5 text-emerald-400" />
-              </div>
-              <div>
-                <p className="text-white font-semibold text-sm">{language === "en" ? "Progress to next level" : "Progresso para o próximo nível"}</p>
-                <p className="text-gray-500 text-xs mt-0.5">{language === "en" ? "Based on completed purchases" : "Baseado em compras concluídas"}</p>
-              </div>
-            </div>
-
-            {nextLevel ? (
-              <div>
-                <div className="flex justify-between text-xs mb-2">
-                  <span className="text-gray-400">{progressInLevel} / 10 {language === "en" ? "purchases" : "compras"}</span>
-                  <span className="text-emerald-400 font-semibold">{nextLevel.discount}% {language === "en" ? "next" : "próximo"}</span>
-                </div>
-                <div className="h-3 rounded-full bg-white/5 overflow-hidden border border-white/5">
-                  <div className="h-full rounded-full transition-all duration-700" style={{ width: `${progressPct}%`, background: "linear-gradient(90deg, #10b981, #34d399)" }} />
-                </div>
-                <p className="text-gray-500 text-xs mt-2">
-                  {language === "en" ? "Need" : "Faltam"} <span className="text-emerald-400 font-semibold">{10 - progressInLevel} {language === "en" ? "more purchases" : "compras"}</span> {language === "en" ? `to unlock ${nextLevel.discount}%` : `para liberar ${nextLevel.discount}%`}
-                </p>
-              </div>
-            ) : (
-              <div>
-                <div className="h-3 rounded-full overflow-hidden border border-yellow-500/20" style={{ background: "rgba(234,179,8,0.08)" }}>
-                  <div className="h-full rounded-full w-full" style={{ background: "linear-gradient(90deg, #ca8a04, #eab308)" }} />
-                </div>
-                <p className="text-yellow-400/90 text-xs font-semibold mt-2 uppercase tracking-wide">{language === "en" ? "Maximum level reached" : "Nível máximo atingido"}</p>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Account + Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="md:col-span-1 rounded-3xl p-6" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
-          <h2 className="text-white font-semibold text-sm mb-5">{language === "en" ? "Account" : "Conta"}</h2>
-          <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center"><User className="w-4 h-4 text-emerald-400" /></div>
-              <div><p className="text-gray-500 text-xs">Username</p><p className="text-white text-sm font-semibold">{profile.username}</p></div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center"><Mail className="w-4 h-4 text-blue-400" /></div>
-              <div><p className="text-gray-500 text-xs">{t.profile_email}</p><p className="text-white text-sm font-semibold">{profile.email || "—"}</p></div>
-            </div>
-          </div>
-        </div>
-
-        {[
-          { label: t.profile_total_purchases, value: purchases, icon: ShoppingBag, color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/20" },
-          { label: language === "en" ? "Member since" : "Membro desde", value: formatDate(profile.createdAt, language), icon: Calendar, color: "text-blue-400", bg: "bg-blue-500/10", border: "border-blue-500/20" },
-          { label: language === "en" ? "Last access" : "Último acesso", value: formatDate(profile.lastLoginAt, language), icon: Clock, color: "text-yellow-400", bg: "bg-yellow-500/10", border: "border-yellow-500/20" },
-          { label: t.profile_location, value: profile.location || "—", icon: MapPin, color: "text-orange-400", bg: "bg-orange-500/10", border: "border-orange-500/20" },
-        ].map(({ label, value, icon: Icon, color, bg, border }) => (
-          <div key={label} className={`rounded-3xl p-5 ${bg} border ${border}`}>
-            <div className={`w-10 h-10 rounded-xl bg-black/20 flex items-center justify-center mb-4`}>
-              <Icon className={`w-4 h-4 ${color}`} />
-            </div>
-            <p className="text-gray-500 text-xs">{label}</p>
-            <p className="text-white text-lg font-semibold mt-1 truncate">{String(value)}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Levels */}
-      <div>
-        <h2 className="text-white font-semibold mb-4 flex items-center gap-2 text-sm uppercase tracking-wide">
-          <TrendingUp className="w-4 h-4 text-emerald-400" /> {language === "en" ? "Discount Tiers" : "Níveis de Desconto"}
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {levels.map((level, idx) => {
-            const isUnlocked = currentLevelIdx >= idx;
-            const isCurrent = currentLevelIdx === idx;
-            return (
-              <div key={level.label} className={`rounded-3xl p-5 transition-all ${isCurrent ? `border ${level.border} ${level.bg}` : isUnlocked ? `border border-white/10 bg-white/[0.02]` : `border border-white/5 opacity-40`}`}>
-                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-4 ${isCurrent ? `bg-black/20 ${level.ring} ring-1` : isUnlocked ? level.bg : "bg-white/5"}`}>
-                  <Percent className={`w-5 h-5 ${isUnlocked ? level.color : "text-gray-600"}`} />
-                </div>
-                <p className={`text-4xl font-bold ${isUnlocked ? level.color : "text-gray-600"}`}>{level.discount}%</p>
-                <p className="text-white text-sm font-semibold mt-1">{level.label}</p>
-                <p className="text-gray-500 text-xs mt-1">{level.from === 0 ? (language === "en" ? "Starting discount" : "Desconto inicial") : `${language === "en" ? "After" : "Após"} ${level.from} ${language === "en" ? "purchases" : "compras"}`}</p>
-                {isCurrent && <span className="text-xs text-emerald-400 font-semibold mt-3 block">● {language === "en" ? "Current level" : "Nível atual"}</span>}
-                {isUnlocked && !isCurrent && <span className="text-xs text-gray-500 mt-3 block">✓ {language === "en" ? "Unlocked" : "Desbloqueado"}</span>}
-              </div>
-            );
-          })}
-        </div>
-      </div>
     </div>
   );
 }
