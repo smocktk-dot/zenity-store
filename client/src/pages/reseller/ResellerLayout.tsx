@@ -1,8 +1,8 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useLocation, Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { User, AppWindow, Key, LogOut, Shield, Ticket, BarChart3 } from "lucide-react";
+import { User, AppWindow, Key, LogOut, Shield, Ticket, BarChart3, Menu, X } from "lucide-react";
 import InteractiveStars from "@/components/InteractiveStars";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -10,6 +10,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 
 export default function ResellerLayout({ children }: { children: React.ReactNode }) {
   const [location, navigate] = useLocation();
+  const [menuOpen, setMenuOpen] = useState(false);
   const { data: session, isLoading } = trpc.auth.session.useQuery(undefined, { retry: false });
   const { t } = useLanguage();
   const logout = trpc.auth.logout.useMutation({
@@ -60,74 +61,30 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
 
       {/* Top Header */}
       <header
-        className="relative z-10 border-b sticky top-0"
+        className="relative z-30 border-b sticky top-0"
         style={{
           background: "rgba(5,5,5,0.88)",
           backdropFilter: "blur(24px)",
           borderColor: "rgba(255,255,255,0.06)",
         }}
       >
-        <div className="flex items-center justify-between px-6 h-14">
-          {/* Left: Logo + Nav */}
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2.5">
-              <span className="text-white font-black text-sm tracking-[0.2em]">
-                SELLERS
-              </span>
-            </div>
-
-            <nav className="flex items-center gap-0.5 ml-2">
-              {navItems.map(({ href, icon: Icon, label }) => {
-                const active = location === href || (href !== "/reseller" && location.startsWith(href));
-                return (
-                  <Link key={href} href={href}>
-                    <div
-                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer transition-all text-sm"
-                      style={active ? {
-                        background: "rgba(16,185,129,0.15)",
-                        color: "#6ee7b7",
-                        border: "1px solid rgba(16,185,129,0.2)",
-                      } : {
-                        color: "#6b7280",
-                        border: "1px solid transparent",
-                      }}
-                      onMouseEnter={e => { if (!active) { (e.currentTarget as HTMLDivElement).style.background = "rgba(255,255,255,0.04)"; (e.currentTarget as HTMLDivElement).style.color = "#d1d5db"; } }}
-                      onMouseLeave={e => { if (!active) { (e.currentTarget as HTMLDivElement).style.background = "transparent"; (e.currentTarget as HTMLDivElement).style.color = "#6b7280"; } }}
-                    >
-                      <Icon className="w-3.5 h-3.5" />
-                      {label}
-                    </div>
-                  </Link>
-                );
-              })}
-
-              {/* Admin-only: link to Admin Panel */}
-              {isAdmin && (
-                <Link href="/admin">
-                  <div
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer transition-all text-sm ml-1"
-                    style={{
-                      background: "rgba(16,185,129,0.12)",
-                      color: "#34d399",
-                      border: "1px solid rgba(16,185,129,0.3)",
-                    }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = "rgba(16,185,129,0.25)"; (e.currentTarget as HTMLDivElement).style.color = "#6ee7b7"; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = "rgba(16,185,129,0.12)"; (e.currentTarget as HTMLDivElement).style.color = "#34d399"; }}
-                  >
-                    <Shield className="w-3.5 h-3.5" />
-                    {t.nav_admin_panel}
-                  </div>
-                </Link>
-              )}
-            </nav>
+        <div className="flex items-center justify-between px-4 sm:px-6 h-14">
+          {/* Left: Menu button + Logo */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setMenuOpen(true)}
+              className="w-9 h-9 rounded-xl flex items-center justify-center text-gray-300 transition-all"
+              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
+            >
+              <Menu className="w-4 h-4" />
+            </button>
+            <span className="text-white font-black text-sm tracking-[0.2em]">SELLERS</span>
           </div>
 
           {/* Right: language + badges + user */}
           <div className="flex items-center gap-2">
-            {/* Language Switcher */}
             <LanguageSwitcher />
 
-            {/* Admin badge */}
             {isAdmin && (
               <div
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold"
@@ -156,7 +113,7 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
             )}
 
             <div
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg"
+              className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg"
               style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}
             >
               <div
@@ -175,11 +132,90 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
               onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#6b7280"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
             >
               <LogOut className="w-3.5 h-3.5" />
-              {t.nav_logout}
+              <span className="hidden sm:inline">{t.nav_logout}</span>
             </button>
           </div>
         </div>
       </header>
+
+      {/* Sidebar Overlay */}
+      {menuOpen && (
+        <div
+          onClick={() => setMenuOpen(false)}
+          className="fixed inset-0 z-40 bg-black/40"
+          style={{ backdropFilter: "blur(6px)" }}
+        />
+      )}
+
+      {/* Sidebar */}
+      <aside
+        className={`fixed top-0 left-0 h-full z-50 transition-transform duration-300 ease-out ${
+          menuOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+        style={{
+          width: 280,
+          background: "rgba(8,8,10,0.95)",
+          borderRight: "1px solid rgba(255,255,255,0.06)",
+          backdropFilter: "blur(24px)",
+        }}
+      >
+        <div className="flex items-center justify-between h-14 px-5 border-b" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+          <span className="text-white font-black text-sm tracking-[0.2em]">SELLERS</span>
+          <button
+            onClick={() => setMenuOpen(false)}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-white"
+            style={{ background: "rgba(255,255,255,0.05)" }}
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <nav className="p-4 space-y-1">
+          {navItems.map(({ href, icon: Icon, label }) => {
+            const active = location === href || (href !== "/reseller" && location.startsWith(href));
+            return (
+              <Link key={href} href={href}>
+                <div
+                  onClick={() => setMenuOpen(false)}
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-all text-sm"
+                  style={active ? {
+                    background: "rgba(16,185,129,0.15)",
+                    color: "#6ee7b7",
+                    border: "1px solid rgba(16,185,129,0.2)",
+                  } : {
+                    color: "#6b7280",
+                    border: "1px solid transparent",
+                  }}
+                  onMouseEnter={e => { if (!active) { (e.currentTarget as HTMLDivElement).style.background = "rgba(255,255,255,0.04)"; (e.currentTarget as HTMLDivElement).style.color = "#d1d5db"; } }}
+                  onMouseLeave={e => { if (!active) { (e.currentTarget as HTMLDivElement).style.background = "transparent"; (e.currentTarget as HTMLDivElement).style.color = "#6b7280"; } }}
+                >
+                  <Icon className="w-4 h-4" />
+                  {label}
+                </div>
+              </Link>
+            );
+          })}
+
+          {isAdmin && (
+            <Link href="/admin">
+              <div
+                onClick={() => setMenuOpen(false)}
+                className="flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-all text-sm"
+                style={{
+                  background: "rgba(16,185,129,0.12)",
+                  color: "#34d399",
+                  border: "1px solid rgba(16,185,129,0.3)",
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = "rgba(16,185,129,0.25)"; (e.currentTarget as HTMLDivElement).style.color = "#6ee7b7"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = "rgba(16,185,129,0.12)"; (e.currentTarget as HTMLDivElement).style.color = "#34d399"; }}
+              >
+                <Shield className="w-4 h-4" />
+                {t.nav_admin_panel}
+              </div>
+            </Link>
+          )}
+        </nav>
+      </aside>
 
       <main className="relative z-10 p-6">{children}</main>
     </div>
