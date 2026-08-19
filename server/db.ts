@@ -644,6 +644,38 @@ export async function getResellerKeyStatsByType(resellerType: "credits" | "perce
   return rows;
 }
 
+export async function getDashboardKeysByMonth(months = 6) {
+  await ensureLicenseKeysSchema();
+  const db = await getDb();
+  if (!db) return [];
+  const result = await db.select({
+    month: sql<string>`to_char(${licenseKeys.createdAt}, 'YYYY-MM')`.as("month"),
+    count: sql<number>`count(${licenseKeys.id})`.as("count"),
+    total: sql<string>`sum(${licenseKeys.creditsSpent})`.as("total"),
+  })
+    .from(licenseKeys)
+    .where(sql`${licenseKeys.createdAt} >= now() - interval '6 months'`)
+    .groupBy(sql`to_char(${licenseKeys.createdAt}, 'YYYY-MM')`)
+    .orderBy(sql`month`);
+  return result;
+}
+
+export async function getDashboardTopApps(limit = 6) {
+  await ensureLicenseKeysSchema();
+  const db = await getDb();
+  if (!db) return [];
+  const result = await db.select({
+    appId: licenseKeys.appId,
+    count: sql<number>`count(${licenseKeys.id})`.as("count"),
+    total: sql<string>`sum(${licenseKeys.creditsSpent})`.as("total"),
+  })
+    .from(licenseKeys)
+    .groupBy(licenseKeys.appId)
+    .orderBy(desc(sql`count`))
+    .limit(limit);
+  return result;
+}
+
 export async function getKeyById(id: number) {
   await ensureLicenseKeysSchema();
   const db = await getDb();

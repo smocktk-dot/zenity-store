@@ -360,6 +360,8 @@ __export(db_exports, {
   getAppsByResellerId: () => getAppsByResellerId,
   getAssignedAppIds: () => getAssignedAppIds,
   getAvailableStockForPlan: () => getAvailableStockForPlan,
+  getDashboardKeysByMonth: () => getDashboardKeysByMonth,
+  getDashboardTopApps: () => getDashboardTopApps,
   getDb: () => getDb,
   getDownloadById: () => getDownloadById,
   getDownloadsByAppId: () => getDownloadsByAppId,
@@ -953,6 +955,28 @@ async function getResellerKeyStatsByType(resellerType, limit = 20) {
     total: sql`sum(${licenseKeys.creditsSpent})`.as("total")
   }).from(resellers).leftJoin(licenseKeys, eq(resellers.id, licenseKeys.resellerId)).where(eq(resellers.resellerType, resellerType)).groupBy(resellers.id, resellers.username).orderBy(desc(sql`count`)).limit(limit);
   return rows;
+}
+async function getDashboardKeysByMonth(months = 6) {
+  await ensureLicenseKeysSchema();
+  const db = await getDb();
+  if (!db) return [];
+  const result = await db.select({
+    month: sql`to_char(${licenseKeys.createdAt}, 'YYYY-MM')`.as("month"),
+    count: sql`count(${licenseKeys.id})`.as("count"),
+    total: sql`sum(${licenseKeys.creditsSpent})`.as("total")
+  }).from(licenseKeys).where(sql`${licenseKeys.createdAt} >= now() - interval '6 months'`).groupBy(sql`to_char(${licenseKeys.createdAt}, 'YYYY-MM')`).orderBy(sql`month`);
+  return result;
+}
+async function getDashboardTopApps(limit = 6) {
+  await ensureLicenseKeysSchema();
+  const db = await getDb();
+  if (!db) return [];
+  const result = await db.select({
+    appId: licenseKeys.appId,
+    count: sql`count(${licenseKeys.id})`.as("count"),
+    total: sql`sum(${licenseKeys.creditsSpent})`.as("total")
+  }).from(licenseKeys).groupBy(licenseKeys.appId).orderBy(desc(sql`count`)).limit(limit);
+  return result;
 }
 async function getKeyById(id) {
   await ensureLicenseKeysSchema();
@@ -2759,6 +2783,25 @@ var adminRouter = router({
       getResellerKeyStatsByType("other")
     ]);
     return { credits, percentage, other };
+  }),
+  dashboardStats: adminProcedure2.query(async () => {
+    const [resellers2, apps2, allKeys, months, topApps] = await Promise.all([
+      getAllResellers(),
+      getAllApps(),
+      getAllKeys(),
+      getDashboardKeysByMonth(),
+      getDashboardTopApps()
+    ]);
+    const appsById = new Map(apps2.map((a) => [a.id, a]));
+    const activeResellers = resellers2.filter((r) => r.status === "active").length;
+    const activeKeys = allKeys.filter((k) => k.status === "active").length;
+    const usedKeys = allKeys.filter((k) => k.status === "used").length;
+    const totalCredits = allKeys.reduce((sum, k) => sum + (parseFloat(String(k.creditsSpent)) || 0), 0);
+    return {
+      counts: { resellers: resellers2.length, activeResellers, apps: apps2.length, keys: allKeys.length, activeKeys, usedKeys, totalCredits: totalCredits.toFixed(2) },
+      months,
+      topApps: topApps.map((a) => ({ ...a, appName: appsById.get(a.appId)?.name || `App #${a.appId}` }))
+    };
   }),
   createReseller: adminProcedure2.input(z2.object({
     username: z2.string().min(3).max(64),

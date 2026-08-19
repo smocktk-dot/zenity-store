@@ -16,6 +16,7 @@ import {
   getSubResellerKeyStats, getSubResellerKeyLogs, getResellerKeyStatsByType,
   getAllCategories, createCategory, updateCategory, deleteCategory,
   getAllApps, getAppById, getAppByName, getAppByNameLike, createApp, updateApp, deleteApp,
+  getDashboardKeysByMonth, getDashboardTopApps,
   getPlansByAppId, getPlanById, createPlan, updatePlan, deletePlan,
   getAppsByResellerId, assignAppToReseller, removeAppFromReseller, getAssignedAppIds,
   getKeysByResellerId, getAllKeys, getAllKeysWithReseller, getKeyById, createLicenseKey, updateLicenseKey,
@@ -402,6 +403,27 @@ const adminRouter = router({
         getResellerKeyStatsByType("other"),
       ]);
       return { credits, percentage, other };
+    }),
+
+  dashboardStats: adminProcedure
+    .query(async () => {
+      const [resellers, apps, allKeys, months, topApps] = await Promise.all([
+        getAllResellers(),
+        getAllApps(),
+        getAllKeys(),
+        getDashboardKeysByMonth(),
+        getDashboardTopApps(),
+      ]);
+      const appsById = new Map(apps.map(a => [a.id, a]));
+      const activeResellers = resellers.filter(r => r.status === "active").length;
+      const activeKeys = allKeys.filter(k => k.status === "active").length;
+      const usedKeys = allKeys.filter(k => k.status === "used").length;
+      const totalCredits = allKeys.reduce((sum, k) => sum + (parseFloat(String(k.creditsSpent)) || 0), 0);
+      return {
+        counts: { resellers: resellers.length, activeResellers, apps: apps.length, keys: allKeys.length, activeKeys, usedKeys, totalCredits: totalCredits.toFixed(2) },
+        months,
+        topApps: topApps.map(a => ({ ...a, appName: appsById.get(a.appId)?.name || `App #${a.appId}` })),
+      };
     }),
 
   createReseller: adminProcedure
