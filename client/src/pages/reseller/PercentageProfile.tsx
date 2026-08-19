@@ -98,7 +98,7 @@ export default function PercentageProfile({ profile, otherStore }: { profile: an
           <div>
             <p className="text-emerald-400/80 text-sm font-medium mb-2">{t.profile_current_discount}</p>
             <div className="flex items-end gap-4">
-              <p className="text-white text-7xl font-bold tracking-tighter">{discount}<span className="text-3xl text-emerald-400 font-semibold">%</span></p>
+              <p className="text-white text-5xl sm:text-6xl font-bold tracking-tighter">{discount}<span className="text-xl sm:text-2xl text-emerald-400 font-semibold">%</span></p>
               <div className="mb-3">
                 <span className={`text-xs px-3 py-1.5 rounded-full border font-semibold ${currentLevel.border} ${currentLevel.color}`} style={{ background: "rgba(16,185,129,0.08)" }}>
                   {currentLevel.label}
