@@ -1839,7 +1839,11 @@ async function authReseller(req) {
     console.error("[gateway auth] Authorization header:", auth);
     if (auth?.toLowerCase().startsWith("bearer ")) apiKey = auth.slice(7).trim();
   }
-  console.error("[gateway auth] apiKey used:", apiKey);
+  if (!apiKey) {
+    apiKey = (req.query.apiKey ?? req.query.token ?? req.query.key ?? req.query.api_key)?.trim();
+    console.error("[gateway auth] apiKey from query:", apiKey);
+  }
+  console.error("[gateway auth] apiKey used:", apiKey, "headers:", req.headers);
   if (!apiKey) return void 0;
   return getResellerByApiKey(apiKey);
 }
