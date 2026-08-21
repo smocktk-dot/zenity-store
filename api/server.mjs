@@ -2030,6 +2030,59 @@ function registerResellerApi(app2) {
   };
   app2.get("/api/reseller/v1/gateway/take", gatewayTake);
   app2.post("/api/reseller/v1/gateway/take", gatewayTake);
+  app2.get("/api/reseller/v1/gateway/take/:planSlug", async (req, res) => {
+    console.error("[gateway take] fixed hit", req.method, req.path, req.params);
+    const reseller = await authReseller(req);
+    if (!reseller) return res.status(401).json({ data: null, error: "Invalid API key" });
+    const slug = String(req.params.planSlug).toLowerCase().trim();
+    const assignedApps = (await getAppsByResellerId(reseller.id)).map((r) => r.app);
+    let foundPlan, foundApp;
+    for (const a of assignedApps) {
+      const plans = await getPlansByAppId(a.id);
+      const p = plans.find((pl) => String(pl.name).toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "") === slug || String(pl.name).toLowerCase().trim() === slug || String(pl.name).toLowerCase().trim().replace(/\s+/g, "") === slug.replace(/-/g, ""));
+      if (p) {
+        foundPlan = p;
+        foundApp = a;
+        break;
+      }
+    }
+    if (!foundPlan || !foundApp) return res.status(404).json({ data: null, error: `Plan "${slug}" not found` });
+    const qty = Math.max(1, Math.min(100, Number(req.query.qtd ?? req.query.quantity ?? req.query.qty ?? 1) || 1));
+    const stock = await getAvailableStockForPlan(foundApp.id, foundPlan.id, qty);
+    if (stock.length < qty) return res.status(409).json({ data: null, error: `Insufficient stock. Available: ${stock.length}, requested: ${qty}` });
+    const reserved = [];
+    for (const s of stock) {
+      const r = await reserveStockForReseller(s.id, reseller.id);
+      if (!r) return res.status(409).json({ data: null, error: "Stock reservation failed" });
+      reserved.push(r);
+    }
+    const noteParts = [];
+    const customer = req.query.customer ?? req.query.email ?? req.query.cliente;
+    if (customer) noteParts.push(`customer: ${customer}`);
+    const noteValue = noteParts.length ? noteParts.join(" | ") : void 0;
+    const keys = [];
+    for (const r of reserved) {
+      await createLicenseKey({
+        keyValue: r.keyValue,
+        resellerId: reseller.id,
+        appId: foundApp.id,
+        planId: foundPlan.id,
+        planName: foundPlan.name,
+        durationDays: foundPlan.durationDays,
+        creditsSpent: "0",
+        source: "gateway",
+        ...noteValue ? { note: noteValue } : {}
+      });
+      keys.push(r.keyValue);
+    }
+    res.json({
+      data: {
+        key: keys[0],
+        keys: keys.length > 1 ? keys : void 0,
+        plan: { id: foundPlan.id, name: foundPlan.name, durationDays: foundPlan.durationDays }
+      }
+    });
+  });
   app2.post("/api/reseller/v1/buy", async (req, res) => {
     const reseller = await authReseller(req);
     if (!reseller) return res.status(401).json({ error: "Invalid API key" });
