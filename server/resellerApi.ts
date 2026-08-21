@@ -130,14 +130,50 @@ export function registerResellerApi(app: Express) {
     const reseller = await authReseller(req);
     if (!reseller) return res.status(401).json({ data: null, error: "Invalid API key" });
     const source = req.method === "GET" ? req.query : req.body;
-    const { appId, planId, planName, quantity = 1, customer } = source;
-    if (!appId) return res.status(400).json({ data: null, error: "appId is required" });
-    if (!planId && !planName) return res.status(400).json({ data: null, error: "planId or planName is required" });
-    const app = await getAppById(Number(appId));
-    if (!app) return res.status(404).json({ data: null, error: "App not found" });
-    const assigned = await getAssignedAppIds(reseller.id);
-    if (!assigned.includes(app.id)) return res.status(403).json({ data: null, error: "App not assigned" });
-    const plan = await resolvePlan(app.id, planId ? Number(planId) : undefined, planName);
+
+    // Map flexible gateway fields
+    const raw = source as any;
+    const appId = raw.appId ?? raw.appID ?? raw.app_id ?? raw.idApp ?? raw.productId ?? raw.produtoId ?? raw.app;
+    let planId = raw.planId ?? raw.planID ?? raw.plan_id;
+    let planName = raw.planName ?? raw.plan ?? raw.plano;
+    if (!planId && !planName) {
+      const fallback = raw.produto ?? raw.producto ?? raw.product ?? raw.prod;
+      if (fallback && !/^[0-9]+$/.test(String(fallback))) planName = fallback;
+      else if (fallback) planId = fallback;
+    }
+    const quantity = raw.qtd ?? raw.quantidade ?? raw.quantity ?? raw.qty ?? 1;
+    const customer = raw.customer ?? raw.cliente ?? raw.client ?? raw.email ?? raw.buyerEmail;
+
+    if (!appId && !planId && !planName) return res.status(400).json({ data: null, error: "appId or produto is required" });
+
+    let app: any = appId ? await getAppById(Number(appId)) : null;
+    let plan: any;
+
+    const assignedRows = await getAppsByResellerId(reseller.id);
+    const assignedApps = assignedRows.map((r: any) => r.app);
+    const assignedIds = assignedApps.map((a: any) => a.id);
+
+    // Try to resolve plan if no app provided
+    if (!app && planName) {
+      const matches: any[] = [];
+      for (const a of assignedApps) {
+        const plans = await getPlansByAppId(a.id);
+        const p = plans.find((pl: any) => pl.name.toLowerCase().trim() === String(planName).toLowerCase().trim());
+        if (p) matches.push({ app: a, plan: p });
+      }
+      if (matches.length === 1) {
+        app = matches[0].app;
+        plan = matches[0].plan;
+      } else if (matches.length > 1) {
+        return res.status(400).json({ data: null, error: `Multiple products match "${planName}". Please include appId or productId.` });
+      }
+    }
+
+    if (app && !plan) {
+      if (!planId && !planName) return res.status(400).json({ data: null, error: "planId or planName is required" });
+      plan = await resolvePlan(app.id, planId ? Number(planId) : undefined, planName);
+    }
+
     if (!plan) return res.status(404).json({ data: null, error: "Plan not found" });
     const qty = Math.max(1, Math.min(100, Number(quantity) || 1));
     const stock = await getAvailableStockForPlan(app.id, plan.id, qty);
