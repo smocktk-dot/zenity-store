@@ -114,9 +114,6 @@ export const apps = pgTable("apps", {
   maxUsers: integer("maxUsers").default(5000),
   features: text("features"), // JSON string of feature list
   keyauthSellerKey: varchar("keyauthSellerKey", { length: 64 }), // KeyAuth Seller API Key for this app
-  hwidResetUrl: text("hwidResetUrl"), // External HWID reset API URL
-  hwidResetApiKey: varchar("hwidResetApiKey", { length: 128 }), // API key for the external reset endpoint
-  hwidResetProductName: varchar("hwidResetProductName", { length: 128 }), // Product name sent to the external reset API
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
 });

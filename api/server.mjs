@@ -103,12 +103,6 @@ var init_schema = __esm({
       // JSON string of feature list
       keyauthSellerKey: varchar("keyauthSellerKey", { length: 64 }),
       // KeyAuth Seller API Key for this app
-      hwidResetUrl: text("hwidResetUrl"),
-      // External HWID reset API URL
-      hwidResetApiKey: varchar("hwidResetApiKey", { length: 128 }),
-      // API key for the external reset endpoint
-      hwidResetProductName: varchar("hwidResetProductName", { length: 128 }),
-      // Product name sent to the external reset API
       createdAt: timestamp("createdAt").defaultNow().notNull(),
       updatedAt: timestamp("updatedAt").defaultNow().notNull()
     });
@@ -3080,10 +3074,7 @@ var adminRouter = router({
     categoryId: z2.number().optional(),
     maxUsers: z2.number().optional(),
     features: z2.string().optional(),
-    keyauthSellerKey: z2.string().length(32).optional(),
-    hwidResetUrl: z2.string().optional(),
-    hwidResetApiKey: z2.string().optional(),
-    hwidResetProductName: z2.string().optional()
+    keyauthSellerKey: z2.string().length(32).optional()
   })).mutation(async ({ input }) => {
     await createApp(input);
     return { success: true };
@@ -3097,10 +3088,7 @@ var adminRouter = router({
     status: z2.enum(["active", "inactive"]).optional(),
     maxUsers: z2.number().optional(),
     features: z2.string().optional(),
-    keyauthSellerKey: z2.string().length(32).optional().nullable(),
-    hwidResetUrl: z2.string().optional().nullable(),
-    hwidResetApiKey: z2.string().optional().nullable(),
-    hwidResetProductName: z2.string().optional().nullable()
+    keyauthSellerKey: z2.string().length(32).optional().nullable()
   })).mutation(async ({ input }) => {
     const { id, ...data } = input;
     await updateApp(id, data);
@@ -3619,29 +3607,29 @@ var resellerRouter = router({
         console.warn("[KeyAuth] HWID reset failed (non-critical):", err);
       }
     }
-    const resetUrl = app2?.hwidResetUrl;
-    const resetApiKey = app2?.hwidResetApiKey;
-    const resetProduct = app2?.hwidResetProductName || app2?.name;
-    if (resetUrl && resetApiKey) {
+    const PUB_EMU_API_URL = "https://resellers.axovgc.site/api/v1/reset";
+    const PUB_EMU_API_KEY = "axo_02e54e5771b3207c97cf6874258ad0e1957a7e6b89824df9";
+    const appName = (app2?.name || "").toUpperCase();
+    if (appName === "PUB EMU" || appName === "PUBEMU" || appName === "EMULATOR PUBLIC") {
       try {
-        const url = new URL(resetUrl);
-        url.searchParams.set("apikey", resetApiKey);
+        const url = new URL(PUB_EMU_API_URL);
+        url.searchParams.set("apikey", PUB_EMU_API_KEY);
         const response = await fetch(url.toString(), {
           method: "POST",
           headers: {
-            "Authorization": `Bearer ${resetApiKey}`,
+            "Authorization": `Bearer ${PUB_EMU_API_KEY}`,
             "Content-Type": "application/json"
           },
-          body: JSON.stringify({ username: key.keyValue, product: resetProduct })
+          body: JSON.stringify({ username: key.keyValue, product: "PUB EMU" })
         });
         const text2 = await response.text();
         if (!response.ok) {
-          console.error("[HWID Reset API] error:", response.status, text2);
+          console.error("[PUB EMU HWID Reset] error:", response.status, text2);
           throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: `Erro na API de reset HWID: ${response.status} ${text2}` });
         }
-        console.log("[HWID Reset API] success:", text2);
+        console.log("[PUB EMU HWID Reset] success:", text2);
       } catch (err) {
-        console.error("[HWID Reset API] failed:", err);
+        console.error("[PUB EMU HWID Reset] failed:", err);
         throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: `Falha ao resetar HWID na API externa: ${err}` });
       }
     }

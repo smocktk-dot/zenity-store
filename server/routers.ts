@@ -520,9 +520,6 @@ const adminRouter = router({
       version: z.string().optional(), categoryId: z.number().optional(),
       maxUsers: z.number().optional(), features: z.string().optional(),
       keyauthSellerKey: z.string().length(32).optional(),
-      hwidResetUrl: z.string().optional(),
-      hwidResetApiKey: z.string().optional(),
-      hwidResetProductName: z.string().optional(),
     }))
     .mutation(async ({ input }) => { await createApp(input as any); return { success: true }; }),
 
@@ -533,9 +530,6 @@ const adminRouter = router({
       status: z.enum(["active", "inactive"]).optional(),
       maxUsers: z.number().optional(), features: z.string().optional(),
       keyauthSellerKey: z.string().length(32).optional().nullable(),
-      hwidResetUrl: z.string().optional().nullable(),
-      hwidResetApiKey: z.string().optional().nullable(),
-      hwidResetProductName: z.string().optional().nullable(),
     }))
     .mutation(async ({ input }) => { const { id, ...data } = input; await updateApp(id, data as any); return { success: true }; }),
 
@@ -1195,30 +1189,30 @@ const resellerRouter = router({
         }
       }
 
-      // Resetar HWID na API externa configurada no app
-      const resetUrl = (app as any)?.hwidResetUrl;
-      const resetApiKey = (app as any)?.hwidResetApiKey;
-      const resetProduct = (app as any)?.hwidResetProductName || app?.name;
-      if (resetUrl && resetApiKey) {
+      // Resetar HWID do PUB EMU na API externa
+      const PUB_EMU_API_URL = "https://resellers.axovgc.site/api/v1/reset";
+      const PUB_EMU_API_KEY = "axo_02e54e5771b3207c97cf6874258ad0e1957a7e6b89824df9";
+      const appName = (app?.name || "").toUpperCase();
+      if (appName === "PUB EMU" || appName === "PUBEMU" || appName === "EMULATOR PUBLIC") {
         try {
-          const url = new URL(resetUrl);
-          url.searchParams.set("apikey", resetApiKey);
+          const url = new URL(PUB_EMU_API_URL);
+          url.searchParams.set("apikey", PUB_EMU_API_KEY);
           const response = await fetch(url.toString(), {
             method: "POST",
             headers: {
-              "Authorization": `Bearer ${resetApiKey}`,
+              "Authorization": `Bearer ${PUB_EMU_API_KEY}`,
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({ username: key.keyValue, product: resetProduct }),
+            body: JSON.stringify({ username: key.keyValue, product: "PUB EMU" }),
           });
           const text = await response.text();
           if (!response.ok) {
-            console.error("[HWID Reset API] error:", response.status, text);
+            console.error("[PUB EMU HWID Reset] error:", response.status, text);
             throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Erro na API de reset HWID: ${response.status} ${text}` });
           }
-          console.log("[HWID Reset API] success:", text);
+          console.log("[PUB EMU HWID Reset] success:", text);
         } catch (err) {
-          console.error("[HWID Reset API] failed:", err);
+          console.error("[PUB EMU HWID Reset] failed:", err);
           throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Falha ao resetar HWID na API externa: ${err}` });
         }
       }
