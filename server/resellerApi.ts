@@ -139,13 +139,13 @@ export function registerResellerApi(app: Express) {
 
   // Gateway-compatible endpoint that returns { data: { key: ... } }
   const gatewayTake = async (req: Request, res: Response) => {
-    console.error("[gateway take] hit", req.method, req.path, req.ip);
+    console.error("[gateway take] hit", req.method, req.path, req.ip, "query:", req.query, "body:", req.body);
     const reseller = await authReseller(req);
     if (!reseller) return res.status(401).json({ data: null, error: "Invalid API key" });
-    const source = req.method === "GET" ? req.query : req.body;
+    const source = { ...(req.query ?? {}), ...(req.body ?? {}) } as any;
 
     // Map flexible gateway fields
-    const raw = source as any;
+    const raw = source;
     const appId = raw.appId ?? raw.appID ?? raw.app_id ?? raw.idApp ?? raw.productId ?? raw.produtoId ?? raw.app;
     let planId = raw.planId ?? raw.planID ?? raw.plan_id;
     let planName = raw.planName ?? raw.plan ?? raw.plano;

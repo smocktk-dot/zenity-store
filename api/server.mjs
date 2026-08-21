@@ -1953,10 +1953,10 @@ function registerResellerApi(app2) {
     res.json({ keys, plan: { id: plan.id, name: plan.name, durationDays: plan.durationDays } });
   });
   const gatewayTake = async (req, res) => {
-    console.error("[gateway take] hit", req.method, req.path, req.ip);
+    console.error("[gateway take] hit", req.method, req.path, req.ip, "query:", req.query, "body:", req.body);
     const reseller = await authReseller(req);
     if (!reseller) return res.status(401).json({ data: null, error: "Invalid API key" });
-    const source = req.method === "GET" ? req.query : req.body;
+    const source = { ...req.query ?? {}, ...req.body ?? {} };
     const raw = source;
     const appId = raw.appId ?? raw.appID ?? raw.app_id ?? raw.idApp ?? raw.productId ?? raw.produtoId ?? raw.app;
     let planId = raw.planId ?? raw.planID ?? raw.plan_id;
