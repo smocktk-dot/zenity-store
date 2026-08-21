@@ -520,6 +520,9 @@ const adminRouter = router({
       version: z.string().optional(), categoryId: z.number().optional(),
       maxUsers: z.number().optional(), features: z.string().optional(),
       keyauthSellerKey: z.string().length(32).optional(),
+      hwidResetUrl: z.string().optional(),
+      hwidResetApiKey: z.string().optional(),
+      hwidResetProductName: z.string().optional(),
     }))
     .mutation(async ({ input }) => { await createApp(input as any); return { success: true }; }),
 
@@ -530,6 +533,9 @@ const adminRouter = router({
       status: z.enum(["active", "inactive"]).optional(),
       maxUsers: z.number().optional(), features: z.string().optional(),
       keyauthSellerKey: z.string().length(32).optional().nullable(),
+      hwidResetUrl: z.string().optional().nullable(),
+      hwidResetApiKey: z.string().optional().nullable(),
+      hwidResetProductName: z.string().optional().nullable(),
     }))
     .mutation(async ({ input }) => { const { id, ...data } = input; await updateApp(id, data as any); return { success: true }; }),
 
@@ -1176,9 +1182,11 @@ const resellerRouter = router({
       if (!key || key.resellerId !== ctx.resellerId) throw new TRPCError({ code: "FORBIDDEN" });
       // Resetar HWID localmente
       await updateLicenseKey(input.keyId, { hwid: null });
+
+      const app = await getAppById(key.appId);
+
       // Resetar HWID no KeyAuth se o usuário estiver registrado
       if (key.usedBy) {
-        const app = await getAppById(key.appId);
         const sellerKey = (app as any)?.keyauthSellerKey || KEYAUTH_SELLER_KEY;
         try {
           await keyauthResetHwid(sellerKey, key.usedBy);
@@ -1186,6 +1194,35 @@ const resellerRouter = router({
           console.warn("[KeyAuth] HWID reset failed (non-critical):", err);
         }
       }
+
+      // Resetar HWID na API externa configurada no app
+      const resetUrl = (app as any)?.hwidResetUrl;
+      const resetApiKey = (app as any)?.hwidResetApiKey;
+      const resetProduct = (app as any)?.hwidResetProductName || app?.name;
+      if (resetUrl && resetApiKey) {
+        try {
+          const url = new URL(resetUrl);
+          url.searchParams.set("apikey", resetApiKey);
+          const response = await fetch(url.toString(), {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${resetApiKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ username: key.keyValue, product: resetProduct }),
+          });
+          const text = await response.text();
+          if (!response.ok) {
+            console.error("[HWID Reset API] error:", response.status, text);
+            throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Erro na API de reset HWID: ${response.status} ${text}` });
+          }
+          console.log("[HWID Reset API] success:", text);
+        } catch (err) {
+          console.error("[HWID Reset API] failed:", err);
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Falha ao resetar HWID na API externa: ${err}` });
+        }
+      }
+
       return { success: true };
     }),
 

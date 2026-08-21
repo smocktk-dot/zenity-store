@@ -103,6 +103,12 @@ var init_schema = __esm({
       // JSON string of feature list
       keyauthSellerKey: varchar("keyauthSellerKey", { length: 64 }),
       // KeyAuth Seller API Key for this app
+      hwidResetUrl: text("hwidResetUrl"),
+      // External HWID reset API URL
+      hwidResetApiKey: varchar("hwidResetApiKey", { length: 128 }),
+      // API key for the external reset endpoint
+      hwidResetProductName: varchar("hwidResetProductName", { length: 128 }),
+      // Product name sent to the external reset API
       createdAt: timestamp("createdAt").defaultNow().notNull(),
       updatedAt: timestamp("updatedAt").defaultNow().notNull()
     });
@@ -3074,7 +3080,10 @@ var adminRouter = router({
     categoryId: z2.number().optional(),
     maxUsers: z2.number().optional(),
     features: z2.string().optional(),
-    keyauthSellerKey: z2.string().length(32).optional()
+    keyauthSellerKey: z2.string().length(32).optional(),
+    hwidResetUrl: z2.string().optional(),
+    hwidResetApiKey: z2.string().optional(),
+    hwidResetProductName: z2.string().optional()
   })).mutation(async ({ input }) => {
     await createApp(input);
     return { success: true };
@@ -3088,7 +3097,10 @@ var adminRouter = router({
     status: z2.enum(["active", "inactive"]).optional(),
     maxUsers: z2.number().optional(),
     features: z2.string().optional(),
-    keyauthSellerKey: z2.string().length(32).optional().nullable()
+    keyauthSellerKey: z2.string().length(32).optional().nullable(),
+    hwidResetUrl: z2.string().optional().nullable(),
+    hwidResetApiKey: z2.string().optional().nullable(),
+    hwidResetProductName: z2.string().optional().nullable()
   })).mutation(async ({ input }) => {
     const { id, ...data } = input;
     await updateApp(id, data);
@@ -3598,13 +3610,39 @@ var resellerRouter = router({
     const key = await getKeyById(input.keyId);
     if (!key || key.resellerId !== ctx.resellerId) throw new TRPCError3({ code: "FORBIDDEN" });
     await updateLicenseKey(input.keyId, { hwid: null });
+    const app2 = await getAppById(key.appId);
     if (key.usedBy) {
-      const app2 = await getAppById(key.appId);
       const sellerKey = app2?.keyauthSellerKey || KEYAUTH_SELLER_KEY;
       try {
         await keyauthResetHwid(sellerKey, key.usedBy);
       } catch (err) {
         console.warn("[KeyAuth] HWID reset failed (non-critical):", err);
+      }
+    }
+    const resetUrl = app2?.hwidResetUrl;
+    const resetApiKey = app2?.hwidResetApiKey;
+    const resetProduct = app2?.hwidResetProductName || app2?.name;
+    if (resetUrl && resetApiKey) {
+      try {
+        const url = new URL(resetUrl);
+        url.searchParams.set("apikey", resetApiKey);
+        const response = await fetch(url.toString(), {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${resetApiKey}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ username: key.keyValue, product: resetProduct })
+        });
+        const text2 = await response.text();
+        if (!response.ok) {
+          console.error("[HWID Reset API] error:", response.status, text2);
+          throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: `Erro na API de reset HWID: ${response.status} ${text2}` });
+        }
+        console.log("[HWID Reset API] success:", text2);
+      } catch (err) {
+        console.error("[HWID Reset API] failed:", err);
+        throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: `Falha ao resetar HWID na API externa: ${err}` });
       }
     }
     return { success: true };

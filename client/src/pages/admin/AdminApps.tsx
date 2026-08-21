@@ -17,7 +17,11 @@ export default function AdminApps() {
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [editApp, setEditApp] = useState<any>(null);
-  const [form, setForm] = useState({ name: "", description: "", version: "v1.0", categoryId: "" as string, maxUsers: "5000", features: "", keyauthSellerKey: "" });
+  const [form, setForm] = useState({
+    name: "", description: "", version: "v1.0", categoryId: "" as string,
+    maxUsers: "5000", features: "", keyauthSellerKey: "",
+    hwidResetUrl: "", hwidResetApiKey: "", hwidResetProductName: "",
+  });
 
   const create = trpc.admin.createApp.useMutation({
     onSuccess: () => { toast.success("App criado!"); utils.admin.listApps.invalidate(); setShowCreate(false); resetForm(); },
@@ -32,7 +36,11 @@ export default function AdminApps() {
     onError: e => toast.error(e.message),
   });
 
-  const resetForm = () => setForm({ name: "", description: "", version: "v1.0", categoryId: "", maxUsers: "5000", features: "", keyauthSellerKey: "" });
+  const resetForm = () => setForm({
+    name: "", description: "", version: "v1.0", categoryId: "",
+    maxUsers: "5000", features: "", keyauthSellerKey: "",
+    hwidResetUrl: "", hwidResetApiKey: "", hwidResetProductName: "",
+  });
 
   const filtered = apps.filter((a: any) => a.name?.toLowerCase().includes(search.toLowerCase()));
 
@@ -44,6 +52,9 @@ export default function AdminApps() {
       categoryId: form.categoryId ? parseInt(form.categoryId) : undefined,
       maxUsers: parseInt(form.maxUsers) || 5000, features: form.features,
       keyauthSellerKey,
+      hwidResetUrl: form.hwidResetUrl.trim() || undefined,
+      hwidResetApiKey: form.hwidResetApiKey.trim() || undefined,
+      hwidResetProductName: form.hwidResetProductName.trim() || undefined,
     };
     if (editApp) update.mutate({ id: editApp.id, ...payload });
     else create.mutate(payload);
@@ -59,6 +70,9 @@ export default function AdminApps() {
       maxUsers: String(app.maxUsers || 5000),
       features: app.features || "",
       keyauthSellerKey: app.keyauthSellerKey || "",
+      hwidResetUrl: app.hwidResetUrl || "",
+      hwidResetApiKey: app.hwidResetApiKey || "",
+      hwidResetProductName: app.hwidResetProductName || "",
     });
   };
 
@@ -155,6 +169,18 @@ export default function AdminApps() {
               <div className="col-span-2">
                 <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Seller Key (KeyAuth) — 32 caracteres</Label>
                 <Input value={form.keyauthSellerKey} onChange={e => setForm(f => ({...f, keyauthSellerKey: e.target.value}))} maxLength={32} className="mt-1.5 text-white border-white/[0.06] focus:border-emerald-500/60 focus:ring-emerald-500/20 transition-colors" style={{ background: "rgba(255,255,255,0.05)" }} placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+              </div>
+              <div className="col-span-2">
+                <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">HWID Reset API URL</Label>
+                <Input value={form.hwidResetUrl} onChange={e => setForm(f => ({...f, hwidResetUrl: e.target.value}))} className="mt-1.5 text-white border-white/[0.06] focus:border-emerald-500/60 transition-colors" style={{ background: "rgba(255,255,255,0.05)" }} placeholder="https://api.exemplo.com/api/v1/reset" />
+              </div>
+              <div>
+                <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">HWID Reset API Key</Label>
+                <Input value={form.hwidResetApiKey} onChange={e => setForm(f => ({...f, hwidResetApiKey: e.target.value}))} className="mt-1.5 text-white border-white/[0.06] focus:border-emerald-500/60 transition-colors" style={{ background: "rgba(255,255,255,0.05)" }} placeholder="Bearer token ou apikey" />
+              </div>
+              <div>
+                <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">HWID Reset Product Name</Label>
+                <Input value={form.hwidResetProductName} onChange={e => setForm(f => ({...f, hwidResetProductName: e.target.value}))} className="mt-1.5 text-white border-white/[0.06] focus:border-emerald-500/60 transition-colors" style={{ background: "rgba(255,255,255,0.05)" }} placeholder="PUB EMU" />
               </div>
               <div className="col-span-2">
                 <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Nome *</Label>
