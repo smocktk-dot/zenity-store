@@ -1833,11 +1833,13 @@ function registerOAuthRoutes(app2) {
 // server/resellerApi.ts
 init_db();
 async function authReseller(req) {
-  let apiKey = req.headers["x-api-key"];
+  let apiKey = req.headers["x-api-key"]?.trim();
   if (!apiKey) {
-    const auth = req.headers.authorization;
+    const auth = req.headers.authorization?.trim();
+    console.log("[gateway auth] Authorization header:", auth);
     if (auth?.toLowerCase().startsWith("bearer ")) apiKey = auth.slice(7).trim();
   }
+  console.log("[gateway auth] apiKey used:", apiKey);
   if (!apiKey) return void 0;
   return getResellerByApiKey(apiKey);
 }

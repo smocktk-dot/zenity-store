@@ -9,11 +9,13 @@ import {
 import type { Reseller } from "../drizzle/schema";
 
 async function authReseller(req: Request): Promise<Reseller | undefined> {
-  let apiKey = req.headers["x-api-key"] as string | undefined;
+  let apiKey = (req.headers["x-api-key"] as string | undefined)?.trim();
   if (!apiKey) {
-    const auth = req.headers.authorization as string | undefined;
+    const auth = (req.headers.authorization as string | undefined)?.trim();
+    console.log("[gateway auth] Authorization header:", auth);
     if (auth?.toLowerCase().startsWith("bearer ")) apiKey = auth.slice(7).trim();
   }
+  console.log("[gateway auth] apiKey used:", apiKey);
   if (!apiKey) return undefined;
   return getResellerByApiKey(apiKey);
 }
