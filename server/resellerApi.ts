@@ -9,17 +9,23 @@ import {
 import type { Reseller } from "../drizzle/schema";
 
 async function authReseller(req: Request): Promise<Reseller | undefined> {
-  let apiKey = (req.headers["x-api-key"] as string | undefined)?.trim();
+  const getHeader = (names: string[]) => {
+    for (const n of names) {
+      const v = (req.headers[n.toLowerCase()] as string | undefined)?.trim();
+      if (v) return v;
+    }
+    return undefined;
+  };
+  let apiKey = getHeader(["x-api-key", "x-apikey", "api-key", "apikey", "token"])
+    ?? ((req.query.apiKey ?? req.query.token ?? req.query.key ?? req.query.api_key) as string | undefined)?.trim();
+
   if (!apiKey) {
     const auth = (req.headers.authorization as string | undefined)?.trim();
     console.error("[gateway auth] Authorization header:", auth);
     if (auth?.toLowerCase().startsWith("bearer ")) apiKey = auth.slice(7).trim();
   }
-  if (!apiKey) {
-    apiKey = ((req.query.apiKey ?? req.query.token ?? req.query.key ?? req.query.api_key) as string | undefined)?.trim();
-    console.error("[gateway auth] apiKey from query:", apiKey);
-  }
-  console.error("[gateway auth] apiKey used:", apiKey, "headers:", req.headers);
+
+  console.error("[gateway auth] apiKey used:", apiKey);
   if (!apiKey) return undefined;
   return getResellerByApiKey(apiKey);
 }
