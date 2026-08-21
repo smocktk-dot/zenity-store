@@ -235,15 +235,19 @@ export function registerResellerApi(app: Express) {
 
     const slug = String(req.params.planSlug).toLowerCase().trim();
     const assignedApps = (await getAppsByResellerId(reseller.id)).map((r: any) => r.app);
+    console.error("[gateway take] assigned apps:", assignedApps.map((a: any) => a.name));
     let foundPlan: any, foundApp: any;
     for (const a of assignedApps) {
       const plans = await getPlansByAppId(a.id);
+      console.error("[gateway take] plans for", a.name, plans.map((p: any) => p.name));
       const p = plans.find((pl: any) => String(pl.name).toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "") === slug
         || String(pl.name).toLowerCase().trim() === slug
-        || String(pl.name).toLowerCase().trim().replace(/\s+/g, "") === slug.replace(/-/g, ""));
+        || String(pl.name).toLowerCase().trim().replace(/\s+/g, "") === slug.replace(/-/g, "")
+        || String(pl.name).toLowerCase().trim().replace(/\s+/g, "-") === slug
+        || String(pl.name).toLowerCase().trim().replace(/[^a-z0-9]/g, "") === slug.replace(/-/g, ""));
       if (p) { foundPlan = p; foundApp = a; break; }
     }
-    if (!foundPlan || !foundApp) return res.status(404).json({ data: null, error: `Plan "${slug}" not found` });
+    if (!foundPlan || !foundApp) return res.status(404).json({ data: null, error: `Plan "${slug}" not found for reseller ${reseller.username}` });
 
     const qty = Math.max(1, Math.min(100, Number(req.query.qtd ?? req.query.quantity ?? req.query.qty ?? 1) || 1));
     const stock = await getAvailableStockForPlan(foundApp.id, foundPlan.id, qty);

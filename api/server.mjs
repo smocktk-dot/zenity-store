@@ -2039,17 +2039,19 @@ function registerResellerApi(app2) {
     if (!reseller) return res.status(401).json({ data: null, error: "Invalid API key" });
     const slug = String(req.params.planSlug).toLowerCase().trim();
     const assignedApps = (await getAppsByResellerId(reseller.id)).map((r) => r.app);
+    console.error("[gateway take] assigned apps:", assignedApps.map((a) => a.name));
     let foundPlan, foundApp;
     for (const a of assignedApps) {
       const plans = await getPlansByAppId(a.id);
-      const p = plans.find((pl) => String(pl.name).toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "") === slug || String(pl.name).toLowerCase().trim() === slug || String(pl.name).toLowerCase().trim().replace(/\s+/g, "") === slug.replace(/-/g, ""));
+      console.error("[gateway take] plans for", a.name, plans.map((p2) => p2.name));
+      const p = plans.find((pl) => String(pl.name).toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "") === slug || String(pl.name).toLowerCase().trim() === slug || String(pl.name).toLowerCase().trim().replace(/\s+/g, "") === slug.replace(/-/g, "") || String(pl.name).toLowerCase().trim().replace(/\s+/g, "-") === slug || String(pl.name).toLowerCase().trim().replace(/[^a-z0-9]/g, "") === slug.replace(/-/g, ""));
       if (p) {
         foundPlan = p;
         foundApp = a;
         break;
       }
     }
-    if (!foundPlan || !foundApp) return res.status(404).json({ data: null, error: `Plan "${slug}" not found` });
+    if (!foundPlan || !foundApp) return res.status(404).json({ data: null, error: `Plan "${slug}" not found for reseller ${reseller.username}` });
     const qty = Math.max(1, Math.min(100, Number(req.query.qtd ?? req.query.quantity ?? req.query.qty ?? 1) || 1));
     const stock = await getAvailableStockForPlan(foundApp.id, foundPlan.id, qty);
     if (stock.length < qty) return res.status(409).json({ data: null, error: `Insufficient stock. Available: ${stock.length}, requested: ${qty}` });
