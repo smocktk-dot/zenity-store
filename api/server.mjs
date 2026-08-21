@@ -1836,10 +1836,10 @@ async function authReseller(req) {
   let apiKey = req.headers["x-api-key"]?.trim();
   if (!apiKey) {
     const auth = req.headers.authorization?.trim();
-    console.log("[gateway auth] Authorization header:", auth);
+    console.error("[gateway auth] Authorization header:", auth);
     if (auth?.toLowerCase().startsWith("bearer ")) apiKey = auth.slice(7).trim();
   }
-  console.log("[gateway auth] apiKey used:", apiKey);
+  console.error("[gateway auth] apiKey used:", apiKey);
   if (!apiKey) return void 0;
   return getResellerByApiKey(apiKey);
 }
@@ -1946,6 +1946,7 @@ function registerResellerApi(app2) {
     res.json({ keys, plan: { id: plan.id, name: plan.name, durationDays: plan.durationDays } });
   });
   const gatewayTake = async (req, res) => {
+    console.error("[gateway take] hit", req.method, req.path, req.ip);
     const reseller = await authReseller(req);
     if (!reseller) return res.status(401).json({ data: null, error: "Invalid API key" });
     const source = req.method === "GET" ? req.query : req.body;
