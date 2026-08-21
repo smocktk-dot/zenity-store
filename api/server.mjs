@@ -2015,7 +2015,7 @@ function registerResellerApi(app2) {
         planName: plan.name,
         durationDays: plan.durationDays,
         creditsSpent: "0",
-        source: "gateway",
+        source: "api",
         ...noteValue ? { note: noteValue } : {}
       });
       keys.push(r.keyValue);
@@ -2070,7 +2070,7 @@ function registerResellerApi(app2) {
         planName: foundPlan.name,
         durationDays: foundPlan.durationDays,
         creditsSpent: "0",
-        source: "gateway",
+        source: "api",
         ...noteValue ? { note: noteValue } : {}
       });
       keys.push(r.keyValue);

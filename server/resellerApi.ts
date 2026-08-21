@@ -210,7 +210,7 @@ export function registerResellerApi(app: Express) {
         planName: plan.name,
         durationDays: plan.durationDays,
         creditsSpent: "0",
-        source: "gateway",
+        source: "api",
         ...(noteValue ? { note: noteValue } : {}),
       } as any);
       keys.push(r.keyValue);
@@ -269,7 +269,7 @@ export function registerResellerApi(app: Express) {
         planName: foundPlan.name,
         durationDays: foundPlan.durationDays,
         creditsSpent: "0",
-        source: "gateway",
+        source: "api",
         ...(noteValue ? { note: noteValue } : {}),
       } as any);
       keys.push(r.keyValue);
