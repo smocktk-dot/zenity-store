@@ -2039,6 +2039,7 @@ function registerResellerApi(app2) {
     if (!reseller) return res.status(401).json({ data: null, error: "Invalid API key" });
     const rawSlug = String(req.params.planSlug).toLowerCase().trim();
     const aliases = {
+      diario: ["1 dia", "1d", "1-dia", "diario", "daily"],
       trial: ["3 dias", "3d", "3-dias", "trial"],
       semanal: ["7 dias", "7d", "7-dias", "semanal", "weekly"],
       "15dias": ["15 dias", "15d", "15-dias", "15dias"],
