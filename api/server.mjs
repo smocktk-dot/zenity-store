@@ -2037,21 +2037,35 @@ function registerResellerApi(app2) {
     console.error("[gateway take] fixed hit", req.method, req.path, req.params);
     const reseller = await authReseller(req);
     if (!reseller) return res.status(401).json({ data: null, error: "Invalid API key" });
-    const slug = String(req.params.planSlug).toLowerCase().trim();
+    const rawSlug = String(req.params.planSlug).toLowerCase().trim();
+    const aliases = {
+      trial: ["3 dias", "3d", "3-dias", "trial"],
+      semanal: ["7 dias", "7d", "7-dias", "semanal", "weekly"],
+      "15dias": ["15 dias", "15d", "15-dias", "15dias"],
+      mensal: ["30 dias", "30d", "30-dias", "mensal", "monthly"],
+      trimestral: ["3 meses", "90d", "90-dias", "3-meses", "trimestral", "trimesal", "trimensal", "quarterly"]
+    };
+    const slugSet = new Set(aliases[rawSlug] || [rawSlug]);
     const assignedApps = (await getAppsByResellerId(reseller.id)).map((r) => r.app);
     console.error("[gateway take] assigned apps:", assignedApps.map((a) => a.name));
     let foundPlan, foundApp;
     for (const a of assignedApps) {
       const plans = await getPlansByAppId(a.id);
       console.error("[gateway take] plans for", a.name, plans.map((p2) => p2.name));
-      const p = plans.find((pl) => String(pl.name).toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "") === slug || String(pl.name).toLowerCase().trim() === slug || String(pl.name).toLowerCase().trim().replace(/\s+/g, "") === slug.replace(/-/g, "") || String(pl.name).toLowerCase().trim().replace(/\s+/g, "-") === slug || String(pl.name).toLowerCase().trim().replace(/[^a-z0-9]/g, "") === slug.replace(/-/g, ""));
+      const p = plans.find((pl) => {
+        const name = String(pl.name).toLowerCase().trim();
+        const normalized = name.replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+        const noSpace = name.replace(/\s+/g, "").replace(/[^a-z0-9]/g, "");
+        const hyphen = name.replace(/\s+/g, "-");
+        return normalized === rawSlug || name === rawSlug || noSpace === rawSlug.replace(/-/g, "") || hyphen === rawSlug || slugSet.has(normalized) || slugSet.has(name) || slugSet.has(noSpace) || slugSet.has(hyphen) || [...slugSet].some((a2) => name.includes(a2) || normalized.includes(a2.replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "")));
+      });
       if (p) {
         foundPlan = p;
         foundApp = a;
         break;
       }
     }
-    if (!foundPlan || !foundApp) return res.status(404).json({ data: null, error: `Plan "${slug}" not found for reseller ${reseller.username}` });
+    if (!foundPlan || !foundApp) return res.status(404).json({ data: null, error: `Plan "${rawSlug}" not found for reseller ${reseller.username}` });
     const qty = Math.max(1, Math.min(100, Number(req.query.qtd ?? req.query.quantity ?? req.query.qty ?? 1) || 1));
     const stock = await getAvailableStockForPlan(foundApp.id, foundPlan.id, qty);
     if (stock.length < qty) return res.status(409).json({ data: null, error: `Insufficient stock. Available: ${stock.length}, requested: ${qty}` });
