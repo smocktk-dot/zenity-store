@@ -576,16 +576,20 @@ export async function getAllKeysWithReseller() {
     key: licenseKeys,
     reseller: resellers,
     parent: parentResellers,
+    plan: subscriptionPlans,
   })
     .from(licenseKeys)
     .leftJoin(resellers, eq(licenseKeys.resellerId, resellers.id))
     .leftJoin(parentResellers, eq(resellers.parentResellerId, parentResellers.id))
+    .leftJoin(subscriptionPlans, eq(licenseKeys.planId, subscriptionPlans.id))
     .orderBy(desc(licenseKeys.createdAt));
   return rows.map(r => ({
     ...r.key,
     resellerName: r.reseller?.username ?? "—",
     parentResellerName: r.parent?.username,
     resellerType: r.reseller?.resellerType ?? "credits",
+    planPrice: r.plan?.resellerSellingPrice ?? "0.00",
+    planCredits: r.plan?.priceCredits ?? "0.00",
   }));
 }
 
@@ -1133,7 +1137,7 @@ export async function getStockByApp(appId: number) {
   await ensureAppStockSchema();
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(appStock).where(eq(appStock.appId, appId)).orderBy(desc(appStock.createdAt));
+  return db.select().from(appStock).where(and(eq(appStock.appId, appId), eq(appStock.status, "available"))).orderBy(desc(appStock.createdAt));
 }
 
 export async function getStockCountsByApp(appId: number) {

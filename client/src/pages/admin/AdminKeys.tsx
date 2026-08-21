@@ -101,8 +101,22 @@ export default function AdminKeys() {
                 <td className="px-5 py-4"><TypeBadge type={k.resellerType} /></td>
                 <td className="px-5 py-4"><StatusBadge status={k.status} /></td>
                 <td className="px-5 py-4 text-gray-400 text-sm">{k.usedBy || <span className="text-gray-600">—</span>}</td>
-                <td className="px-5 py-4 text-yellow-400 text-sm font-mono">{parseFloat(k.creditsSpent).toFixed(2)}</td>
-                <td className="px-5 py-4 text-emerald-400 text-sm font-mono">{k.resellerCredits ? parseFloat(k.resellerCredits).toFixed(2) : "—"}</td>
+                <td className="px-5 py-4 text-sm font-mono">
+                  {k.resellerType === "credits" ? (
+                    <span className="text-yellow-400">{parseFloat(k.creditsSpent).toFixed(2)} cr</span>
+                  ) : k.resellerType === "other" ? (
+                    <span className="text-violet-400">R$ {parseFloat(k.planPrice).toFixed(2)}</span>
+                  ) : (
+                    <span className="text-blue-400">R$ {parseFloat(k.planPrice).toFixed(2)}</span>
+                  )}
+                </td>
+                <td className="px-5 py-4 text-sm font-mono">
+                  {k.resellerType === "credits" ? (
+                    <span className="text-emerald-400">{k.resellerCredits ? parseFloat(k.resellerCredits).toFixed(2) + " cr" : "—"}</span>
+                  ) : (
+                    <span className="text-gray-500">—</span>
+                  )}
+                </td>
                 <td className="px-5 py-4">
                   {(() => {
                     const sourceConfig: Record<string, { label: string; className: string }> = {
