@@ -1833,7 +1833,11 @@ function registerOAuthRoutes(app2) {
 // server/resellerApi.ts
 init_db();
 async function authReseller(req) {
-  const apiKey = req.headers["x-api-key"];
+  let apiKey = req.headers["x-api-key"];
+  if (!apiKey) {
+    const auth = req.headers.authorization;
+    if (auth?.toLowerCase().startsWith("bearer ")) apiKey = auth.slice(7).trim();
+  }
   if (!apiKey) return void 0;
   return getResellerByApiKey(apiKey);
 }
@@ -1939,6 +1943,56 @@ function registerResellerApi(app2) {
     }
     res.json({ keys, plan: { id: plan.id, name: plan.name, durationDays: plan.durationDays } });
   });
+  const gatewayTake = async (req, res) => {
+    const reseller = await authReseller(req);
+    if (!reseller) return res.status(401).json({ data: null, error: "Invalid API key" });
+    const source = req.method === "GET" ? req.query : req.body;
+    const { appId, planId, planName, quantity = 1, customer } = source;
+    if (!appId) return res.status(400).json({ data: null, error: "appId is required" });
+    if (!planId && !planName) return res.status(400).json({ data: null, error: "planId or planName is required" });
+    const app3 = await getAppById(Number(appId));
+    if (!app3) return res.status(404).json({ data: null, error: "App not found" });
+    const assigned = await getAssignedAppIds(reseller.id);
+    if (!assigned.includes(app3.id)) return res.status(403).json({ data: null, error: "App not assigned" });
+    const plan = await resolvePlan(app3.id, planId ? Number(planId) : void 0, planName);
+    if (!plan) return res.status(404).json({ data: null, error: "Plan not found" });
+    const qty = Math.max(1, Math.min(100, Number(quantity) || 1));
+    const stock = await getAvailableStockForPlan(app3.id, plan.id, qty);
+    if (stock.length < qty) return res.status(409).json({ data: null, error: `Insufficient stock. Available: ${stock.length}, requested: ${qty}` });
+    const reserved = [];
+    for (const s of stock) {
+      const r = await reserveStockForReseller(s.id, reseller.id);
+      if (!r) return res.status(409).json({ data: null, error: "Stock reservation failed" });
+      reserved.push(r);
+    }
+    const noteParts = [];
+    if (customer) noteParts.push(`customer: ${customer}`);
+    const noteValue = noteParts.length ? noteParts.join(" | ") : void 0;
+    const keys = [];
+    for (const r of reserved) {
+      await createLicenseKey({
+        keyValue: r.keyValue,
+        resellerId: reseller.id,
+        appId: app3.id,
+        planId: plan.id,
+        planName: plan.name,
+        durationDays: plan.durationDays,
+        creditsSpent: "0",
+        source: "gateway",
+        ...noteValue ? { note: noteValue } : {}
+      });
+      keys.push(r.keyValue);
+    }
+    res.json({
+      data: {
+        key: keys[0],
+        keys: keys.length > 1 ? keys : void 0,
+        plan: { id: plan.id, name: plan.name, durationDays: plan.durationDays }
+      }
+    });
+  };
+  app2.get("/api/reseller/v1/gateway/take", gatewayTake);
+  app2.post("/api/reseller/v1/gateway/take", gatewayTake);
   app2.post("/api/reseller/v1/buy", async (req, res) => {
     const reseller = await authReseller(req);
     if (!reseller) return res.status(401).json({ error: "Invalid API key" });

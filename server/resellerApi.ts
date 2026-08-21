@@ -9,7 +9,11 @@ import {
 import type { Reseller } from "../drizzle/schema";
 
 async function authReseller(req: Request): Promise<Reseller | undefined> {
-  const apiKey = req.headers["x-api-key"] as string | undefined;
+  let apiKey = req.headers["x-api-key"] as string | undefined;
+  if (!apiKey) {
+    const auth = req.headers.authorization as string | undefined;
+    if (auth?.toLowerCase().startsWith("bearer ")) apiKey = auth.slice(7).trim();
+  }
   if (!apiKey) return undefined;
   return getResellerByApiKey(apiKey);
 }
@@ -120,6 +124,59 @@ export function registerResellerApi(app: Express) {
     }
     res.json({ keys, plan: { id: plan.id, name: plan.name, durationDays: plan.durationDays } });
   });
+
+  // Gateway-compatible endpoint that returns { data: { key: ... } }
+  const gatewayTake = async (req: Request, res: Response) => {
+    const reseller = await authReseller(req);
+    if (!reseller) return res.status(401).json({ data: null, error: "Invalid API key" });
+    const source = req.method === "GET" ? req.query : req.body;
+    const { appId, planId, planName, quantity = 1, customer } = source;
+    if (!appId) return res.status(400).json({ data: null, error: "appId is required" });
+    if (!planId && !planName) return res.status(400).json({ data: null, error: "planId or planName is required" });
+    const app = await getAppById(Number(appId));
+    if (!app) return res.status(404).json({ data: null, error: "App not found" });
+    const assigned = await getAssignedAppIds(reseller.id);
+    if (!assigned.includes(app.id)) return res.status(403).json({ data: null, error: "App not assigned" });
+    const plan = await resolvePlan(app.id, planId ? Number(planId) : undefined, planName);
+    if (!plan) return res.status(404).json({ data: null, error: "Plan not found" });
+    const qty = Math.max(1, Math.min(100, Number(quantity) || 1));
+    const stock = await getAvailableStockForPlan(app.id, plan.id, qty);
+    if (stock.length < qty) return res.status(409).json({ data: null, error: `Insufficient stock. Available: ${stock.length}, requested: ${qty}` });
+    const reserved: any[] = [];
+    for (const s of stock) {
+      const r = await reserveStockForReseller(s.id, reseller.id);
+      if (!r) return res.status(409).json({ data: null, error: "Stock reservation failed" });
+      reserved.push(r);
+    }
+    const noteParts: string[] = [];
+    if (customer) noteParts.push(`customer: ${customer}`);
+    const noteValue = noteParts.length ? noteParts.join(" | ") : undefined;
+    const keys: string[] = [];
+    for (const r of reserved) {
+      await createLicenseKey({
+        keyValue: r.keyValue,
+        resellerId: reseller.id,
+        appId: app.id,
+        planId: plan.id,
+        planName: plan.name,
+        durationDays: plan.durationDays,
+        creditsSpent: "0",
+        source: "gateway",
+        ...(noteValue ? { note: noteValue } : {}),
+      } as any);
+      keys.push(r.keyValue);
+    }
+    res.json({
+      data: {
+        key: keys[0],
+        keys: keys.length > 1 ? keys : undefined,
+        plan: { id: plan.id, name: plan.name, durationDays: plan.durationDays },
+      }
+    });
+  };
+
+  app.get("/api/reseller/v1/gateway/take", gatewayTake);
+  app.post("/api/reseller/v1/gateway/take", gatewayTake);
 
   app.post("/api/reseller/v1/buy", async (req, res) => {
     const reseller = await authReseller(req);
