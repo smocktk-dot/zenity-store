@@ -30,10 +30,16 @@ function getCookieDomain(req: Request) {
     return undefined;
   }
 
+  // Platform/public-suffix domains (e.g. *.vercel.app) — browsers reject cookies
+  // with Domain set to a public suffix, so use a host-only cookie instead.
+  if (host === "vercel.app" || host.endsWith(".vercel.app") || host.endsWith(".now.sh")) {
+    return undefined;
+  }
+
   // Share cookie across www and root domain
   const parts = host.split(".");
   if (parts.length <= 2) {
-    return host;
+    return `.${host}`;
   }
   return `.${parts.slice(-2).join(".")}`;
 }
@@ -41,11 +47,13 @@ function getCookieDomain(req: Request) {
 export function getSessionCookieOptions(
   req: Request
 ): Pick<CookieOptions, "domain" | "httpOnly" | "path" | "sameSite" | "secure"> {
+  const secure = isSecureRequest(req);
   return {
     domain: getCookieDomain(req),
     httpOnly: true,
     path: "/",
-    sameSite: "none",
-    secure: isSecureRequest(req),
+    // SameSite=None requires Secure; use lax on plain http so the cookie is still accepted
+    sameSite: secure ? "none" : "lax",
+    secure,
   };
 }

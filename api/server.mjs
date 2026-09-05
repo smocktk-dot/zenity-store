@@ -1516,19 +1516,24 @@ function getCookieDomain(req) {
   if (LOCAL_HOSTS.has(host) || isIpAddress(host)) {
     return void 0;
   }
+  if (host === "vercel.app" || host.endsWith(".vercel.app") || host.endsWith(".now.sh")) {
+    return void 0;
+  }
   const parts = host.split(".");
   if (parts.length <= 2) {
-    return host;
+    return `.${host}`;
   }
   return `.${parts.slice(-2).join(".")}`;
 }
 function getSessionCookieOptions(req) {
+  const secure = isSecureRequest(req);
   return {
     domain: getCookieDomain(req),
     httpOnly: true,
     path: "/",
-    sameSite: "none",
-    secure: isSecureRequest(req)
+    // SameSite=None requires Secure; use lax on plain http so the cookie is still accepted
+    sameSite: secure ? "none" : "lax",
+    secure
   };
 }
 
@@ -2770,7 +2775,7 @@ var authRouter = router({
     const valid = await bcrypt.compare(input.password, admin.passwordHash);
     if (!valid) throw new TRPCError3({ code: "UNAUTHORIZED", message: "Credenciais inv\xE1lidas" });
     const token = await signCustomJwt({ sub: String(admin.id), role: "admin", username: admin.username });
-    ctx.res.cookie(CUSTOM_COOKIE, token, { ...getSessionCookieOptions(ctx.req), maxAge: 7 * 24 * 3600 });
+    ctx.res.cookie(CUSTOM_COOKIE, token, { ...getSessionCookieOptions(ctx.req), maxAge: 7 * 24 * 3600 * 1e3 });
     return { success: true, role: "admin", username: admin.username };
   }),
   resellerLogin: publicProcedure.input(z2.object({
@@ -2786,7 +2791,7 @@ var authRouter = router({
         const ipAllowed = await isAdminIpAllowed(clientIp);
         if (!ipAllowed) throw new TRPCError3({ code: "FORBIDDEN", message: "Acesso negado: IP nao autorizado" });
         const token2 = await signCustomJwt({ sub: String(admin.id), role: "admin", username: admin.username });
-        const maxAge2 = input.remember ? 30 * 24 * 3600 : 7 * 24 * 3600;
+        const maxAge2 = (input.remember ? 30 * 24 * 3600 : 7 * 24 * 3600) * 1e3;
         ctx.res.cookie(CUSTOM_COOKIE, token2, { ...getSessionCookieOptions(ctx.req), maxAge: maxAge2 });
         return { success: true, role: "admin", username: admin.username };
       }
@@ -2804,7 +2809,7 @@ var authRouter = router({
       tokenPayload.otherStoreId = otherStore.id;
     }
     const token = await signCustomJwt(tokenPayload);
-    const maxAge = input.remember ? 30 * 24 * 3600 : 7 * 24 * 3600;
+    const maxAge = (input.remember ? 30 * 24 * 3600 : 7 * 24 * 3600) * 1e3;
     ctx.res.cookie(CUSTOM_COOKIE, token, { ...getSessionCookieOptions(ctx.req), maxAge });
     return { success: true, role: "reseller", username: reseller.username };
   }),

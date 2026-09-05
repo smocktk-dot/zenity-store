@@ -170,7 +170,7 @@ const authRouter = router({
       const valid = await bcrypt.compare(input.password, admin.passwordHash);
       if (!valid) throw new TRPCError({ code: "UNAUTHORIZED", message: "Credenciais inválidas" });
       const token = await signCustomJwt({ sub: String(admin.id), role: "admin", username: admin.username });
-      ctx.res.cookie(CUSTOM_COOKIE, token, { ...getSessionCookieOptions(ctx.req), maxAge: 7 * 24 * 3600 });
+      ctx.res.cookie(CUSTOM_COOKIE, token, { ...getSessionCookieOptions(ctx.req), maxAge: 7 * 24 * 3600 * 1000 });
       return { success: true, role: "admin" as const, username: admin.username };
     }),
 
@@ -191,7 +191,7 @@ const authRouter = router({
           const ipAllowed = await isAdminIpAllowed(clientIp);
           if (!ipAllowed) throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado: IP nao autorizado" });
           const token = await signCustomJwt({ sub: String(admin.id), role: "admin", username: admin.username });
-          const maxAge = input.remember ? 30 * 24 * 3600 : 7 * 24 * 3600;
+          const maxAge = (input.remember ? 30 * 24 * 3600 : 7 * 24 * 3600) * 1000;
           ctx.res.cookie(CUSTOM_COOKIE, token, { ...getSessionCookieOptions(ctx.req), maxAge });
           return { success: true, role: "admin" as const, username: admin.username };
         }
@@ -210,7 +210,7 @@ const authRouter = router({
         tokenPayload.otherStoreId = otherStore.id;
       }
       const token = await signCustomJwt(tokenPayload);
-      const maxAge = input.remember ? 30 * 24 * 3600 : 7 * 24 * 3600;
+      const maxAge = (input.remember ? 30 * 24 * 3600 : 7 * 24 * 3600) * 1000;
       ctx.res.cookie(CUSTOM_COOKIE, token, { ...getSessionCookieOptions(ctx.req), maxAge });
       return { success: true, role: "reseller" as const, username: reseller.username };
     }),
