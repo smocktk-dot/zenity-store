@@ -5,7 +5,7 @@
   "installCommand": "pnpm install",
   "functions": {
     "api/index.ts": {
-      "includeFiles": ["api/server.mjs"]
+      "includeFiles": "api/server.mjs"
     }
   },
   "rewrites": [
