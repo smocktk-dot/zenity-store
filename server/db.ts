@@ -13,17 +13,18 @@ let _pixPaymentSchemaReady: Promise<void> | null = null;
 export async function getDb() {
   if (!_db) {
     const connectionString = process.env.DATABASE_URL;
-    if (connectionString) {
-      try {
-        // Detecta se a URL usa SSL (ex: postgres com ?sslmode=require) e configura automaticamente
-        const sslRequired = connectionString.includes("sslmode=require") || connectionString.includes("ssl=true");
-        const client = postgres(connectionString, sslRequired ? { ssl: "require" } : {});
-        _sqlClient = client;
-        _db = drizzle(client);
-      } catch (error) {
-        console.warn("[Database] Failed to connect:", error);
-        _db = null;
-      }
+    if (!connectionString) {
+      throw new Error("[Database] DATABASE_URL is not set");
+    }
+    try {
+      // Nunca logue a connectionString completa — pode conter credenciais
+      const sslRequired = connectionString.includes("sslmode=require") || connectionString.includes("ssl=true");
+      const client = postgres(connectionString, sslRequired ? { ssl: "require" } : {});
+      _sqlClient = client;
+      _db = drizzle(client);
+    } catch (error) {
+      console.warn("[Database] Failed to connect (check DATABASE_URL)");
+      _db = null;
     }
   }
   return _db;

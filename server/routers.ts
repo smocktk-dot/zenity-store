@@ -6,6 +6,7 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
+import { ENV } from "./_core/env";
 import { keyauthCreateLicense } from "./keyauth";
 import { calcDiscount } from "./resellerPricing";
 import { checkPurinPaymentStatus, processPurinPaymentUpdate } from "./purinCashWebhook";
@@ -43,7 +44,17 @@ import {
   createOtherStoreHwid, deleteOtherStoreHwid,
 } from "./db";
 
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "cv-reseller-secret-key-2024");
+function getJwtSecret() {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "JWT_SECRET não configurado. Configure a variável de ambiente para continuar.",
+    });
+  }
+  return new TextEncoder().encode(secret);
+}
+
 export const CUSTOM_COOKIE = "cv_session";
 
 /** Extract Pix BR code and QR code image from different PurinCash response shapes */
@@ -117,7 +128,7 @@ async function uploadBase64Image(base64: string, folder = "tickets"): Promise<st
 }
 
 // ─── KeyAuth Seller API ───────────────────────────────────────────────────────
-const KEYAUTH_SELLER_KEY = process.env.KEYAUTH_SELLER_KEY || "dd1d4c88ede441586316b84e6c71dac7";
+const KEYAUTH_SELLER_KEY = ENV.keyauthSellerKey;
 
 async function keyauthResetHwid(sellerKey: string, username: string): Promise<void> {
   const url = new URL("https://keyauth.win/api/seller/");
@@ -136,12 +147,12 @@ export async function signCustomJwt(payload: object) {
   return new SignJWT(payload as Record<string, unknown>)
     .setProtectedHeader({ alg: "HS256" })
     .setExpirationTime("7d")
-    .sign(JWT_SECRET);
+    .sign(getJwtSecret());
 }
 
 export async function verifyCustomJwt(token: string) {
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
+    const { payload } = await jwtVerify(token, getJwtSecret());
     return payload;
   } catch {
     return null;
@@ -154,6 +165,29 @@ export function getCustomToken(req: any): string | null {
   return match ? match[1] : null;
 }
 
+// ─── Rate limit simples por IP para logins ─────────────────────────────────────
+const MAX_LOGIN_ATTEMPTS = 10;
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const loginAttempts = new Map<string, { count: number; firstAttempt: number }>();
+
+function checkLoginRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const record = loginAttempts.get(ip);
+  if (!record) {
+    loginAttempts.set(ip, { count: 1, firstAttempt: now });
+    return true;
+  }
+  if (now - record.firstAttempt > LOGIN_WINDOW_MS) {
+    loginAttempts.set(ip, { count: 1, firstAttempt: now });
+    return true;
+  }
+  if (record.count >= MAX_LOGIN_ATTEMPTS) {
+    return false;
+  }
+  record.count++;
+  return true;
+}
+
 // ─── Auth Router ──────────────────────────────────────────────────────────────
 const authRouter = router({
   me: publicProcedure.query(opts => opts.ctx.user),
@@ -161,8 +195,11 @@ const authRouter = router({
   adminLogin: publicProcedure
     .input(z.object({ username: z.string(), password: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      // IP whitelist check for admin login
       const clientIp = getClientIp(ctx.req);
+      if (!checkLoginRateLimit(clientIp)) {
+        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Tente novamente em 15 minutos." });
+      }
+      // IP whitelist check for admin login
       const ipAllowed = await isAdminIpAllowed(clientIp);
       if (!ipAllowed) throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado: IP nao autorizado" });
       const admin = await getAdminByUsername(input.username);
@@ -181,6 +218,10 @@ const authRouter = router({
       remember: z.boolean().default(false),
     }))
     .mutation(async ({ input, ctx }) => {
+      const clientIp = getClientIp(ctx.req);
+      if (!checkLoginRateLimit(clientIp)) {
+        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Tente novamente em 15 minutos." });
+      }
       // Check admin credentials first — admin can log in via reseller form
       const admin = await getAdminByUsername(input.username);
       if (admin) {
@@ -256,7 +297,9 @@ const authRouter = router({
   setupAdmin: publicProcedure
     .input(z.object({ username: z.string().min(3), password: z.string().min(6), setupKey: z.string() }))
     .mutation(async ({ input }) => {
-      if (input.setupKey !== "CV-SETUP-2024") throw new TRPCError({ code: "FORBIDDEN", message: "Chave de setup inválida" });
+      if (!ENV.adminSetupKey || input.setupKey !== ENV.adminSetupKey) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Chave de setup inválida" });
+      }
       const existing = await getAdminByUsername(input.username);
       if (existing) throw new TRPCError({ code: "CONFLICT", message: "Admin já existe" });
       const passwordHash = await bcrypt.hash(input.password, 10);
@@ -1191,7 +1234,13 @@ const resellerRouter = router({
 
       // Resetar HWID do PUB EMU na API externa
       const PUB_EMU_API_URL = "https://resellers.axovgc.site/api/v1/reset";
-      const PUB_EMU_API_KEY = "axo_02e54e5771b3207c97cf6874258ad0e1957a7e6b89824df9";
+      const PUB_EMU_API_KEY = ENV.pubEmuApiKey;
+      if (!PUB_EMU_API_KEY) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "PUB_EMU_API_KEY não configurada. Configure a variável de ambiente.",
+        });
+      }
       const appName = (app?.name || "").toUpperCase();
       if (appName === "PUB EMU" || appName === "PUBEMU" || appName === "EMULATOR PUBLIC") {
         try {

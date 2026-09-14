@@ -284,19 +284,29 @@ var init_schema = __esm({
 });
 
 // server/_core/env.ts
+function requireEnv(name) {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`[Security] Environment variable ${name} is required.`);
+  }
+  return value;
+}
 var ENV;
 var init_env = __esm({
   "server/_core/env.ts"() {
     "use strict";
     ENV = {
       appId: process.env.VITE_APP_ID ?? "",
-      cookieSecret: process.env.JWT_SECRET ?? "",
+      cookieSecret: process.env.JWT_SECRET ? requireEnv("JWT_SECRET") : "",
       databaseUrl: process.env.DATABASE_URL ?? "",
       oAuthServerUrl: process.env.OAUTH_SERVER_URL ?? "",
       ownerOpenId: process.env.OWNER_OPEN_ID ?? "",
       isProduction: process.env.NODE_ENV === "production",
       forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
-      forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? ""
+      forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
+      keyauthSellerKey: process.env.KEYAUTH_SELLER_KEY,
+      pubEmuApiKey: process.env.PUB_EMU_API_KEY,
+      adminSetupKey: process.env.ADMIN_SETUP_KEY
     };
   }
 });
@@ -438,16 +448,17 @@ import { randomUUID } from "crypto";
 async function getDb() {
   if (!_db) {
     const connectionString = process.env.DATABASE_URL;
-    if (connectionString) {
-      try {
-        const sslRequired = connectionString.includes("sslmode=require") || connectionString.includes("ssl=true");
-        const client = postgres(connectionString, sslRequired ? { ssl: "require" } : {});
-        _sqlClient = client;
-        _db = drizzle(client);
-      } catch (error) {
-        console.warn("[Database] Failed to connect:", error);
-        _db = null;
-      }
+    if (!connectionString) {
+      throw new Error("[Database] DATABASE_URL is not set");
+    }
+    try {
+      const sslRequired = connectionString.includes("sslmode=require") || connectionString.includes("ssl=true");
+      const client = postgres(connectionString, sslRequired ? { ssl: "require" } : {});
+      _sqlClient = client;
+      _db = drizzle(client);
+    } catch (error) {
+      console.warn("[Database] Failed to connect (check DATABASE_URL)");
+      _db = null;
     }
   }
   return _db;
@@ -2423,6 +2434,9 @@ var systemRouter = router({
   })
 });
 
+// server/routers.ts
+init_env();
+
 // server/purinCashWebhook.ts
 init_db();
 import crypto2 from "crypto";
@@ -2697,7 +2711,16 @@ async function storagePut(relKey, data, contentType = "application/octet-stream"
 
 // server/routers.ts
 init_db();
-var JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "cv-reseller-secret-key-2024");
+function getJwtSecret() {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new TRPCError3({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "JWT_SECRET n\xE3o configurado. Configure a vari\xE1vel de ambiente para continuar."
+    });
+  }
+  return new TextEncoder().encode(secret);
+}
 var CUSTOM_COOKIE = "cv_session";
 function extractPixData(data) {
   return {
@@ -2735,7 +2758,7 @@ async function uploadBase64Image(base64, folder = "tickets") {
     return null;
   }
 }
-var KEYAUTH_SELLER_KEY = process.env.KEYAUTH_SELLER_KEY || "dd1d4c88ede441586316b84e6c71dac7";
+var KEYAUTH_SELLER_KEY = ENV.keyauthSellerKey;
 async function keyauthResetHwid(sellerKey, username) {
   const url = new URL("https://keyauth.win/api/seller/");
   url.searchParams.set("sellerkey", sellerKey);
@@ -2749,11 +2772,11 @@ async function keyauthResetHwid(sellerKey, username) {
   }
 }
 async function signCustomJwt(payload) {
-  return new SignJWT2(payload).setProtectedHeader({ alg: "HS256" }).setExpirationTime("7d").sign(JWT_SECRET);
+  return new SignJWT2(payload).setProtectedHeader({ alg: "HS256" }).setExpirationTime("7d").sign(getJwtSecret());
 }
 async function verifyCustomJwt(token) {
   try {
-    const { payload } = await jwtVerify2(token, JWT_SECRET);
+    const { payload } = await jwtVerify2(token, getJwtSecret());
     return payload;
   } catch {
     return null;
@@ -2764,10 +2787,33 @@ function getCustomToken(req) {
   const match = cookieHeader.match(new RegExp(`${CUSTOM_COOKIE}=([^;]+)`));
   return match ? match[1] : null;
 }
+var MAX_LOGIN_ATTEMPTS = 10;
+var LOGIN_WINDOW_MS = 15 * 60 * 1e3;
+var loginAttempts = /* @__PURE__ */ new Map();
+function checkLoginRateLimit(ip) {
+  const now = Date.now();
+  const record = loginAttempts.get(ip);
+  if (!record) {
+    loginAttempts.set(ip, { count: 1, firstAttempt: now });
+    return true;
+  }
+  if (now - record.firstAttempt > LOGIN_WINDOW_MS) {
+    loginAttempts.set(ip, { count: 1, firstAttempt: now });
+    return true;
+  }
+  if (record.count >= MAX_LOGIN_ATTEMPTS) {
+    return false;
+  }
+  record.count++;
+  return true;
+}
 var authRouter = router({
   me: publicProcedure.query((opts) => opts.ctx.user),
   adminLogin: publicProcedure.input(z2.object({ username: z2.string(), password: z2.string() })).mutation(async ({ input, ctx }) => {
     const clientIp = getClientIp(ctx.req);
+    if (!checkLoginRateLimit(clientIp)) {
+      throw new TRPCError3({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Tente novamente em 15 minutos." });
+    }
     const ipAllowed = await isAdminIpAllowed(clientIp);
     if (!ipAllowed) throw new TRPCError3({ code: "FORBIDDEN", message: "Acesso negado: IP nao autorizado" });
     const admin = await getAdminByUsername(input.username);
@@ -2783,12 +2829,16 @@ var authRouter = router({
     password: z2.string(),
     remember: z2.boolean().default(false)
   })).mutation(async ({ input, ctx }) => {
+    const clientIp = getClientIp(ctx.req);
+    if (!checkLoginRateLimit(clientIp)) {
+      throw new TRPCError3({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Tente novamente em 15 minutos." });
+    }
     const admin = await getAdminByUsername(input.username);
     if (admin) {
       const validAdmin = await bcrypt.compare(input.password, admin.passwordHash);
       if (validAdmin) {
-        const clientIp = getClientIp(ctx.req);
-        const ipAllowed = await isAdminIpAllowed(clientIp);
+        const clientIp2 = getClientIp(ctx.req);
+        const ipAllowed = await isAdminIpAllowed(clientIp2);
         if (!ipAllowed) throw new TRPCError3({ code: "FORBIDDEN", message: "Acesso negado: IP nao autorizado" });
         const token2 = await signCustomJwt({ sub: String(admin.id), role: "admin", username: admin.username });
         const maxAge2 = (input.remember ? 30 * 24 * 3600 : 7 * 24 * 3600) * 1e3;
@@ -2853,7 +2903,9 @@ var authRouter = router({
   }),
   // Bootstrap: create first admin if none exists
   setupAdmin: publicProcedure.input(z2.object({ username: z2.string().min(3), password: z2.string().min(6), setupKey: z2.string() })).mutation(async ({ input }) => {
-    if (input.setupKey !== "CV-SETUP-2024") throw new TRPCError3({ code: "FORBIDDEN", message: "Chave de setup inv\xE1lida" });
+    if (!ENV.adminSetupKey || input.setupKey !== ENV.adminSetupKey) {
+      throw new TRPCError3({ code: "FORBIDDEN", message: "Chave de setup inv\xE1lida" });
+    }
     const existing = await getAdminByUsername(input.username);
     if (existing) throw new TRPCError3({ code: "CONFLICT", message: "Admin j\xE1 existe" });
     const passwordHash = await bcrypt.hash(input.password, 10);
@@ -3613,7 +3665,13 @@ var resellerRouter = router({
       }
     }
     const PUB_EMU_API_URL = "https://resellers.axovgc.site/api/v1/reset";
-    const PUB_EMU_API_KEY = "axo_02e54e5771b3207c97cf6874258ad0e1957a7e6b89824df9";
+    const PUB_EMU_API_KEY = ENV.pubEmuApiKey;
+    if (!PUB_EMU_API_KEY) {
+      throw new TRPCError3({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "PUB_EMU_API_KEY n\xE3o configurada. Configure a vari\xE1vel de ambiente."
+      });
+    }
     const appName = (app2?.name || "").toUpperCase();
     if (appName === "PUB EMU" || appName === "PUBEMU" || appName === "EMULATOR PUBLIC") {
       try {
