@@ -2,13 +2,12 @@ import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Eye, EyeOff, LogIn, Send, MessageCircle, X, CheckCircle2, Zap, Shield, TrendingUp } from "lucide-react";
+import { Eye, EyeOff, LogIn, Send, MessageCircle, CheckCircle2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import InteractiveStars from "@/components/InteractiveStars";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useLanguage } from "@/contexts/LanguageContext";
 
@@ -21,6 +20,14 @@ function formatDate(d: Date | string | null | undefined) {
     day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
   });
 }
+
+const LOGIN_STREAKS = Array.from({ length: 78 }, (_, i) => ({
+  left: (i / 78) * 100,
+  height: 80 + ((i * 37) % 190),
+  delay: ((i * 0.17) % 3.6),
+  duration: 4.4 + (((i * 29) % 33) / 10),
+  opacity: 0.18 + (((i * 13) % 42) / 100),
+}));
 
 export default function LoginPage() {
   const [, navigate] = useLocation();
@@ -214,103 +221,80 @@ export default function LoginPage() {
   }, [supportTicket]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
-      {/* Galaxy Background */}
-      <div className="galaxy-bg">
-        <div className="galaxy-shooting-star" />
-        <div className="galaxy-shooting-star" style={{ animationDelay: "7s", top: "40%" }} />
-        <div className="galaxy-shooting-star" style={{ animationDelay: "13s", top: "65%" }} />
-      </div>
-      <InteractiveStars />
-
-      {/* Language switcher top right */}
-      <div className="absolute top-4 right-4 z-20">
-        <LanguageSwitcher />
-      </div>
-
-      {/* Glow orbs */}
-      <div className="absolute inset-0 z-0 pointer-events-none">
-        <div
-          className="absolute top-1/4 left-1/4 w-[500px] h-[500px] rounded-full"
-          style={{ background: "radial-gradient(circle, rgba(16,185,129,0.15) 0%, transparent 70%)", filter: "blur(80px)" }}
-        />
-        <div
-          className="absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full"
-          style={{ background: "radial-gradient(circle, rgba(147,51,234,0.12) 0%, transparent 70%)", filter: "blur(100px)" }}
-        />
-        <div
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full"
-          style={{ background: "radial-gradient(circle, rgba(109,40,217,0.06) 0%, transparent 60%)", filter: "blur(120px)" }}
-        />
-      </div>
-
-      {/* Login layout */}
-      <div className="relative z-10 w-full max-w-5xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-        {/* Left - Brand */}
-        <div className="hidden lg:flex flex-col items-start">
-          <div className="flex items-center gap-4 mb-8">
-            <div className="text-left">
-              <h1 className="text-6xl font-black tracking-tight text-white leading-none tracking-[0.15em]">SELLERS</h1>
-            </div>
-          </div>
-          <h2 className="text-4xl font-bold text-white leading-tight mb-4">
-            Revenda <span className="euphon-text-gradient">keys e licenças</span> com facilidade.
-          </h2>
-          <p className="text-gray-400 text-lg mb-8 max-w-md">
-            Painel exclusivo para resellers gerenciarem pedidos, estoque e entregas automáticas em segundos.
-          </p>
-          <div className="space-y-4">
-            {[
-              { icon: Zap, text: "Entrega automática de keys" },
-              { icon: Shield, text: "Sistema seguro e whitelist" },
-              { icon: TrendingUp, text: "Gestão de créditos e comissões" },
-            ].map(({ icon: Icon, text }) => (
-              <div key={text} className="flex items-center gap-3 text-gray-300">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.2)" }}>
-                  <Icon className="w-4 h-4" style={{ color: "#34d399" }} />
-                </div>
-                <span className="text-sm font-medium">{text}</span>
-              </div>
-            ))}
-          </div>
+    <div className="relative min-h-screen overflow-hidden bg-[#050507] text-white">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(124,58,237,0.16),transparent_40%),radial-gradient(circle_at_85%_12%,rgba(255,255,255,0.08),transparent_35%)] pointer-events-none" />
+      <div className="hidden lg:block absolute inset-y-0 left-0 w-[62%] overflow-hidden">
+        <div className="login-streak-stage">
+          {LOGIN_STREAKS.map((line, idx) => (
+            <span
+              key={idx}
+              className="login-streak-line"
+              style={{
+                left: `${line.left}%`,
+                height: `${line.height}px`,
+                animationDelay: `-${line.delay}s`,
+                animationDuration: `${line.duration}s`,
+                opacity: line.opacity,
+              }}
+            />
+          ))}
         </div>
+        <div className="absolute inset-y-0 right-0 w-48 bg-gradient-to-l from-[#050507] to-transparent" />
+      </div>
 
-        {/* Right - Card */}
-        <div className="w-full max-w-md mx-auto lg:mx-0 lg:ml-auto">
-          <div className="text-center lg:hidden mb-8">
-            <h1 className="text-3xl font-black tracking-tight text-white leading-none tracking-[0.15em]">SELLERS</h1>
-          </div>
-
-          <div
-            className="rounded-3xl border p-8"
-            style={{
-              background: "rgba(8,8,10,0.78)",
-              backdropFilter: "blur(28px)",
-              borderColor: "rgba(255,255,255,0.08)",
-              boxShadow: "0 0 0 1px rgba(16,185,129,0.08), 0 40px 80px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.04)",
-            }}
-          >
-            <div className="mb-8">
-              <h2 className="text-2xl font-bold text-white">{t.login_reseller_access}</h2>
-              <p className="text-gray-500 text-sm mt-1">{t.login_sign_in_desc}</p>
+      <div className="relative z-10 flex min-h-screen lg:justify-end">
+        <div
+          className="w-full lg:w-[38%] xl:w-[35%] min-h-screen border-l border-white/10"
+          style={{ background: "rgba(8,8,12,0.86)", backdropFilter: "blur(22px)" }}
+        >
+          <div className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col justify-center px-6 py-10 sm:px-10">
+            <div className="mb-8 flex items-center justify-between">
+              <p className="text-xs tracking-[0.18em] uppercase text-gray-300">✦ Sellers</p>
+              <LanguageSwitcher />
             </div>
 
-            <form onSubmit={handleLogin} className="space-y-5">
+            <div className="mb-6">
+              <h1 className="text-3xl sm:text-[34px] font-semibold leading-tight text-white">Bem-vindo de volta.</h1>
+              <p className="mt-2 text-sm text-gray-400">Entre na sua conta para continuar.</p>
+            </div>
+
+            <div className="space-y-2.5">
+              <button
+                type="button"
+                onClick={() => toast.info("Use o login com usuário e senha.")}
+                className="w-full h-11 rounded-lg border border-white/12 bg-white/[0.03] text-sm font-medium text-gray-200 transition-colors hover:bg-white/[0.06]"
+              >
+                Entrar com Google
+              </button>
+              <button
+                type="button"
+                onClick={() => toast.info("Use o login com usuário e senha.")}
+                className="w-full h-11 rounded-lg border border-white/12 bg-white/[0.03] text-sm font-medium text-gray-200 transition-colors hover:bg-white/[0.06]"
+              >
+                Entrar com Discord
+              </button>
+            </div>
+
+            <div className="my-5 flex items-center gap-3 text-xs uppercase tracking-[0.14em] text-gray-600">
+              <div className="h-px flex-1 bg-white/10" />
+              ou
+              <div className="h-px flex-1 bg-white/10" />
+            </div>
+
+            <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-gray-400 text-xs font-semibold uppercase tracking-wider">{t.login_username}</label>
+                <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-400">{t.login_username}</label>
                 <Input
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder={t.login_username_placeholder}
                   autoComplete="username"
-                  className="h-12 text-white placeholder:text-gray-600 transition-all rounded-xl"
-                  style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}
-                  onFocus={e => { e.currentTarget.style.borderColor = "rgba(16,185,129,0.5)"; e.currentTarget.style.background = "rgba(255,255,255,0.05)"; }}
-                  onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"; e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}
+                  className="h-11 rounded-lg border-white/15 bg-white/[0.03] text-sm text-white placeholder:text-gray-600 focus-visible:ring-0 focus-visible:border-violet-400/50"
                 />
               </div>
+
               <div className="space-y-1.5">
-                <label className="text-gray-400 text-xs font-semibold uppercase tracking-wider">{t.login_password}</label>
+                <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-400">{t.login_password}</label>
                 <div className="relative">
                   <Input
                     type={showPass ? "text" : "password"}
@@ -318,10 +302,7 @@ export default function LoginPage() {
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••••"
                     autoComplete="current-password"
-                    className="h-12 text-white placeholder:text-gray-600 pr-10 transition-all rounded-xl"
-                    style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}
-                    onFocus={e => { e.currentTarget.style.borderColor = "rgba(16,185,129,0.5)"; e.currentTarget.style.background = "rgba(255,255,255,0.05)"; }}
-                    onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"; e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}
+                    className="h-11 rounded-lg border-white/15 bg-white/[0.03] pr-10 text-sm text-white placeholder:text-gray-600 focus-visible:ring-0 focus-visible:border-violet-400/50"
                   />
                   <button
                     type="button"
@@ -333,34 +314,40 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
+              <div className="flex items-center justify-between pt-1">
+                <label htmlFor="remember" className="flex items-center gap-2 text-xs text-gray-400 cursor-pointer select-none">
                   <input
                     id="remember"
                     type="checkbox"
                     checked={remember}
                     onChange={(e) => setRemember(e.target.checked)}
-                    className="w-4 h-4 accent-emerald-500 cursor-pointer rounded"
+                    className="h-4 w-4 rounded border-white/20 bg-black/30 accent-violet-500"
                   />
-                  <label htmlFor="remember" className="text-gray-400 text-xs cursor-pointer select-none">Lembrar de mim</label>
-                </div>
-                <a href="#" className="text-emerald-400 text-xs hover:text-emerald-300 transition-colors" onClick={e => { e.preventDefault(); toast.info("Entre em contato com o admin."); }}>Esqueceu a senha?</a>
+                  Lembrar de mim
+                </label>
+                <button
+                  type="button"
+                  className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
+                  onClick={() => toast.info("Entre em contato com o admin.")}
+                >
+                  Esqueceu a senha?
+                </button>
               </div>
 
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full h-12 rounded-xl font-semibold text-sm text-white mt-2 flex items-center justify-center gap-2 transition-all"
+                className="mt-1 flex h-11 w-full items-center justify-center gap-2 rounded-lg text-sm font-semibold text-black transition-all"
                 style={{
-                  background: isLoading ? "rgba(16,185,129,0.4)" : "linear-gradient(135deg, #10b981 0%, #059669 100%)",
-                  boxShadow: isLoading ? "none" : "0 4px 24px rgba(16,185,129,0.35), 0 1px 0 rgba(255,255,255,0.1) inset",
-                  border: "none",
+                  background: isLoading
+                    ? "linear-gradient(135deg, rgba(234,234,255,0.55), rgba(202,202,230,0.55))"
+                    : "linear-gradient(135deg, #f5f5f8, #d9d9de)",
                   cursor: isLoading ? "not-allowed" : "pointer",
                 }}
               >
                 {isLoading ? (
                   <>
-                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-black/30 border-t-black" />
                     {t.login_signing_in}
                   </>
                 ) : (
@@ -372,22 +359,27 @@ export default function LoginPage() {
               </button>
             </form>
 
-            <p className="text-center text-gray-600 text-xs mt-6">
+            <div className="mt-5 flex items-center justify-between text-xs text-gray-500">
+              <button type="button" onClick={() => setShowSupport(true)} className="hover:text-gray-300 transition-colors">
+                Precisa de ajuda?
+              </button>
+              <button type="button" onClick={() => setShowApply(true)} className="hover:text-violet-300 transition-colors">
+                Criar uma conta
+              </button>
+            </div>
+
+            {hasApplication && application?.status === "pre_approved" && (
+              <p className="mt-4 flex items-center gap-2 text-sm font-medium text-emerald-400">
+                <CheckCircle2 className="h-4 w-4" /> Pré-aprovado! Clique no chat flutuante.
+              </p>
+            )}
+
+            <p className="mt-8 text-[11px] leading-relaxed text-gray-600">
               {t.login_secure_access}
+              <br />
+              {t.login_copyright}
             </p>
           </div>
-
-          {hasApplication && application?.status === "pre_approved" && (
-            <div className="mt-5 text-center">
-              <p className="text-emerald-400 text-sm font-medium flex items-center justify-center gap-2">
-                <CheckCircle2 className="w-4 h-4" /> Pré-aprovado! Clique no chat flutuante.
-              </p>
-            </div>
-          )}
-
-          <p className="text-center text-gray-600 text-xs mt-6">
-            {t.login_copyright}
-          </p>
         </div>
       </div>
 

@@ -224,3 +224,38 @@ button:active:not(:disabled) {
 .toaster [data-sonner-toast] [data-close-button]:hover {
   color: #ffffff !important;
 }
+
+/* ─── Login streak background ─── */
+.login-streak-stage {
+  position: absolute;
+  inset: -8% -12% -16% -8%;
+  transform: perspective(900px) rotateX(24deg) rotateZ(-7deg) scale(1.1);
+  transform-origin: top left;
+}
+
+.login-streak-line {
+  position: absolute;
+  top: -240px;
+  width: 2px;
+  border-radius: 999px;
+  background: linear-gradient(
+    180deg,
+    rgba(245, 241, 255, 0) 0%,
+    rgba(245, 241, 255, 0.95) 14%,
+    rgba(178, 135, 255, 0.76) 50%,
+    rgba(178, 135, 255, 0) 100%
+  );
+  box-shadow: 0 0 10px rgba(210, 180, 255, 0.24);
+  animation-name: login-streak-fall;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+@keyframes login-streak-fall {
+  0% {
+    transform: translate3d(0, -10vh, 0) scaleY(0.7);
+  }
+  100% {
+    transform: translate3d(0, 125vh, 0) scaleY(1.3);
+  }
+}
