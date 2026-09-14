@@ -219,8 +219,8 @@ export default function LoginPage() {
       <div className="auth-left">
         <div className="auth-left-bg">
           <LightStreaks
-            colors={["#ffffff", "#888888", "#cccccc"]}
-            backgroundColor="#050508"
+            colors={["#ffffff", "#e6fbf2", "#bbf7d0", "#cccccc"]}
+            backgroundColor="#050806"
             speed={0.4}
             streakCount={6}
             streakWidth={1}
@@ -229,8 +229,8 @@ export default function LoginPage() {
             density={0.5}
             twinkle={0.8}
             zoom={2.5}
-            backgroundGlow={0.3}
-            opacity={0.7}
+            backgroundGlow={0.25}
+            opacity={0.72}
             mouseInteraction={true}
             mouseStrength={0.4}
             mouseRadius={0.8}
@@ -247,18 +247,12 @@ export default function LoginPage() {
 
         <div className="auth-card">
           {/* Brand Logo */}
-          <a href="/" className="auth-logo">
-            <span className="flex items-center gap-2">
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,0.12)" strokeWidth="0.8" strokeDasharray="4 3" />
-                <path d="M12 2 L13.2 10.8 L22 12 L13.2 13.2 L12 22 L10.8 13.2 L2 12 L10.8 10.8 Z" fill="rgba(255,255,255,0.9)" />
-                <circle cx="12" cy="12" r="1.4" fill="white" />
-                <line x1="12" y1="4.5" x2="12" y2="6.5" stroke="rgba(255,255,255,0.35)" strokeWidth="0.8" strokeLinecap="round" />
-                <line x1="19.5" y1="12" x2="17.5" y2="12" stroke="rgba(255,255,255,0.35)" strokeWidth="0.8" strokeLinecap="round" />
-                <line x1="12" y1="19.5" x2="12" y2="17.5" stroke="rgba(255,255,255,0.35)" strokeWidth="0.8" strokeLinecap="round" />
-                <line x1="4.5" y1="12" x2="6.5" y2="12" stroke="rgba(255,255,255,0.35)" strokeWidth="0.8" strokeLinecap="round" />
-              </svg>
-              <span className="text-sm font-semibold tracking-wider text-white">StellarX</span>
+          <a href="/" className="auth-logo group">
+            <span className="flex items-center gap-2.5">
+              <span className="w-7 h-7 rounded-lg flex items-center justify-center bg-emerald-500/10 border border-emerald-500/20 transition-all group-hover:border-emerald-500/40 group-hover:bg-emerald-500/15">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.7)]" />
+              </span>
+              <span className="text-sm font-bold tracking-[0.16em] uppercase text-white">SELLER</span>
             </span>
           </a>
 
