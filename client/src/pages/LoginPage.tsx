@@ -422,84 +422,97 @@ export default function LoginPage() {
       {/* Apply Modal */}
       <Dialog open={showApply} onOpenChange={setShowApply}>
         <DialogContent
-          className="text-white max-w-md border-0"
+          className="text-white max-w-md border border-white/10 rounded-2xl p-6"
           style={{
-            background: "linear-gradient(145deg, rgba(18,12,35,0.98) 0%, rgba(10,8,25,0.98) 100%)",
-            boxShadow: "0 0 0 1px rgba(139,92,246,0.2), 0 25px 60px rgba(0,0,0,0.7)",
-            backdropFilter: "blur(20px)",
+            background: "#0c0d12",
+            boxShadow: "0 25px 60px -15px rgba(0,0,0,0.85), 0 0 0 1px rgba(255,255,255,0.06)",
           }}
         >
-          <DialogHeader>
-            <DialogTitle className="text-white text-lg font-semibold">Quero me tornar Reseller</DialogTitle>
+          <DialogHeader className="space-y-1 pb-2">
+            <DialogTitle className="text-white text-lg font-bold tracking-tight">
+              Candidatura de Revendedor
+            </DialogTitle>
+            <p className="text-xs text-zinc-400">
+              Forneça as informações abaixo para análise da equipe e credenciamento oficial.
+            </p>
           </DialogHeader>
-          <form onSubmit={handleApply} className="space-y-4 mt-2">
-            <div>
-              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Link do Discord</Label>
+          <form onSubmit={handleApply} className="space-y-3.5 mt-2">
+            <div className="space-y-1">
+              <label className="text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-400">
+                Link do Servidor Discord
+              </label>
               <Input
                 value={form.discordLink}
                 onChange={(e) => setForm(f => ({ ...f, discordLink: e.target.value }))}
                 placeholder="https://discord.gg/..."
-                className="mt-1.5 text-white border-white/10 focus:border-violet-500/60 bg-white/5"
+                className="h-10 text-[13px] text-white bg-[#07080b] border border-white/10 rounded-lg placeholder:text-zinc-600 focus:outline-none focus:border-white/30"
                 required
               />
             </div>
-            <div>
-              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">ID do Discord</Label>
+            <div className="space-y-1">
+              <label className="text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-400">
+                Seu ID de Usuário do Discord
+              </label>
               <Input
                 value={form.discordId}
                 onChange={(e) => setForm(f => ({ ...f, discordId: e.target.value }))}
-                placeholder="123456789012345678"
-                className="mt-1.5 text-white border-white/10 focus:border-violet-500/60 bg-white/5"
+                placeholder="Ex: 123456789012345678"
+                className="h-10 text-[13px] text-white bg-[#07080b] border border-white/10 rounded-lg placeholder:text-zinc-600 focus:outline-none focus:border-white/30"
                 required
               />
             </div>
-            <div>
-              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Seu Email</Label>
+            <div className="space-y-1">
+              <label className="text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-400">
+                E-mail para Contato
+              </label>
               <Input
                 type="email"
                 value={form.email}
                 onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))}
                 placeholder="seu@email.com"
-                className="mt-1.5 text-white border-white/10 focus:border-violet-500/60 bg-white/5"
+                className="h-10 text-[13px] text-white bg-[#07080b] border border-white/10 rounded-lg placeholder:text-zinc-600 focus:outline-none focus:border-white/30"
                 required
               />
             </div>
-            <div>
-              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Qual produto quer revender?</Label>
+            <div className="space-y-1">
+              <label className="text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-400">
+                Produtos que pretende revender
+              </label>
               <Input
                 value={form.product}
                 onChange={(e) => setForm(f => ({ ...f, product: e.target.value }))}
                 placeholder="Ex: Cheats, Contas, Keys..."
-                className="mt-1.5 text-white border-white/10 focus:border-violet-500/60 bg-white/5"
+                className="h-10 text-[13px] text-white bg-[#07080b] border border-white/10 rounded-lg placeholder:text-zinc-600 focus:outline-none focus:border-white/30"
                 required
               />
             </div>
-            <div>
-              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Por que quer se tornar reseller?</Label>
+            <div className="space-y-1">
+              <label className="text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-400">
+                Proposta e Plano de Vendas
+              </label>
               <Textarea
                 value={form.reason}
                 onChange={(e) => setForm(f => ({ ...f, reason: e.target.value }))}
-                placeholder="Conte um pouco sobre você e como pretende vender..."
-                className="mt-1.5 text-white border-white/10 focus:border-violet-500/60 bg-white/5 min-h-[100px]"
+                placeholder="Conte um pouco sobre sua base de clientes, canais de venda e expectativa..."
+                className="text-[13px] text-white bg-[#07080b] border border-white/10 rounded-lg placeholder:text-zinc-600 focus:outline-none focus:border-white/30 min-h-[85px] resize-none"
                 required
               />
             </div>
-            <div className="flex gap-3 pt-2">
-              <Button
+            <div className="flex gap-2.5 pt-2">
+              <button
                 type="button"
                 onClick={() => setShowApply(false)}
-                className="flex-1 text-gray-300 bg-white/5 border border-white/10 hover:text-white"
+                className="flex-1 h-10 rounded-lg border border-white/10 bg-white/[0.03] text-xs font-semibold text-zinc-300 hover:bg-white/[0.07] hover:text-white transition-all"
               >
                 Cancelar
-              </Button>
-              <Button
+              </button>
+              <button
                 type="submit"
                 disabled={submit.isPending}
-                className="flex-1 text-white"
-                style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}
+                className="flex-1 h-10 rounded-lg bg-white text-zinc-950 text-xs font-semibold uppercase tracking-[0.05em] hover:bg-zinc-200 transition-all disabled:opacity-50"
               >
-                {submit.isPending ? "Enviando..." : "Enviar aplicação"}
-              </Button>
+                {submit.isPending ? "Enviando..." : "Enviar Candidatura"}
+              </button>
             </div>
           </form>
         </DialogContent>
@@ -508,74 +521,85 @@ export default function LoginPage() {
       {/* Support Modal */}
       <Dialog open={showSupport} onOpenChange={setShowSupport}>
         <DialogContent
-          className="text-white max-w-md border-0"
+          className="text-white max-w-md border border-white/10 rounded-2xl p-6"
           style={{
-            background: "linear-gradient(145deg, rgba(18,12,35,0.98) 0%, rgba(10,8,25,0.98) 100%)",
-            boxShadow: "0 0 0 1px rgba(139,92,246,0.2), 0 25px 60px rgba(0,0,0,0.7)",
-            backdropFilter: "blur(20px)",
+            background: "#0c0d12",
+            boxShadow: "0 25px 60px -15px rgba(0,0,0,0.85), 0 0 0 1px rgba(255,255,255,0.06)",
           }}
         >
-          <DialogHeader>
-            <DialogTitle className="text-white text-lg font-semibold">Tire sua dúvida</DialogTitle>
+          <DialogHeader className="space-y-1 pb-2">
+            <DialogTitle className="text-white text-lg font-bold tracking-tight">
+              Suporte e Atendimento
+            </DialogTitle>
+            <p className="text-xs text-zinc-400">
+              Envie sua dúvida ou solicitação diretamente para a administração.
+            </p>
           </DialogHeader>
-          <form onSubmit={handleSupport} className="space-y-4 mt-2">
-            <div>
-              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Seu Nome</Label>
+          <form onSubmit={handleSupport} className="space-y-3.5 mt-2">
+            <div className="space-y-1">
+              <label className="text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-400">
+                Seu Nome
+              </label>
               <Input
                 value={supportForm.name}
                 onChange={(e) => setSupportForm(f => ({ ...f, name: e.target.value }))}
                 placeholder="Como podemos te chamar?"
-                className="mt-1.5 text-white border-white/10 focus:border-violet-500/60 bg-white/5"
+                className="h-10 text-[13px] text-white bg-[#07080b] border border-white/10 rounded-lg placeholder:text-zinc-600 focus:outline-none focus:border-white/30"
                 required
               />
             </div>
-            <div>
-              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Seu Email</Label>
+            <div className="space-y-1">
+              <label className="text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-400">
+                Seu E-mail
+              </label>
               <Input
                 type="email"
                 value={supportForm.email}
                 onChange={(e) => setSupportForm(f => ({ ...f, email: e.target.value }))}
                 placeholder="seu@email.com"
-                className="mt-1.5 text-white border-white/10 focus:border-violet-500/60 bg-white/5"
+                className="h-10 text-[13px] text-white bg-[#07080b] border border-white/10 rounded-lg placeholder:text-zinc-600 focus:outline-none focus:border-white/30"
                 required
               />
             </div>
-            <div>
-              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Motivo do ticket</Label>
+            <div className="space-y-1">
+              <label className="text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-400">
+                Assunto do Atendimento
+              </label>
               <Input
                 value={supportForm.subject}
                 onChange={(e) => setSupportForm(f => ({ ...f, subject: e.target.value }))}
-                placeholder="Ex: Dúvida sobre preço, problema com acesso..."
-                className="mt-1.5 text-white border-white/10 focus:border-violet-500/60 bg-white/5"
+                placeholder="Ex: Dúvida sobre credenciamento, API, pagamentos..."
+                className="h-10 text-[13px] text-white bg-[#07080b] border border-white/10 rounded-lg placeholder:text-zinc-600 focus:outline-none focus:border-white/30"
                 required
               />
             </div>
-            <div>
-              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Sua dúvida</Label>
+            <div className="space-y-1">
+              <label className="text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-400">
+                Mensagem
+              </label>
               <Textarea
                 value={supportForm.question}
                 onChange={(e) => setSupportForm(f => ({ ...f, question: e.target.value }))}
-                placeholder="Descreva sua dúvida..."
-                className="mt-1.5 text-white border-white/10 focus:border-violet-500/60 bg-white/5 min-h-[120px]"
+                placeholder="Descreva detalhadamente sua solicitação..."
+                className="text-[13px] text-white bg-[#07080b] border border-white/10 rounded-lg placeholder:text-zinc-600 focus:outline-none focus:border-white/30 min-h-[90px] resize-none"
                 required
               />
             </div>
-            <div className="flex gap-3 pt-2">
-              <Button
+            <div className="flex gap-2.5 pt-2">
+              <button
                 type="button"
                 onClick={() => setShowSupport(false)}
-                className="flex-1 text-gray-300 bg-white/5 border border-white/10 hover:text-white"
+                className="flex-1 h-10 rounded-lg border border-white/10 bg-white/[0.03] text-xs font-semibold text-zinc-300 hover:bg-white/[0.07] hover:text-white transition-all"
               >
                 Cancelar
-              </Button>
-              <Button
+              </button>
+              <button
                 type="submit"
                 disabled={submitSupport.isPending}
-                className="flex-1 text-white"
-                style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}
+                className="flex-1 h-10 rounded-lg bg-white text-zinc-950 text-xs font-semibold uppercase tracking-[0.05em] hover:bg-zinc-200 transition-all disabled:opacity-50"
               >
-                {submitSupport.isPending ? "Enviando..." : "Abrir ticket"}
-              </Button>
+                {submitSupport.isPending ? "Enviando..." : "Abrir Ticket"}
+              </button>
             </div>
           </form>
         </DialogContent>
@@ -585,37 +609,34 @@ export default function LoginPage() {
       {hasApplication && (
         <button
           onClick={() => setShowAppChat(true)}
-          className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full flex items-center justify-center text-white shadow-2xl transition-transform hover:scale-110"
-          style={{
-            background: isPreApproved ? "linear-gradient(135deg, #22c55e, #16a34a)" : "linear-gradient(135deg, #10b981, #059669)",
-            boxShadow: isPreApproved ? "0 4px 24px rgba(34,197,94,0.45)" : "0 4px 24px rgba(16,185,129,0.45)",
-          }}
-          title="Meu chat com a administração"
+          className="fixed bottom-6 right-6 z-50 h-11 px-4 rounded-full flex items-center gap-2.5 text-white shadow-2xl transition-all hover:scale-105 border border-white/15 bg-zinc-900"
+          title="Atendimento de Credenciamento"
         >
-          <MessageCircle className="w-6 h-6" />
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <MessageCircle className="w-4 h-4 text-white" />
+          <span className="text-xs font-semibold">Atendimento Ativo</span>
         </button>
       )}
 
       {/* Application Chat Dialog */}
       <Dialog open={showAppChat} onOpenChange={setShowAppChat}>
         <DialogContent
-          className="text-white max-w-lg border-0"
+          className="text-white max-w-lg border border-white/10 rounded-2xl p-6"
           style={{
-            background: "linear-gradient(145deg, rgba(18,12,35,0.98) 0%, rgba(10,8,25,0.98) 100%)",
-            boxShadow: "0 0 0 1px rgba(139,92,246,0.2), 0 25px 60px rgba(0,0,0,0.7)",
-            backdropFilter: "blur(20px)",
+            background: "#0c0d12",
+            boxShadow: "0 25px 60px -15px rgba(0,0,0,0.85), 0 0 0 1px rgba(255,255,255,0.06)",
           }}
         >
-          <DialogHeader className="border-b border-white/10 pb-3">
-            <DialogTitle className="text-white text-lg font-semibold flex items-center gap-2">
-              <MessageCircle className="w-5 h-5 text-violet-400" /> Chat com a Admin
+          <DialogHeader className="border-b border-white/10 pb-3 flex flex-row items-center justify-between">
+            <DialogTitle className="text-white text-base font-bold flex items-center gap-2">
+              <MessageCircle className="w-4 h-4 text-zinc-300" /> Chat de Credenciamento
             </DialogTitle>
           </DialogHeader>
 
           {application?.status === "pre_approved" && (
-            <div className="mb-3 rounded-lg p-3 text-sm" style={{ background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)" }}>
-              <p className="text-green-400 font-semibold flex items-center gap-2"><CheckCircle2 className="w-4 h-4" /> Pré-aprovado!</p>
-              <p className="text-gray-400 text-xs mt-1">Você está no processo de aprovação final. Fique atento ao chat.</p>
+            <div className="mb-3 rounded-lg p-3 text-xs bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 flex items-center gap-2 font-medium">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>Sua candidatura foi pré-aprovada. Prossiga com o atendimento abaixo.</span>
             </div>
           )}
 
@@ -624,24 +645,20 @@ export default function LoginPage() {
             className="h-[320px] overflow-y-auto space-y-3 pr-1 my-3"
           >
             {isLoadingApp ? (
-              <p className="text-center text-gray-500 text-sm py-10">Carregando...</p>
+              <p className="text-center text-zinc-500 text-xs py-10">Carregando mensagens...</p>
             ) : application?.messages?.length === 0 ? (
-              <p className="text-center text-gray-500 text-sm py-10">Aguarde a resposta da administração.</p>
+              <p className="text-center text-zinc-500 text-xs py-10">Aguarde a resposta da administração.</p>
             ) : (
               application?.messages?.map((msg: any) => {
                 const isApplicant = msg.senderType === "applicant";
                 return (
                   <div key={msg.id} className={`flex ${isApplicant ? "justify-end" : "justify-start"}`}>
                     <div
-                      className={`max-w-[80%] rounded-2xl px-4 py-3 ${isApplicant ? "rounded-tr-sm" : "rounded-tl-sm"}`}
-                      style={{
-                        background: isApplicant ? "linear-gradient(135deg, rgba(16,185,129,0.25), rgba(139,92,246,0.1))" : "rgba(255,255,255,0.05)",
-                        border: isApplicant ? "1px solid rgba(16,185,129,0.3)" : "1px solid rgba(255,255,255,0.08)",
-                      }}
+                      className={`max-w-[80%] rounded-xl px-3.5 py-2.5 ${isApplicant ? "rounded-tr-xs bg-zinc-800 text-white" : "rounded-tl-xs bg-[#14161f] border border-white/10 text-zinc-200"}`}
                     >
-                      <p className="text-[10px] text-gray-500 mb-0.5 font-semibold uppercase">{isApplicant ? "Você" : "Admin"}</p>
-                      <p className="text-white text-sm whitespace-pre-wrap">{msg.message}</p>
-                      <p className="text-[10px] text-gray-500 mt-1 text-right">{formatDate(msg.createdAt)}</p>
+                      <p className="text-[10px] text-zinc-400 mb-0.5 font-semibold uppercase">{isApplicant ? "Você" : "Admin"}</p>
+                      <p className="text-[13px] whitespace-pre-wrap leading-relaxed">{msg.message}</p>
+                      <p className="text-[10px] text-zinc-500 mt-1 text-right">{formatDate(msg.createdAt)}</p>
                     </div>
                   </div>
                 );
@@ -655,22 +672,21 @@ export default function LoginPage() {
                 <Textarea
                   value={appChatText}
                   onChange={(e) => setAppChatText(e.target.value)}
-                  placeholder="Escreva uma mensagem..."
-                  className="flex-1 bg-white/5 border-white/10 text-white placeholder:text-gray-600 min-h-[60px] resize-none"
+                  placeholder="Escreva sua mensagem..."
+                  className="flex-1 bg-[#07080b] border-white/10 text-white placeholder:text-zinc-600 min-h-[50px] text-xs resize-none rounded-lg"
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleAppChatSend(e as any); } }}
                 />
                 <Button
                   type="submit"
                   disabled={sendAppMessage.isPending || !appChatText.trim()}
-                  className="h-[60px] w-12 p-0 text-white"
-                  style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}
+                  className="h-[50px] w-12 p-0 bg-white text-zinc-950 hover:bg-zinc-200"
                 >
                   <Send className="w-4 h-4" />
                 </Button>
               </div>
             </form>
           ) : (
-            <p className="text-center text-gray-500 text-sm py-2 border-t border-white/10">Este chat está encerrado.</p>
+            <p className="text-center text-zinc-500 text-xs py-2 border-t border-white/10">Este chat está encerrado.</p>
           )}
         </DialogContent>
       </Dialog>
@@ -678,16 +694,15 @@ export default function LoginPage() {
       {/* Support Chat Dialog */}
       <Dialog open={showSupportChat} onOpenChange={setShowSupportChat}>
         <DialogContent
-          className="text-white max-w-lg border-0"
+          className="text-white max-w-lg border border-white/10 rounded-2xl p-6"
           style={{
-            background: "linear-gradient(145deg, rgba(18,12,35,0.98) 0%, rgba(10,8,25,0.98) 100%)",
-            boxShadow: "0 0 0 1px rgba(139,92,246,0.2), 0 25px 60px rgba(0,0,0,0.7)",
-            backdropFilter: "blur(20px)",
+            background: "#0c0d12",
+            boxShadow: "0 25px 60px -15px rgba(0,0,0,0.85), 0 0 0 1px rgba(255,255,255,0.06)",
           }}
         >
           <DialogHeader className="border-b border-white/10 pb-3 flex flex-row items-center justify-between">
-            <DialogTitle className="text-white text-lg font-semibold flex items-center gap-2">
-              <MessageCircle className="w-5 h-5 text-blue-400" /> Dúvida #{supportTicket?.id}
+            <DialogTitle className="text-white text-base font-bold flex items-center gap-2">
+              <MessageCircle className="w-4 h-4 text-zinc-300" /> Atendimento #{supportTicket?.id}
             </DialogTitle>
             <button
               onClick={() => {
@@ -697,9 +712,9 @@ export default function LoginPage() {
                 setShowSupport(true);
                 setSupportForm({ name: "", email: "", subject: "", question: "" });
               }}
-              className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
+              className="text-xs text-zinc-400 hover:text-white flex items-center gap-1 transition-colors"
             >
-              <MessageCircle className="w-3 h-3" /> Nova dúvida
+              <MessageCircle className="w-3 h-3" /> Novo ticket
             </button>
           </DialogHeader>
 
@@ -708,24 +723,20 @@ export default function LoginPage() {
             className="h-[320px] overflow-y-auto space-y-3 pr-1 my-3"
           >
             {isLoadingSupport ? (
-              <p className="text-center text-gray-500 text-sm py-10">Carregando...</p>
+              <p className="text-center text-zinc-500 text-xs py-10">Carregando mensagens...</p>
             ) : supportTicket?.messages?.length === 0 ? (
-              <p className="text-center text-gray-500 text-sm py-10">Aguarde a resposta da administração.</p>
+              <p className="text-center text-zinc-500 text-xs py-10">Aguarde a resposta da equipe técnica.</p>
             ) : (
               supportTicket?.messages?.map((msg: any) => {
                 const isUser = msg.senderType === "user";
                 return (
                   <div key={msg.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
                     <div
-                      className={`max-w-[80%] rounded-2xl px-4 py-3 ${isUser ? "rounded-tr-sm" : "rounded-tl-sm"}`}
-                      style={{
-                        background: isUser ? "linear-gradient(135deg, rgba(59,130,246,0.25), rgba(37,99,235,0.1))" : "rgba(255,255,255,0.05)",
-                        border: isUser ? "1px solid rgba(59,130,246,0.3)" : "1px solid rgba(255,255,255,0.08)",
-                      }}
+                      className={`max-w-[80%] rounded-xl px-3.5 py-2.5 ${isUser ? "rounded-tr-xs bg-zinc-800 text-white" : "rounded-tl-xs bg-[#14161f] border border-white/10 text-zinc-200"}`}
                     >
-                      <p className="text-[10px] text-gray-500 mb-0.5 font-semibold uppercase">{isUser ? "Você" : "Admin"}</p>
-                      <p className="text-white text-sm whitespace-pre-wrap">{msg.message}</p>
-                      <p className="text-[10px] text-gray-500 mt-1 text-right">{formatDate(msg.createdAt)}</p>
+                      <p className="text-[10px] text-zinc-400 mb-0.5 font-semibold uppercase">{isUser ? "Você" : "Suporte"}</p>
+                      <p className="text-[13px] whitespace-pre-wrap leading-relaxed">{msg.message}</p>
+                      <p className="text-[10px] text-zinc-500 mt-1 text-right">{formatDate(msg.createdAt)}</p>
                     </div>
                   </div>
                 );
@@ -739,22 +750,21 @@ export default function LoginPage() {
                 <Textarea
                   value={supportChatText}
                   onChange={(e) => setSupportChatText(e.target.value)}
-                  placeholder="Escreva uma mensagem..."
-                  className="flex-1 bg-white/5 border-white/10 text-white placeholder:text-gray-600 min-h-[60px] resize-none"
+                  placeholder="Escreva sua mensagem..."
+                  className="flex-1 bg-[#07080b] border-white/10 text-white placeholder:text-zinc-600 min-h-[50px] text-xs resize-none rounded-lg"
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSupportChatSend(e as any); } }}
                 />
                 <Button
                   type="submit"
                   disabled={sendSupportMessage.isPending || !supportChatText.trim()}
-                  className="h-[60px] w-12 p-0 text-white"
-                  style={{ background: "linear-gradient(135deg, #3b82f6, #2563eb)" }}
+                  className="h-[50px] w-12 p-0 bg-white text-zinc-950 hover:bg-zinc-200"
                 >
                   <Send className="w-4 h-4" />
                 </Button>
               </div>
             </form>
           ) : (
-            <p className="text-center text-gray-500 text-sm py-2 border-t border-white/10">Este ticket foi fechado. Caso ainda tenha dúvidas, abra um novo.</p>
+            <p className="text-center text-zinc-500 text-xs py-2 border-t border-white/10">Este ticket foi concluído.</p>
           )}
         </DialogContent>
       </Dialog>
