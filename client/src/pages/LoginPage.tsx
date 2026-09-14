@@ -21,13 +21,18 @@ function formatDate(d: Date | string | null | undefined) {
   });
 }
 
-const LOGIN_STREAKS = Array.from({ length: 78 }, (_, i) => ({
-  left: (i / 78) * 100,
-  height: 80 + ((i * 37) % 190),
-  delay: ((i * 0.17) % 3.6),
-  duration: 4.4 + (((i * 29) % 33) / 10),
-  opacity: 0.18 + (((i * 13) % 42) / 100),
-}));
+const LOGIN_STREAKS = Array.from({ length: 92 }, (_, i) => {
+  const normalized = i / 91 - 0.5;
+  return {
+    left: (i / 91) * 100,
+    height: 78 + ((i * 41) % 190),
+    delay: (i * 0.15) % 3.8,
+    duration: 4.1 + ((i * 23) % 30) / 10,
+    opacity: 0.2 + ((i * 11) % 50) / 100,
+    drift: Math.round(normalized * 220),
+    width: 1 + ((i * 7) % 2),
+  };
+});
 
 export default function LoginPage() {
   const [, navigate] = useLocation();
@@ -222,8 +227,9 @@ export default function LoginPage() {
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#050507] text-white">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(124,58,237,0.16),transparent_40%),radial-gradient(circle_at_85%_12%,rgba(255,255,255,0.08),transparent_35%)] pointer-events-none" />
-      <div className="hidden lg:block absolute inset-y-0 left-0 w-[62%] overflow-hidden">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_12%_0%,rgba(124,58,237,0.22),transparent_38%),radial-gradient(circle_at_82%_10%,rgba(255,255,255,0.06),transparent_35%)] pointer-events-none" />
+
+      <div className="hidden lg:block absolute inset-y-0 left-0 w-1/2 overflow-hidden">
         <div className="login-streak-stage">
           {LOGIN_STREAKS.map((line, idx) => (
             <span
@@ -235,47 +241,49 @@ export default function LoginPage() {
                 animationDelay: `-${line.delay}s`,
                 animationDuration: `${line.duration}s`,
                 opacity: line.opacity,
+                width: `${line.width}px`,
+                ["--drift" as any]: `${line.drift}px`,
               }}
             />
           ))}
         </div>
-        <div className="absolute inset-y-0 right-0 w-48 bg-gradient-to-l from-[#050507] to-transparent" />
+        <div className="absolute inset-y-0 right-0 w-52 bg-gradient-to-l from-[#050507] to-transparent" />
       </div>
 
       <div className="relative z-10 flex min-h-screen lg:justify-end">
         <div
-          className="w-full lg:w-[38%] xl:w-[35%] min-h-screen border-l border-white/10"
-          style={{ background: "rgba(8,8,12,0.86)", backdropFilter: "blur(22px)" }}
+          className="w-full lg:w-1/2 min-h-screen border-l border-white/10"
+          style={{ background: "rgba(7,7,10,0.9)", backdropFilter: "blur(18px)" }}
         >
-          <div className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col justify-center px-6 py-10 sm:px-10">
-            <div className="mb-8 flex items-center justify-between">
-              <p className="text-xs tracking-[0.18em] uppercase text-gray-300">✦ Sellers</p>
+          <div className="mx-auto flex min-h-screen w-full max-w-[500px] flex-col justify-center px-8 py-10 sm:px-12">
+            <div className="mb-9 flex items-center justify-between">
+              <p className="text-[11px] tracking-[0.16em] uppercase text-gray-300">✦ Stellar Sellers</p>
               <LanguageSwitcher />
             </div>
 
-            <div className="mb-6">
-              <h1 className="text-3xl sm:text-[34px] font-semibold leading-tight text-white">Bem-vindo de volta.</h1>
-              <p className="mt-2 text-sm text-gray-400">Entre na sua conta para continuar.</p>
+            <div className="mb-7">
+              <h1 className="text-[34px] sm:text-[38px] font-semibold leading-tight text-white">Bem-vindo de volta.</h1>
+              <p className="mt-2 text-[13px] text-gray-400">Entre na sua conta para continuar.</p>
             </div>
 
-            <div className="space-y-2.5">
+            <div className="space-y-2">
               <button
                 type="button"
                 onClick={() => toast.info("Use o login com usuário e senha.")}
-                className="w-full h-11 rounded-lg border border-white/12 bg-white/[0.03] text-sm font-medium text-gray-200 transition-colors hover:bg-white/[0.06]"
+                className="w-full h-10 rounded-md border border-white/12 bg-white/[0.03] text-xs font-medium text-gray-200 transition-colors hover:bg-white/[0.06]"
               >
                 Entrar com Google
               </button>
               <button
                 type="button"
                 onClick={() => toast.info("Use o login com usuário e senha.")}
-                className="w-full h-11 rounded-lg border border-white/12 bg-white/[0.03] text-sm font-medium text-gray-200 transition-colors hover:bg-white/[0.06]"
+                className="w-full h-10 rounded-md border border-white/12 bg-white/[0.03] text-xs font-medium text-gray-200 transition-colors hover:bg-white/[0.06]"
               >
                 Entrar com Discord
               </button>
             </div>
 
-            <div className="my-5 flex items-center gap-3 text-xs uppercase tracking-[0.14em] text-gray-600">
+            <div className="my-5 flex items-center gap-3 text-[10px] uppercase tracking-[0.16em] text-gray-600">
               <div className="h-px flex-1 bg-white/10" />
               ou
               <div className="h-px flex-1 bg-white/10" />
@@ -283,18 +291,18 @@ export default function LoginPage() {
 
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-400">{t.login_username}</label>
+                <label className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">{t.login_username}</label>
                 <Input
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder={t.login_username_placeholder}
                   autoComplete="username"
-                  className="h-11 rounded-lg border-white/15 bg-white/[0.03] text-sm text-white placeholder:text-gray-600 focus-visible:ring-0 focus-visible:border-violet-400/50"
+                  className="h-10 rounded-md border-white/15 bg-white/[0.03] text-sm text-white placeholder:text-gray-600 focus-visible:ring-0 focus-visible:border-violet-400/50"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-400">{t.login_password}</label>
+                <label className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">{t.login_password}</label>
                 <div className="relative">
                   <Input
                     type={showPass ? "text" : "password"}
@@ -302,7 +310,7 @@ export default function LoginPage() {
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••••"
                     autoComplete="current-password"
-                    className="h-11 rounded-lg border-white/15 bg-white/[0.03] pr-10 text-sm text-white placeholder:text-gray-600 focus-visible:ring-0 focus-visible:border-violet-400/50"
+                    className="h-10 rounded-md border-white/15 bg-white/[0.03] pr-10 text-sm text-white placeholder:text-gray-600 focus-visible:ring-0 focus-visible:border-violet-400/50"
                   />
                   <button
                     type="button"
@@ -337,7 +345,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="mt-1 flex h-11 w-full items-center justify-center gap-2 rounded-lg text-sm font-semibold text-black transition-all"
+                className="mt-2 flex h-10 w-full items-center justify-center gap-2 rounded-md text-sm font-semibold text-black transition-all"
                 style={{
                   background: isLoading
                     ? "linear-gradient(135deg, rgba(234,234,255,0.55), rgba(202,202,230,0.55))"
@@ -347,24 +355,26 @@ export default function LoginPage() {
               >
                 {isLoading ? (
                   <>
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-black/30 border-t-black" />
+                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-black/30 border-t-black" />
                     {t.login_signing_in}
                   </>
                 ) : (
                   <>
-                    <LogIn className="w-4 h-4" />
+                    <LogIn className="w-3.5 h-3.5" />
                     {t.login_sign_in}
                   </>
                 )}
               </button>
             </form>
 
-            <div className="mt-5 flex items-center justify-between text-xs text-gray-500">
-              <button type="button" onClick={() => setShowSupport(true)} className="hover:text-gray-300 transition-colors">
-                Precisa de ajuda?
+            <div className="mt-5 text-center text-xs text-gray-500">
+              Não tem conta?{" "}
+              <button type="button" onClick={() => setShowApply(true)} className="text-gray-300 hover:text-violet-300 transition-colors">
+                Criar uma
               </button>
-              <button type="button" onClick={() => setShowApply(true)} className="hover:text-violet-300 transition-colors">
-                Criar uma conta
+              <span className="mx-2 text-gray-700">•</span>
+              <button type="button" onClick={() => setShowSupport(true)} className="hover:text-gray-300 transition-colors">
+                Ajuda
               </button>
             </div>
 
