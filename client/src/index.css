@@ -230,7 +230,7 @@ button:active:not(:disabled) {
   min-height: 100vh;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  background: #050806;
+  background: #030305;
   position: relative;
   overflow: hidden;
 }
@@ -248,10 +248,11 @@ button:active:not(:disabled) {
   position: relative;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: flex-end;
+  padding: 40px;
   overflow: hidden;
-  border-right: 1px solid rgba(16, 185, 129, 0.08);
-  background: #050806;
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  background: #030305;
 }
 
 .auth-left-bg {
@@ -263,12 +264,12 @@ button:active:not(:disabled) {
 .auth-right {
   position: relative;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
+  justify-content: space-between;
   padding: 40px;
   min-height: 100vh;
   overflow-y: auto;
-  background: #050806;
+  background: #050508;
 }
 
 .auth-right::before {
@@ -278,13 +279,13 @@ button:active:not(:disabled) {
   right: -10%;
   width: 500px;
   height: 500px;
-  background: radial-gradient(circle, rgba(16, 185, 129, 0.04) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.02) 0%, transparent 70%);
   pointer-events: none;
 }
 
 .auth-card {
   width: 100%;
-  max-width: 400px;
+  max-width: 420px;
   position: relative;
   z-index: 1;
 }
