@@ -49,6 +49,27 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
 
   return (
     <>
+      <Tabs defaultValue="overview" className="w-full">
+        {/* Navigation Tabs */}
+        <div className="flex items-center justify-between border-b border-white/[0.06] pb-3 mb-5">
+          <TabsList className="bg-white/[0.03] border border-white/[0.08] p-1 rounded-xl flex gap-1 h-auto">
+            <TabsTrigger
+              value="overview"
+              className="data-[state=active]:bg-white/[0.08] data-[state=active]:text-white text-gray-400 text-xs font-semibold rounded-lg px-3.5 py-1.5 transition-all"
+            >
+              Visão Geral & Planos
+            </TabsTrigger>
+            <TabsTrigger
+              value="downloads"
+              className="data-[state=active]:bg-white/[0.08] data-[state=active]:text-white text-gray-400 text-xs font-semibold rounded-lg px-3.5 py-1.5 transition-all flex items-center gap-1.5"
+            >
+              <Download className="w-3.5 h-3.5 text-emerald-400" />
+              Downloads
+            </TabsTrigger>
+          </TabsList>
+        </div>
+
+        <TabsContent value="overview" className="mt-0">
       <div className="space-y-5">
         {/* Strip de Métricas Compacta */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -244,6 +265,12 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
           </div>
         )}
       </div>
+        </TabsContent>
+
+        <TabsContent value="downloads" className="mt-4">
+          <ResellerDownloads appId={id} />
+        </TabsContent>
+      </Tabs>
 
       {/* Generate Modal Compacto */}
       <Dialog open={showGenerate} onOpenChange={setShowGenerate}>
