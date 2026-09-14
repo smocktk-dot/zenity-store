@@ -21,8 +21,8 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
     { href: "/reseller", icon: User, label: t.nav_profile },
     { href: "/reseller/apps", icon: AppWindow, label: t.nav_apps },
     { href: "/reseller/keys", icon: Key, label: t.nav_my_keys },
-    { href: "/reseller/tickets", icon: Ticket, label: "Tickets" },
-    ...(session?.canCreateSubResellers ? [{ href: "/reseller/stats", icon: BarChart3, label: "Estatísticas" }] : []),
+    { href: "/reseller/tickets", icon: Ticket, label: t.nav_tickets },
+    ...(session?.canCreateSubResellers ? [{ href: "/reseller/stats", icon: BarChart3, label: t.nav_stats }] : []),
   ];
 
   // Allow both resellers and admins to access the reseller panel
@@ -46,8 +46,9 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
 
   const isAdmin = session?.role === "admin";
   const resellerSession = session?.role === "reseller" ? session : null;
-  const isCredits = !resellerSession || (resellerSession as any).resellerType !== "percentage";
-  const isOtherStore = !!(resellerSession as any)?.otherStore;
+  const isCredits = resellerSession?.resellerType === "credits";
+  const isPercentage = resellerSession?.resellerType === "percentage";
+  const isOther = resellerSession?.resellerType === "other";
   const displayUsername = session?.username ?? "User";
 
   return (
@@ -103,12 +104,20 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
                 {parseFloat((resellerSession as any).credits ?? "0").toFixed(2)} cr
               </div>
             )}
-            {resellerSession && !isCredits && (
+            {resellerSession && isPercentage && (
               <div
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
                 style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.2)", color: "#34d399" }}
               >
                 {parseFloat((resellerSession as any).discountPercent ?? "0").toFixed(0)}% {t.general_discount}
+              </div>
+            )}
+            {resellerSession && isOther && (
+              <div
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
+                style={{ background: "rgba(59,130,246,0.08)", border: "1px solid rgba(59,130,246,0.2)", color: "#60a5fa" }}
+              >
+                {t.general_other_store}
               </div>
             )}
 

@@ -276,6 +276,7 @@ const authRouter = router({
         id: reseller.id, username: reseller.username, role: "reseller" as const,
         credits: reseller.credits, discountPercent: reseller.discountPercent,
         totalPurchases: reseller.totalPurchases, status: reseller.status,
+        resellerType: reseller.resellerType,
         canCreateSubResellers: reseller.canCreateSubResellers,
         otherStore: otherStore ? {
           id: otherStore.id,

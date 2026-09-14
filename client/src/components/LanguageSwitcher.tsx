@@ -14,9 +14,9 @@ export default function LanguageSwitcher() {
         style={
           language === "pt"
             ? {
-                background: "linear-gradient(135deg, rgba(124,58,237,0.4), rgba(139,92,246,0.25))",
-                color: "#c4b5fd",
-                border: "1px solid rgba(124,58,237,0.4)",
+                background: "rgba(16,185,129,0.15)",
+                color: "#6ee7b7",
+                border: "1px solid rgba(16,185,129,0.4)",
               }
             : { color: "#6b7280", border: "1px solid transparent" }
         }
@@ -30,9 +30,9 @@ export default function LanguageSwitcher() {
         style={
           language === "en"
             ? {
-                background: "linear-gradient(135deg, rgba(124,58,237,0.4), rgba(139,92,246,0.25))",
-                color: "#c4b5fd",
-                border: "1px solid rgba(124,58,237,0.4)",
+                background: "rgba(16,185,129,0.15)",
+                color: "#6ee7b7",
+                border: "1px solid rgba(16,185,129,0.4)",
               }
             : { color: "#6b7280", border: "1px solid transparent" }
         }

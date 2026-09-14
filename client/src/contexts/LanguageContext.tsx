@@ -22,6 +22,8 @@ export interface Translations {
   nav_profile: string;
   nav_apps: string;
   nav_my_keys: string;
+  nav_tickets: string;
+  nav_stats: string;
   nav_admin_panel: string;
   nav_loading: string;
   nav_logout: string;
@@ -263,6 +265,7 @@ export interface Translations {
   general_premium: string;
   general_no_description: string;
   general_without_description: string;
+  general_other_store: string;
 }
 
 const ptTranslations: Translations = {
@@ -285,6 +288,8 @@ const ptTranslations: Translations = {
   nav_profile: "Perfil",
   nav_apps: "Apps",
   nav_my_keys: "Minhas Keys",
+  nav_tickets: "Tickets",
+  nav_stats: "Estatísticas",
   nav_admin_panel: "Admin Panel",
   nav_loading: "Carregando...",
   nav_logout: "Logout",
@@ -526,6 +531,7 @@ const ptTranslations: Translations = {
   general_premium: "premium",
   general_no_description: "Sem descrição",
   general_without_description: "Sem descrição",
+  general_other_store: "Other Store",
 };
 
 const enTranslations: Translations = {
@@ -548,6 +554,8 @@ const enTranslations: Translations = {
   nav_profile: "Profile",
   nav_apps: "Apps",
   nav_my_keys: "My Keys",
+  nav_tickets: "Tickets",
+  nav_stats: "Statistics",
   nav_admin_panel: "Admin Panel",
   nav_loading: "Loading...",
   nav_logout: "Logout",
@@ -789,6 +797,7 @@ const enTranslations: Translations = {
   general_premium: "premium",
   general_no_description: "No description",
   general_without_description: "No description",
+  general_other_store: "Other Store",
 };
 
 interface LanguageContextType {

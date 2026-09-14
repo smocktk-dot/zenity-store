@@ -2882,6 +2882,7 @@ var authRouter = router({
         discountPercent: reseller.discountPercent,
         totalPurchases: reseller.totalPurchases,
         status: reseller.status,
+        resellerType: reseller.resellerType,
         canCreateSubResellers: reseller.canCreateSubResellers,
         otherStore: otherStore ? {
           id: otherStore.id,
