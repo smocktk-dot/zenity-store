@@ -1,27 +1,26 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
   ArrowLeft, Key, DollarSign, Clock, Star, Plus, ShoppingCart, CreditCard,
   Percent, CheckCircle, QrCode, Copy, CheckCircle2, Loader2, RefreshCw, X,
-  Bitcoin, Wallet, AlertTriangle, Download, Film,
+  Bitcoin, Wallet, AlertTriangle, Download, Film, ShieldCheck, Sparkles,
+  TrendingUp, Tag, Layers, Check
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useEffect, useCallback } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useCurrency } from "@/hooks/useCurrency";
 import { QRCodeSVG } from "qrcode.react";
 
 const levelColors: Record<string, string> = {
-  basic: "text-blue-400 bg-blue-500/20 border-blue-500/30",
-  premium: "text-emerald-400 bg-emerald-500/20 border-emerald-500/30",
-  lifetime: "text-yellow-400 bg-yellow-500/20 border-yellow-500/30",
+  basic: "text-emerald-300 bg-emerald-500/10 border-emerald-500/25",
+  premium: "text-emerald-400 bg-emerald-500/20 border-emerald-500/40",
+  lifetime: "text-amber-400 bg-amber-500/20 border-amber-500/30",
 };
 
 // ─── Credits Flow (Gerar Keys) ────────────────────────────────────────────────
@@ -56,61 +55,117 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
   return (
     <>
       <div className="space-y-6">
-        {/* Credit balance bar */}
-        <div className="rounded-3xl p-6 flex items-center justify-between" style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.12) 0%, rgba(16,185,129,0.05) 100%)", border: "1px solid rgba(16,185,129,0.2)" }}>
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center shadow-lg shadow-emerald-500/10">
-              <CreditCard className="w-6 h-6 text-emerald-400" />
+        {/* Credit balance banner */}
+        <div
+          className="relative rounded-3xl p-6 sm:p-7 overflow-hidden border border-emerald-500/20"
+          style={{
+            background: "linear-gradient(135deg, rgba(16,185,129,0.12) 0%, rgba(6,78,59,0.06) 100%)",
+            boxShadow: "0 20px 50px -10px rgba(0,0,0,0.5), inset 0 1px 0 rgba(16,185,129,0.2)",
+          }}
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5 relative z-10">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shadow-lg shadow-emerald-500/10">
+                <CreditCard className="w-7 h-7 text-emerald-400" />
+              </div>
+              <div>
+                <p className="text-gray-400 text-xs uppercase tracking-wider font-semibold">
+                  {language === "en" ? "Available Balance" : "Seu Saldo em Créditos"}
+                </p>
+                <div className="flex items-baseline gap-2 mt-1">
+                  <span className="text-white font-bold font-mono text-3xl leading-none">{credits.toFixed(2)}</span>
+                  <span className="text-emerald-400 text-sm font-semibold">{t.general_credits}</span>
+                </div>
+              </div>
             </div>
-            <div>
-              <p className="text-gray-500 text-xs uppercase tracking-widest font-medium">{language === "en" ? "Available balance" : "Saldo disponível"}</p>
-              <p className="text-white font-bold font-mono text-2xl leading-tight">{credits.toFixed(2)} <span className="text-emerald-400 text-sm font-semibold">{t.general_credits}</span></p>
+
+            <div className="flex items-center gap-3 sm:border-l sm:border-white/10 sm:pl-6">
+              <div className="text-left sm:text-right">
+                <p className="text-gray-400 text-xs font-semibold uppercase tracking-wider">
+                  {language === "en" ? "Your Discount" : "Desconto Aplicado"}
+                </p>
+                <p className="text-emerald-400 font-bold font-mono text-2xl mt-0.5">{discount.toFixed(0)}% OFF</p>
+              </div>
             </div>
-          </div>
-          <div className="text-right hidden sm:block">
-            <p className="text-gray-500 text-xs">{language === "en" ? "Discount" : "Desconto"}</p>
-            <p className="text-emerald-400 font-bold font-mono">{discount.toFixed(0)}%</p>
           </div>
         </div>
 
         {/* Plans */}
         <div>
-          <h3 className="text-white font-bold text-lg mb-4 flex items-center gap-2">
-            <Key className="w-5 h-5 text-emerald-400" /> {t.apps_available_plans}
-          </h3>
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <h3 className="text-white font-bold text-xl flex items-center gap-2.5">
+                <Key className="w-5 h-5 text-emerald-400" /> {t.apps_available_plans}
+              </h3>
+              <p className="text-gray-500 text-xs mt-0.5">Selecione o plano desejado para gerar suas licenças instantaneamente</p>
+            </div>
+          </div>
+
           {!app.plans?.length ? (
-            <p className="text-gray-600 text-sm">{t.apps_no_plans}</p>
+            <div className="p-12 text-center rounded-3xl border border-dashed border-white/10 bg-white/[0.01]">
+              <Key className="w-10 h-10 text-gray-600 mx-auto mb-3" />
+              <p className="text-gray-400 text-sm">{t.apps_no_plans}</p>
+            </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
               {app.plans.map((plan: any) => {
-                const price = parseFloat(String(plan.priceCredits)) * (1 - discount / 100);
+                const original = parseFloat(String(plan.priceCredits));
+                const price = original * (1 - discount / 100);
+                const suggestedSell = parseFloat(String(plan.resellerSellingPrice ?? "0"));
                 return (
-                  <div key={plan.id} className="group rounded-3xl border border-white/[0.06] p-5 hover:border-emerald-500/30 hover:bg-white/[0.03] transition-all cursor-pointer"
-                    style={{ background: "rgba(255,255,255,0.02)" }}
-                    onClick={() => { setGenForm(f => ({...f, planId: String(plan.id)})); setShowGenerate(true); }}>
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="w-10 h-10 rounded-2xl bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center">
-                        <Key className="w-5 h-5 text-emerald-400" />
+                  <div
+                    key={plan.id}
+                    className="group relative rounded-3xl border border-white/[0.08] p-5 hover:border-emerald-500/40 hover:bg-emerald-500/[0.02] transition-all flex flex-col justify-between"
+                    style={{
+                      background: "linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)",
+                      boxShadow: "0 10px 30px rgba(0,0,0,0.3)",
+                    }}
+                  >
+                    <div>
+                      {/* Top Badges */}
+                      <div className="flex items-center justify-between gap-2 mb-4">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold bg-white/[0.04] border border-white/[0.08] text-gray-300">
+                          <Clock className="w-3.5 h-3.5 text-emerald-400" />
+                          {plan.durationDays >= 9000 ? t.apps_lifetime : `${plan.durationDays} ${t.apps_days}`}
+                        </span>
+                        <span className={`text-[10px] px-2.5 py-1 rounded-xl border font-bold uppercase tracking-wider ${levelColors[plan.level] ?? levelColors.basic}`}>
+                          {plan.level}
+                        </span>
                       </div>
-                      <span className={`text-[10px] px-2.5 py-1 rounded-full border font-medium uppercase tracking-wider ${levelColors[plan.level] ?? levelColors.basic}`}>{plan.level}</span>
-                    </div>
-                    <h4 className="text-white font-semibold text-base mb-1">{plan.name}</h4>
-                    <p className="text-gray-600 text-xs mb-4">{plan.durationDays >= 9000 ? t.apps_lifetime : `${plan.durationDays} ${t.apps_days}`}</p>
 
-                    <div className="space-y-2 mb-5">
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-yellow-400 font-bold font-mono text-2xl">{price.toFixed(2)}</span>
-                        <span className="text-gray-600 text-sm">cr</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                        <span>{language === "en" ? "Sells for" : "Vende por"}</span>
-                        <span className="text-emerald-400 font-mono font-semibold">R$ {parseFloat(String(plan.resellerSellingPrice ?? "0")).toFixed(2)}</span>
+                      {/* Plan Title */}
+                      <h4 className="text-white font-bold text-lg mb-4 group-hover:text-emerald-300 transition-colors">
+                        {plan.name}
+                      </h4>
+
+                      {/* Price Block */}
+                      <div className="p-4 rounded-2xl bg-black/40 border border-white/[0.06] mb-5 space-y-3">
+                        <div>
+                          <p className="text-gray-500 text-[11px] font-semibold uppercase tracking-wider">Custo do Revendedor</p>
+                          <div className="flex items-baseline gap-2 mt-1">
+                            <span className="text-emerald-400 font-extrabold font-mono text-2xl leading-none">{price.toFixed(2)}</span>
+                            <span className="text-emerald-400/70 text-xs font-semibold">cr</span>
+                            {discount > 0 && original > 0 && (
+                              <span className="text-gray-500 text-xs line-through ml-1">{original.toFixed(2)} cr</span>
+                            )}
+                          </div>
+                        </div>
+
+                        {suggestedSell > 0 && (
+                          <div className="pt-2.5 border-t border-white/[0.06] flex items-center justify-between text-xs">
+                            <span className="text-gray-400">{language === "en" ? "Suggested Sell" : "Preço de Venda"}</span>
+                            <span className="text-white font-mono font-bold">R$ {suggestedSell.toFixed(2)}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
 
-                    <Button size="sm" className="w-full h-10 rounded-xl text-xs font-bold tracking-wide border-0 transition-all group-hover:shadow-lg group-hover:shadow-emerald-500/20"
-                      style={{ background: "linear-gradient(135deg, #10b981 0%, #059669 100%)", color: "#fff" }}>
-                      <Key className="w-3.5 h-3.5 mr-1.5" /> {t.apps_generate_key}
+                    <Button
+                      onClick={() => { setGenForm(f => ({...f, planId: String(plan.id)})); setShowGenerate(true); }}
+                      className="w-full h-11 rounded-2xl text-xs font-bold tracking-wide border-0 transition-all shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/35 hover:scale-[1.02]"
+                      style={{ background: "linear-gradient(135deg, #10b981 0%, #059669 100%)", color: "#fff" }}
+                    >
+                      <Key className="w-4 h-4 mr-2" /> {t.apps_generate_key}
                     </Button>
                   </div>
                 );
@@ -121,15 +176,15 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
 
         {/* Features */}
         {app.features && (
-          <div className="rounded-3xl border border-white/[0.06] p-6" style={{ background: "rgba(255,255,255,0.02)" }}>
-            <h3 className="text-white font-semibold text-base mb-4 flex items-center gap-2">
-              <Star className="w-4 h-4 text-yellow-400" /> {t.apps_features}
+          <div className="rounded-3xl border border-white/[0.08] p-6 sm:p-7" style={{ background: "linear-gradient(180deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.01) 100%)" }}>
+            <h3 className="text-white font-bold text-base mb-4 flex items-center gap-2">
+              <Star className="w-4 h-4 text-emerald-400" /> {t.apps_features}
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {app.features.split("\n").filter(Boolean).map((f: string, i: number) => (
-                <div key={i} className="flex items-start gap-3 p-3 rounded-2xl" style={{ background: "rgba(255,255,255,0.02)" }}>
-                  <div className="w-5 h-5 rounded-full bg-emerald-500/15 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <CheckCircle className="w-3 h-3 text-emerald-400" />
+                <div key={i} className="flex items-start gap-3 p-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.04]">
+                  <div className="w-5 h-5 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <Check className="w-3 h-3 text-emerald-400" />
                   </div>
                   <span className="text-gray-300 text-sm leading-relaxed">{f}</span>
                 </div>
@@ -141,114 +196,86 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
 
       {/* Generate Modal */}
       <Dialog open={showGenerate} onOpenChange={setShowGenerate}>
-        <DialogContent className="bg-[#0b0b0f] border-white/[0.08] text-white max-w-md rounded-3xl p-0 overflow-hidden">
-          <div className="p-6 space-y-5" style={{ background: "linear-gradient(180deg, rgba(16,185,129,0.08) 0%, rgba(11,11,15,0.95) 120px)" }}>
+        <DialogContent
+          className="bg-[#0b1311] border border-emerald-500/20 text-white max-w-md rounded-3xl p-0 overflow-hidden shadow-2xl"
+          style={{ boxShadow: "0 25px 70px rgba(0,0,0,0.85), 0 0 50px rgba(16,185,129,0.12)" }}
+        >
+          <div className="h-[2px] w-full bg-gradient-to-r from-transparent via-emerald-400/70 to-transparent" />
+          <div className="p-6 sm:p-7 space-y-5">
             <DialogHeader>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center">
-                  <Key className="w-5 h-5 text-emerald-400" />
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                  <Key className="w-6 h-6" />
                 </div>
                 <div>
-                  <DialogTitle className="text-white font-bold text-base">{language === "en" ? "Generate Keys" : "Gerar Keys"}</DialogTitle>
-                  <p className="text-gray-500 text-xs">{app.name}</p>
+                  <DialogTitle className="text-white font-bold text-lg">{t.apps_generate_key}</DialogTitle>
+                  <p className="text-gray-400 text-xs mt-0.5">{selectedPlan?.name} — {app.name}</p>
                 </div>
               </div>
             </DialogHeader>
 
-            <div className="rounded-2xl p-4 flex items-center justify-between" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center">
-                  <CreditCard className="w-4 h-4 text-emerald-400" />
-                </div>
-                <div>
-                  <p className="text-gray-500 text-xs">{t.apps_balance}</p>
-                  <p className="text-white font-bold font-mono">{credits.toFixed(2)} <span className="text-emerald-400 text-xs">cr</span></p>
-                </div>
+            <div className="rounded-2xl border border-white/[0.08] p-4 bg-black/40 flex items-center justify-between">
+              <div>
+                <p className="text-gray-400 text-xs uppercase font-semibold">Custo Total</p>
+                <p className="text-emerald-400 font-bold font-mono text-2xl mt-0.5">{totalCost.toFixed(2)} cr</p>
               </div>
               <div className="text-right">
-                <p className="text-gray-500 text-xs">{language === "en" ? "Discount" : "Desconto"}</p>
-                <p className="text-emerald-400 font-bold">{discount.toFixed(0)}%</p>
+                <p className="text-gray-400 text-xs uppercase font-semibold">Seu Saldo</p>
+                <p className={`font-mono font-bold text-sm mt-1 ${credits >= totalCost ? "text-white" : "text-red-400"}`}>
+                  {credits.toFixed(2)} cr
+                </p>
               </div>
             </div>
 
             <div>
-              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider mb-2 block">{t.apps_plan} *</Label>
-              <Select value={genForm.planId} onValueChange={v => setGenForm(f => ({...f, planId: v}))}>
-                <SelectTrigger className="bg-white/[0.03] border-white/[0.06] text-white rounded-xl h-11">
-                  <SelectValue placeholder={t.apps_select_plan} />
-                </SelectTrigger>
-                <SelectContent className="bg-[#0b0b0f] border-white/[0.06]">
-                  {app.plans?.map((p: any) => (
-                    <SelectItem key={p.id} value={String(p.id)} className="text-white rounded-lg">
-                      {p.name} — {(parseFloat(String(p.priceCredits)) * (1 - discount / 100)).toFixed(2)} cr ({p.durationDays >= 9000 ? t.apps_lifetime : `${p.durationDays}d`})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label className="text-gray-300 text-xs font-semibold uppercase tracking-wider mb-2 block">{t.general_quantity}</Label>
+              <Input
+                type="number"
+                min="1"
+                max="100"
+                value={genForm.quantity}
+                onChange={e => setGenForm(f => ({ ...f, quantity: e.target.value }))}
+                className="bg-black/40 border-white/[0.08] focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/15 text-white rounded-xl h-11"
+              />
             </div>
 
             <div>
-              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider mb-2 block">{t.apps_quantity}</Label>
-              <Input type="number" min="1" max="100" value={genForm.quantity} onChange={e => setGenForm(f => ({...f, quantity: e.target.value}))} className="bg-white/[0.03] border-white/[0.06] text-white rounded-xl h-11" />
+              <Label className="text-gray-300 text-xs font-semibold uppercase tracking-wider mb-2 block">Nota / Cliente (Opcional)</Label>
+              <Input
+                placeholder="Ex: Cliente João"
+                value={genForm.note}
+                onChange={e => setGenForm(f => ({ ...f, note: e.target.value }))}
+                className="bg-black/40 border-white/[0.08] focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/15 text-white rounded-xl h-11"
+              />
             </div>
 
-            <div>
-              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider mb-2 block">{t.apps_note}</Label>
-              <textarea value={genForm.note} onChange={e => setGenForm(f => ({...f, note: e.target.value}))} placeholder={t.apps_note_placeholder} rows={2} className="w-full bg-white/[0.03] border border-white/[0.06] text-white rounded-xl px-3 py-2.5 text-sm resize-none focus:outline-none focus:border-emerald-500/50 placeholder:text-gray-700" />
+            <div className="flex gap-3 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowGenerate(false)}
+                className="flex-1 h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-gray-300 hover:bg-white/[0.08] hover:text-white"
+              >
+                {t.apps_cancel}
+              </Button>
+              <Button
+                onClick={() => generateKeys.mutate({
+                  appId: id,
+                  planId: parseInt(genForm.planId),
+                  quantity: parseInt(genForm.quantity || "1"),
+                  customMask: genForm.customMask || undefined,
+                  note: genForm.note || undefined,
+                })}
+                disabled={generateKeys.isPending || credits < totalCost}
+                className="flex-1 h-12 rounded-2xl font-bold border-0 shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 text-white"
+                style={{ background: "linear-gradient(135deg, #10b981 0%, #059669 100%)" }}
+              >
+                <Key className="w-4 h-4 mr-2" />
+                {generateKeys.isPending ? t.apps_generating : `${language === "en" ? "Generate" : "Gerar"} ${genForm.quantity} Key(s)`}
+              </Button>
             </div>
-
-            {selectedPlan && (
-              <div className="rounded-2xl border border-white/[0.06] p-4 space-y-2.5" style={{ background: "rgba(255,255,255,0.02)" }}>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">{t.apps_price_per_key}</span>
-                  <span className="text-white font-mono">{discountedPrice.toFixed(2)} cr</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">{language === "en" ? "Sell price" : "Preço venda"}</span>
-                  <span className="text-emerald-400 font-mono">R$ {parseFloat(String(selectedPlan.resellerSellingPrice ?? "0")).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">{t.general_quantity}:</span>
-                  <span className="text-white font-mono">{genForm.quantity}</span>
-                </div>
-                <div className="flex justify-between text-sm font-bold border-t border-white/[0.06] pt-2.5 mt-1">
-                  <span className="text-gray-300">{t.apps_total}:</span>
-                  <span className={totalCost > credits ? "text-red-400" : "text-emerald-400"}>{totalCost.toFixed(2)} cr</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">{language === "en" ? "Revenue" : "Receita"}</span>
-                  <span className="text-emerald-300 font-mono">R$ {(parseFloat(String(selectedPlan.resellerSellingPrice ?? "0")) * parseInt(genForm.quantity || "1")).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">{language === "en" ? "Profit" : "Lucro"}</span>
-                  <span className={totalCost > credits ? "text-red-400" : "text-yellow-400"}>
-                    R$ {((parseFloat(String(selectedPlan.resellerSellingPrice ?? "0")) * parseInt(genForm.quantity || "1")) - totalCost).toFixed(2)}
-                  </span>
-                </div>
-                <div className="flex justify-between text-xs pt-1">
-                  <span className="text-gray-600">{t.apps_balance}:</span>
-                  <span className="text-gray-400 font-mono">{credits.toFixed(2)} cr</span>
-                </div>
-                {totalCost > credits && <p className="text-red-400 text-xs font-medium">{t.apps_insufficient_credits}</p>}
-              </div>
-            )}
-
-            <Button
-              onClick={() => generateKeys.mutate({ appId: id, planId: parseInt(genForm.planId), quantity: parseInt(genForm.quantity), customMask: genForm.customMask || undefined, note: genForm.note || undefined })}
-              disabled={generateKeys.isPending || !genForm.planId || totalCost > credits}
-              className="w-full gap-2 font-bold tracking-wide text-sm h-12 rounded-xl"
-              style={{ background: "linear-gradient(135deg, #10b981 0%, #059669 100%)", boxShadow: "0 4px 20px rgba(16,185,129,0.3)" }}
-            >
-              <Key className="w-4 h-4" />
-              {generateKeys.isPending ? t.apps_generating : `${language === "en" ? "Generate" : "Gerar"} ${genForm.quantity} Key(s)`}
-            </Button>
           </div>
         </DialogContent>
       </Dialog>
-
-      <div className="mt-6">
-        <ResellerDownloads appId={id} />
-      </div>
     </>
   );
 }
@@ -271,26 +298,26 @@ function PaymentMethodModal({
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
       <DialogContent className="p-0 border-0 bg-transparent max-w-sm w-full shadow-2xl" style={{ boxShadow: "none" }}>
         <div
-          className="relative rounded-2xl overflow-hidden"
+          className="relative rounded-3xl overflow-hidden border border-emerald-500/25"
           style={{
-            background: "linear-gradient(145deg, rgba(13,10,25,0.98) 0%, rgba(18,12,35,0.98) 100%)",
-            border: "1px solid rgba(16,185,129,0.3)",
-            boxShadow: "0 0 60px rgba(16,185,129,0.15), 0 25px 50px rgba(0,0,0,0.6)",
+            background: "linear-gradient(170deg, #0b1311 0%, #070a09 100%)",
+            boxShadow: "0 25px 70px rgba(0,0,0,0.85), 0 0 50px rgba(16,185,129,0.12)",
           }}
         >
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(52,211,153,0.6), transparent)" }} />
+          <div className="h-[2px] w-full bg-gradient-to-r from-transparent via-emerald-400/70 to-transparent" />
 
           {/* Header */}
           <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-white/[0.06]">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.3), rgba(52,211,153,0.15))", border: "1px solid rgba(16,185,129,0.4)" }}>
-                <ShoppingCart className="w-4 h-4 text-emerald-400" />
+              <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
+                <ShoppingCart className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="text-white font-semibold text-base leading-tight">{t.payment_select_method}</h2>
+                <h2 className="text-white font-bold text-base leading-tight">{t.payment_select_method}</h2>
+                <p className="text-gray-400 text-xs">Escolha como deseja pagar</p>
               </div>
             </div>
-            <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-gray-300 hover:bg-white/5 transition-all">
+            <button onClick={onClose} className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-500 hover:text-white hover:bg-white/5 transition-all">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -300,23 +327,19 @@ function PaymentMethodModal({
             <button
               onClick={onSelectPix}
               disabled={isLoadingPix || isLoadingCrypto}
-              className="w-full rounded-xl p-4 text-left transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
-              style={{
-                background: "linear-gradient(135deg, rgba(34,197,94,0.1), rgba(16,185,129,0.05))",
-                border: "1px solid rgba(34,197,94,0.3)",
-              }}
+              className="w-full rounded-2xl p-4 text-left transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 border border-emerald-500/30 hover:border-emerald-500/50 bg-emerald-500/[0.08] hover:bg-emerald-500/[0.14]"
             >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "rgba(34,197,94,0.15)", border: "1px solid rgba(34,197,94,0.3)" }}>
-                  {isLoadingPix ? <Loader2 className="w-5 h-5 text-green-400 animate-spin" /> : <QrCode className="w-5 h-5 text-green-400" />}
+              <div className="flex items-center gap-3.5">
+                <div className="w-11 h-11 rounded-2xl flex items-center justify-center bg-emerald-500/20 border border-emerald-500/30 text-emerald-400">
+                  {isLoadingPix ? <Loader2 className="w-5 h-5 animate-spin" /> : <QrCode className="w-5 h-5" />}
                 </div>
                 <div>
-                  <p className="text-white font-semibold text-sm">{t.payment_pix}</p>
+                  <p className="text-white font-bold text-sm">{t.payment_pix}</p>
                   <p className="text-gray-400 text-xs">{t.payment_pix_desc}</p>
                 </div>
                 {!isLoadingPix && (
                   <div className="ml-auto">
-                    <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
                   </div>
                 )}
               </div>
@@ -324,30 +347,26 @@ function PaymentMethodModal({
 
             {/* Crypto (LTC) Option */}
             {!hideLtc && (
-            <button
-              onClick={onSelectCrypto}
-              disabled={isLoadingPix || isLoadingCrypto}
-              className="w-full rounded-xl p-4 text-left transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
-              style={{
-                background: "linear-gradient(135deg, rgba(251,191,36,0.1), rgba(245,158,11,0.05))",
-                border: "1px solid rgba(251,191,36,0.3)",
-              }}
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "rgba(251,191,36,0.15)", border: "1px solid rgba(251,191,36,0.3)" }}>
-                  {isLoadingCrypto ? <Loader2 className="w-5 h-5 text-yellow-400 animate-spin" /> : <Bitcoin className="w-5 h-5 text-yellow-400" />}
-                </div>
-                <div>
-                  <p className="text-white font-semibold text-sm">{t.payment_crypto}</p>
-                  <p className="text-gray-400 text-xs">{t.payment_crypto_desc}</p>
-                </div>
-                {!isLoadingCrypto && (
-                  <div className="ml-auto">
-                    <div className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
+              <button
+                onClick={onSelectCrypto}
+                disabled={isLoadingPix || isLoadingCrypto}
+                className="w-full rounded-2xl p-4 text-left transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 border border-amber-500/30 hover:border-amber-500/50 bg-amber-500/[0.08] hover:bg-amber-500/[0.14]"
+              >
+                <div className="flex items-center gap-3.5">
+                  <div className="w-11 h-11 rounded-2xl flex items-center justify-center bg-amber-500/20 border border-amber-500/30 text-amber-400">
+                    {isLoadingCrypto ? <Loader2 className="w-5 h-5 animate-spin" /> : <Bitcoin className="w-5 h-5" />}
                   </div>
-                )}
-              </div>
-            </button>
+                  <div>
+                    <p className="text-white font-bold text-sm">{t.payment_crypto}</p>
+                    <p className="text-gray-400 text-xs">{t.payment_crypto_desc}</p>
+                  </div>
+                  {!isLoadingCrypto && (
+                    <div className="ml-auto">
+                      <div className="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)]" />
+                    </div>
+                  )}
+                </div>
+              </button>
             )}
           </div>
         </div>
@@ -378,11 +397,11 @@ function PixKeyModal({
   const { t } = useLanguage();
   const { fmtCents } = useCurrency();
 
-  const { data: statusData, refetch: refetchStatus } = trpc.reseller.checkKeyPixStatus.useQuery(
+  const { data: statusData } = trpc.reseller.checkKeyPixStatus.useQuery(
     { paymentId: pixData?.paymentId || "" },
     {
       enabled: step === "pending" && !!pixData?.paymentId,
-      refetchInterval: step === "pending" ? 4000 : false,
+      refetchInterval: step === "pending" ? 3000 : false,
     }
   );
 
@@ -390,11 +409,11 @@ function PixKeyModal({
     if (statusData?.status === "paid" && step === "pending") {
       setStep("paid");
       setDeliveredKeys((statusData.keys as string[]) || []);
-      toast.success(`${t.pix_confirmed} ${(statusData.keys as string[]).length} ${t.pix_keys_delivered}.`);
+      toast.success(`${(statusData.keys as string[]).length} ${t.pix_keys_delivered}`);
       utils.reseller.myKeys.invalidate();
       utils.reseller.profile.invalidate();
     }
-  }, [statusData?.status, step, utils]);
+  }, [statusData?.status, step, utils, t.pix_keys_delivered]);
 
   const handleClose = useCallback(() => {
     setStep("pending");
@@ -426,112 +445,91 @@ function PixKeyModal({
     <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); }}>
       <DialogContent className="p-0 border-0 bg-transparent max-w-md w-full shadow-2xl" style={{ boxShadow: "none" }}>
         <div
-          className="relative rounded-2xl overflow-hidden"
+          className="relative rounded-3xl overflow-hidden border border-emerald-500/25"
           style={{
-            background: "linear-gradient(145deg, rgba(13,10,25,0.98) 0%, rgba(18,12,35,0.98) 100%)",
-            border: "1px solid rgba(16,185,129,0.3)",
-            boxShadow: "0 0 60px rgba(16,185,129,0.15), 0 25px 50px rgba(0,0,0,0.6)",
+            background: "linear-gradient(170deg, #0b1311 0%, #070a09 100%)",
+            boxShadow: "0 25px 70px rgba(0,0,0,0.85), 0 0 50px rgba(16,185,129,0.12)",
           }}
         >
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(52,211,153,0.6), transparent)" }} />
+          <div className="h-[2px] w-full bg-gradient-to-r from-transparent via-emerald-400/70 to-transparent" />
 
           {/* Header */}
           <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-white/[0.06]">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, rgba(34,197,94,0.3), rgba(16,185,129,0.15))", border: "1px solid rgba(34,197,94,0.4)" }}>
-                <QrCode className="w-4 h-4 text-green-400" />
+              <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
+                <QrCode className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="text-white font-semibold text-base leading-tight">{t.pix_title} — {planName}</h2>
-                <p className="text-gray-500 text-xs">{quantity}x {appName} • {t.pix_via}</p>
+                <h2 className="text-white font-bold text-base leading-tight">{t.pix_title}</h2>
+                <p className="text-gray-400 text-xs">{quantity}x {appName} — {planName}</p>
               </div>
             </div>
-            <button onClick={handleClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-gray-300 hover:bg-white/5 transition-all">
+            <button onClick={handleClose} className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-500 hover:text-white hover:bg-white/5 transition-all">
               <X className="w-4 h-4" />
             </button>
           </div>
 
-          {/* ── Pending ── */}
           {step === "pending" && pixData && (
-            <div className="p-6 space-y-5">
+            <div className="p-6 space-y-4">
               <div className="text-center">
-                <p className="text-gray-500 text-xs mb-1">{t.pix_amount_to_pay}</p>
-                <p className="text-white text-4xl font-bold font-mono">{fmtCents(pixData.amountCents)}</p>
-                <p className="text-emerald-400 text-sm mt-1">{quantity} {t.pix_keys_after_payment}</p>
+                <p className="text-gray-400 text-xs font-semibold uppercase tracking-wider">{t.pix_amount_to_pay}</p>
+                <p className="text-white text-3xl font-extrabold font-mono mt-1">
+                  <span className="text-emerald-400">{fmtCents(pixData.amountCents)}</span>
+                </p>
+                <p className="text-gray-400 text-xs mt-1">{quantity} key(s) liberada(s) automaticamente</p>
               </div>
 
-              <div className="flex flex-col items-center gap-3">
-                {pixData.qrCodeImage ? (
-                  <div className="rounded-xl overflow-hidden p-3" style={{ background: "white", border: "3px solid rgba(16,185,129,0.4)" }}>
-                    <img src={pixData.qrCodeImage} alt="QR Code Pix" className="w-44 h-44 object-contain" />
-                  </div>
-                ) : pixData.brCode ? (
-                  <div className="rounded-xl overflow-hidden p-3" style={{ background: "white", border: "3px solid rgba(16,185,129,0.4)" }}>
-                    <QRCodeSVG value={pixData.brCode} size={176} bgColor="#ffffff" fgColor="#000000" />
-                  </div>
-                ) : (
-                  <div className="w-52 h-52 rounded-xl flex items-center justify-center" style={{ background: "rgba(16,185,129,0.08)", border: "2px dashed rgba(16,185,129,0.3)" }}>
-                    <QrCode className="w-16 h-16 text-emerald-500/40" />
-                  </div>
-                )}
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
-                  <span className="text-yellow-400 text-xs font-medium">{t.pix_waiting}</span>
+              {/* QR Code */}
+              <div className="flex justify-center my-2">
+                <div className="p-4 bg-white rounded-2xl shadow-xl">
+                  {pixData.qrCodeImage ? (
+                    <img src={pixData.qrCodeImage} alt="QR Code PIX" className="w-48 h-48 object-contain" />
+                  ) : pixData.brCode ? (
+                    <QRCodeSVG value={pixData.brCode} size={192} />
+                  ) : null}
                 </div>
               </div>
 
               {pixData.brCode && (
                 <div>
-                  <p className="text-gray-500 text-xs mb-2 text-center">{t.pix_or_copypaste}</p>
-                  <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(16,185,129,0.25)" }}>
-                    <div className="px-3 py-2.5 bg-white/[0.03]">
-                      <p className="text-gray-400 text-xs font-mono truncate">{pixData.brCode.slice(0, 60)}...</p>
-                    </div>
-                    <button
-                      onClick={handleCopy}
-                      className="w-full flex items-center justify-center gap-2 py-2.5 text-sm font-medium transition-all"
-                      style={{ background: copied ? "rgba(34,197,94,0.15)" : "rgba(16,185,129,0.15)", color: copied ? "#4ade80" : "#34d399" }}
-                    >
-                      {copied ? <><CheckCircle2 className="w-4 h-4" /> {t.pix_copied}</> : <><Copy className="w-4 h-4" /> {t.pix_copy_code}</>}
-                    </button>
-                  </div>
+                  <button
+                    onClick={handleCopy}
+                    className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-bold transition-all border border-emerald-500/30 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25"
+                  >
+                    {copied ? <><CheckCircle2 className="w-4 h-4" /> {t.pix_copied}</> : <><Copy className="w-4 h-4" /> {t.pix_copy_code}</>}
+                  </button>
                 </div>
               )}
 
-              <div className="flex gap-3">
-                <Button variant="outline" onClick={handleClose} className="flex-1 border-white/10 text-gray-400 hover:text-gray-200 bg-transparent h-10 text-sm">{t.pix_close}</Button>
-                <Button variant="outline" onClick={() => refetchStatus()} className="flex-1 border-emerald-500/30 text-emerald-400 hover:text-emerald-300 bg-transparent h-10 text-sm gap-1.5">
-                  <RefreshCw className="w-3.5 h-3.5" /> {t.pix_verify}
-                </Button>
+              <div className="flex items-center justify-center gap-2 text-xs text-gray-400 pt-1">
+                <Loader2 className="w-4 h-4 text-emerald-400 animate-spin" />
+                <span>{t.pix_waiting_payment}</span>
               </div>
-              <p className="text-gray-600 text-xs text-center">{t.pix_auto_check}</p>
             </div>
           )}
 
-          {/* ── Paid ── */}
           {step === "paid" && (
-            <div className="p-6 flex flex-col items-center gap-4 text-center">
-              <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: "linear-gradient(135deg, rgba(34,197,94,0.2), rgba(34,197,94,0.08))", border: "2px solid rgba(34,197,94,0.4)" }}>
-                <CheckCircle2 className="w-8 h-8 text-green-400" />
+            <div className="p-6 text-center space-y-4">
+              <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center mx-auto text-emerald-400">
+                <CheckCircle2 className="w-8 h-8" />
               </div>
               <div>
-                <h3 className="text-white text-xl font-bold mb-1">{t.pix_confirmed}</h3>
-                <p className="text-gray-400 text-sm">{deliveredKeys.length} {t.pix_keys_delivered}</p>
+                <h3 className="text-white font-bold text-lg">{t.pix_paid_title}</h3>
+                <p className="text-gray-400 text-xs mt-1">{deliveredKeys.length} {t.pix_keys_delivered}</p>
               </div>
-              {deliveredKeys.length > 0 && (
-                <div className="w-full space-y-2">
-                  {deliveredKeys.map((k) => (
-                    <div key={k} className="flex items-center gap-2 rounded-lg px-3 py-2" style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.2)" }}>
-                      <Key className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
-                      <span className="text-green-300 font-mono text-sm flex-1 text-left truncate">{k}</span>
-                      <button onClick={() => handleCopyKey(k)} className="text-gray-500 hover:text-green-400 transition-colors">
-                        {copiedKey === k ? <CheckCircle2 className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <Button onClick={handleClose} className="w-full h-11 font-semibold text-white" style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}>
+
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {deliveredKeys.map((key, i) => (
+                  <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-black/40 border border-white/[0.08]">
+                    <span className="font-mono text-xs text-emerald-300 truncate">{key}</span>
+                    <button onClick={() => handleCopyKey(key)} className="text-gray-400 hover:text-emerald-400 p-1">
+                      {copiedKey === key ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <Button onClick={handleClose} className="w-full h-12 rounded-2xl font-bold text-white" style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}>
                 {t.pix_see_keys}
               </Button>
             </div>
@@ -572,7 +570,7 @@ function LtcKeyModal({
   const { t } = useLanguage();
   const { fmt, fmtCents } = useCurrency();
 
-  const { data: statusData, refetch: refetchStatus } = trpc.reseller.checkKeyLtcStatus.useQuery(
+  const { data: statusData } = trpc.reseller.checkKeyLtcStatus.useQuery(
     { paymentId: ltcData?.paymentId || "" },
     {
       enabled: step === "pending" && !!ltcData?.paymentId,
@@ -588,7 +586,7 @@ function LtcKeyModal({
       utils.reseller.myKeys.invalidate();
       utils.reseller.profile.invalidate();
     }
-  }, [statusData?.status, step, utils]);
+  }, [statusData?.status, step, utils, t]);
 
   const handleClose = useCallback(() => {
     setStep("pending");
@@ -620,134 +618,77 @@ function LtcKeyModal({
     <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); }}>
       <DialogContent className="p-0 border-0 bg-transparent max-w-md w-full shadow-2xl" style={{ boxShadow: "none" }}>
         <div
-          className="relative rounded-2xl overflow-hidden"
+          className="relative rounded-3xl overflow-hidden border border-amber-500/25"
           style={{
-            background: "linear-gradient(145deg, rgba(13,10,25,0.98) 0%, rgba(18,12,35,0.98) 100%)",
-            border: "1px solid rgba(251,191,36,0.3)",
-            boxShadow: "0 0 60px rgba(251,191,36,0.1), 0 25px 50px rgba(0,0,0,0.6)",
+            background: "linear-gradient(170deg, #0b1311 0%, #070a09 100%)",
+            boxShadow: "0 25px 70px rgba(0,0,0,0.85), 0 0 50px rgba(251,191,36,0.12)",
           }}
         >
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(251,191,36,0.6), transparent)" }} />
+          <div className="h-[2px] w-full bg-gradient-to-r from-transparent via-amber-400/70 to-transparent" />
 
           {/* Header */}
           <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-white/[0.06]">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, rgba(251,191,36,0.3), rgba(245,158,11,0.15))", border: "1px solid rgba(251,191,36,0.4)" }}>
-                <Bitcoin className="w-4 h-4 text-yellow-400" />
+              <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-amber-500/15 border border-amber-500/30 text-amber-400">
+                <Bitcoin className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="text-white font-semibold text-base leading-tight">{t.ltc_title}</h2>
-                <p className="text-gray-500 text-xs">{quantity}x {appName} — {planName} • {t.ltc_via}</p>
+                <h2 className="text-white font-bold text-base leading-tight">{t.ltc_title}</h2>
+                <p className="text-gray-400 text-xs">{quantity}x {appName} — {planName}</p>
               </div>
             </div>
-            <button onClick={handleClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-gray-300 hover:bg-white/5 transition-all">
+            <button onClick={handleClose} className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-500 hover:text-white hover:bg-white/5 transition-all">
               <X className="w-4 h-4" />
             </button>
           </div>
 
-          {/* ── Pending ── */}
           {step === "pending" && ltcData && (
             <div className="p-6 space-y-4">
-              {/* Amount summary */}
               <div className="text-center">
-                <p className="text-gray-500 text-xs mb-1">{t.ltc_amount_to_pay}</p>
-                <p className="text-white text-3xl font-bold font-mono">
-                  <span className="text-yellow-400">{ltcData.ltcAmount.toFixed(6)}</span>
-                  <span className="text-gray-400 text-lg ml-2">LTC</span>
+                <p className="text-gray-400 text-xs font-semibold uppercase tracking-wider">{t.ltc_amount_to_pay}</p>
+                <p className="text-white text-3xl font-extrabold font-mono mt-1">
+                  <span className="text-amber-400">{ltcData.ltcAmount.toFixed(6)}</span>
+                  <span className="text-gray-400 text-sm ml-2">LTC</span>
                 </p>
-                <p className="text-gray-500 text-xs mt-1">
-                  {t.ltc_brl_value}: <span className="text-white font-mono">{fmtCents(ltcData.amountCents)}</span>
+                <p className="text-gray-400 text-xs mt-1">
+                  {t.ltc_brl_value}: <span className="text-white font-mono font-bold">{fmtCents(ltcData.amountCents)}</span>
                 </p>
-                <p className="text-emerald-400 text-sm mt-1">{quantity} {t.ltc_keys_after_payment}</p>
               </div>
 
-              {/* Info cards */}
-              <div className="grid grid-cols-2 gap-2">
-                <div className="rounded-lg p-3 text-center" style={{ background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.2)" }}>
-                  <p className="text-gray-500 text-xs">{t.ltc_network}</p>
-                  <p className="text-yellow-400 text-xs font-semibold mt-0.5">Litecoin (LTC)</p>
-                </div>
-                <div className="rounded-lg p-3 text-center" style={{ background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.2)" }}>
-                  <p className="text-gray-500 text-xs">{t.ltc_rate}</p>
-                  <p className="text-yellow-400 text-xs font-semibold mt-0.5">{fmt(ltcData.ltcPriceBrl)}/LTC</p>
-                </div>
-              </div>
-
-              {/* LTC Address */}
               <div>
-                <p className="text-gray-400 text-xs mb-2 font-medium uppercase tracking-wider">{t.ltc_address}</p>
-                <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(251,191,36,0.3)" }}>
-                  <div className="px-3 py-3 bg-white/[0.03] flex items-center gap-2">
-                    <Wallet className="w-4 h-4 text-yellow-400 flex-shrink-0" />
-                    <p className="text-yellow-300 text-xs font-mono break-all">{ltcData.ltcAddress}</p>
-                  </div>
-                  <button
-                    onClick={handleCopyAddress}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 text-sm font-medium transition-all"
-                    style={{ background: copiedAddress ? "rgba(34,197,94,0.15)" : "rgba(251,191,36,0.15)", color: copiedAddress ? "#4ade80" : "#fbbf24" }}
-                  >
-                    {copiedAddress ? <><CheckCircle2 className="w-4 h-4" /> {t.ltc_copied}</> : <><Copy className="w-4 h-4" /> {t.ltc_copy_address}</>}
+                <p className="text-gray-400 text-xs mb-2 font-semibold uppercase tracking-wider">{t.ltc_address}</p>
+                <div className="p-3.5 rounded-2xl bg-black/40 border border-amber-500/30 flex items-center justify-between gap-2">
+                  <p className="text-amber-300 text-xs font-mono break-all">{ltcData.ltcAddress}</p>
+                  <button onClick={handleCopyAddress} className="text-gray-400 hover:text-amber-400 p-1.5 shrink-0">
+                    {copiedAddress ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
 
-              {/* Amount to send */}
-              <div className="rounded-xl p-3" style={{ background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.2)" }}>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-400 text-xs">{t.ltc_amount_ltc}:</span>
-                  <span className="text-yellow-400 font-mono font-bold text-sm">{ltcData.ltcAmount.toFixed(6)} LTC</span>
-                </div>
+              <div className="flex items-center justify-center gap-2 text-xs text-gray-400 pt-2">
+                <Loader2 className="w-4 h-4 text-amber-400 animate-spin" />
+                <span>Aguardando confirmação na rede Litecoin...</span>
               </div>
-
-              {/* Warning */}
-              <div className="flex items-start gap-2 rounded-lg p-3" style={{ background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.15)" }}>
-                <AlertTriangle className="w-4 h-4 text-yellow-500 flex-shrink-0 mt-0.5" />
-                <p className="text-gray-400 text-xs">{t.ltc_warning}</p>
-              </div>
-
-              {/* Waiting indicator */}
-              <div className="flex items-center justify-center gap-1.5">
-                <div className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
-                <span className="text-yellow-400 text-xs font-medium">{t.ltc_waiting}</span>
-              </div>
-
-              <div className="flex gap-3">
-                <Button variant="outline" onClick={handleClose} className="flex-1 border-white/10 text-gray-400 hover:text-gray-200 bg-transparent h-10 text-sm">{t.ltc_close}</Button>
-                <Button variant="outline" onClick={() => refetchStatus()} className="flex-1 border-yellow-500/30 text-yellow-400 hover:text-yellow-300 bg-transparent h-10 text-sm gap-1.5">
-                  <RefreshCw className="w-3.5 h-3.5" /> {t.ltc_verify}
-                </Button>
-              </div>
-              <p className="text-gray-600 text-xs text-center">{t.ltc_auto_check}</p>
-              {ltcData.expiresAt && (
-                <p className="text-gray-600 text-xs text-center">⏱ {t.ltc_expires_in}</p>
-              )}
             </div>
           )}
 
-          {/* ── Paid ── */}
           {step === "paid" && (
-            <div className="p-6 flex flex-col items-center gap-4 text-center">
-              <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: "linear-gradient(135deg, rgba(34,197,94,0.2), rgba(34,197,94,0.08))", border: "2px solid rgba(34,197,94,0.4)" }}>
-                <CheckCircle2 className="w-8 h-8 text-green-400" />
+            <div className="p-6 text-center space-y-4">
+              <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center mx-auto text-emerald-400">
+                <CheckCircle2 className="w-8 h-8" />
               </div>
-              <div>
-                <h3 className="text-white text-xl font-bold mb-1">{t.ltc_confirmed}</h3>
-                <p className="text-gray-400 text-sm">{deliveredKeys.length} {t.ltc_keys_delivered}</p>
+              <h3 className="text-white font-bold text-lg">{t.ltc_paid_title}</h3>
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {deliveredKeys.map((key, i) => (
+                  <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-black/40 border border-white/[0.08]">
+                    <span className="font-mono text-xs text-emerald-300 truncate">{key}</span>
+                    <button onClick={() => handleCopyKey(key)} className="text-gray-400 hover:text-emerald-400 p-1">
+                      {copiedKey === key ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                    </button>
+                  </div>
+                ))}
               </div>
-              {deliveredKeys.length > 0 && (
-                <div className="w-full space-y-2">
-                  {deliveredKeys.map((k) => (
-                    <div key={k} className="flex items-center gap-2 rounded-lg px-3 py-2" style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.2)" }}>
-                      <Key className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
-                      <span className="text-green-300 font-mono text-sm flex-1 text-left truncate">{k}</span>
-                      <button onClick={() => handleCopyKey(k)} className="text-gray-500 hover:text-green-400 transition-colors">
-                        {copiedKey === k ? <CheckCircle2 className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <Button onClick={handleClose} className="w-full h-11 font-semibold text-white" style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}>
+              <Button onClick={handleClose} className="w-full h-12 rounded-2xl font-bold text-white" style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}>
                 {t.ltc_see_keys}
               </Button>
             </div>
@@ -760,7 +701,6 @@ function LtcKeyModal({
 
 // ─── Percentage Flow (Comprar Keys via Pix ou Crypto) ─────────────────────────
 function PercentageAppDetail({ app, id, otherStore }: { app: any; id: number; otherStore?: boolean }) {
-  const utils = trpc.useUtils();
   const { data: profile } = trpc.reseller.profile.useQuery();
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
   const [showBuy, setShowBuy] = useState(false);
@@ -834,7 +774,6 @@ function PercentageAppDetail({ app, id, otherStore }: { app: any; id: number; ot
 
   const handleBuy = () => {
     if (!selectedPlan) return;
-    // Show payment method selection
     setShowBuy(false);
     setShowMethodSelect(true);
   };
@@ -860,73 +799,158 @@ function PercentageAppDetail({ app, id, otherStore }: { app: any; id: number; ot
 
   return (
     <>
-      <Tabs defaultValue="overview">
-        <TabsList className="bg-white/[0.03] border border-white/[0.06] p-1 rounded-2xl">
-          <TabsTrigger value="overview" className="data-[state=active]:bg-white/10 data-[state=active]:text-white text-gray-400 text-sm font-medium rounded-xl px-4 py-2">{t.apps_overview}</TabsTrigger>
-          <TabsTrigger value="downloads" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white text-gray-400 gap-1.5 text-sm font-medium rounded-xl px-4 py-2">
-            <Download className="w-3.5 h-3.5" /> Downloads
-          </TabsTrigger>
-        </TabsList>
+      <Tabs defaultValue="overview" className="w-full">
+        {/* Modern Tabs */}
+        <div className="flex items-center justify-between border-b border-white/[0.08] pb-4">
+          <TabsList className="bg-white/[0.03] border border-white/[0.08] p-1.5 rounded-2xl flex gap-1 h-auto">
+            <TabsTrigger
+              value="overview"
+              className="data-[state=active]:bg-emerald-500/15 data-[state=active]:text-emerald-300 data-[state=active]:border-emerald-500/30 border border-transparent text-gray-400 text-sm font-semibold rounded-xl px-5 py-2.5 transition-all flex items-center gap-2"
+            >
+              <Layers className="w-4 h-4 text-emerald-400" />
+              {t.apps_overview}
+            </TabsTrigger>
+            <TabsTrigger
+              value="downloads"
+              className="data-[state=active]:bg-emerald-500/15 data-[state=active]:text-emerald-300 data-[state=active]:border-emerald-500/30 border border-transparent text-gray-400 text-sm font-semibold rounded-xl px-5 py-2.5 transition-all flex items-center gap-2"
+            >
+              <Download className="w-4 h-4 text-emerald-400" />
+              Downloads & Tutoriais
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
-        <TabsContent value="overview" className="mt-6 space-y-6">
-          {/* Discount bar */}
-          <div className="rounded-3xl p-6 flex items-center justify-between" style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.12) 0%, rgba(16,185,129,0.05) 100%)", border: "1px solid rgba(16,185,129,0.2)" }}>
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center shadow-lg shadow-emerald-500/10">
-                <Percent className="w-6 h-6 text-emerald-400" />
+        <TabsContent value="overview" className="mt-6 space-y-7">
+          {/* Discount Hero Banner */}
+          <div
+            className="relative rounded-3xl p-6 sm:p-7 overflow-hidden border border-emerald-500/25"
+            style={{
+              background: "linear-gradient(135deg, rgba(16,185,129,0.12) 0%, rgba(6,78,59,0.06) 100%)",
+              boxShadow: "0 20px 50px -10px rgba(0,0,0,0.5), inset 0 1px 0 rgba(16,185,129,0.2)",
+            }}
+          >
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5 relative z-10">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-lg shadow-emerald-500/10">
+                  <Percent className="w-7 h-7" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-gray-400 text-xs uppercase tracking-wider font-semibold">
+                      {t.apps_current_discount}
+                    </p>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
+                      ATIVO
+                    </span>
+                  </div>
+                  <div className="flex items-baseline gap-2 mt-1">
+                    <span className="text-white font-extrabold font-mono text-3xl sm:text-4xl leading-none">
+                      {discount.toFixed(0)}% OFF
+                    </span>
+                    <span className="text-gray-400 text-xs hidden md:inline">aplicado automaticamente nos preços</span>
+                  </div>
+                </div>
               </div>
-              <div>
-                <p className="text-gray-500 text-xs uppercase tracking-widest font-medium">{t.apps_current_discount}</p>
-                <p className="text-white font-bold font-mono text-2xl leading-tight">{discount.toFixed(0)}%</p>
-              </div>
+
+              {profile?.nextLevel && (
+                <div className="sm:border-l sm:border-white/10 sm:pl-6 text-left sm:text-right">
+                  <p className="text-gray-400 text-xs uppercase tracking-wider font-semibold">{t.apps_next_level}</p>
+                  <p className="text-emerald-400 text-base font-bold mt-0.5">
+                    +{(profile.nextLevel as any)?.purchasesNeeded} {language === "en" ? "purchases to upgrade" : "compras para subir"}
+                  </p>
+                </div>
+              )}
             </div>
-            {profile?.nextLevel && (
-              <div className="text-right">
-                <p className="text-emerald-400 text-sm font-bold">{(profile.nextLevel as any)?.purchasesNeeded} {language === "en" ? "more" : "compras"}</p>
-                <p className="text-gray-500 text-xs">{t.apps_next_level}</p>
-              </div>
-            )}
           </div>
 
-          {/* Plans */}
+          {/* Plans Section */}
           <div>
-            <h3 className="text-white font-bold text-lg mb-4 flex items-center gap-2">
-              <ShoppingCart className="w-5 h-5 text-emerald-400" /> {t.apps_available_plans}
-            </h3>
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h3 className="text-white font-bold text-xl flex items-center gap-2.5">
+                  <ShoppingCart className="w-5 h-5 text-emerald-400" /> {t.apps_available_plans}
+                </h3>
+                <p className="text-gray-500 text-xs mt-0.5">Escolha a duração e faça a compra instantânea da sua chave</p>
+              </div>
+            </div>
+
             {!app.plans?.length ? (
-              <p className="text-gray-600 text-sm">{t.apps_no_plans}</p>
+              <div className="p-12 text-center rounded-3xl border border-dashed border-white/10 bg-white/[0.01]">
+                <ShoppingCart className="w-10 h-10 text-gray-600 mx-auto mb-3" />
+                <p className="text-gray-400 text-sm">{t.apps_no_plans}</p>
+              </div>
             ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
                 {app.plans.map((plan: any) => {
                   const original = parseFloat(String(plan.pricePercentage ?? "0"));
                   const withDiscount = original * (1 - discount / 100);
+                  const suggestedSell = parseFloat(String(plan.resellerSellingPrice ?? "0"));
+                  const estimatedProfit = suggestedSell > withDiscount ? suggestedSell - withDiscount : 0;
+                  const profitPercentage = withDiscount > 0 ? ((estimatedProfit / withDiscount) * 100).toFixed(0) : 0;
+
                   return (
-                    <div key={plan.id} className="group rounded-2xl border border-white/[0.06] p-4 hover:border-emerald-500/30 hover:bg-white/[0.03] transition-all cursor-pointer"
-                      style={{ background: "rgba(255,255,255,0.02)" }}
-                      onClick={() => { setSelectedPlan(plan); setShowBuy(true); }}>
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center">
-                          <ShoppingCart className="w-4 h-4 text-emerald-400" />
+                    <div
+                      key={plan.id}
+                      className="group relative rounded-3xl border border-white/[0.08] p-5 hover:border-emerald-500/40 hover:bg-emerald-500/[0.02] transition-all flex flex-col justify-between"
+                      style={{
+                        background: "linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)",
+                        boxShadow: "0 10px 30px rgba(0,0,0,0.3)",
+                      }}
+                    >
+                      <div>
+                        {/* Top Badges */}
+                        <div className="flex items-center justify-between gap-2 mb-4">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold bg-white/[0.04] border border-white/[0.08] text-gray-300">
+                            <Clock className="w-3.5 h-3.5 text-emerald-400" />
+                            {plan.durationDays >= 9000 ? t.apps_lifetime : `${plan.durationDays} ${t.apps_days}`}
+                          </span>
+                          <span className={`text-[10px] px-2.5 py-1 rounded-xl border font-bold uppercase tracking-wider ${levelColors[plan.level] ?? levelColors.basic}`}>
+                            {plan.level}
+                          </span>
                         </div>
-                        <span className={`text-[9px] px-2 py-0.5 rounded-full border font-medium uppercase tracking-wider ${levelColors[plan.level] ?? levelColors.basic}`}>{plan.level}</span>
-                      </div>
-                      <h4 className="text-white font-semibold text-sm mb-0.5">{plan.name}</h4>
-                      <p className="text-gray-600 text-[10px] mb-3">{plan.durationDays >= 9000 ? t.apps_lifetime : `${plan.durationDays} ${t.apps_days}`}</p>
 
-                      <div className="space-y-1.5 mb-4">
-                        <div className="flex items-baseline gap-1.5">
-                          <span className="text-emerald-400 font-bold font-mono text-xl">{fmt(withDiscount)}</span>
-                          {discount > 0 && original > 0 && <span className="text-gray-600 text-[10px] line-through">{fmt(original)}</span>}
-                        </div>
-                        <div className="flex items-center gap-1 text-[10px] text-gray-500">
-                          <span>{language === "en" ? "Sells for" : "Vende por"}</span>
-                          <span className="text-emerald-400 font-mono font-semibold">R$ {parseFloat(String(plan.resellerSellingPrice ?? "0")).toFixed(2)}</span>
+                        {/* Plan Title */}
+                        <h4 className="text-white font-bold text-lg mb-4 group-hover:text-emerald-300 transition-colors">
+                          {plan.name}
+                        </h4>
+
+                        {/* Price Block */}
+                        <div className="p-4 rounded-2xl bg-black/40 border border-white/[0.06] mb-5 space-y-3">
+                          <div>
+                            <p className="text-gray-500 text-[11px] font-semibold uppercase tracking-wider">Custo Revendedor</p>
+                            <div className="flex items-baseline gap-2 mt-1">
+                              <span className="text-emerald-400 font-extrabold font-mono text-2xl leading-none">
+                                {fmt(withDiscount)}
+                              </span>
+                              {discount > 0 && original > 0 && (
+                                <span className="text-gray-500 text-xs line-through ml-1">{fmt(original)}</span>
+                              )}
+                            </div>
+                          </div>
+
+                          {suggestedSell > 0 && (
+                            <div className="pt-2.5 border-t border-white/[0.06] space-y-1">
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-gray-400">{language === "en" ? "Suggested Sell" : "Preço de Venda"}</span>
+                                <span className="text-white font-mono font-bold">{fmt(suggestedSell)}</span>
+                              </div>
+                              {estimatedProfit > 0 && (
+                                <div className="flex items-center justify-between text-[11px]">
+                                  <span className="text-emerald-400/80 font-medium">Lucro Estimado</span>
+                                  <span className="text-emerald-400 font-mono font-bold">+{fmt(estimatedProfit)} ({profitPercentage}%)</span>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
 
-                      <Button size="sm" className="w-full h-9 rounded-lg text-[11px] font-bold tracking-wide border-0 transition-all group-hover:shadow-lg group-hover:shadow-emerald-500/20"
-                        style={{ background: "linear-gradient(135deg, #10b981 0%, #059669 100%)", color: "#fff" }}>
-                        <ShoppingCart className="w-3 h-3 mr-1" /> {t.apps_buy}
+                      <Button
+                        onClick={() => { setSelectedPlan(plan); setShowBuy(true); }}
+                        className="w-full h-11 rounded-2xl text-xs font-bold tracking-wide border-0 transition-all shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/35 hover:scale-[1.02]"
+                        style={{ background: "linear-gradient(135deg, #10b981 0%, #059669 100%)", color: "#fff" }}
+                      >
+                        <ShoppingCart className="w-4 h-4 mr-2" /> {t.apps_buy}
                       </Button>
                     </div>
                   );
@@ -937,15 +961,15 @@ function PercentageAppDetail({ app, id, otherStore }: { app: any; id: number; ot
 
           {/* Features */}
           {app.features && (
-            <div className="rounded-3xl border border-white/[0.06] p-6" style={{ background: "rgba(255,255,255,0.02)" }}>
-              <h3 className="text-white font-semibold text-base mb-4 flex items-center gap-2">
-                <Star className="w-4 h-4 text-yellow-400" /> {t.apps_features}
+            <div className="rounded-3xl border border-white/[0.08] p-6 sm:p-7" style={{ background: "linear-gradient(180deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.01) 100%)" }}>
+              <h3 className="text-white font-bold text-base mb-4 flex items-center gap-2">
+                <Star className="w-4 h-4 text-emerald-400" /> {t.apps_features}
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {app.features.split("\n").filter(Boolean).map((f: string, i: number) => (
-                  <div key={i} className="flex items-start gap-3 p-3 rounded-2xl" style={{ background: "rgba(255,255,255,0.02)" }}>
-                    <div className="w-5 h-5 rounded-full bg-emerald-500/15 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <CheckCircle className="w-3 h-3 text-emerald-400" />
+                  <div key={i} className="flex items-start gap-3 p-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.04]">
+                    <div className="w-5 h-5 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <Check className="w-3 h-3 text-emerald-400" />
                     </div>
                     <span className="text-gray-300 text-sm leading-relaxed">{f}</span>
                   </div>
@@ -955,7 +979,7 @@ function PercentageAppDetail({ app, id, otherStore }: { app: any; id: number; ot
           )}
         </TabsContent>
 
-        <TabsContent value="downloads" className="mt-4">
+        <TabsContent value="downloads" className="mt-6">
           <ResellerDownloads appId={id} />
         </TabsContent>
       </Tabs>
@@ -993,40 +1017,68 @@ function PercentageAppDetail({ app, id, otherStore }: { app: any; id: number; ot
 
       {/* Buy Modal (from plan card click) */}
       <Dialog open={showBuy} onOpenChange={setShowBuy}>
-        <DialogContent className="bg-[#0b0b0f] border-white/[0.08] text-white max-w-sm rounded-3xl p-0 overflow-hidden">
-          <div className="p-6 space-y-5" style={{ background: "linear-gradient(180deg, rgba(16,185,129,0.08) 0%, rgba(11,11,15,0.95) 120px)" }}>
+        <DialogContent
+          className="bg-[#0b1311] border border-emerald-500/20 text-white max-w-sm rounded-3xl p-0 overflow-hidden shadow-2xl"
+          style={{ boxShadow: "0 25px 70px rgba(0,0,0,0.85), 0 0 50px rgba(16,185,129,0.12)" }}
+        >
+          <div className="h-[2px] w-full bg-gradient-to-r from-transparent via-emerald-400/70 to-transparent" />
+          <div className="p-6 space-y-5">
             <DialogHeader>
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center">
-                  <ShoppingCart className="w-5 h-5 text-emerald-400" />
+                <div className="w-11 h-11 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                  <ShoppingCart className="w-5 h-5" />
                 </div>
                 <div>
-                  <DialogTitle className="text-white font-bold text-base">{language === "en" ? "Buy Key" : "Comprar Key"}</DialogTitle>
-                  <p className="text-gray-500 text-xs">{selectedPlan?.name}</p>
+                  <DialogTitle className="text-white font-bold text-base">{language === "en" ? "Buy Key" : "Comprar Chave"}</DialogTitle>
+                  <p className="text-gray-400 text-xs mt-0.5">{selectedPlan?.name} — {app.name}</p>
                 </div>
               </div>
             </DialogHeader>
 
-            <div className="rounded-2xl border border-white/[0.06] p-4 flex items-center justify-between" style={{ background: "rgba(255,255,255,0.02)" }}>
+            <div className="rounded-2xl border border-white/[0.08] p-4 bg-black/40 flex items-center justify-between">
               <div>
-                <p className="text-gray-500 text-xs">{t.apps_current_discount}</p>
-                <p className="text-emerald-400 font-bold text-2xl">{discount.toFixed(0)}%</p>
+                <p className="text-gray-400 text-xs font-semibold uppercase">{t.apps_current_discount}</p>
+                <p className="text-emerald-400 font-extrabold text-2xl mt-0.5">{discount.toFixed(0)}% OFF</p>
               </div>
               <div className="text-right">
-                <p className="text-gray-500 text-xs">{language === "en" ? "Price" : "Preço"}</p>
-                <p className="text-emerald-400 font-mono font-bold">R$ {(parseFloat(String(selectedPlan?.pricePercentage ?? "0")) * (1 - discount / 100)).toFixed(2)}</p>
+                <p className="text-gray-400 text-xs font-semibold uppercase">{language === "en" ? "Unit Price" : "Preço Unitário"}</p>
+                <p className="text-white font-mono font-bold text-xl mt-0.5">
+                  R$ {(parseFloat(String(selectedPlan?.pricePercentage ?? "0")) * (1 - discount / 100)).toFixed(2)}
+                </p>
               </div>
             </div>
 
             <div>
-              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider mb-2 block">{t.general_quantity}</Label>
-              <Input type="number" min="1" max="100" value={quantity} onChange={e => setQuantity(e.target.value)} className="bg-white/[0.03] border-white/[0.06] text-white rounded-xl h-11" />
+              <Label className="text-gray-300 text-xs font-semibold uppercase tracking-wider mb-2 block">{t.general_quantity}</Label>
+              <Input
+                type="number"
+                min="1"
+                max="100"
+                value={quantity}
+                onChange={e => setQuantity(e.target.value)}
+                className="bg-black/40 border-white/[0.08] focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/15 text-white rounded-xl h-11"
+              />
             </div>
 
-            <div className="flex gap-3 pt-1">
-              <Button variant="outline" onClick={() => setShowBuy(false)} className="flex-1 h-11 rounded-xl border-white/[0.08] text-gray-300 hover:bg-white/[0.03] hover:text-white">{t.apps_cancel}</Button>
-              <Button onClick={handleBuy} disabled={createKeyPix.isPending || createKeyLtc.isPending} className="flex-1 h-11 rounded-xl font-semibold gap-2" style={{ background: "linear-gradient(135deg, #10b981 0%, #059669 100%)", color: "#fff" }}>
-                {(createKeyPix.isPending || createKeyLtc.isPending) ? <><Loader2 className="w-4 h-4 animate-spin" /> {language === "en" ? "Loading..." : "Carregando..."}</> : <><ShoppingCart className="w-4 h-4" /> {t.apps_confirm}</>}
+            <div className="flex gap-3 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowBuy(false)}
+                className="flex-1 h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-gray-300 hover:bg-white/[0.08] hover:text-white"
+              >
+                {t.apps_cancel}
+              </Button>
+              <Button
+                onClick={handleBuy}
+                disabled={createKeyPix.isPending || createKeyLtc.isPending}
+                className="flex-1 h-12 rounded-2xl font-bold border-0 shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 text-white"
+                style={{ background: "linear-gradient(135deg, #10b981 0%, #059669 100%)" }}
+              >
+                {(createKeyPix.isPending || createKeyLtc.isPending) ? (
+                  <><Loader2 className="w-4 h-4 animate-spin mr-2" /> {language === "en" ? "Loading..." : "Carregando..."}</>
+                ) : (
+                  <><ShoppingCart className="w-4 h-4 mr-2" /> {t.apps_confirm}</>
+                )}
               </Button>
             </div>
           </div>
@@ -1042,29 +1094,31 @@ function ResellerDownloads({ appId }: { appId: number }) {
   const downloadItems = downloads.filter((d: any) => d.type === "download");
   const tutorialItems = downloads.filter((d: any) => d.type === "tutorial");
 
-  if (isLoading) return <p className="text-gray-500 text-sm">Carregando...</p>;
+  if (isLoading) return <div className="text-gray-500 text-sm py-8 text-center animate-pulse">Carregando downloads...</div>;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {downloadItems.length > 0 && (
         <div>
-          <h3 className="text-white font-semibold text-sm mb-3 flex items-center gap-2">
-            <Download className="w-4 h-4 text-emerald-400" /> Downloads
+          <h3 className="text-white font-bold text-base mb-4 flex items-center gap-2">
+            <Download className="w-4 h-4 text-emerald-400" /> Arquivos para Download
           </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {downloadItems.map((d: any) => (
               <a
                 key={d.id}
                 href={d.url}
                 target="_blank"
                 rel="noreferrer"
-                className="rounded-xl border border-white/5 p-4 hover:border-emerald-500/30 transition-all"
-                style={{ background: "rgba(255,255,255,0.02)" }}
+                className="group rounded-2xl border border-white/[0.08] p-5 hover:border-emerald-500/40 bg-white/[0.02] hover:bg-emerald-500/[0.03] transition-all flex items-center justify-between"
               >
-                <p className="text-white font-medium text-sm">{d.title}</p>
-                <p className="text-emerald-400 text-xs mt-2 flex items-center gap-1">
-                  <Download className="w-3 h-3" /> Baixar
-                </p>
+                <div>
+                  <p className="text-white font-semibold text-sm group-hover:text-emerald-300 transition-colors">{d.title}</p>
+                  <p className="text-gray-500 text-xs mt-1">Clique para iniciar o download do arquivo</p>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-emerald-400 group-hover:scale-105 transition-transform">
+                  <Download className="w-4 h-4" />
+                </div>
               </a>
             ))}
           </div>
@@ -1073,18 +1127,25 @@ function ResellerDownloads({ appId }: { appId: number }) {
 
       {tutorialItems.length > 0 && (
         <div>
-          <h3 className="text-white font-semibold text-sm mb-3 flex items-center gap-2">
-            <Film className="w-4 h-4 text-blue-400" /> Tutoriais
+          <h3 className="text-white font-bold text-base mb-4 flex items-center gap-2">
+            <Film className="w-4 h-4 text-emerald-400" /> Tutoriais e Vídeos Explicativos
           </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {tutorialItems.map((d: any) => (
-              <div key={d.id} className="rounded-xl border border-white/5 p-4" style={{ background: "rgba(255,255,255,0.02)" }}>
-                <p className="text-white font-medium text-sm">{d.title}</p>
-                <a href={d.url} target="_blank" rel="noreferrer" className="text-blue-400 text-xs mt-2 flex items-center gap-1">
-                  <Film className="w-3 h-3" /> Ver tutorial
-                </a>
+              <div key={d.id} className="rounded-2xl border border-white/[0.08] p-5 bg-white/[0.02]">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-white font-semibold text-sm">{d.title}</p>
+                  <a
+                    href={d.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-emerald-400 hover:text-emerald-300 text-xs font-semibold flex items-center gap-1"
+                  >
+                    <Film className="w-3.5 h-3.5" /> Abrir link
+                  </a>
+                </div>
                 {d.videoUrl && (
-                  <div className="mt-3 rounded-lg overflow-hidden aspect-video bg-black/50">
+                  <div className="mt-3 rounded-xl overflow-hidden aspect-video bg-black/60 border border-white/[0.06]">
                     <iframe
                       src={d.videoUrl}
                       className="w-full h-full"
@@ -1100,9 +1161,9 @@ function ResellerDownloads({ appId }: { appId: number }) {
       )}
 
       {downloads.length === 0 && (
-        <div className="text-center py-10">
-          <Download className="w-10 h-10 text-gray-700 mx-auto mb-3" />
-          <p className="text-gray-600 text-sm">Nenhum download ou tutorial disponível para este app.</p>
+        <div className="text-center py-12 rounded-3xl border border-dashed border-white/10 bg-white/[0.01]">
+          <Download className="w-10 h-10 text-gray-600 mx-auto mb-3" />
+          <p className="text-gray-400 text-sm">Nenhum download ou tutorial cadastrado para este aplicativo.</p>
         </div>
       )}
     </div>
@@ -1116,38 +1177,71 @@ export default function ResellerAppDetail({ id }: { id: number }) {
   const { data: profile } = trpc.reseller.profile.useQuery();
   const { t, language } = useLanguage();
 
-  if (isLoading) return <div className="text-gray-500 py-8 text-center animate-pulse">{t.apps_loading_app}</div>;
-  if (!app) return <div className="text-gray-500 py-8 text-center">{t.apps_not_found}</div>;
+  if (isLoading) return <div className="text-gray-500 py-12 text-center animate-pulse">{t.apps_loading_app}</div>;
+  if (!app) return <div className="text-gray-500 py-12 text-center">{t.apps_not_found}</div>;
 
   const resellerType = profile?.resellerType ?? "credits";
 
   return (
-    <div className="max-w-4xl mx-auto space-y-5">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <button onClick={() => navigate("/reseller/apps")} className="p-2 rounded-lg text-gray-500 hover:text-white hover:bg-white/5 transition-all">
-          <ArrowLeft className="w-4 h-4" />
-        </button>
-        <div className="flex-1">
-          <h1 className="text-white text-2xl font-bold">{app.name}</h1>
-          <p className="text-gray-500 text-sm">{app.description || t.general_no_description}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs px-2 py-1 rounded-full bg-white/5 text-gray-400 font-mono">{app.version}</span>
-          <span className={`text-xs px-2 py-1 rounded-full border font-medium ${app.status === "active" ? "bg-green-500/20 text-green-400 border-green-500/30" : "bg-gray-500/20 text-gray-400 border-gray-500/30"}`}>
-            {app.status === "active" ? t.general_active : app.status}
-          </span>
-          {resellerType === "credits"
-            ? <span className="text-xs px-2 py-1 rounded-full border font-medium bg-yellow-500/20 text-yellow-400 border-yellow-500/30 flex items-center gap-1"><CreditCard className="w-3 h-3" /> {language === "en" ? "Credits" : "Créditos"}</span>
-            : <span className="text-xs px-2 py-1 rounded-full border font-medium bg-emerald-500/20 text-emerald-400 border-emerald-500/30 flex items-center gap-1"><Percent className="w-3 h-3" /> {language === "en" ? "Percentage" : "Porcentagem"}</span>
-          }
+    <div className="max-w-7xl mx-auto space-y-6 p-4 sm:p-6">
+      {/* Header Banner */}
+      <div
+        className="rounded-3xl p-6 sm:p-8 border border-white/[0.08] relative overflow-hidden"
+        style={{
+          background: "linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(16,185,129,0.04) 100%)",
+          boxShadow: "0 20px 40px rgba(0,0,0,0.4)",
+        }}
+      >
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-5">
+          <div className="flex items-start sm:items-center gap-4">
+            <button
+              onClick={() => navigate("/reseller/apps")}
+              className="p-3 rounded-2xl text-gray-400 hover:text-white bg-white/[0.04] hover:bg-emerald-500/10 border border-white/[0.06] hover:border-emerald-500/20 transition-all shrink-0"
+              title="Voltar aos apps"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <div>
+              <div className="flex items-center gap-3 flex-wrap">
+                <h1 className="text-white text-2xl sm:text-3xl font-extrabold tracking-tight">{app.name}</h1>
+                <span className="text-xs px-2.5 py-1 rounded-full bg-white/[0.05] text-gray-300 font-mono border border-white/[0.08]">
+                  {app.version || "v1.0"}
+                </span>
+                <span className={`inline-flex items-center gap-1.5 text-xs px-3 py-1 rounded-full border font-semibold ${
+                  app.status === "active"
+                    ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+                    : "bg-gray-500/15 text-gray-400 border-gray-500/30"
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${app.status === "active" ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" : "bg-gray-400"}`} />
+                  {app.status === "active" ? t.general_active : app.status}
+                </span>
+              </div>
+              <p className="text-gray-400 text-sm mt-1.5 max-w-2xl leading-relaxed">
+                {app.description || t.general_no_description}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-start md:self-center">
+            {resellerType === "credits" ? (
+              <span className="text-xs px-3.5 py-2 rounded-2xl border font-bold bg-yellow-500/15 text-yellow-400 border-yellow-500/30 flex items-center gap-2">
+                <CreditCard className="w-4 h-4" /> {language === "en" ? "Credits Reseller" : "Revendedor de Créditos"}
+              </span>
+            ) : (
+              <span className="text-xs px-3.5 py-2 rounded-2xl border font-bold bg-emerald-500/15 text-emerald-400 border-emerald-500/30 flex items-center gap-2">
+                <Percent className="w-4 h-4" /> {language === "en" ? "Percentage Reseller" : "Revendedor com Porcentagem"}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
-      {resellerType === "credits"
-        ? <CreditsAppDetail app={app} id={id} />
-        : <PercentageAppDetail app={app} id={id} otherStore={resellerType === "other"} />
-      }
+      {/* Main Content */}
+      {resellerType === "credits" ? (
+        <CreditsAppDetail app={app} id={id} />
+      ) : (
+        <PercentageAppDetail app={app} id={id} otherStore={resellerType === "other"} />
+      )}
     </div>
   );
 }
