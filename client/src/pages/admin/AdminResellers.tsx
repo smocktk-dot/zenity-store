@@ -1,7 +1,10 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Plus, Search, Edit, UserCheck, UserX, PlusCircle, Package, CreditCard, Percent, Eye, Users, Store } from "lucide-react";
+import {
+  Plus, Search, Edit2, UserCheck, UserX, PlusCircle, Package,
+  CreditCard, Percent, Eye, Users, Store, Check, Key
+} from "lucide-react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,18 +20,37 @@ type Reseller = {
 };
 
 function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, string> = {
-    active: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
-    inactive: "bg-gray-500/20 text-gray-400 border-gray-500/30",
-    banned: "bg-red-500/20 text-red-400 border-red-500/30",
-  };
-  return <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${map[status] ?? map.inactive}`}>{status}</span>;
+  const isActive = status === "active";
+  return (
+    <span className={`inline-flex items-center gap-1.5 text-[10px] px-2.5 py-0.5 rounded-full border font-medium ${
+      isActive ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" : "bg-gray-500/10 text-gray-400 border-gray-500/30"
+    }`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${isActive ? "bg-emerald-400" : "bg-gray-400"}`} />
+      {isActive ? "Ativo" : status}
+    </span>
+  );
 }
 
 function TypeBadge({ type }: { type: string }) {
-  if (type === "credits") return <span className="text-xs px-2 py-0.5 rounded-full border font-medium bg-yellow-500/20 text-yellow-400 border-yellow-500/30 flex items-center gap-1 w-fit"><CreditCard className="w-3 h-3" />Créditos</span>;
-  if (type === "other") return <span className="text-xs px-2 py-0.5 rounded-full border font-medium bg-emerald-500/20 text-emerald-400 border-emerald-500/30 flex items-center gap-1 w-fit"><Store className="w-3 h-3" />Other Store</span>;
-  return <span className="text-xs px-2 py-0.5 rounded-full border font-medium bg-purple-500/20 text-purple-400 border-purple-500/30 flex items-center gap-1 w-fit"><Percent className="w-3 h-3" />Porcentagem</span>;
+  if (type === "credits") {
+    return (
+      <span className="text-[10px] px-2 py-0.5 rounded-md border border-amber-500/25 bg-amber-500/10 text-amber-300 font-medium flex items-center gap-1 w-fit">
+        <CreditCard className="w-3 h-3" /> Créditos
+      </span>
+    );
+  }
+  if (type === "other") {
+    return (
+      <span className="text-[10px] px-2 py-0.5 rounded-md border border-emerald-500/25 bg-emerald-500/10 text-emerald-300 font-medium flex items-center gap-1 w-fit">
+        <Store className="w-3 h-3" /> Other Store
+      </span>
+    );
+  }
+  return (
+    <span className="text-[10px] px-2 py-0.5 rounded-md border border-emerald-500/25 bg-emerald-500/10 text-emerald-300 font-medium flex items-center gap-1 w-fit">
+      <Percent className="w-3 h-3" /> Porcentagem
+    </span>
+  );
 }
 
 const emptyCreate = { username: "", password: "", email: "", location: "", resellerType: "credits" as "credits" | "percentage" | "other", canCreateSubResellers: false };
@@ -49,7 +71,7 @@ export default function AdminResellers() {
   const [creditAmount, setCreditAmount] = useState("");
 
   const create = trpc.admin.createReseller.useMutation({
-    onSuccess: () => { toast.success("Reseller criado!"); utils.admin.listResellers.invalidate(); setShowCreate(false); setCf(emptyCreate); },
+    onSuccess: () => { toast.success("Reseller cadastrado com sucesso!"); utils.admin.listResellers.invalidate(); setShowCreate(false); setCf(emptyCreate); },
     onError: e => toast.error(e.message),
   });
   const update = trpc.admin.updateReseller.useMutation({
@@ -83,217 +105,288 @@ export default function AdminResellers() {
   };
 
   const ResellerTable = ({ list, type }: { list: Reseller[]; type: "credits" | "percentage" | "other" }) => (
-    <div className="rounded-3xl border border-white/[0.06] overflow-hidden" style={{ background: "rgba(255,255,255,0.02)" }}>
-      <table className="w-full">
-        <thead>
-          <tr className="border-b border-white/[0.04]">
-            {["Usuário", "Email", type === "credits" ? "Créditos" : "Desconto Atual", "Compras", "Status", "Ações"].map(h => (
-              <th key={h} className="text-left px-5 py-4 text-gray-400 text-xs font-semibold uppercase tracking-widest">{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {isLoading ? (
-            <tr><td colSpan={6} className="text-center py-8 text-gray-600">Carregando...</td></tr>
-          ) : list.length === 0 ? (
-            <tr><td colSpan={6} className="text-center py-8 text-gray-600">Nenhum reseller encontrado</td></tr>
-          ) : list.map(r => (
-            <tr key={r.id} className="border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02] transition-colors">
-              <td className="px-5 py-4">
-                <div className="flex items-center gap-2">
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold uppercase ${type === "credits" ? "bg-yellow-600/30 text-yellow-400" : type === "other" ? "bg-emerald-600/30 text-emerald-400" : "bg-purple-600/30 text-purple-400"}`}>
-                    {r.username[0]}
-                  </div>
-                  <span className="text-white text-sm font-medium">{r.username}</span>
-                </div>
-              </td>
-              <td className="px-5 py-4 text-gray-400 text-sm">{r.email || <span className="text-gray-600">—</span>}</td>
-              {type === "credits" ? (
-                <td className="px-5 py-4 text-yellow-400 text-sm font-mono font-medium">{parseFloat(r.credits).toFixed(2)}</td>
-              ) : (
-                <td className="px-5 py-4 text-emerald-400 text-sm font-medium">{parseFloat(r.discountPercent).toFixed(0)}%</td>
-              )}
-              <td className="px-5 py-4">
-                {type === "credits" ? (
-                  <span className="text-gray-400 text-sm">{r.totalPurchases}</span>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <span className="text-gray-400 text-sm">{r.totalPurchases}</span>
-                    <div className="flex-1 max-w-[80px] h-1.5 rounded-full bg-white/10">
-                      <div
-                        className="h-full rounded-full bg-purple-500"
-                        style={{ width: `${Math.min(100, (r.totalPurchases % 10) * 10)}%` }}
-                      />
-                    </div>
-                    <span className="text-gray-600 text-xs">{r.totalPurchases < 10 ? `${r.totalPurchases}/10` : r.totalPurchases < 20 ? `${r.totalPurchases}/20` : "MAX"}</span>
-                  </div>
-                )}
-              </td>
-              <td className="px-5 py-4"><StatusBadge status={r.status} /></td>
-              <td className="px-5 py-4">
-                <div className="flex items-center gap-1">
-                  <button onClick={() => openEdit(r)} className="p-1.5 rounded-lg text-gray-500 hover:text-blue-400 hover:bg-blue-500/10 transition-all" title="Editar"><Edit className="w-3.5 h-3.5" /></button>
-                  {type === "credits" && (
-                    <button onClick={() => setCreditReseller(r)} className="p-1.5 rounded-lg text-gray-500 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all" title="Adicionar créditos"><PlusCircle className="w-3.5 h-3.5" /></button>
-                  )}
-                  <button
-                    onClick={() => navigate(`/admin/resellers/${r.id}`)}
-                    className="p-1.5 rounded-lg text-gray-500 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all"
-                    title="Gerenciar Apps"
-                  >
-                    <Package className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={() => update.mutate({ id: r.id, status: r.status === "active" ? "inactive" : "active" })}
-                    className="p-1.5 rounded-lg text-gray-500 hover:text-yellow-400 hover:bg-yellow-500/10 transition-all"
-                    title={r.status === "active" ? "Desativar" : "Ativar"}
-                  >
-                    {r.status === "active" ? <UserX className="w-3.5 h-3.5" /> : <UserCheck className="w-3.5 h-3.5" />}
-                  </button>
-                </div>
-              </td>
+    <div className="rounded-2xl border border-white/[0.08] bg-white/[0.015] overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-xs">
+          <thead>
+            <tr className="border-b border-white/[0.06] text-gray-400 font-semibold uppercase tracking-wider text-[11px]">
+              <th className="px-5 py-3">Usuário</th>
+              <th className="px-4 py-3">Email</th>
+              <th className="px-4 py-3 text-right">{type === "credits" ? "Créditos" : "Desconto Atual"}</th>
+              <th className="px-4 py-3 text-center">Compras</th>
+              <th className="px-4 py-3 text-center">Status</th>
+              <th className="px-5 py-3 text-right">Ações</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-white/[0.04]">
+            {isLoading ? (
+              <tr><td colSpan={6} className="text-center py-10 text-gray-500">Carregando revendedores...</td></tr>
+            ) : list.length === 0 ? (
+              <tr><td colSpan={6} className="text-center py-10 text-gray-500">Nenhum reseller encontrado nesta categoria.</td></tr>
+            ) : list.map(r => (
+              <tr key={r.id} className="hover:bg-white/[0.02] transition-colors">
+                <td className="px-5 py-3.5">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-bold flex items-center justify-center text-xs">
+                      {r.username[0]?.toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="text-white font-semibold text-xs">{r.username}</p>
+                      {r.location && <p className="text-[10px] text-gray-500">{r.location}</p>}
+                    </div>
+                  </div>
+                </td>
+                <td className="px-4 py-3.5 text-gray-400 font-mono text-[11px]">
+                  {r.email || "—"}
+                </td>
+                <td className="px-4 py-3.5 text-right font-mono font-bold">
+                  {type === "credits" ? (
+                    <span className="text-amber-300">{parseFloat(r.credits).toFixed(2)} cr</span>
+                  ) : (
+                    <span className="text-emerald-400">{parseFloat(r.discountPercent).toFixed(0)}% OFF</span>
+                  )}
+                </td>
+                <td className="px-4 py-3.5 text-center text-gray-300 font-mono">
+                  {r.totalPurchases}
+                </td>
+                <td className="px-4 py-3.5 text-center">
+                  <StatusBadge status={r.status} />
+                </td>
+                <td className="px-5 py-3.5 text-right">
+                  <div className="flex items-center justify-end gap-1">
+                    <button
+                      onClick={() => openEdit(r)}
+                      className="p-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-gray-400 hover:text-white transition-all"
+                      title="Editar"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    {type === "credits" && (
+                      <button
+                        onClick={() => setCreditReseller(r)}
+                        className="p-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 transition-all"
+                        title="Adicionar Créditos"
+                      >
+                        <PlusCircle className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => navigate(`/admin/resellers/${r.id}`)}
+                      className="p-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-gray-400 hover:text-emerald-400 transition-all"
+                      title="Gerenciar Softwares"
+                    >
+                      <Package className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => update.mutate({ id: r.id, status: r.status === "active" ? "inactive" : "active" })}
+                      className="p-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-gray-400 hover:text-amber-400 transition-all"
+                      title={r.status === "active" ? "Desativar" : "Ativar"}
+                    >
+                      {r.status === "active" ? <UserX className="w-3.5 h-3.5" /> : <UserCheck className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 
   return (
-    <div className="p-6 space-y-5">
-      <div className="flex items-center justify-between">
+    <div className="max-w-6xl mx-auto space-y-6 p-4 sm:p-6">
+      {/* Header Corporativo */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/[0.06]">
         <div>
-          <h1 className="text-white text-2xl font-bold">Resellers</h1>
-          <p className="text-gray-500 text-sm mt-1">{resellers.length} resellers cadastrados</p>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">Gestão de Resellers</h1>
+            <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 font-semibold">
+              {resellers.length} cadastrados
+            </span>
+          </div>
+          <p className="text-gray-400 text-xs mt-1">Gerencie revendedores de créditos, porcentagem e acesso externo</p>
         </div>
-        <Button
-          onClick={() => setShowCreate(true)}
-          className="relative overflow-hidden gap-2 px-5 py-2.5 text-sm font-semibold text-white rounded-xl transition-all duration-200 active:scale-[0.97]"
-          style={{
-            background: "linear-gradient(135deg, #10b981, #047857)",
-            boxShadow: "0 0 20px rgba(16,185,129,0.35), 0 4px 12px rgba(0,0,0,0.4)",
-          }}
-        >
-          <Plus className="w-4 h-4" /> Novo Reseller
-        </Button>
-      </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="rounded-xl border border-yellow-500/20 p-4" style={{ background: "rgba(234,179,8,0.05)" }}>
-          <div className="flex items-center gap-2 mb-1">
-            <CreditCard className="w-4 h-4 text-yellow-400" />
-            <span className="text-yellow-400 text-sm font-medium">Resellers de Créditos</span>
+        <div className="flex items-center gap-3">
+          <div className="relative w-full sm:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+            <Input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Buscar revendedor..."
+              className="pl-9 h-9 text-xs rounded-xl bg-white/[0.03] border-white/[0.08] text-white placeholder:text-gray-500 focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20"
+            />
           </div>
-          <p className="text-white text-2xl font-bold">{(resellers as Reseller[]).filter(r => r.resellerType === "credits").length}</p>
-          <p className="text-gray-500 text-xs mt-1">Compram keys usando saldo de créditos</p>
-        </div>
-        <div className="rounded-xl border border-purple-500/20 p-4" style={{ background: "rgba(168,85,247,0.05)" }}>
-          <div className="flex items-center gap-2 mb-1">
-            <Percent className="w-4 h-4 text-purple-400" />
-            <span className="text-purple-400 text-sm font-medium">Resellers de Porcentagem</span>
-          </div>
-          <p className="text-white text-2xl font-bold">{(resellers as Reseller[]).filter(r => r.resellerType === "percentage").length}</p>
-          <p className="text-gray-500 text-xs mt-1">Compram keys com desconto progressivo</p>
-        </div>
-        <div className="rounded-xl border border-emerald-500/20 p-4" style={{ background: "rgba(16,185,129,0.05)" }}>
-          <div className="flex items-center gap-2 mb-1">
-            <Store className="w-4 h-4 text-emerald-400" />
-            <span className="text-emerald-400 text-sm font-medium">Other Store</span>
-          </div>
-          <p className="text-white text-2xl font-bold">{otherStores?.length ?? 0}</p>
-          <p className="text-gray-500 text-xs mt-1">Resellers com acesso por IP e split</p>
+
+          <Button
+            onClick={() => setShowCreate(true)}
+            className="h-9 px-4 text-xs font-semibold rounded-xl border-0 bg-emerald-500 hover:bg-emerald-400 text-black shadow-sm transition-all flex items-center gap-1.5 shrink-0"
+          >
+            <Plus className="w-4 h-4" /> Novo Reseller
+          </Button>
         </div>
       </div>
 
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-        <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar reseller..." className="pl-9 bg-white/[0.03] border-white/[0.06] text-white placeholder:text-gray-600" />
+      {/* Metric Cards Corporativos */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="rounded-xl border border-white/[0.08] bg-white/[0.015] p-4 flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shrink-0">
+            <CreditCard className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Resellers de Créditos</p>
+            <p className="text-white font-bold font-mono text-xl leading-tight mt-0.5">
+              {(resellers as Reseller[]).filter(r => r.resellerType === "credits").length}
+            </p>
+            <p className="text-[10px] text-gray-500 mt-0.5">Compram saldo de créditos</p>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-white/[0.08] bg-white/[0.015] p-4 flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+            <Percent className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Resellers de Porcentagem</p>
+            <p className="text-white font-bold font-mono text-xl leading-tight mt-0.5">
+              {(resellers as Reseller[]).filter(r => r.resellerType === "percentage").length}
+            </p>
+            <p className="text-[10px] text-gray-500 mt-0.5">Desconto progressivo por volume</p>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-white/[0.08] bg-white/[0.015] p-4 flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+            <Store className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Other Store</p>
+            <p className="text-white font-bold font-mono text-xl leading-tight mt-0.5">
+              {(resellers as Reseller[]).filter(r => r.resellerType === "other").length}
+            </p>
+            <p className="text-[10px] text-gray-500 mt-0.5">Integração por IP e split automático</p>
+          </div>
+        </div>
       </div>
 
-      {/* Tabs por tipo */}
-      <Tabs defaultValue="credits">
-        <TabsList className="bg-white/[0.03] border border-white/[0.06]">
-          <TabsTrigger value="credits" className="data-[state=active]:bg-yellow-600/20 data-[state=active]:text-yellow-400 text-gray-400 gap-1.5">
-            <CreditCard className="w-3.5 h-3.5" /> Créditos ({creditsResellers.length})
-          </TabsTrigger>
-          <TabsTrigger value="percentage" className="data-[state=active]:bg-purple-600/20 data-[state=active]:text-purple-400 text-gray-400 gap-1.5">
-            <Percent className="w-3.5 h-3.5" /> Porcentagem ({percentageResellers.length})
-          </TabsTrigger>
-          <TabsTrigger value="other" className="data-[state=active]:bg-emerald-600/20 data-[state=active]:text-emerald-400 text-gray-400 gap-1.5">
-            <Store className="w-3.5 h-3.5" /> Other Store ({otherResellers.length})
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent value="credits" className="mt-4">
+      {/* Tabs por Tipo */}
+      <Tabs defaultValue="credits" className="w-full">
+        <div className="border-b border-white/[0.06] pb-3 mb-4">
+          <TabsList className="bg-white/[0.03] border border-white/[0.08] p-1 rounded-xl flex gap-1 h-auto w-fit">
+            <TabsTrigger
+              value="credits"
+              className="data-[state=active]:bg-white/[0.08] data-[state=active]:text-white text-gray-400 text-xs font-semibold rounded-lg px-3.5 py-1.5 transition-all flex items-center gap-1.5"
+            >
+              <CreditCard className="w-3.5 h-3.5 text-amber-400" />
+              Créditos ({creditsResellers.length})
+            </TabsTrigger>
+            <TabsTrigger
+              value="percentage"
+              className="data-[state=active]:bg-white/[0.08] data-[state=active]:text-white text-gray-400 text-xs font-semibold rounded-lg px-3.5 py-1.5 transition-all flex items-center gap-1.5"
+            >
+              <Percent className="w-3.5 h-3.5 text-emerald-400" />
+              Porcentagem ({percentageResellers.length})
+            </TabsTrigger>
+            <TabsTrigger
+              value="other"
+              className="data-[state=active]:bg-white/[0.08] data-[state=active]:text-white text-gray-400 text-xs font-semibold rounded-lg px-3.5 py-1.5 transition-all flex items-center gap-1.5"
+            >
+              <Store className="w-3.5 h-3.5 text-emerald-400" />
+              Other Store ({otherResellers.length})
+            </TabsTrigger>
+          </TabsList>
+        </div>
+
+        <TabsContent value="credits">
           <ResellerTable list={creditsResellers} type="credits" />
         </TabsContent>
-        <TabsContent value="percentage" className="mt-4">
+        <TabsContent value="percentage">
           <ResellerTable list={percentageResellers} type="percentage" />
         </TabsContent>
-        <TabsContent value="other" className="mt-4">
+        <TabsContent value="other">
           <ResellerTable list={otherResellers} type="other" />
         </TabsContent>
       </Tabs>
 
-      {/* Create Modal */}
+      {/* Modal Criar Reseller */}
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent
-          className="text-white max-w-md border-0"
-          style={{
-            background: "linear-gradient(145deg, rgba(18,12,35,0.98) 0%, rgba(10,8,25,0.98) 100%)",
-            boxShadow: "0 0 0 1px rgba(139,92,246,0.2), 0 25px 60px rgba(0,0,0,0.7), 0 0 40px rgba(139,92,246,0.08)",
-            backdropFilter: "blur(20px)",
-          }}
-        >
-          <DialogHeader className="pb-2">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.3), rgba(5,150,105,0.2))", border: "1px solid rgba(16,185,129,0.3)" }}>
-                <Users className="w-4 h-4 text-purple-400" />
-              </div>
-              <DialogTitle className="text-white text-lg font-semibold">Criar Reseller</DialogTitle>
-            </div>
+        <DialogContent className="bg-[#0b100e] border border-white/[0.1] text-white max-w-md rounded-2xl p-6 shadow-2xl">
+          <DialogHeader className="mb-4">
+            <DialogTitle className="text-white font-bold text-base">Cadastrar Novo Reseller</DialogTitle>
+            <p className="text-gray-400 text-xs mt-0.5">Crie as credenciais de acesso para o revendedor</p>
           </DialogHeader>
-          <div className="h-px w-full my-1" style={{ background: "linear-gradient(90deg, transparent, rgba(139,92,246,0.3), transparent)" }} />
-          <form onSubmit={e => { e.preventDefault(); create.mutate(cf); }} className="space-y-4 mt-3">
-            <div><Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Username *</Label><Input value={cf.username} onChange={e => setCf(f => ({...f, username: e.target.value}))} className="mt-1.5 text-white border-white/[0.06] focus:border-emerald-500/60 transition-colors" style={{ background: "rgba(255,255,255,0.05)" }} required /></div>
+
+          <form onSubmit={e => { e.preventDefault(); create.mutate(cf); }} className="space-y-4">
             <div>
-              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Senha *</Label>
-              <div className="relative mt-1.5">
-                <Input type={showPass ? "text" : "password"} value={cf.password} onChange={e => setCf(f => ({...f, password: e.target.value}))} className="text-white border-white/[0.06] focus:border-emerald-500/60 transition-colors pr-10" style={{ background: "rgba(255,255,255,0.05)" }} required />
-                <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"><Eye className="w-4 h-4" /></button>
+              <Label className="text-gray-300 text-xs font-medium block mb-1">Username *</Label>
+              <Input
+                value={cf.username}
+                onChange={e => setCf(f => ({ ...f, username: e.target.value }))}
+                placeholder="Ex: revendedor_top"
+                className="bg-black/30 border-white/[0.1] text-white rounded-lg h-9 text-xs"
+                required
+              />
+            </div>
+
+            <div>
+              <Label className="text-gray-300 text-xs font-medium block mb-1">Senha de Acesso *</Label>
+              <div className="relative">
+                <Input
+                  type={showPass ? "text" : "password"}
+                  value={cf.password}
+                  onChange={e => setCf(f => ({ ...f, password: e.target.value }))}
+                  placeholder="Senha forte..."
+                  className="bg-black/30 border-white/[0.1] text-white rounded-lg h-9 text-xs pr-9"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPass(!showPass)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                </button>
               </div>
             </div>
-            <div><Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Email</Label><Input type="email" value={cf.email} onChange={e => setCf(f => ({...f, email: e.target.value}))} className="mt-1.5 text-white border-white/[0.06] focus:border-emerald-500/60 transition-colors" style={{ background: "rgba(255,255,255,0.05)" }} /></div>
-            <div><Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Localização</Label><Input value={cf.location} onChange={e => setCf(f => ({...f, location: e.target.value}))} placeholder="Ex: São Paulo, SP" className="mt-1.5 text-white border-white/[0.06] focus:border-emerald-500/60 transition-colors" style={{ background: "rgba(255,255,255,0.05)" }} /></div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-gray-300 text-xs font-medium block mb-1">Email</Label>
+                <Input
+                  type="email"
+                  value={cf.email}
+                  onChange={e => setCf(f => ({ ...f, email: e.target.value }))}
+                  placeholder="contato@..."
+                  className="bg-black/30 border-white/[0.1] text-white rounded-lg h-9 text-xs"
+                />
+              </div>
+              <div>
+                <Label className="text-gray-300 text-xs font-medium block mb-1">Localização</Label>
+                <Input
+                  value={cf.location}
+                  onChange={e => setCf(f => ({ ...f, location: e.target.value }))}
+                  placeholder="Ex: São Paulo, SP"
+                  className="bg-black/30 border-white/[0.1] text-white rounded-lg h-9 text-xs"
+                />
+              </div>
+            </div>
+
             <div>
-              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Tipo de Reseller *</Label>
-              <Select value={cf.resellerType} onValueChange={v => setCf(f => ({...f, resellerType: v as "credits" | "percentage" | "other"}))}>
-                <SelectTrigger className="mt-1.5 text-white border-white/[0.06] focus:border-emerald-500/60 transition-colors" style={{ background: "rgba(255,255,255,0.05)" }}><SelectValue /></SelectTrigger>
-                <SelectContent style={{ background: "rgba(18,12,35,0.98)", border: "1px solid rgba(139,92,246,0.2)" }}>
-                  <SelectItem value="credits" className="text-white focus:bg-purple-500/20">
-                    <div className="flex items-center gap-2"><CreditCard className="w-4 h-4 text-yellow-400" /><div><div className="font-medium">Créditos</div><div className="text-xs text-gray-400">Compra keys usando saldo de créditos</div></div></div>
-                  </SelectItem>
-                  <SelectItem value="percentage" className="text-white focus:bg-purple-500/20">
-                    <div className="flex items-center gap-2"><Percent className="w-4 h-4 text-purple-400" /><div><div className="font-medium">Porcentagem</div><div className="text-xs text-gray-400">Desconto progressivo 35% → 40% → 50%</div></div></div>
-                  </SelectItem>
-                  <SelectItem value="other" className="text-white focus:bg-emerald-500/20">
-                    <div className="flex items-center gap-2"><Store className="w-4 h-4 text-emerald-400" /><div><div className="font-medium">Other Store</div><div className="text-xs text-gray-400">Acesso por IP e split PurinCash</div></div></div>
-                  </SelectItem>
+              <Label className="text-gray-300 text-xs font-medium block mb-1">Modalidade do Reseller *</Label>
+              <Select value={cf.resellerType} onValueChange={v => setCf(f => ({ ...f, resellerType: v as any }))}>
+                <SelectTrigger className="bg-black/30 border-white/[0.1] text-white rounded-lg h-9 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-[#0b100e] border-white/[0.1] text-white text-xs">
+                  <SelectItem value="credits" className="text-xs">Créditos (Gera keys com saldo em créditos)</SelectItem>
+                  <SelectItem value="percentage" className="text-xs">Porcentagem (Desconto progressivo 35% a 50%)</SelectItem>
+                  <SelectItem value="other" className="text-xs">Other Store (Acesso externo por IP e Split)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            {cf.resellerType === "credits" && (
-              <div className="rounded-lg border border-yellow-500/20 p-3 text-xs text-yellow-400/80" style={{ background: "rgba(234,179,8,0.05)" }}>
-                O reseller poderá comprar créditos e usar o saldo para gerar license keys.
-              </div>
-            )}
-            {cf.resellerType === "percentage" && (
-              <div className="rounded-lg border border-purple-500/20 p-3 text-xs text-purple-400/80" style={{ background: "rgba(168,85,247,0.05)" }}>
-                O reseller terá desconto progressivo: 35% inicial → 40% após 10 compras → 50% após 20 compras (máximo).
-              </div>
-            )}
-            <div className="flex items-center gap-3 py-1">
+
+            <div className="flex items-center gap-2.5 pt-1">
               <input
                 id="canCreateSubResellers"
                 type="checkbox"
@@ -301,43 +394,39 @@ export default function AdminResellers() {
                 onChange={e => setCf(f => ({ ...f, canCreateSubResellers: e.target.checked }))}
                 className="w-4 h-4 accent-emerald-500 rounded cursor-pointer"
               />
-              <label htmlFor="canCreateSubResellers" className="text-gray-300 text-sm cursor-pointer select-none">Pode criar logins de resellers</label>
+              <label htmlFor="canCreateSubResellers" className="text-gray-300 text-xs cursor-pointer select-none">
+                Permitir que este reseller crie sub-resellers
+              </label>
             </div>
-            {cf.resellerType === "other" && (
-              <div className="rounded-lg border border-emerald-500/20 p-3 text-xs text-emerald-400/80" style={{ background: "rgba(16,185,129,0.05)" }}>
-                Reseller Other Store. Configure o acesso por IP e split na aba Other Store do menu.
-              </div>
-            )}
-            <div className="flex gap-3 pt-2">
-              <Button type="button" onClick={() => setShowCreate(false)} className="flex-1 font-medium text-gray-300 rounded-xl transition-all duration-200 active:scale-[0.97] hover:text-white" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}>Cancelar</Button>
-              <Button type="submit" disabled={create.isPending} className="flex-1 font-semibold text-white rounded-xl transition-all duration-200 active:scale-[0.97] disabled:opacity-50" style={{ background: "linear-gradient(135deg, #10b981, #047857)", boxShadow: "0 0 20px rgba(16,185,129,0.3), 0 4px 12px rgba(0,0,0,0.3)" }}>{create.isPending ? "Criando..." : "Criar Reseller"}</Button>
+
+            <div className="flex gap-2.5 pt-2">
+              <Button
+                type="button"
+                onClick={() => setShowCreate(false)}
+                className="flex-1 h-9 rounded-lg border-white/[0.1] bg-white/[0.02] text-gray-300 hover:text-white text-xs"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={create.isPending}
+                className="flex-1 h-9 rounded-lg font-semibold bg-emerald-500 hover:bg-emerald-400 text-black text-xs border-0"
+              >
+                {create.isPending ? "Criando..." : "Cadastrar Reseller"}
+              </Button>
             </div>
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* Edit Modal */}
+      {/* Modal Editar Reseller */}
       <Dialog open={!!editReseller} onOpenChange={() => setEditReseller(null)}>
-        <DialogContent
-          className="text-white max-w-md border-0"
-          style={{
-            background: "linear-gradient(145deg, rgba(18,12,35,0.98) 0%, rgba(10,8,25,0.98) 100%)",
-            boxShadow: "0 0 0 1px rgba(139,92,246,0.2), 0 25px 60px rgba(0,0,0,0.7), 0 0 40px rgba(139,92,246,0.08)",
-            backdropFilter: "blur(20px)",
-          }}
-        >
-          <DialogHeader className="pb-2">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.3), rgba(5,150,105,0.2))", border: "1px solid rgba(16,185,129,0.3)" }}>
-                <Edit className="w-4 h-4 text-purple-400" />
-              </div>
-              <div>
-                <DialogTitle className="text-white text-lg font-semibold">Editar Reseller</DialogTitle>
-                <div className="mt-0.5"><TypeBadge type={editReseller?.resellerType ?? "credits"} /></div>
-              </div>
-            </div>
+        <DialogContent className="bg-[#0b100e] border border-white/[0.1] text-white max-w-md rounded-2xl p-6 shadow-2xl">
+          <DialogHeader className="mb-4">
+            <DialogTitle className="text-white font-bold text-base">Editar Reseller: {editReseller?.username}</DialogTitle>
+            <p className="text-gray-400 text-xs mt-0.5">Atualize dados, status e modalidade de revenda</p>
           </DialogHeader>
-          <div className="h-px w-full my-1" style={{ background: "linear-gradient(90deg, transparent, rgba(139,92,246,0.3), transparent)" }} />
+
           <form onSubmit={e => {
             e.preventDefault();
             if (editReseller) {
@@ -353,95 +442,147 @@ export default function AdminResellers() {
                 canCreateSubResellers: ef.canCreateSubResellers,
               });
             }
-          }} className="space-y-4 mt-3">
-            <div><Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Email</Label><Input type="email" value={ef.email} onChange={e => setEf(f => ({...f, email: e.target.value}))} className="mt-1.5 text-white border-white/[0.06] focus:border-emerald-500/60 transition-colors" style={{ background: "rgba(255,255,255,0.05)" }} /></div>
-            <div><Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Localização</Label><Input value={ef.location} onChange={e => setEf(f => ({...f, location: e.target.value}))} className="mt-1.5 text-white border-white/[0.06] focus:border-emerald-500/60 transition-colors" style={{ background: "rgba(255,255,255,0.05)" }} /></div>
-            <div>
-              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Tipo de Reseller</Label>
-              <Select value={ef.resellerType} onValueChange={v => setEf(f => ({...f, resellerType: v as "credits" | "percentage" | "other"}))}>
-                <SelectTrigger className="mt-1.5 text-white border-white/[0.06] focus:border-emerald-500/60 transition-colors" style={{ background: "rgba(255,255,255,0.05)" }}><SelectValue /></SelectTrigger>
-                <SelectContent style={{ background: "rgba(18,12,35,0.98)", border: "1px solid rgba(139,92,246,0.2)" }}>
-                  <SelectItem value="credits" className="text-white focus:bg-purple-500/20">Créditos</SelectItem>
-                  <SelectItem value="percentage" className="text-white focus:bg-purple-500/20">Porcentagem</SelectItem>
-                  <SelectItem value="other" className="text-white focus:bg-emerald-500/20">Other Store</SelectItem>
-                </SelectContent>
-              </Select>
+          }} className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-gray-300 text-xs font-medium block mb-1">Email</Label>
+                <Input
+                  type="email"
+                  value={ef.email}
+                  onChange={e => setEf(f => ({ ...f, email: e.target.value }))}
+                  className="bg-black/30 border-white/[0.1] text-white rounded-lg h-9 text-xs"
+                />
+              </div>
+              <div>
+                <Label className="text-gray-300 text-xs font-medium block mb-1">Localização</Label>
+                <Input
+                  value={ef.location}
+                  onChange={e => setEf(f => ({ ...f, location: e.target.value }))}
+                  className="bg-black/30 border-white/[0.1] text-white rounded-lg h-9 text-xs"
+                />
+              </div>
             </div>
-            <div>
-              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Status</Label>
-              <Select value={ef.status} onValueChange={v => setEf(f => ({...f, status: v}))}>
-                <SelectTrigger className="mt-1.5 text-white border-white/[0.06] focus:border-emerald-500/60 transition-colors" style={{ background: "rgba(255,255,255,0.05)" }}><SelectValue /></SelectTrigger>
-                <SelectContent style={{ background: "rgba(18,12,35,0.98)", border: "1px solid rgba(139,92,246,0.2)" }}>
-                  <SelectItem value="active" className="text-white focus:bg-purple-500/20">Ativo</SelectItem>
-                  <SelectItem value="inactive" className="text-white focus:bg-purple-500/20">Inativo</SelectItem>
-                  <SelectItem value="banned" className="text-white focus:bg-purple-500/20">Banido</SelectItem>
-                </SelectContent>
-              </Select>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-gray-300 text-xs font-medium block mb-1">Tipo de Reseller</Label>
+                <Select value={ef.resellerType} onValueChange={v => setEf(f => ({ ...f, resellerType: v as any }))}>
+                  <SelectTrigger className="bg-black/30 border-white/[0.1] text-white rounded-lg h-9 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#0b100e] border-white/[0.1] text-white text-xs">
+                    <SelectItem value="credits" className="text-xs">Créditos</SelectItem>
+                    <SelectItem value="percentage" className="text-xs">Porcentagem</SelectItem>
+                    <SelectItem value="other" className="text-xs">Other Store</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label className="text-gray-300 text-xs font-medium block mb-1">Status</Label>
+                <Select value={ef.status} onValueChange={v => setEf(f => ({ ...f, status: v }))}>
+                  <SelectTrigger className="bg-black/30 border-white/[0.1] text-white rounded-lg h-9 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#0b100e] border-white/[0.1] text-white text-xs">
+                    <SelectItem value="active" className="text-xs">Ativo</SelectItem>
+                    <SelectItem value="inactive" className="text-xs">Inativo</SelectItem>
+                    <SelectItem value="banned" className="text-xs">Banido</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
+
             <div>
-              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Desconto (%)</Label>
+              <Label className="text-gray-300 text-xs font-medium block mb-1">Nova Senha (Deixe em branco para não alterar)</Label>
               <Input
-                type="number"
-                min="0"
-                max="100"
-                step="1"
-                value={ef.discountPercent}
-                onChange={e => setEf(f => ({...f, discountPercent: e.target.value}))}
-                className="mt-1.5 text-white border-white/[0.06] focus:border-emerald-500/60 transition-colors"
-                style={{ background: "rgba(255,255,255,0.05)" }}
+                type="password"
+                value={ef.password}
+                onChange={e => setEf(f => ({ ...f, password: e.target.value }))}
+                placeholder="••••••••"
+                className="bg-black/30 border-white/[0.1] text-white rounded-lg h-9 text-xs"
               />
-              <p className="text-gray-600 text-xs mt-1">Ex: 35, 40, 50. Usado para resellers de porcentagem e progressão de créditos.</p>
             </div>
-            <div className="flex items-center gap-3 py-1">
+
+            <div className="flex items-center gap-2.5 pt-1">
               <input
-                id="ef-canCreateSubResellers"
+                id="editCanCreateSubResellers"
                 type="checkbox"
                 checked={ef.canCreateSubResellers}
                 onChange={e => setEf(f => ({ ...f, canCreateSubResellers: e.target.checked }))}
                 className="w-4 h-4 accent-emerald-500 rounded cursor-pointer"
               />
-              <label htmlFor="ef-canCreateSubResellers" className="text-gray-300 text-sm cursor-pointer select-none">Pode criar logins de resellers</label>
+              <label htmlFor="editCanCreateSubResellers" className="text-gray-300 text-xs cursor-pointer select-none">
+                Permitir que este reseller crie sub-resellers
+              </label>
             </div>
-            <div><Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Nova Senha (opcional)</Label><Input type="password" value={ef.password} onChange={e => setEf(f => ({...f, password: e.target.value}))} placeholder="Deixe vazio para manter" className="mt-1.5 text-white border-white/[0.06] focus:border-emerald-500/60 transition-colors" style={{ background: "rgba(255,255,255,0.05)" }} /></div>
-            <div className="flex gap-3 pt-2">
-              <Button type="button" onClick={() => setEditReseller(null)} className="flex-1 font-medium text-gray-300 rounded-xl transition-all duration-200 active:scale-[0.97] hover:text-white" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}>Cancelar</Button>
-              <Button type="submit" disabled={update.isPending} className="flex-1 font-semibold text-white rounded-xl transition-all duration-200 active:scale-[0.97] disabled:opacity-50" style={{ background: "linear-gradient(135deg, #10b981, #047857)", boxShadow: "0 0 20px rgba(16,185,129,0.3), 0 4px 12px rgba(0,0,0,0.3)" }}>{update.isPending ? "Salvando..." : "Salvar Alterações"}</Button>
+
+            <div className="flex gap-2.5 pt-2">
+              <Button
+                type="button"
+                onClick={() => setEditReseller(null)}
+                className="flex-1 h-9 rounded-lg border-white/[0.1] bg-white/[0.02] text-gray-300 hover:text-white text-xs"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={update.isPending}
+                className="flex-1 h-9 rounded-lg font-semibold bg-emerald-500 hover:bg-emerald-400 text-black text-xs border-0"
+              >
+                {update.isPending ? "Salvando..." : "Salvar Alterações"}
+              </Button>
             </div>
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* Add Credits Modal (apenas para resellers de créditos) */}
+      {/* Modal Adicionar Créditos */}
       <Dialog open={!!creditReseller} onOpenChange={() => setCreditReseller(null)}>
-        <DialogContent
-          className="text-white max-w-sm border-0"
-          style={{
-            background: "linear-gradient(145deg, rgba(18,12,35,0.98) 0%, rgba(10,8,25,0.98) 100%)",
-            boxShadow: "0 0 0 1px rgba(139,92,246,0.2), 0 25px 60px rgba(0,0,0,0.7), 0 0 40px rgba(139,92,246,0.08)",
-            backdropFilter: "blur(20px)",
-          }}
-        >
-          <DialogHeader className="pb-2">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, rgba(234,179,8,0.25), rgba(234,179,8,0.1))", border: "1px solid rgba(234,179,8,0.3)" }}>
-                <CreditCard className="w-4 h-4 text-yellow-400" />
-              </div>
-              <DialogTitle className="text-white text-lg font-semibold">Adicionar Créditos</DialogTitle>
-            </div>
+        <DialogContent className="bg-[#0b100e] border border-white/[0.1] text-white max-w-sm rounded-2xl p-6 shadow-2xl">
+          <DialogHeader className="mb-4">
+            <DialogTitle className="text-white font-bold text-base">Adicionar Créditos</DialogTitle>
+            <p className="text-gray-400 text-xs mt-0.5">Reseller: {creditReseller?.username}</p>
           </DialogHeader>
-          <div className="h-px w-full my-1" style={{ background: "linear-gradient(90deg, transparent, rgba(234,179,8,0.3), transparent)" }} />
-          <div className="space-y-4 mt-3">
-            <div className="rounded-xl p-3.5" style={{ background: "rgba(234,179,8,0.06)", border: "1px solid rgba(234,179,8,0.15)" }}>
-              <p className="text-gray-400 text-sm">Reseller: <span className="text-white font-semibold">{creditReseller?.username}</span></p>
-              <p className="text-gray-400 text-sm mt-1">Saldo atual: <span className="text-yellow-400 font-mono font-semibold">{parseFloat(creditReseller?.credits ?? "0").toFixed(2)} créditos</span></p>
+
+          <div className="space-y-4">
+            <div className="p-3 rounded-xl bg-black/40 border border-white/[0.06] flex items-center justify-between text-xs">
+              <span className="text-gray-400">Saldo Atual:</span>
+              <span className="text-amber-300 font-mono font-bold text-sm">{creditReseller ? parseFloat(creditReseller.credits).toFixed(2) : "0.00"} cr</span>
             </div>
+
             <div>
-              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Quantidade de Créditos</Label>
-              <Input type="number" min="0.01" step="0.01" value={creditAmount} onChange={e => setCreditAmount(e.target.value)} placeholder="Ex: 100.00" className="mt-1.5 text-white border-white/[0.06] focus:border-yellow-500/60 transition-colors" style={{ background: "rgba(255,255,255,0.05)" }} />
+              <Label className="text-gray-300 text-xs font-medium block mb-1">Quantidade de Créditos</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={creditAmount}
+                onChange={e => setCreditAmount(e.target.value)}
+                placeholder="Ex: 50.00"
+                className="bg-black/30 border-white/[0.1] text-white rounded-lg h-9 text-xs font-mono"
+              />
             </div>
-            <div className="flex gap-3">
-              <Button onClick={() => setCreditReseller(null)} className="flex-1 font-medium text-gray-300 rounded-xl transition-all duration-200 active:scale-[0.97] hover:text-white" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}>Cancelar</Button>
-              <Button onClick={() => { if (creditReseller && creditAmount) addCredits.mutate({ resellerId: creditReseller.id, amount: parseFloat(creditAmount) }); }} disabled={addCredits.isPending || !creditAmount} className="flex-1 font-semibold text-white rounded-xl transition-all duration-200 active:scale-[0.97] disabled:opacity-50" style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.9), rgba(5,150,105,0.9))", boxShadow: "0 0 20px rgba(22,163,74,0.25), 0 4px 12px rgba(0,0,0,0.3)" }}>{addCredits.isPending ? "Adicionando..." : "Adicionar Créditos"}</Button>
+
+            <div className="flex gap-2.5 pt-2">
+              <Button
+                type="button"
+                onClick={() => setCreditReseller(null)}
+                className="flex-1 h-9 rounded-lg border-white/[0.1] bg-white/[0.02] text-gray-300 hover:text-white text-xs"
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={() => {
+                  if (creditReseller && creditAmount) {
+                    addCredits.mutate({ resellerId: creditReseller.id, credits: parseFloat(creditAmount) });
+                  }
+                }}
+                disabled={addCredits.isPending || !creditAmount}
+                className="flex-1 h-9 rounded-lg font-semibold bg-emerald-500 hover:bg-emerald-400 text-black text-xs border-0"
+              >
+                {addCredits.isPending ? "Adicionando..." : "Confirmar Créditos"}
+              </Button>
             </div>
           </div>
         </DialogContent>

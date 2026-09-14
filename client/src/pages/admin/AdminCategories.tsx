@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Plus, Edit, Trash2, Tag, Layers } from "lucide-react";
+import { Plus, Edit2, Trash2, Tag, Layers, Search, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,129 +10,191 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 export default function AdminCategories() {
   const utils = trpc.useUtils();
   const { data: categories = [], isLoading } = trpc.admin.listCategories.useQuery();
+  const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [editCat, setEditCat] = useState<any>(null);
   const [form, setForm] = useState({ name: "", description: "" });
 
-  const create = trpc.admin.createCategory.useMutation({ onSuccess: () => { toast.success("Categoria criada!"); utils.admin.listCategories.invalidate(); setShowCreate(false); setForm({ name: "", description: "" }); }, onError: e => toast.error(e.message) });
-  const update = trpc.admin.updateCategory.useMutation({ onSuccess: () => { toast.success("Categoria atualizada!"); utils.admin.listCategories.invalidate(); setEditCat(null); }, onError: e => toast.error(e.message) });
-  const del = trpc.admin.deleteCategory.useMutation({ onSuccess: () => { toast.success("Categoria removida!"); utils.admin.listCategories.invalidate(); }, onError: e => toast.error(e.message) });
+  const create = trpc.admin.createCategory.useMutation({
+    onSuccess: () => {
+      toast.success("Categoria criada com sucesso!");
+      utils.admin.listCategories.invalidate();
+      setShowCreate(false);
+      setForm({ name: "", description: "" });
+    },
+    onError: e => toast.error(e.message)
+  });
+
+  const update = trpc.admin.updateCategory.useMutation({
+    onSuccess: () => {
+      toast.success("Categoria atualizada!");
+      utils.admin.listCategories.invalidate();
+      setEditCat(null);
+    },
+    onError: e => toast.error(e.message)
+  });
+
+  const del = trpc.admin.deleteCategory.useMutation({
+    onSuccess: () => {
+      toast.success("Categoria removida!");
+      utils.admin.listCategories.invalidate();
+    },
+    onError: e => toast.error(e.message)
+  });
+
+  const filtered = categories.filter((c: any) =>
+    c.name?.toLowerCase().includes(search.toLowerCase()) ||
+    c.description?.toLowerCase().includes(search.toLowerCase())
+  );
 
   return (
-    <div className="p-6 space-y-5">
-      <div className="flex items-center justify-between">
+    <div className="max-w-6xl mx-auto space-y-6 p-4 sm:p-6">
+      {/* Header Corporativo */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/[0.06]">
         <div>
-          <h1 className="text-white text-2xl font-bold">Categorias</h1>
-          <p className="text-gray-500 text-sm mt-1">{categories.length} categorias cadastradas</p>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">Categorias de Produtos</h1>
+            <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 font-semibold">
+              {categories.length} cadastradas
+            </span>
+          </div>
+          <p className="text-gray-400 text-xs mt-1">Organize os softwares por nicho ou finalidade para facilitar a navegação</p>
         </div>
-        <Button
-          onClick={() => { setShowCreate(true); setForm({ name: "", description: "" }); }}
-          className="relative overflow-hidden gap-2 px-5 py-2.5 text-sm font-semibold text-white rounded-xl transition-all duration-200 active:scale-[0.97]"
-          style={{
-            background: "linear-gradient(135deg, #10b981, #047857)",
-            boxShadow: "0 0 20px rgba(16,185,129,0.35), 0 4px 12px rgba(0,0,0,0.4)",
-          }}
-        >
-          <Plus className="w-4 h-4" /> Nova Categoria
-        </Button>
+
+        <div className="flex items-center gap-3">
+          <div className="relative w-full sm:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+            <Input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Buscar categoria..."
+              className="pl-9 h-9 text-xs rounded-xl bg-white/[0.03] border-white/[0.08] text-white placeholder:text-gray-500 focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20"
+            />
+          </div>
+
+          <Button
+            onClick={() => { setShowCreate(true); setForm({ name: "", description: "" }); }}
+            className="h-9 px-4 text-xs font-semibold rounded-xl border-0 bg-emerald-500 hover:bg-emerald-400 text-black shadow-sm transition-all flex items-center gap-1.5 shrink-0"
+          >
+            <Plus className="w-4 h-4" /> Nova Categoria
+          </Button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {isLoading ? (
-          <p className="text-gray-600 col-span-3 text-center py-8">Carregando...</p>
-        ) : categories.length === 0 ? (
-          <div className="col-span-3 text-center py-12">
-            <Tag className="w-10 h-10 text-gray-700 mx-auto mb-3" />
-            <p className="text-gray-600">Nenhuma categoria criada</p>
-            <p className="text-gray-700 text-sm mt-1">Crie categorias para organizar seus apps</p>
-          </div>
-        ) : categories.map((cat: any) => (
-          <div key={cat.id} className="rounded-3xl border border-white/[0.06] p-5 hover:border-purple-500/20 transition-all group" style={{ background: "rgba(255,255,255,0.02)" }}>
-            <div className="flex items-start justify-between mb-3">
-              <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.2), oklch(0.45 0.25 270 / 0.15))", border: "1px solid rgba(16,185,129,0.25)" }}>
-                <Tag className="w-4 h-4 text-purple-400" />
-              </div>
-              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button
-                  onClick={() => { setEditCat(cat); setForm({ name: cat.name, description: cat.description || "" }); }}
-                  className="p-1.5 rounded-lg text-gray-500 hover:text-blue-400 hover:bg-blue-500/10 transition-all border border-transparent hover:border-blue-500/20"
-                >
-                  <Edit className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={() => { if (confirm(`Remover "${cat.name}"?`)) del.mutate({ id: cat.id }); }}
-                  className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-emerald-500/10 transition-all border border-transparent hover:border-red-500/20"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+      {/* Grid de Categorias */}
+      {isLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="h-32 rounded-2xl border border-white/[0.06] bg-white/[0.02] animate-pulse" />
+          ))}
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-16 rounded-2xl border border-dashed border-white/[0.08] bg-white/[0.01]">
+          <Tag className="w-10 h-10 text-gray-600 mx-auto mb-3" />
+          <p className="text-white text-sm font-semibold">Nenhuma categoria cadastrada</p>
+          <p className="text-gray-400 text-xs mt-1">Crie categorias para agrupar e organizar seus aplicativos</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filtered.map((cat: any) => (
+            <div
+              key={cat.id}
+              className="rounded-2xl border border-white/[0.08] bg-white/[0.02] hover:border-emerald-500/30 transition-all p-5 flex flex-col justify-between shadow-sm"
+            >
+              <div>
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+                      <Tag className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-white font-bold text-sm tracking-tight">{cat.name}</h3>
+                      <p className="text-[10px] text-gray-500 flex items-center gap-1 mt-0.5">
+                        <Calendar className="w-3 h-3" />
+                        Criada em {new Date(cat.createdAt).toLocaleDateString("pt-BR")}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => { setEditCat(cat); setForm({ name: cat.name, description: cat.description || "" }); }}
+                      className="p-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-gray-400 hover:text-white transition-all"
+                      title="Editar"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => { if (confirm(`Remover categoria "${cat.name}"?`)) del.mutate({ id: cat.id }); }}
+                      className="p-1.5 rounded-lg bg-white/[0.04] hover:bg-red-500/15 text-gray-400 hover:text-red-400 border border-white/[0.08] hover:border-red-500/30 transition-all"
+                      title="Excluir"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                <p className="text-gray-400 text-xs line-clamp-2 leading-relaxed min-h-[32px]">
+                  {cat.description || "Sem descrição informada para esta categoria."}
+                </p>
               </div>
             </div>
-            <h3 className="text-white font-semibold">{cat.name}</h3>
-            <p className="text-gray-500 text-sm mt-1">{cat.description || <span className="text-gray-700 italic">Sem descrição</span>}</p>
-            <p className="text-gray-700 text-xs mt-3">{new Date(cat.createdAt).toLocaleDateString("pt-BR")}</p>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
-      {/* Create/Edit Modal */}
+      {/* Modal Criar / Editar Categoria */}
       <Dialog open={showCreate || !!editCat} onOpenChange={() => { setShowCreate(false); setEditCat(null); }}>
-        <DialogContent
-          className="text-white max-w-md border-0"
-          style={{
-            background: "linear-gradient(145deg, rgba(18,12,35,0.98) 0%, rgba(10,8,25,0.98) 100%)",
-            boxShadow: "0 0 0 1px rgba(139,92,246,0.2), 0 25px 60px rgba(0,0,0,0.7), 0 0 40px rgba(139,92,246,0.08)",
-            backdropFilter: "blur(20px)",
-          }}
-        >
-          <DialogHeader className="pb-2">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.3), rgba(5,150,105,0.2))", border: "1px solid rgba(16,185,129,0.3)" }}>
-                <Layers className="w-4 h-4 text-purple-400" />
-              </div>
-              <DialogTitle className="text-white text-lg font-semibold">{editCat ? "Editar Categoria" : "Nova Categoria"}</DialogTitle>
-            </div>
+        <DialogContent className="bg-[#0b100e] border border-white/[0.1] text-white max-w-sm rounded-2xl p-6 shadow-2xl">
+          <DialogHeader className="mb-4">
+            <DialogTitle className="text-white font-bold text-base">
+              {editCat ? "Editar Categoria" : "Nova Categoria"}
+            </DialogTitle>
+            <p className="text-gray-400 text-xs mt-0.5">Defina o nome de identificação da categoria</p>
           </DialogHeader>
 
-          <div className="h-px w-full my-1" style={{ background: "linear-gradient(90deg, transparent, rgba(139,92,246,0.3), transparent)" }} />
-
-          <form onSubmit={e => { e.preventDefault(); if (editCat) update.mutate({ id: editCat.id, ...form }); else create.mutate(form); }} className="space-y-4 mt-3">
+          <form
+            onSubmit={e => {
+              e.preventDefault();
+              if (editCat) update.mutate({ id: editCat.id, ...form });
+              else create.mutate(form);
+            }}
+            className="space-y-4"
+          >
             <div>
-              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Nome *</Label>
+              <Label className="text-gray-300 text-xs font-medium block mb-1">Nome da Categoria *</Label>
               <Input
                 value={form.name}
-                onChange={e => setForm(f => ({...f, name: e.target.value}))}
-                className="mt-1.5 text-white border-white/[0.06] focus:border-emerald-500/60 transition-colors"
-                style={{ background: "rgba(255,255,255,0.05)" }}
+                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="Ex: Emuladores, FPS, Web Tools"
+                className="bg-black/30 border-white/[0.1] text-white rounded-lg h-9 text-xs"
                 required
                 autoFocus
               />
             </div>
+
             <div>
-              <Label className="text-gray-400 text-xs font-medium uppercase tracking-wider">Descrição</Label>
+              <Label className="text-gray-300 text-xs font-medium block mb-1">Descrição (Opcional)</Label>
               <Input
                 value={form.description}
-                onChange={e => setForm(f => ({...f, description: e.target.value}))}
-                className="mt-1.5 text-white border-white/[0.06] focus:border-emerald-500/60 transition-colors"
-                style={{ background: "rgba(255,255,255,0.05)" }}
+                onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                placeholder="Ex: Softwares voltados para emulação"
+                className="bg-black/30 border-white/[0.1] text-white rounded-lg h-9 text-xs"
               />
             </div>
-            <div className="flex gap-3 pt-2">
+
+            <div className="flex gap-2.5 pt-2">
               <Button
                 type="button"
                 onClick={() => { setShowCreate(false); setEditCat(null); }}
-                className="flex-1 font-medium text-gray-300 rounded-xl transition-all duration-200 active:scale-[0.97] hover:text-white"
-                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}
+                className="flex-1 h-9 rounded-lg border-white/[0.1] bg-white/[0.02] text-gray-300 hover:text-white text-xs"
               >
                 Cancelar
               </Button>
               <Button
                 type="submit"
                 disabled={create.isPending || update.isPending}
-                className="flex-1 font-semibold text-white rounded-xl transition-all duration-200 active:scale-[0.97] disabled:opacity-50"
-                style={{
-                  background: "linear-gradient(135deg, #10b981, #047857)",
-                  boxShadow: "0 0 20px rgba(16,185,129,0.3), 0 4px 12px rgba(0,0,0,0.3)",
-                }}
+                className="flex-1 h-9 rounded-lg font-semibold bg-emerald-500 hover:bg-emerald-400 text-black text-xs border-0"
               >
                 {create.isPending || update.isPending ? "Salvando..." : editCat ? "Salvar Alterações" : "Criar Categoria"}
               </Button>
