@@ -284,20 +284,13 @@ var init_schema = __esm({
 });
 
 // server/_core/env.ts
-function requireEnv(name) {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`[Security] Environment variable ${name} is required.`);
-  }
-  return value;
-}
 var ENV;
 var init_env = __esm({
   "server/_core/env.ts"() {
     "use strict";
     ENV = {
       appId: process.env.VITE_APP_ID ?? "",
-      cookieSecret: process.env.JWT_SECRET ? requireEnv("JWT_SECRET") : "",
+      cookieSecret: process.env.JWT_SECRET ?? "",
       databaseUrl: process.env.DATABASE_URL ?? "",
       oAuthServerUrl: process.env.OAUTH_SERVER_URL ?? "",
       ownerOpenId: process.env.OWNER_OPEN_ID ?? "",
@@ -1667,6 +1660,9 @@ var SDKServer = class {
   }
   getSessionSecret() {
     const secret = ENV.cookieSecret;
+    if (!secret) {
+      throw new Error("JWT_SECRET environment variable is not set");
+    }
     return new TextEncoder().encode(secret);
   }
   /**
