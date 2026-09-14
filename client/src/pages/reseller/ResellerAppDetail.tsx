@@ -3,10 +3,10 @@ import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
-  ArrowLeft, Key, DollarSign, Clock, Star, Plus, ShoppingCart, CreditCard,
-  Percent, CheckCircle, QrCode, Copy, CheckCircle2, Loader2, RefreshCw, X,
-  Bitcoin, Wallet, AlertTriangle, Download, Film, ShieldCheck, Sparkles,
-  TrendingUp, Tag, Layers, Check
+  ArrowLeft, Key, Clock, Star, ShoppingCart, CreditCard,
+  Percent, CheckCircle, QrCode, Copy, CheckCircle2, Loader2, X,
+  Bitcoin, Wallet, Download, Film, ShieldCheck, Tag,
+  LayoutGrid, List, Check, Zap, ExternalLink
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,12 +17,6 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useCurrency } from "@/hooks/useCurrency";
 import { QRCodeSVG } from "qrcode.react";
 
-const levelColors: Record<string, string> = {
-  basic: "text-emerald-300 bg-emerald-500/10 border-emerald-500/25",
-  premium: "text-emerald-400 bg-emerald-500/20 border-emerald-500/40",
-  lifetime: "text-amber-400 bg-amber-500/20 border-amber-500/30",
-};
-
 // ─── Credits Flow (Gerar Keys) ────────────────────────────────────────────────
 function CreditsAppDetail({ app, id }: { app: any; id: number }) {
   const [, navigate] = useLocation();
@@ -30,6 +24,7 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
   const { data: profile } = trpc.reseller.profile.useQuery();
   const [showGenerate, setShowGenerate] = useState(false);
   const [genForm, setGenForm] = useState({ planId: "", quantity: "1", customMask: "", note: "" });
+  const [viewMode, setViewMode] = useState<"table" | "grid">("table");
   const { t, language } = useLanguage();
   const { fmt } = useCurrency();
 
@@ -54,118 +49,176 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
 
   return (
     <>
-      <div className="space-y-6">
-        {/* Credit balance banner */}
-        <div
-          className="relative rounded-3xl p-6 sm:p-7 overflow-hidden border border-emerald-500/20"
-          style={{
-            background: "linear-gradient(135deg, rgba(16,185,129,0.12) 0%, rgba(6,78,59,0.06) 100%)",
-            boxShadow: "0 20px 50px -10px rgba(0,0,0,0.5), inset 0 1px 0 rgba(16,185,129,0.2)",
-          }}
-        >
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5 relative z-10">
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shadow-lg shadow-emerald-500/10">
-                <CreditCard className="w-7 h-7 text-emerald-400" />
+      <div className="space-y-5">
+        {/* Strip de Métricas Compacta */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                <CreditCard className="w-4 h-4" />
               </div>
               <div>
-                <p className="text-gray-400 text-xs uppercase tracking-wider font-semibold">
-                  {language === "en" ? "Available Balance" : "Seu Saldo em Créditos"}
-                </p>
-                <div className="flex items-baseline gap-2 mt-1">
-                  <span className="text-white font-bold font-mono text-3xl leading-none">{credits.toFixed(2)}</span>
-                  <span className="text-emerald-400 text-sm font-semibold">{t.general_credits}</span>
-                </div>
+                <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Saldo Disponível</p>
+                <p className="text-white font-bold font-mono text-lg">{credits.toFixed(2)} <span className="text-emerald-400 text-xs">cr</span></p>
               </div>
             </div>
+          </div>
 
-            <div className="flex items-center gap-3 sm:border-l sm:border-white/10 sm:pl-6">
-              <div className="text-left sm:text-right">
-                <p className="text-gray-400 text-xs font-semibold uppercase tracking-wider">
-                  {language === "en" ? "Your Discount" : "Desconto Aplicado"}
-                </p>
-                <p className="text-emerald-400 font-bold font-mono text-2xl mt-0.5">{discount.toFixed(0)}% OFF</p>
+          <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                <Percent className="w-4 h-4" />
               </div>
+              <div>
+                <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Desconto Ativo</p>
+                <p className="text-emerald-400 font-bold font-mono text-lg">{discount.toFixed(0)}% OFF</p>
+              </div>
+            </div>
+            <span className="text-[10px] px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 border border-emerald-500/25 font-semibold">
+              APLICADO
+            </span>
+          </div>
+
+          <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-gray-400">
+              <Zap className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Entrega</p>
+              <p className="text-white font-semibold text-sm">Geração Instantânea</p>
             </div>
           </div>
         </div>
 
-        {/* Plans */}
-        <div>
-          <div className="flex items-center justify-between mb-5">
+        {/* Planos Disponíveis */}
+        <div className="rounded-2xl border border-white/[0.08] bg-white/[0.015] overflow-hidden">
+          <div className="px-5 py-4 border-b border-white/[0.06] flex items-center justify-between flex-wrap gap-3">
             <div>
-              <h3 className="text-white font-bold text-xl flex items-center gap-2.5">
-                <Key className="w-5 h-5 text-emerald-400" /> {t.apps_available_plans}
+              <h3 className="text-white font-semibold text-sm flex items-center gap-2">
+                <Key className="w-4 h-4 text-emerald-400" /> Planos Disponíveis
               </h3>
-              <p className="text-gray-500 text-xs mt-0.5">Selecione o plano desejado para gerar suas licenças instantaneamente</p>
+              <p className="text-gray-500 text-xs mt-0.5">Selecione o plano desejado para debitar dos seus créditos e gerar as chaves</p>
+            </div>
+
+            <div className="flex items-center gap-1 bg-black/40 border border-white/[0.06] p-1 rounded-lg">
+              <button
+                onClick={() => setViewMode("table")}
+                className={`p-1.5 rounded-md text-xs transition-all ${viewMode === "table" ? "bg-emerald-500/20 text-emerald-300" : "text-gray-400 hover:text-white"}`}
+                title="Visualização em Lista"
+              >
+                <List className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setViewMode("grid")}
+                className={`p-1.5 rounded-md text-xs transition-all ${viewMode === "grid" ? "bg-emerald-500/20 text-emerald-300" : "text-gray-400 hover:text-white"}`}
+                title="Visualização em Grade"
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+              </button>
             </div>
           </div>
 
           {!app.plans?.length ? (
-            <div className="p-12 text-center rounded-3xl border border-dashed border-white/10 bg-white/[0.01]">
-              <Key className="w-10 h-10 text-gray-600 mx-auto mb-3" />
-              <p className="text-gray-400 text-sm">{t.apps_no_plans}</p>
+            <div className="p-10 text-center">
+              <Key className="w-8 h-8 text-gray-600 mx-auto mb-2" />
+              <p className="text-gray-400 text-xs">Nenhum plano cadastrado para este aplicativo.</p>
+            </div>
+          ) : viewMode === "table" ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-white/[0.06] text-gray-400 font-semibold uppercase tracking-wider text-[11px]">
+                    <th className="px-5 py-3">Plano</th>
+                    <th className="px-4 py-3">Duração</th>
+                    <th className="px-4 py-3 text-right">Preço Original</th>
+                    <th className="px-4 py-3 text-right">Seu Custo</th>
+                    <th className="px-4 py-3 text-right">Preço de Venda</th>
+                    <th className="px-5 py-3 text-right">Ação</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/[0.04]">
+                  {app.plans.map((plan: any) => {
+                    const original = parseFloat(String(plan.priceCredits));
+                    const price = original * (1 - discount / 100);
+                    const suggestedSell = parseFloat(String(plan.resellerSellingPrice ?? "0"));
+
+                    return (
+                      <tr key={plan.id} className="hover:bg-white/[0.02] transition-colors">
+                        <td className="px-5 py-3.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-white font-semibold">{plan.name}</span>
+                            <span className="text-[10px] px-2 py-0.5 rounded-md border border-white/[0.08] text-gray-400 uppercase font-mono">
+                              {plan.level || "basic"}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3.5 text-gray-300">
+                          {plan.durationDays >= 9000 ? "Lifetime" : `${plan.durationDays} dias`}
+                        </td>
+                        <td className="px-4 py-3.5 text-right text-gray-500 line-through font-mono">
+                          {original.toFixed(2)} cr
+                        </td>
+                        <td className="px-4 py-3.5 text-right font-mono font-bold text-emerald-400 text-sm">
+                          {price.toFixed(2)} cr
+                        </td>
+                        <td className="px-4 py-3.5 text-right font-mono text-gray-300">
+                          {suggestedSell > 0 ? `R$ ${suggestedSell.toFixed(2)}` : "—"}
+                        </td>
+                        <td className="px-5 py-3.5 text-right">
+                          <Button
+                            size="sm"
+                            onClick={() => { setGenForm(f => ({ ...f, planId: String(plan.id) })); setShowGenerate(true); }}
+                            className="h-8 px-3.5 text-xs font-semibold rounded-lg border-0 bg-emerald-500 hover:bg-emerald-400 text-black shadow-sm transition-all"
+                          >
+                            <Key className="w-3.5 h-3.5 mr-1.5" /> Gerar Key
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
+            <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {app.plans.map((plan: any) => {
                 const original = parseFloat(String(plan.priceCredits));
                 const price = original * (1 - discount / 100);
                 const suggestedSell = parseFloat(String(plan.resellerSellingPrice ?? "0"));
+
                 return (
                   <div
                     key={plan.id}
-                    className="group relative rounded-3xl border border-white/[0.08] p-5 hover:border-emerald-500/40 hover:bg-emerald-500/[0.02] transition-all flex flex-col justify-between"
-                    style={{
-                      background: "linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)",
-                      boxShadow: "0 10px 30px rgba(0,0,0,0.3)",
-                    }}
+                    className="rounded-xl border border-white/[0.08] bg-black/30 p-4 flex flex-col justify-between hover:border-emerald-500/30 transition-all"
                   >
                     <div>
-                      {/* Top Badges */}
-                      <div className="flex items-center justify-between gap-2 mb-4">
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold bg-white/[0.04] border border-white/[0.08] text-gray-300">
-                          <Clock className="w-3.5 h-3.5 text-emerald-400" />
-                          {plan.durationDays >= 9000 ? t.apps_lifetime : `${plan.durationDays} ${t.apps_days}`}
-                        </span>
-                        <span className={`text-[10px] px-2.5 py-1 rounded-xl border font-bold uppercase tracking-wider ${levelColors[plan.level] ?? levelColors.basic}`}>
-                          {plan.level}
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-white font-bold text-sm">{plan.name}</span>
+                        <span className="text-[10px] text-gray-400 bg-white/[0.04] px-2 py-0.5 rounded border border-white/[0.06]">
+                          {plan.durationDays >= 9000 ? "Lifetime" : `${plan.durationDays}d`}
                         </span>
                       </div>
 
-                      {/* Plan Title */}
-                      <h4 className="text-white font-bold text-lg mb-4 group-hover:text-emerald-300 transition-colors">
-                        {plan.name}
-                      </h4>
-
-                      {/* Price Block */}
-                      <div className="p-4 rounded-2xl bg-black/40 border border-white/[0.06] mb-5 space-y-3">
+                      <div className="my-3 py-2.5 px-3 rounded-lg bg-white/[0.02] border border-white/[0.04] flex items-center justify-between">
                         <div>
-                          <p className="text-gray-500 text-[11px] font-semibold uppercase tracking-wider">Custo do Revendedor</p>
-                          <div className="flex items-baseline gap-2 mt-1">
-                            <span className="text-emerald-400 font-extrabold font-mono text-2xl leading-none">{price.toFixed(2)}</span>
-                            <span className="text-emerald-400/70 text-xs font-semibold">cr</span>
-                            {discount > 0 && original > 0 && (
-                              <span className="text-gray-500 text-xs line-through ml-1">{original.toFixed(2)} cr</span>
-                            )}
-                          </div>
+                          <p className="text-[10px] text-gray-400 uppercase font-medium">Seu Custo</p>
+                          <p className="text-emerald-400 font-mono font-bold text-base leading-tight mt-0.5">{price.toFixed(2)} cr</p>
                         </div>
-
                         {suggestedSell > 0 && (
-                          <div className="pt-2.5 border-t border-white/[0.06] flex items-center justify-between text-xs">
-                            <span className="text-gray-400">{language === "en" ? "Suggested Sell" : "Preço de Venda"}</span>
-                            <span className="text-white font-mono font-bold">R$ {suggestedSell.toFixed(2)}</span>
+                          <div className="text-right">
+                            <p className="text-[10px] text-gray-400 uppercase font-medium">Preço de Venda</p>
+                            <p className="text-gray-200 font-mono text-xs mt-0.5">R$ {suggestedSell.toFixed(2)}</p>
                           </div>
                         )}
                       </div>
                     </div>
 
                     <Button
-                      onClick={() => { setGenForm(f => ({...f, planId: String(plan.id)})); setShowGenerate(true); }}
-                      className="w-full h-11 rounded-2xl text-xs font-bold tracking-wide border-0 transition-all shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/35 hover:scale-[1.02]"
-                      style={{ background: "linear-gradient(135deg, #10b981 0%, #059669 100%)", color: "#fff" }}
+                      size="sm"
+                      onClick={() => { setGenForm(f => ({ ...f, planId: String(plan.id) })); setShowGenerate(true); }}
+                      className="w-full h-8 text-xs font-semibold rounded-lg border-0 bg-emerald-500 hover:bg-emerald-400 text-black shadow-sm transition-all"
                     >
-                      <Key className="w-4 h-4 mr-2" /> {t.apps_generate_key}
+                      <Key className="w-3.5 h-3.5 mr-1.5" /> Gerar Key
                     </Button>
                   </div>
                 );
@@ -174,19 +227,17 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
           )}
         </div>
 
-        {/* Features */}
+        {/* Features Compacto */}
         {app.features && (
-          <div className="rounded-3xl border border-white/[0.08] p-6 sm:p-7" style={{ background: "linear-gradient(180deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.01) 100%)" }}>
-            <h3 className="text-white font-bold text-base mb-4 flex items-center gap-2">
-              <Star className="w-4 h-4 text-emerald-400" /> {t.apps_features}
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="rounded-2xl border border-white/[0.08] bg-white/[0.015] p-5">
+            <h4 className="text-white font-semibold text-xs uppercase tracking-wider text-gray-400 mb-3 flex items-center gap-2">
+              <Star className="w-3.5 h-3.5 text-emerald-400" /> Recursos e Funções
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
               {app.features.split("\n").filter(Boolean).map((f: string, i: number) => (
-                <div key={i} className="flex items-start gap-3 p-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.04]">
-                  <div className="w-5 h-5 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <Check className="w-3 h-3 text-emerald-400" />
-                  </div>
-                  <span className="text-gray-300 text-sm leading-relaxed">{f}</span>
+                <div key={i} className="flex items-center gap-2 text-xs text-gray-300">
+                  <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <span className="truncate">{f.replace(/^\[\+\]\s*/, "")}</span>
                 </div>
               ))}
             </div>
@@ -194,68 +245,49 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
         )}
       </div>
 
-      {/* Generate Modal */}
+      {/* Generate Modal Compacto */}
       <Dialog open={showGenerate} onOpenChange={setShowGenerate}>
-        <DialogContent
-          className="bg-[#0b1311] border border-emerald-500/20 text-white max-w-md rounded-3xl p-0 overflow-hidden shadow-2xl"
-          style={{ boxShadow: "0 25px 70px rgba(0,0,0,0.85), 0 0 50px rgba(16,185,129,0.12)" }}
-        >
-          <div className="h-[2px] w-full bg-gradient-to-r from-transparent via-emerald-400/70 to-transparent" />
-          <div className="p-6 sm:p-7 space-y-5">
-            <DialogHeader>
-              <div className="flex items-center gap-3.5">
-                <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-                  <Key className="w-6 h-6" />
-                </div>
-                <div>
-                  <DialogTitle className="text-white font-bold text-lg">{t.apps_generate_key}</DialogTitle>
-                  <p className="text-gray-400 text-xs mt-0.5">{selectedPlan?.name} — {app.name}</p>
-                </div>
-              </div>
-            </DialogHeader>
+        <DialogContent className="bg-[#0b100e] border border-white/[0.1] text-white max-w-sm rounded-2xl p-6 shadow-2xl">
+          <DialogHeader className="mb-4">
+            <DialogTitle className="text-white font-bold text-base">Gerar Chave de Licença</DialogTitle>
+            <p className="text-gray-400 text-xs mt-0.5">{selectedPlan?.name} — {app.name}</p>
+          </DialogHeader>
 
-            <div className="rounded-2xl border border-white/[0.08] p-4 bg-black/40 flex items-center justify-between">
-              <div>
-                <p className="text-gray-400 text-xs uppercase font-semibold">Custo Total</p>
-                <p className="text-emerald-400 font-bold font-mono text-2xl mt-0.5">{totalCost.toFixed(2)} cr</p>
-              </div>
-              <div className="text-right">
-                <p className="text-gray-400 text-xs uppercase font-semibold">Seu Saldo</p>
-                <p className={`font-mono font-bold text-sm mt-1 ${credits >= totalCost ? "text-white" : "text-red-400"}`}>
-                  {credits.toFixed(2)} cr
-                </p>
-              </div>
+          <div className="space-y-4">
+            <div className="p-3 rounded-xl bg-black/40 border border-white/[0.06] flex items-center justify-between text-xs">
+              <span className="text-gray-400">Total a debitar:</span>
+              <span className="text-emerald-400 font-mono font-bold text-sm">{totalCost.toFixed(2)} cr</span>
             </div>
 
             <div>
-              <Label className="text-gray-300 text-xs font-semibold uppercase tracking-wider mb-2 block">{t.general_quantity}</Label>
+              <Label className="text-gray-300 text-xs font-medium block mb-1.5">Quantidade</Label>
               <Input
                 type="number"
                 min="1"
                 max="100"
                 value={genForm.quantity}
                 onChange={e => setGenForm(f => ({ ...f, quantity: e.target.value }))}
-                className="bg-black/40 border-white/[0.08] focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/15 text-white rounded-xl h-11"
+                className="bg-black/30 border-white/[0.1] text-white rounded-lg h-9 text-xs"
               />
             </div>
 
             <div>
-              <Label className="text-gray-300 text-xs font-semibold uppercase tracking-wider mb-2 block">Nota / Cliente (Opcional)</Label>
+              <Label className="text-gray-300 text-xs font-medium block mb-1.5">Observação (Opcional)</Label>
               <Input
                 placeholder="Ex: Cliente João"
                 value={genForm.note}
                 onChange={e => setGenForm(f => ({ ...f, note: e.target.value }))}
-                className="bg-black/40 border-white/[0.08] focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/15 text-white rounded-xl h-11"
+                className="bg-black/30 border-white/[0.1] text-white rounded-lg h-9 text-xs"
               />
             </div>
 
-            <div className="flex gap-3 pt-2">
+            <div className="flex gap-2.5 pt-2">
               <Button
                 variant="outline"
                 onClick={() => setShowGenerate(false)}
-                className="flex-1 h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-gray-300 hover:bg-white/[0.08] hover:text-white"
+                className="flex-1 h-9 rounded-lg border-white/[0.1] bg-white/[0.02] text-gray-300 hover:text-white text-xs"
               >
-                {t.apps_cancel}
+                Cancelar
               </Button>
               <Button
                 onClick={() => generateKeys.mutate({
@@ -266,11 +298,9 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
                   note: genForm.note || undefined,
                 })}
                 disabled={generateKeys.isPending || credits < totalCost}
-                className="flex-1 h-12 rounded-2xl font-bold border-0 shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 text-white"
-                style={{ background: "linear-gradient(135deg, #10b981 0%, #059669 100%)" }}
+                className="flex-1 h-9 rounded-lg font-semibold bg-emerald-500 hover:bg-emerald-400 text-black text-xs border-0"
               >
-                <Key className="w-4 h-4 mr-2" />
-                {generateKeys.isPending ? t.apps_generating : `${language === "en" ? "Generate" : "Gerar"} ${genForm.quantity} Key(s)`}
+                {generateKeys.isPending ? "Gerando..." : "Confirmar"}
               </Button>
             </div>
           </div>
@@ -292,83 +322,50 @@ function PaymentMethodModal({
   isLoadingCrypto: boolean;
   hideLtc?: boolean;
 }) {
-  const { t } = useLanguage();
-
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="p-0 border-0 bg-transparent max-w-sm w-full shadow-2xl" style={{ boxShadow: "none" }}>
-        <div
-          className="relative rounded-3xl overflow-hidden border border-emerald-500/25"
-          style={{
-            background: "linear-gradient(170deg, #0b1311 0%, #070a09 100%)",
-            boxShadow: "0 25px 70px rgba(0,0,0,0.85), 0 0 50px rgba(16,185,129,0.12)",
-          }}
-        >
-          <div className="h-[2px] w-full bg-gradient-to-r from-transparent via-emerald-400/70 to-transparent" />
+      <DialogContent className="bg-[#0b100e] border border-white/[0.1] text-white max-w-sm rounded-2xl p-5 shadow-2xl">
+        <DialogHeader className="mb-3">
+          <DialogTitle className="text-white font-bold text-sm">Método de Pagamento</DialogTitle>
+          <p className="text-gray-400 text-xs">Selecione como deseja efetuar o pagamento da key</p>
+        </DialogHeader>
 
-          {/* Header */}
-          <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-white/[0.06]">
+        <div className="space-y-2.5 pt-1">
+          <button
+            onClick={onSelectPix}
+            disabled={isLoadingPix || isLoadingCrypto}
+            className="w-full rounded-xl p-3 text-left transition-all border border-emerald-500/30 hover:border-emerald-500/60 bg-emerald-500/[0.06] hover:bg-emerald-500/[0.12] flex items-center justify-between"
+          >
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
-                <ShoppingCart className="w-5 h-5" />
+              <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center text-emerald-400">
+                {isLoadingPix ? <Loader2 className="w-4 h-4 animate-spin" /> : <QrCode className="w-4 h-4" />}
               </div>
               <div>
-                <h2 className="text-white font-bold text-base leading-tight">{t.payment_select_method}</h2>
-                <p className="text-gray-400 text-xs">Escolha como deseja pagar</p>
+                <p className="text-white font-semibold text-xs">PIX (Instantâneo)</p>
+                <p className="text-gray-400 text-[10px]">Aprovação imediata via QR Code</p>
               </div>
             </div>
-            <button onClick={onClose} className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-500 hover:text-white hover:bg-white/5 transition-all">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
+            <div className="w-2 h-2 rounded-full bg-emerald-400" />
+          </button>
 
-          <div className="p-6 space-y-3">
-            {/* PIX Option */}
+          {!hideLtc && (
             <button
-              onClick={onSelectPix}
+              onClick={onSelectCrypto}
               disabled={isLoadingPix || isLoadingCrypto}
-              className="w-full rounded-2xl p-4 text-left transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 border border-emerald-500/30 hover:border-emerald-500/50 bg-emerald-500/[0.08] hover:bg-emerald-500/[0.14]"
+              className="w-full rounded-xl p-3 text-left transition-all border border-white/[0.08] hover:border-amber-500/40 bg-white/[0.02] hover:bg-amber-500/[0.08] flex items-center justify-between"
             >
-              <div className="flex items-center gap-3.5">
-                <div className="w-11 h-11 rounded-2xl flex items-center justify-center bg-emerald-500/20 border border-emerald-500/30 text-emerald-400">
-                  {isLoadingPix ? <Loader2 className="w-5 h-5 animate-spin" /> : <QrCode className="w-5 h-5" />}
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-amber-500/15 flex items-center justify-center text-amber-400">
+                  {isLoadingCrypto ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bitcoin className="w-4 h-4" />}
                 </div>
                 <div>
-                  <p className="text-white font-bold text-sm">{t.payment_pix}</p>
-                  <p className="text-gray-400 text-xs">{t.payment_pix_desc}</p>
+                  <p className="text-white font-semibold text-xs">Criptomoeda (Litecoin)</p>
+                  <p className="text-gray-400 text-[10px]">Confirmação rápida na rede LTC</p>
                 </div>
-                {!isLoadingPix && (
-                  <div className="ml-auto">
-                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
-                  </div>
-                )}
               </div>
+              <div className="w-2 h-2 rounded-full bg-amber-400/80" />
             </button>
-
-            {/* Crypto (LTC) Option */}
-            {!hideLtc && (
-              <button
-                onClick={onSelectCrypto}
-                disabled={isLoadingPix || isLoadingCrypto}
-                className="w-full rounded-2xl p-4 text-left transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 border border-amber-500/30 hover:border-amber-500/50 bg-amber-500/[0.08] hover:bg-amber-500/[0.14]"
-              >
-                <div className="flex items-center gap-3.5">
-                  <div className="w-11 h-11 rounded-2xl flex items-center justify-center bg-amber-500/20 border border-amber-500/30 text-amber-400">
-                    {isLoadingCrypto ? <Loader2 className="w-5 h-5 animate-spin" /> : <Bitcoin className="w-5 h-5" />}
-                  </div>
-                  <div>
-                    <p className="text-white font-bold text-sm">{t.payment_crypto}</p>
-                    <p className="text-gray-400 text-xs">{t.payment_crypto_desc}</p>
-                  </div>
-                  {!isLoadingCrypto && (
-                    <div className="ml-auto">
-                      <div className="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)]" />
-                    </div>
-                  )}
-                </div>
-              </button>
-            )}
-          </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>
@@ -394,7 +391,6 @@ function PixKeyModal({
   const [copied, setCopied] = useState(false);
   const [deliveredKeys, setDeliveredKeys] = useState<string[]>([]);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const { t } = useLanguage();
   const { fmtCents } = useCurrency();
 
   const { data: statusData } = trpc.reseller.checkKeyPixStatus.useQuery(
@@ -409,11 +405,11 @@ function PixKeyModal({
     if (statusData?.status === "paid" && step === "pending") {
       setStep("paid");
       setDeliveredKeys((statusData.keys as string[]) || []);
-      toast.success(`${(statusData.keys as string[]).length} ${t.pix_keys_delivered}`);
+      toast.success("Pagamento confirmado! Keys entregues.");
       utils.reseller.myKeys.invalidate();
       utils.reseller.profile.invalidate();
     }
-  }, [statusData?.status, step, utils, t.pix_keys_delivered]);
+  }, [statusData?.status, step, utils]);
 
   const handleClose = useCallback(() => {
     setStep("pending");
@@ -428,7 +424,7 @@ function PixKeyModal({
     if (!pixData?.brCode) return;
     navigator.clipboard.writeText(pixData.brCode).then(() => {
       setCopied(true);
-      toast.success(t.pix_copied);
+      toast.success("Código PIX copiado!");
       setTimeout(() => setCopied(false), 2500);
     });
   };
@@ -436,105 +432,78 @@ function PixKeyModal({
   const handleCopyKey = (key: string) => {
     navigator.clipboard.writeText(key).then(() => {
       setCopiedKey(key);
-      toast.success(t.general_copied);
+      toast.success("Chave copiada!");
       setTimeout(() => setCopiedKey(null), 2500);
     });
   };
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); }}>
-      <DialogContent className="p-0 border-0 bg-transparent max-w-md w-full shadow-2xl" style={{ boxShadow: "none" }}>
-        <div
-          className="relative rounded-3xl overflow-hidden border border-emerald-500/25"
-          style={{
-            background: "linear-gradient(170deg, #0b1311 0%, #070a09 100%)",
-            boxShadow: "0 25px 70px rgba(0,0,0,0.85), 0 0 50px rgba(16,185,129,0.12)",
-          }}
-        >
-          <div className="h-[2px] w-full bg-gradient-to-r from-transparent via-emerald-400/70 to-transparent" />
+      <DialogContent className="bg-[#0b100e] border border-white/[0.1] text-white max-w-sm rounded-2xl p-6 shadow-2xl">
+        <DialogHeader className="mb-3">
+          <DialogTitle className="text-white font-bold text-base">Pagamento via PIX</DialogTitle>
+          <p className="text-gray-400 text-xs">{quantity}x {appName} — {planName}</p>
+        </DialogHeader>
 
-          {/* Header */}
-          <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-white/[0.06]">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
-                <QrCode className="w-5 h-5" />
-              </div>
-              <div>
-                <h2 className="text-white font-bold text-base leading-tight">{t.pix_title}</h2>
-                <p className="text-gray-400 text-xs">{quantity}x {appName} — {planName}</p>
+        {step === "pending" && pixData && (
+          <div className="space-y-4">
+            <div className="text-center p-3 rounded-xl bg-black/40 border border-white/[0.06]">
+              <p className="text-gray-400 text-[11px] uppercase font-medium">Valor Total</p>
+              <p className="text-emerald-400 text-2xl font-bold font-mono mt-0.5">{fmtCents(pixData.amountCents)}</p>
+            </div>
+
+            <div className="flex justify-center my-1">
+              <div className="p-3 bg-white rounded-xl shadow-lg">
+                {pixData.qrCodeImage ? (
+                  <img src={pixData.qrCodeImage} alt="QR Code PIX" className="w-40 h-40 object-contain" />
+                ) : pixData.brCode ? (
+                  <QRCodeSVG value={pixData.brCode} size={160} />
+                ) : null}
               </div>
             </div>
-            <button onClick={handleClose} className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-500 hover:text-white hover:bg-white/5 transition-all">
-              <X className="w-4 h-4" />
-            </button>
+
+            {pixData.brCode && (
+              <Button
+                onClick={handleCopy}
+                className="w-full h-9 rounded-lg text-xs font-semibold bg-emerald-500 hover:bg-emerald-400 text-black border-0"
+              >
+                {copied ? <><CheckCircle2 className="w-3.5 h-3.5 mr-1.5" /> Código Copiado</> : <><Copy className="w-3.5 h-3.5 mr-1.5" /> Copiar Código PIX</>}
+              </Button>
+            )}
+
+            <div className="flex items-center justify-center gap-2 text-[11px] text-gray-400 pt-1">
+              <Loader2 className="w-3.5 h-3.5 text-emerald-400 animate-spin" />
+              <span>Aguardando confirmação do banco...</span>
+            </div>
           </div>
+        )}
 
-          {step === "pending" && pixData && (
-            <div className="p-6 space-y-4">
-              <div className="text-center">
-                <p className="text-gray-400 text-xs font-semibold uppercase tracking-wider">{t.pix_amount_to_pay}</p>
-                <p className="text-white text-3xl font-extrabold font-mono mt-1">
-                  <span className="text-emerald-400">{fmtCents(pixData.amountCents)}</span>
-                </p>
-                <p className="text-gray-400 text-xs mt-1">{quantity} key(s) liberada(s) automaticamente</p>
-              </div>
+        {step === "paid" && (
+          <div className="text-center space-y-4 py-2">
+            <div className="w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center mx-auto text-emerald-400">
+              <Check className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-white font-bold text-sm">Pagamento Confirmado!</h3>
+              <p className="text-gray-400 text-xs mt-0.5">{deliveredKeys.length} chave(s) entregue(s)</p>
+            </div>
 
-              {/* QR Code */}
-              <div className="flex justify-center my-2">
-                <div className="p-4 bg-white rounded-2xl shadow-xl">
-                  {pixData.qrCodeImage ? (
-                    <img src={pixData.qrCodeImage} alt="QR Code PIX" className="w-48 h-48 object-contain" />
-                  ) : pixData.brCode ? (
-                    <QRCodeSVG value={pixData.brCode} size={192} />
-                  ) : null}
-                </div>
-              </div>
-
-              {pixData.brCode && (
-                <div>
-                  <button
-                    onClick={handleCopy}
-                    className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-bold transition-all border border-emerald-500/30 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25"
-                  >
-                    {copied ? <><CheckCircle2 className="w-4 h-4" /> {t.pix_copied}</> : <><Copy className="w-4 h-4" /> {t.pix_copy_code}</>}
+            <div className="space-y-2 max-h-40 overflow-y-auto">
+              {deliveredKeys.map((key, i) => (
+                <div key={i} className="flex items-center justify-between p-2.5 rounded-lg bg-black/40 border border-white/[0.08] text-xs">
+                  <span className="font-mono text-emerald-300 truncate">{key}</span>
+                  <button onClick={() => handleCopyKey(key)} className="text-gray-400 hover:text-white p-1">
+                    {copiedKey === key ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                   </button>
                 </div>
-              )}
-
-              <div className="flex items-center justify-center gap-2 text-xs text-gray-400 pt-1">
-                <Loader2 className="w-4 h-4 text-emerald-400 animate-spin" />
-                <span>{t.pix_waiting_payment}</span>
-              </div>
+              ))}
             </div>
-          )}
 
-          {step === "paid" && (
-            <div className="p-6 text-center space-y-4">
-              <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center mx-auto text-emerald-400">
-                <CheckCircle2 className="w-8 h-8" />
-              </div>
-              <div>
-                <h3 className="text-white font-bold text-lg">{t.pix_paid_title}</h3>
-                <p className="text-gray-400 text-xs mt-1">{deliveredKeys.length} {t.pix_keys_delivered}</p>
-              </div>
-
-              <div className="space-y-2 max-h-48 overflow-y-auto">
-                {deliveredKeys.map((key, i) => (
-                  <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-black/40 border border-white/[0.08]">
-                    <span className="font-mono text-xs text-emerald-300 truncate">{key}</span>
-                    <button onClick={() => handleCopyKey(key)} className="text-gray-400 hover:text-emerald-400 p-1">
-                      {copiedKey === key ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              <Button onClick={handleClose} className="w-full h-12 rounded-2xl font-bold text-white" style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}>
-                {t.pix_see_keys}
-              </Button>
-            </div>
-          )}
-        </div>
+            <Button onClick={handleClose} className="w-full h-9 rounded-lg text-xs font-semibold bg-emerald-500 hover:bg-emerald-400 text-black">
+              Ver Minhas Keys
+            </Button>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
@@ -567,8 +536,7 @@ function LtcKeyModal({
   const [copiedAddress, setCopiedAddress] = useState(false);
   const [deliveredKeys, setDeliveredKeys] = useState<string[]>([]);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const { t } = useLanguage();
-  const { fmt, fmtCents } = useCurrency();
+  const { fmtCents } = useCurrency();
 
   const { data: statusData } = trpc.reseller.checkKeyLtcStatus.useQuery(
     { paymentId: ltcData?.paymentId || "" },
@@ -582,11 +550,11 @@ function LtcKeyModal({
     if (statusData?.status === "paid" && step === "pending") {
       setStep("paid");
       setDeliveredKeys((statusData.keys as string[]) || []);
-      toast.success(`${t.ltc_confirmed} ${(statusData.keys as string[]).length} ${t.ltc_keys_delivered}.`);
+      toast.success("Pagamento confirmado! Keys entregues.");
       utils.reseller.myKeys.invalidate();
       utils.reseller.profile.invalidate();
     }
-  }, [statusData?.status, step, utils, t]);
+  }, [statusData?.status, step, utils]);
 
   const handleClose = useCallback(() => {
     setStep("pending");
@@ -601,7 +569,7 @@ function LtcKeyModal({
     if (!ltcData?.ltcAddress) return;
     navigator.clipboard.writeText(ltcData.ltcAddress).then(() => {
       setCopiedAddress(true);
-      toast.success(t.ltc_copied);
+      toast.success("Endereço LTC copiado!");
       setTimeout(() => setCopiedAddress(false), 2500);
     });
   };
@@ -609,91 +577,65 @@ function LtcKeyModal({
   const handleCopyKey = (key: string) => {
     navigator.clipboard.writeText(key).then(() => {
       setCopiedKey(key);
-      toast.success(t.general_copied);
+      toast.success("Chave copiada!");
       setTimeout(() => setCopiedKey(null), 2500);
     });
   };
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); }}>
-      <DialogContent className="p-0 border-0 bg-transparent max-w-md w-full shadow-2xl" style={{ boxShadow: "none" }}>
-        <div
-          className="relative rounded-3xl overflow-hidden border border-amber-500/25"
-          style={{
-            background: "linear-gradient(170deg, #0b1311 0%, #070a09 100%)",
-            boxShadow: "0 25px 70px rgba(0,0,0,0.85), 0 0 50px rgba(251,191,36,0.12)",
-          }}
-        >
-          <div className="h-[2px] w-full bg-gradient-to-r from-transparent via-amber-400/70 to-transparent" />
+      <DialogContent className="bg-[#0b100e] border border-white/[0.1] text-white max-w-sm rounded-2xl p-6 shadow-2xl">
+        <DialogHeader className="mb-3">
+          <DialogTitle className="text-white font-bold text-base">Pagamento em Litecoin</DialogTitle>
+          <p className="text-gray-400 text-xs">{quantity}x {appName} — {planName}</p>
+        </DialogHeader>
 
-          {/* Header */}
-          <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-white/[0.06]">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-amber-500/15 border border-amber-500/30 text-amber-400">
-                <Bitcoin className="w-5 h-5" />
-              </div>
-              <div>
-                <h2 className="text-white font-bold text-base leading-tight">{t.ltc_title}</h2>
-                <p className="text-gray-400 text-xs">{quantity}x {appName} — {planName}</p>
+        {step === "pending" && ltcData && (
+          <div className="space-y-4">
+            <div className="text-center p-3 rounded-xl bg-black/40 border border-white/[0.06]">
+              <p className="text-gray-400 text-[11px] uppercase font-medium">Quantidade Exata</p>
+              <p className="text-amber-400 text-xl font-bold font-mono mt-0.5">{ltcData.ltcAmount.toFixed(6)} LTC</p>
+              <p className="text-gray-500 text-[10px] mt-0.5">Equivalente a {fmtCents(ltcData.amountCents)}</p>
+            </div>
+
+            <div>
+              <p className="text-gray-400 text-[11px] mb-1 font-medium uppercase">Endereço de Destino (Rede LTC)</p>
+              <div className="p-2.5 rounded-lg bg-black/40 border border-amber-500/30 flex items-center justify-between gap-2">
+                <p className="text-amber-300 text-xs font-mono break-all">{ltcData.ltcAddress}</p>
+                <button onClick={handleCopyAddress} className="text-gray-400 hover:text-white p-1 shrink-0">
+                  {copiedAddress ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                </button>
               </div>
             </div>
-            <button onClick={handleClose} className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-500 hover:text-white hover:bg-white/5 transition-all">
-              <X className="w-4 h-4" />
-            </button>
+
+            <div className="flex items-center justify-center gap-2 text-[11px] text-gray-400 pt-1">
+              <Loader2 className="w-3.5 h-3.5 text-amber-400 animate-spin" />
+              <span>Aguardando transação na blockchain...</span>
+            </div>
           </div>
+        )}
 
-          {step === "pending" && ltcData && (
-            <div className="p-6 space-y-4">
-              <div className="text-center">
-                <p className="text-gray-400 text-xs font-semibold uppercase tracking-wider">{t.ltc_amount_to_pay}</p>
-                <p className="text-white text-3xl font-extrabold font-mono mt-1">
-                  <span className="text-amber-400">{ltcData.ltcAmount.toFixed(6)}</span>
-                  <span className="text-gray-400 text-sm ml-2">LTC</span>
-                </p>
-                <p className="text-gray-400 text-xs mt-1">
-                  {t.ltc_brl_value}: <span className="text-white font-mono font-bold">{fmtCents(ltcData.amountCents)}</span>
-                </p>
-              </div>
-
-              <div>
-                <p className="text-gray-400 text-xs mb-2 font-semibold uppercase tracking-wider">{t.ltc_address}</p>
-                <div className="p-3.5 rounded-2xl bg-black/40 border border-amber-500/30 flex items-center justify-between gap-2">
-                  <p className="text-amber-300 text-xs font-mono break-all">{ltcData.ltcAddress}</p>
-                  <button onClick={handleCopyAddress} className="text-gray-400 hover:text-amber-400 p-1.5 shrink-0">
-                    {copiedAddress ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+        {step === "paid" && (
+          <div className="text-center space-y-4 py-2">
+            <div className="w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center mx-auto text-emerald-400">
+              <Check className="w-5 h-5" />
+            </div>
+            <h3 className="text-white font-bold text-sm">Pagamento Confirmado!</h3>
+            <div className="space-y-2 max-h-40 overflow-y-auto">
+              {deliveredKeys.map((key, i) => (
+                <div key={i} className="flex items-center justify-between p-2.5 rounded-lg bg-black/40 border border-white/[0.08] text-xs">
+                  <span className="font-mono text-emerald-300 truncate">{key}</span>
+                  <button onClick={() => handleCopyKey(key)} className="text-gray-400 hover:text-white p-1">
+                    {copiedKey === key ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                   </button>
                 </div>
-              </div>
-
-              <div className="flex items-center justify-center gap-2 text-xs text-gray-400 pt-2">
-                <Loader2 className="w-4 h-4 text-amber-400 animate-spin" />
-                <span>Aguardando confirmação na rede Litecoin...</span>
-              </div>
+              ))}
             </div>
-          )}
-
-          {step === "paid" && (
-            <div className="p-6 text-center space-y-4">
-              <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center mx-auto text-emerald-400">
-                <CheckCircle2 className="w-8 h-8" />
-              </div>
-              <h3 className="text-white font-bold text-lg">{t.ltc_paid_title}</h3>
-              <div className="space-y-2 max-h-48 overflow-y-auto">
-                {deliveredKeys.map((key, i) => (
-                  <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-black/40 border border-white/[0.08]">
-                    <span className="font-mono text-xs text-emerald-300 truncate">{key}</span>
-                    <button onClick={() => handleCopyKey(key)} className="text-gray-400 hover:text-emerald-400 p-1">
-                      {copiedKey === key ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                    </button>
-                  </div>
-                ))}
-              </div>
-              <Button onClick={handleClose} className="w-full h-12 rounded-2xl font-bold text-white" style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}>
-                {t.ltc_see_keys}
-              </Button>
-            </div>
-          )}
-        </div>
+            <Button onClick={handleClose} className="w-full h-9 rounded-lg text-xs font-semibold bg-emerald-500 hover:bg-emerald-400 text-black">
+              Ver Minhas Keys
+            </Button>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
@@ -708,6 +650,7 @@ function PercentageAppDetail({ app, id, otherStore }: { app: any; id: number; ot
   const [showPix, setShowPix] = useState(false);
   const [showLtc, setShowLtc] = useState(false);
   const [quantity, setQuantity] = useState("1");
+  const [viewMode, setViewMode] = useState<"table" | "grid">("table");
   const [pixData, setPixData] = useState<{ paymentId: string; brCode?: string; qrCodeImage?: string; amountCents: number; totalCost: number } | null>(null);
   const [ltcData, setLtcData] = useState<{
     paymentId: string;
@@ -718,7 +661,6 @@ function PercentageAppDetail({ app, id, otherStore }: { app: any; id: number; ot
     ltcPriceBrl: number;
     expiresAt?: string;
   } | null>(null);
-  const { t, language } = useLanguage();
   const { fmt } = useCurrency();
 
   const createKeyPix = trpc.reseller.createKeyPixCharge.useMutation({
@@ -800,157 +742,215 @@ function PercentageAppDetail({ app, id, otherStore }: { app: any; id: number; ot
   return (
     <>
       <Tabs defaultValue="overview" className="w-full">
-        {/* Modern Tabs */}
-        <div className="flex items-center justify-between border-b border-white/[0.08] pb-4">
-          <TabsList className="bg-white/[0.03] border border-white/[0.08] p-1.5 rounded-2xl flex gap-1 h-auto">
+        {/* Navigation Tabs */}
+        <div className="flex items-center justify-between border-b border-white/[0.06] pb-3 mb-5">
+          <TabsList className="bg-white/[0.03] border border-white/[0.08] p-1 rounded-xl flex gap-1 h-auto">
             <TabsTrigger
               value="overview"
-              className="data-[state=active]:bg-emerald-500/15 data-[state=active]:text-emerald-300 data-[state=active]:border-emerald-500/30 border border-transparent text-gray-400 text-sm font-semibold rounded-xl px-5 py-2.5 transition-all flex items-center gap-2"
+              className="data-[state=active]:bg-white/[0.08] data-[state=active]:text-white text-gray-400 text-xs font-semibold rounded-lg px-3.5 py-1.5 transition-all"
             >
-              <Layers className="w-4 h-4 text-emerald-400" />
-              {t.apps_overview}
+              Visão Geral & Planos
             </TabsTrigger>
             <TabsTrigger
               value="downloads"
-              className="data-[state=active]:bg-emerald-500/15 data-[state=active]:text-emerald-300 data-[state=active]:border-emerald-500/30 border border-transparent text-gray-400 text-sm font-semibold rounded-xl px-5 py-2.5 transition-all flex items-center gap-2"
+              className="data-[state=active]:bg-white/[0.08] data-[state=active]:text-white text-gray-400 text-xs font-semibold rounded-lg px-3.5 py-1.5 transition-all flex items-center gap-1.5"
             >
-              <Download className="w-4 h-4 text-emerald-400" />
-              Downloads & Tutoriais
+              <Download className="w-3.5 h-3.5 text-emerald-400" />
+              Downloads
             </TabsTrigger>
           </TabsList>
         </div>
 
-        <TabsContent value="overview" className="mt-6 space-y-7">
-          {/* Discount Hero Banner */}
-          <div
-            className="relative rounded-3xl p-6 sm:p-7 overflow-hidden border border-emerald-500/25"
-            style={{
-              background: "linear-gradient(135deg, rgba(16,185,129,0.12) 0%, rgba(6,78,59,0.06) 100%)",
-              boxShadow: "0 20px 50px -10px rgba(0,0,0,0.5), inset 0 1px 0 rgba(16,185,129,0.2)",
-            }}
-          >
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5 relative z-10">
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-lg shadow-emerald-500/10">
-                  <Percent className="w-7 h-7" />
+        <TabsContent value="overview" className="space-y-5">
+          {/* Barra de Resumo Compacta */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                  <Percent className="w-4 h-4" />
                 </div>
                 <div>
-                  <div className="flex items-center gap-2">
-                    <p className="text-gray-400 text-xs uppercase tracking-wider font-semibold">
-                      {t.apps_current_discount}
-                    </p>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
-                      ATIVO
-                    </span>
-                  </div>
-                  <div className="flex items-baseline gap-2 mt-1">
-                    <span className="text-white font-extrabold font-mono text-3xl sm:text-4xl leading-none">
-                      {discount.toFixed(0)}% OFF
-                    </span>
-                    <span className="text-gray-400 text-xs hidden md:inline">aplicado automaticamente nos preços</span>
-                  </div>
+                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Seu Desconto Atual</p>
+                  <p className="text-emerald-400 font-bold font-mono text-lg">{discount.toFixed(0)}% OFF</p>
                 </div>
               </div>
+              <span className="text-[10px] px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 border border-emerald-500/25 font-semibold">
+                ATIVO
+              </span>
+            </div>
 
-              {profile?.nextLevel && (
-                <div className="sm:border-l sm:border-white/10 sm:pl-6 text-left sm:text-right">
-                  <p className="text-gray-400 text-xs uppercase tracking-wider font-semibold">{t.apps_next_level}</p>
-                  <p className="text-emerald-400 text-base font-bold mt-0.5">
-                    +{(profile.nextLevel as any)?.purchasesNeeded} {language === "en" ? "purchases to upgrade" : "compras para subir"}
-                  </p>
-                </div>
-              )}
+            <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-gray-400">
+                <Tag className="w-4 h-4 text-emerald-400" />
+              </div>
+              <div>
+                <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Planos Cadastrados</p>
+                <p className="text-white font-bold text-sm">{app.plans?.length || 0} opções disponíveis</p>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-gray-400">
+                <Zap className="w-4 h-4 text-emerald-400" />
+              </div>
+              <div>
+                <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Entrega</p>
+                <p className="text-white font-semibold text-sm">Liberação Imediata pós-Pix</p>
+              </div>
             </div>
           </div>
 
-          {/* Plans Section */}
-          <div>
-            <div className="flex items-center justify-between mb-5">
+          {/* Tabela de Planos */}
+          <div className="rounded-2xl border border-white/[0.08] bg-white/[0.015] overflow-hidden">
+            <div className="px-5 py-4 border-b border-white/[0.06] flex items-center justify-between flex-wrap gap-3">
               <div>
-                <h3 className="text-white font-bold text-xl flex items-center gap-2.5">
-                  <ShoppingCart className="w-5 h-5 text-emerald-400" /> {t.apps_available_plans}
+                <h3 className="text-white font-semibold text-sm flex items-center gap-2">
+                  <ShoppingCart className="w-4 h-4 text-emerald-400" /> Tabela de Preços e Planos
                 </h3>
-                <p className="text-gray-500 text-xs mt-0.5">Escolha a duração e faça a compra instantânea da sua chave</p>
+                <p className="text-gray-500 text-xs mt-0.5">Selecione o plano desejado para comprar keys com entrega automática</p>
+              </div>
+
+              <div className="flex items-center gap-1 bg-black/40 border border-white/[0.06] p-1 rounded-lg">
+                <button
+                  onClick={() => setViewMode("table")}
+                  className={`p-1.5 rounded-md text-xs transition-all ${viewMode === "table" ? "bg-emerald-500/20 text-emerald-300" : "text-gray-400 hover:text-white"}`}
+                  title="Visualização em Lista"
+                >
+                  <List className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => setViewMode("grid")}
+                  className={`p-1.5 rounded-md text-xs transition-all ${viewMode === "grid" ? "bg-emerald-500/20 text-emerald-300" : "text-gray-400 hover:text-white"}`}
+                  title="Visualização em Grade"
+                >
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                </button>
               </div>
             </div>
 
             {!app.plans?.length ? (
-              <div className="p-12 text-center rounded-3xl border border-dashed border-white/10 bg-white/[0.01]">
-                <ShoppingCart className="w-10 h-10 text-gray-600 mx-auto mb-3" />
-                <p className="text-gray-400 text-sm">{t.apps_no_plans}</p>
+              <div className="p-10 text-center">
+                <ShoppingCart className="w-8 h-8 text-gray-600 mx-auto mb-2" />
+                <p className="text-gray-400 text-xs">Nenhum plano disponível no momento.</p>
+              </div>
+            ) : viewMode === "table" ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-white/[0.06] text-gray-400 font-semibold uppercase tracking-wider text-[11px]">
+                      <th className="px-5 py-3">Plano</th>
+                      <th className="px-4 py-3">Duração</th>
+                      <th className="px-4 py-3 text-right">Preço de Tabela</th>
+                      <th className="px-4 py-3 text-right">Seu Custo Revendedor</th>
+                      <th className="px-4 py-3 text-right">Preço de Venda</th>
+                      <th className="px-4 py-3 text-right">Margem</th>
+                      <th className="px-5 py-3 text-right">Ação</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/[0.04]">
+                    {app.plans.map((plan: any) => {
+                      const original = parseFloat(String(plan.pricePercentage ?? "0"));
+                      const withDiscount = original * (1 - discount / 100);
+                      const suggestedSell = parseFloat(String(plan.resellerSellingPrice ?? "0"));
+                      const profit = suggestedSell > withDiscount ? suggestedSell - withDiscount : 0;
+                      const profitPct = withDiscount > 0 ? ((profit / withDiscount) * 100).toFixed(0) : "0";
+
+                      return (
+                        <tr key={plan.id} className="hover:bg-white/[0.02] transition-colors">
+                          <td className="px-5 py-3.5">
+                            <div className="flex items-center gap-2">
+                              <span className="text-white font-semibold">{plan.name}</span>
+                              <span className="text-[10px] px-2 py-0.5 rounded-md border border-white/[0.08] text-gray-400 uppercase font-mono">
+                                {plan.level || "basic"}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3.5 text-gray-300">
+                            {plan.durationDays >= 9000 ? "Lifetime" : `${plan.durationDays} dias`}
+                          </td>
+                          <td className="px-4 py-3.5 text-right text-gray-500 line-through font-mono">
+                            {fmt(original)}
+                          </td>
+                          <td className="px-4 py-3.5 text-right font-mono font-bold text-emerald-400 text-sm">
+                            {fmt(withDiscount)}
+                          </td>
+                          <td className="px-4 py-3.5 text-right font-mono text-gray-200">
+                            {suggestedSell > 0 ? fmt(suggestedSell) : "—"}
+                          </td>
+                          <td className="px-4 py-3.5 text-right">
+                            {profit > 0 ? (
+                              <span className="text-emerald-400 font-mono font-medium text-[11px]">
+                                +{fmt(profit)} <span className="text-gray-500">({profitPct}%)</span>
+                              </span>
+                            ) : (
+                              <span className="text-gray-500">—</span>
+                            )}
+                          </td>
+                          <td className="px-5 py-3.5 text-right">
+                            <Button
+                              size="sm"
+                              onClick={() => { setSelectedPlan(plan); setShowBuy(true); }}
+                              className="h-8 px-3.5 text-xs font-semibold rounded-lg border-0 bg-emerald-500 hover:bg-emerald-400 text-black shadow-sm transition-all"
+                            >
+                              <ShoppingCart className="w-3.5 h-3.5 mr-1.5" /> Comprar
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
+              <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {app.plans.map((plan: any) => {
                   const original = parseFloat(String(plan.pricePercentage ?? "0"));
                   const withDiscount = original * (1 - discount / 100);
                   const suggestedSell = parseFloat(String(plan.resellerSellingPrice ?? "0"));
-                  const estimatedProfit = suggestedSell > withDiscount ? suggestedSell - withDiscount : 0;
-                  const profitPercentage = withDiscount > 0 ? ((estimatedProfit / withDiscount) * 100).toFixed(0) : 0;
+                  const profit = suggestedSell > withDiscount ? suggestedSell - withDiscount : 0;
 
                   return (
                     <div
                       key={plan.id}
-                      className="group relative rounded-3xl border border-white/[0.08] p-5 hover:border-emerald-500/40 hover:bg-emerald-500/[0.02] transition-all flex flex-col justify-between"
-                      style={{
-                        background: "linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)",
-                        boxShadow: "0 10px 30px rgba(0,0,0,0.3)",
-                      }}
+                      className="rounded-xl border border-white/[0.08] bg-black/30 p-4 flex flex-col justify-between hover:border-emerald-500/30 transition-all"
                     >
                       <div>
-                        {/* Top Badges */}
-                        <div className="flex items-center justify-between gap-2 mb-4">
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold bg-white/[0.04] border border-white/[0.08] text-gray-300">
-                            <Clock className="w-3.5 h-3.5 text-emerald-400" />
-                            {plan.durationDays >= 9000 ? t.apps_lifetime : `${plan.durationDays} ${t.apps_days}`}
-                          </span>
-                          <span className={`text-[10px] px-2.5 py-1 rounded-xl border font-bold uppercase tracking-wider ${levelColors[plan.level] ?? levelColors.basic}`}>
-                            {plan.level}
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-white font-bold text-sm">{plan.name}</span>
+                          <span className="text-[10px] text-gray-400 bg-white/[0.04] px-2 py-0.5 rounded border border-white/[0.06]">
+                            {plan.durationDays >= 9000 ? "Lifetime" : `${plan.durationDays}d`}
                           </span>
                         </div>
 
-                        {/* Plan Title */}
-                        <h4 className="text-white font-bold text-lg mb-4 group-hover:text-emerald-300 transition-colors">
-                          {plan.name}
-                        </h4>
-
-                        {/* Price Block */}
-                        <div className="p-4 rounded-2xl bg-black/40 border border-white/[0.06] mb-5 space-y-3">
-                          <div>
-                            <p className="text-gray-500 text-[11px] font-semibold uppercase tracking-wider">Custo Revendedor</p>
-                            <div className="flex items-baseline gap-2 mt-1">
-                              <span className="text-emerald-400 font-extrabold font-mono text-2xl leading-none">
-                                {fmt(withDiscount)}
-                              </span>
-                              {discount > 0 && original > 0 && (
-                                <span className="text-gray-500 text-xs line-through ml-1">{fmt(original)}</span>
-                              )}
+                        <div className="my-3 py-2.5 px-3 rounded-lg bg-white/[0.02] border border-white/[0.04] space-y-1.5">
+                          <div className="flex items-baseline justify-between">
+                            <span className="text-[10px] text-gray-400 uppercase font-medium">Seu Custo</span>
+                            <div className="flex items-baseline gap-1.5">
+                              <span className="text-emerald-400 font-mono font-bold text-base">{fmt(withDiscount)}</span>
+                              {discount > 0 && <span className="text-gray-500 text-[10px] line-through font-mono">{fmt(original)}</span>}
                             </div>
                           </div>
-
                           {suggestedSell > 0 && (
-                            <div className="pt-2.5 border-t border-white/[0.06] space-y-1">
-                              <div className="flex items-center justify-between text-xs">
-                                <span className="text-gray-400">{language === "en" ? "Suggested Sell" : "Preço de Venda"}</span>
-                                <span className="text-white font-mono font-bold">{fmt(suggestedSell)}</span>
-                              </div>
-                              {estimatedProfit > 0 && (
-                                <div className="flex items-center justify-between text-[11px]">
-                                  <span className="text-emerald-400/80 font-medium">Lucro Estimado</span>
-                                  <span className="text-emerald-400 font-mono font-bold">+{fmt(estimatedProfit)} ({profitPercentage}%)</span>
-                                </div>
-                              )}
+                            <div className="flex items-center justify-between text-[11px] pt-1 border-t border-white/[0.04]">
+                              <span className="text-gray-400">Venda Sugerida</span>
+                              <span className="text-gray-200 font-mono font-medium">{fmt(suggestedSell)}</span>
+                            </div>
+                          )}
+                          {profit > 0 && (
+                            <div className="flex items-center justify-between text-[10px] text-emerald-400">
+                              <span>Lucro Estimado</span>
+                              <span className="font-mono font-semibold">+{fmt(profit)}</span>
                             </div>
                           )}
                         </div>
                       </div>
 
                       <Button
+                        size="sm"
                         onClick={() => { setSelectedPlan(plan); setShowBuy(true); }}
-                        className="w-full h-11 rounded-2xl text-xs font-bold tracking-wide border-0 transition-all shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/35 hover:scale-[1.02]"
-                        style={{ background: "linear-gradient(135deg, #10b981 0%, #059669 100%)", color: "#fff" }}
+                        className="w-full h-8 text-xs font-semibold rounded-lg border-0 bg-emerald-500 hover:bg-emerald-400 text-black shadow-sm transition-all"
                       >
-                        <ShoppingCart className="w-4 h-4 mr-2" /> {t.apps_buy}
+                        <ShoppingCart className="w-3.5 h-3.5 mr-1.5" /> Comprar
                       </Button>
                     </div>
                   );
@@ -959,19 +959,17 @@ function PercentageAppDetail({ app, id, otherStore }: { app: any; id: number; ot
             )}
           </div>
 
-          {/* Features */}
+          {/* Features Compacto */}
           {app.features && (
-            <div className="rounded-3xl border border-white/[0.08] p-6 sm:p-7" style={{ background: "linear-gradient(180deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.01) 100%)" }}>
-              <h3 className="text-white font-bold text-base mb-4 flex items-center gap-2">
-                <Star className="w-4 h-4 text-emerald-400" /> {t.apps_features}
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="rounded-2xl border border-white/[0.08] bg-white/[0.015] p-5">
+              <h4 className="text-white font-semibold text-xs uppercase tracking-wider text-gray-400 mb-3 flex items-center gap-2">
+                <Star className="w-3.5 h-3.5 text-emerald-400" /> Recursos e Funções
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
                 {app.features.split("\n").filter(Boolean).map((f: string, i: number) => (
-                  <div key={i} className="flex items-start gap-3 p-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.04]">
-                    <div className="w-5 h-5 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <Check className="w-3 h-3 text-emerald-400" />
-                    </div>
-                    <span className="text-gray-300 text-sm leading-relaxed">{f}</span>
+                  <div key={i} className="flex items-center gap-2 text-xs text-gray-300">
+                    <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span className="truncate">{f.replace(/^\[\+\]\s*/, "")}</span>
                   </div>
                 ))}
               </div>
@@ -979,7 +977,7 @@ function PercentageAppDetail({ app, id, otherStore }: { app: any; id: number; ot
           )}
         </TabsContent>
 
-        <TabsContent value="downloads" className="mt-6">
+        <TabsContent value="downloads" className="mt-4">
           <ResellerDownloads appId={id} />
         </TabsContent>
       </Tabs>
@@ -1015,69 +1013,59 @@ function PercentageAppDetail({ app, id, otherStore }: { app: any; id: number; ot
         quantity={parseInt(quantity) || 1}
       />
 
-      {/* Buy Modal (from plan card click) */}
+      {/* Buy Modal Compacto */}
       <Dialog open={showBuy} onOpenChange={setShowBuy}>
-        <DialogContent
-          className="bg-[#0b1311] border border-emerald-500/20 text-white max-w-sm rounded-3xl p-0 overflow-hidden shadow-2xl"
-          style={{ boxShadow: "0 25px 70px rgba(0,0,0,0.85), 0 0 50px rgba(16,185,129,0.12)" }}
-        >
-          <div className="h-[2px] w-full bg-gradient-to-r from-transparent via-emerald-400/70 to-transparent" />
-          <div className="p-6 space-y-5">
-            <DialogHeader>
-              <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-                  <ShoppingCart className="w-5 h-5" />
-                </div>
-                <div>
-                  <DialogTitle className="text-white font-bold text-base">{language === "en" ? "Buy Key" : "Comprar Chave"}</DialogTitle>
-                  <p className="text-gray-400 text-xs mt-0.5">{selectedPlan?.name} — {app.name}</p>
-                </div>
-              </div>
-            </DialogHeader>
+        <DialogContent className="bg-[#0b100e] border border-white/[0.1] text-white max-w-sm rounded-2xl p-6 shadow-2xl">
+          <DialogHeader className="mb-4">
+            <DialogTitle className="text-white font-bold text-base">Comprar Chave</DialogTitle>
+            <p className="text-gray-400 text-xs mt-0.5">{selectedPlan?.name} — {app.name}</p>
+          </DialogHeader>
 
-            <div className="rounded-2xl border border-white/[0.08] p-4 bg-black/40 flex items-center justify-between">
+          <div className="space-y-4">
+            <div className="p-3.5 rounded-xl bg-black/40 border border-white/[0.06] flex items-center justify-between text-xs">
               <div>
-                <p className="text-gray-400 text-xs font-semibold uppercase">{t.apps_current_discount}</p>
-                <p className="text-emerald-400 font-extrabold text-2xl mt-0.5">{discount.toFixed(0)}% OFF</p>
+                <p className="text-gray-400 text-[10px] uppercase font-medium">Preço com Desconto ({discount.toFixed(0)}%)</p>
+                <p className="text-emerald-400 font-mono font-bold text-lg mt-0.5">
+                  R$ {(parseFloat(String(selectedPlan?.pricePercentage ?? "0")) * (1 - discount / 100)).toFixed(2)}
+                </p>
               </div>
               <div className="text-right">
-                <p className="text-gray-400 text-xs font-semibold uppercase">{language === "en" ? "Unit Price" : "Preço Unitário"}</p>
-                <p className="text-white font-mono font-bold text-xl mt-0.5">
-                  R$ {(parseFloat(String(selectedPlan?.pricePercentage ?? "0")) * (1 - discount / 100)).toFixed(2)}
+                <p className="text-gray-400 text-[10px] uppercase font-medium">Preço Normal</p>
+                <p className="text-gray-500 font-mono line-through text-xs mt-0.5">
+                  R$ {parseFloat(String(selectedPlan?.pricePercentage ?? "0")).toFixed(2)}
                 </p>
               </div>
             </div>
 
             <div>
-              <Label className="text-gray-300 text-xs font-semibold uppercase tracking-wider mb-2 block">{t.general_quantity}</Label>
+              <Label className="text-gray-300 text-xs font-medium block mb-1.5">Quantidade de Licenças</Label>
               <Input
                 type="number"
                 min="1"
                 max="100"
                 value={quantity}
                 onChange={e => setQuantity(e.target.value)}
-                className="bg-black/40 border-white/[0.08] focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/15 text-white rounded-xl h-11"
+                className="bg-black/30 border-white/[0.1] text-white rounded-lg h-9 text-xs"
               />
             </div>
 
-            <div className="flex gap-3 pt-2">
+            <div className="flex gap-2.5 pt-2">
               <Button
                 variant="outline"
                 onClick={() => setShowBuy(false)}
-                className="flex-1 h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-gray-300 hover:bg-white/[0.08] hover:text-white"
+                className="flex-1 h-9 rounded-lg border-white/[0.1] bg-white/[0.02] text-gray-300 hover:text-white text-xs"
               >
-                {t.apps_cancel}
+                Cancelar
               </Button>
               <Button
                 onClick={handleBuy}
                 disabled={createKeyPix.isPending || createKeyLtc.isPending}
-                className="flex-1 h-12 rounded-2xl font-bold border-0 shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 text-white"
-                style={{ background: "linear-gradient(135deg, #10b981 0%, #059669 100%)" }}
+                className="flex-1 h-9 rounded-lg font-semibold bg-emerald-500 hover:bg-emerald-400 text-black text-xs border-0"
               >
                 {(createKeyPix.isPending || createKeyLtc.isPending) ? (
-                  <><Loader2 className="w-4 h-4 animate-spin mr-2" /> {language === "en" ? "Loading..." : "Carregando..."}</>
+                  <><Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> Carregando...</>
                 ) : (
-                  <><ShoppingCart className="w-4 h-4 mr-2" /> {t.apps_confirm}</>
+                  <><ShoppingCart className="w-3.5 h-3.5 mr-1.5" /> Continuar</>
                 )}
               </Button>
             </div>
@@ -1094,30 +1082,30 @@ function ResellerDownloads({ appId }: { appId: number }) {
   const downloadItems = downloads.filter((d: any) => d.type === "download");
   const tutorialItems = downloads.filter((d: any) => d.type === "tutorial");
 
-  if (isLoading) return <div className="text-gray-500 text-sm py-8 text-center animate-pulse">Carregando downloads...</div>;
+  if (isLoading) return <div className="text-gray-500 text-xs py-6 text-center animate-pulse">Carregando downloads...</div>;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {downloadItems.length > 0 && (
-        <div>
-          <h3 className="text-white font-bold text-base mb-4 flex items-center gap-2">
-            <Download className="w-4 h-4 text-emerald-400" /> Arquivos para Download
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="rounded-2xl border border-white/[0.08] bg-white/[0.015] p-5">
+          <h4 className="text-white font-semibold text-xs uppercase tracking-wider text-gray-400 mb-3 flex items-center gap-2">
+            <Download className="w-3.5 h-3.5 text-emerald-400" /> Arquivos Disponíveis
+          </h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {downloadItems.map((d: any) => (
               <a
                 key={d.id}
                 href={d.url}
                 target="_blank"
                 rel="noreferrer"
-                className="group rounded-2xl border border-white/[0.08] p-5 hover:border-emerald-500/40 bg-white/[0.02] hover:bg-emerald-500/[0.03] transition-all flex items-center justify-between"
+                className="p-3.5 rounded-xl border border-white/[0.06] bg-black/20 hover:border-emerald-500/30 transition-all flex items-center justify-between"
               >
                 <div>
-                  <p className="text-white font-semibold text-sm group-hover:text-emerald-300 transition-colors">{d.title}</p>
-                  <p className="text-gray-500 text-xs mt-1">Clique para iniciar o download do arquivo</p>
+                  <p className="text-white font-medium text-xs">{d.title}</p>
+                  <p className="text-gray-500 text-[10px] mt-0.5">Download direto</p>
                 </div>
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-emerald-400 group-hover:scale-105 transition-transform">
-                  <Download className="w-4 h-4" />
+                <div className="w-7 h-7 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400">
+                  <Download className="w-3.5 h-3.5" />
                 </div>
               </a>
             ))}
@@ -1126,26 +1114,21 @@ function ResellerDownloads({ appId }: { appId: number }) {
       )}
 
       {tutorialItems.length > 0 && (
-        <div>
-          <h3 className="text-white font-bold text-base mb-4 flex items-center gap-2">
-            <Film className="w-4 h-4 text-emerald-400" /> Tutoriais e Vídeos Explicativos
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="rounded-2xl border border-white/[0.08] bg-white/[0.015] p-5">
+          <h4 className="text-white font-semibold text-xs uppercase tracking-wider text-gray-400 mb-3 flex items-center gap-2">
+            <Film className="w-3.5 h-3.5 text-emerald-400" /> Tutoriais e Vídeos
+          </h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {tutorialItems.map((d: any) => (
-              <div key={d.id} className="rounded-2xl border border-white/[0.08] p-5 bg-white/[0.02]">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-white font-semibold text-sm">{d.title}</p>
-                  <a
-                    href={d.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-emerald-400 hover:text-emerald-300 text-xs font-semibold flex items-center gap-1"
-                  >
-                    <Film className="w-3.5 h-3.5" /> Abrir link
+              <div key={d.id} className="p-3.5 rounded-xl border border-white/[0.06] bg-black/20 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-white font-medium text-xs">{d.title}</p>
+                  <a href={d.url} target="_blank" rel="noreferrer" className="text-emerald-400 hover:underline text-[11px] flex items-center gap-1">
+                    Abrir <ExternalLink className="w-3 h-3" />
                   </a>
                 </div>
                 {d.videoUrl && (
-                  <div className="mt-3 rounded-xl overflow-hidden aspect-video bg-black/60 border border-white/[0.06]">
+                  <div className="rounded-lg overflow-hidden aspect-video bg-black/60 border border-white/[0.06]">
                     <iframe
                       src={d.videoUrl}
                       className="w-full h-full"
@@ -1161,9 +1144,9 @@ function ResellerDownloads({ appId }: { appId: number }) {
       )}
 
       {downloads.length === 0 && (
-        <div className="text-center py-12 rounded-3xl border border-dashed border-white/10 bg-white/[0.01]">
-          <Download className="w-10 h-10 text-gray-600 mx-auto mb-3" />
-          <p className="text-gray-400 text-sm">Nenhum download ou tutorial cadastrado para este aplicativo.</p>
+        <div className="text-center py-10 rounded-2xl border border-dashed border-white/[0.08] bg-white/[0.01]">
+          <Download className="w-7 h-7 text-gray-600 mx-auto mb-2" />
+          <p className="text-gray-400 text-xs">Nenhum download ou tutorial cadastrado para este aplicativo.</p>
         </div>
       )}
     </div>
@@ -1175,64 +1158,51 @@ export default function ResellerAppDetail({ id }: { id: number }) {
   const [, navigate] = useLocation();
   const { data: app, isLoading } = trpc.reseller.appDetail.useQuery({ appId: id });
   const { data: profile } = trpc.reseller.profile.useQuery();
-  const { t, language } = useLanguage();
 
-  if (isLoading) return <div className="text-gray-500 py-12 text-center animate-pulse">{t.apps_loading_app}</div>;
-  if (!app) return <div className="text-gray-500 py-12 text-center">{t.apps_not_found}</div>;
+  if (isLoading) return <div className="text-gray-500 py-10 text-center text-xs animate-pulse">Carregando detalhes do app...</div>;
+  if (!app) return <div className="text-gray-500 py-10 text-center text-xs">Aplicativo não encontrado.</div>;
 
   const resellerType = profile?.resellerType ?? "credits";
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 p-4 sm:p-6">
-      {/* Header Banner */}
-      <div
-        className="rounded-3xl p-6 sm:p-8 border border-white/[0.08] relative overflow-hidden"
-        style={{
-          background: "linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(16,185,129,0.04) 100%)",
-          boxShadow: "0 20px 40px rgba(0,0,0,0.4)",
-        }}
-      >
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-5">
-          <div className="flex items-start sm:items-center gap-4">
-            <button
-              onClick={() => navigate("/reseller/apps")}
-              className="p-3 rounded-2xl text-gray-400 hover:text-white bg-white/[0.04] hover:bg-emerald-500/10 border border-white/[0.06] hover:border-emerald-500/20 transition-all shrink-0"
-              title="Voltar aos apps"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-            <div>
-              <div className="flex items-center gap-3 flex-wrap">
-                <h1 className="text-white text-2xl sm:text-3xl font-extrabold tracking-tight">{app.name}</h1>
-                <span className="text-xs px-2.5 py-1 rounded-full bg-white/[0.05] text-gray-300 font-mono border border-white/[0.08]">
-                  {app.version || "v1.0"}
-                </span>
-                <span className={`inline-flex items-center gap-1.5 text-xs px-3 py-1 rounded-full border font-semibold ${
-                  app.status === "active"
-                    ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
-                    : "bg-gray-500/15 text-gray-400 border-gray-500/30"
-                }`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${app.status === "active" ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" : "bg-gray-400"}`} />
-                  {app.status === "active" ? t.general_active : app.status}
-                </span>
-              </div>
-              <p className="text-gray-400 text-sm mt-1.5 max-w-2xl leading-relaxed">
-                {app.description || t.general_no_description}
-              </p>
+    <div className="max-w-6xl mx-auto space-y-5 p-4 sm:p-6">
+      {/* Header Corporativo Limpo */}
+      <div className="flex items-center justify-between gap-4 pb-4 border-b border-white/[0.06]">
+        <div className="flex items-center gap-3.5">
+          <button
+            onClick={() => navigate("/reseller/apps")}
+            className="p-2 rounded-xl text-gray-400 hover:text-white bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.06] transition-all"
+            title="Voltar"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+          <div>
+            <div className="flex items-center gap-2.5">
+              <h1 className="text-white text-xl sm:text-2xl font-bold tracking-tight">{app.name}</h1>
+              <span className="text-[10px] px-2 py-0.5 rounded-md bg-white/[0.04] text-gray-300 font-mono border border-white/[0.08]">
+                {app.version || "v1.0"}
+              </span>
+              <span className="inline-flex items-center gap-1.5 text-[10px] px-2.5 py-0.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 font-medium">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                Ativo
+              </span>
             </div>
-          </div>
-
-          <div className="flex items-center gap-2 self-start md:self-center">
-            {resellerType === "credits" ? (
-              <span className="text-xs px-3.5 py-2 rounded-2xl border font-bold bg-yellow-500/15 text-yellow-400 border-yellow-500/30 flex items-center gap-2">
-                <CreditCard className="w-4 h-4" /> {language === "en" ? "Credits Reseller" : "Revendedor de Créditos"}
-              </span>
-            ) : (
-              <span className="text-xs px-3.5 py-2 rounded-2xl border font-bold bg-emerald-500/15 text-emerald-400 border-emerald-500/30 flex items-center gap-2">
-                <Percent className="w-4 h-4" /> {language === "en" ? "Percentage Reseller" : "Revendedor com Porcentagem"}
-              </span>
+            {app.description && (
+              <p className="text-gray-400 text-xs mt-0.5">{app.description}</p>
             )}
           </div>
+        </div>
+
+        <div className="hidden sm:flex items-center gap-2">
+          {resellerType === "credits" ? (
+            <span className="text-xs px-3 py-1.5 rounded-xl border border-amber-500/25 bg-amber-500/10 text-amber-300 font-medium flex items-center gap-1.5">
+              <CreditCard className="w-3.5 h-3.5" /> Revendedor de Créditos
+            </span>
+          ) : (
+            <span className="text-xs px-3 py-1.5 rounded-xl border border-emerald-500/25 bg-emerald-500/10 text-emerald-300 font-medium flex items-center gap-1.5">
+              <Percent className="w-3.5 h-3.5" /> Revendedor de Porcentagem
+            </span>
+          )}
         </div>
       </div>
 
