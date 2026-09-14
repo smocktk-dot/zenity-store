@@ -251,61 +251,10 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Middle: Value proposition */}
-        <div className="auth-left-mid">
-          <h2 className="auth-left-title">
-            Distribuição de licenças<br />em escala empresarial.
-          </h2>
-          <p className="auth-left-desc">
-            Plataforma unificada para revendedores autorizados gerenciarem estoque, geração de keys,
-            integrações de gateway e relatórios em tempo real.
-          </p>
-
-          <ul className="auth-features">
-            <li>
-              <span className="auth-feature-dot" />
-              <div>
-                <p className="auth-feature-title">Geração automatizada de keys</p>
-                <p className="auth-feature-sub">Controle de estoque e revogação por HWID.</p>
-              </div>
-            </li>
-            <li>
-              <span className="auth-feature-dot" />
-              <div>
-                <p className="auth-feature-title">Gateways de API para bots</p>
-                <p className="auth-feature-sub">Integração direta com KeyAuth e PUB EMU.</p>
-              </div>
-            </li>
-            <li>
-              <span className="auth-feature-dot" />
-              <div>
-                <p className="auth-feature-title">Painel de revendedor dedicado</p>
-                <p className="auth-feature-sub">Créditos, percentual e loja própria.</p>
-              </div>
-            </li>
-          </ul>
-        </div>
-
-        {/* Bottom: Status card */}
-        <div className="auth-left-status">
-          <div className="auth-status-head">
-            <span className="auth-status-pulse" />
-            <span className="auth-status-label">Enterprise Network</span>
-          </div>
-          <div className="auth-status-metrics">
-            <div>
-              <span className="auth-status-value">99.98%</span>
-              <span className="auth-status-key">Uptime SLA</span>
-            </div>
-            <div>
-              <span className="auth-status-value">{"<25ms"}</span>
-              <span className="auth-status-key">Latência</span>
-            </div>
-            <div>
-              <span className="auth-status-value">v2.6</span>
-              <span className="auth-status-key">Console</span>
-            </div>
-          </div>
+        {/* Bottom: minimal status line */}
+        <div className="auth-left-foot">
+          <span className="auth-status-pulse" />
+          <span className="auth-status-label">Enterprise Network</span>
         </div>
       </div>
 
