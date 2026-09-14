@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Eye, EyeOff, Send, MessageCircle, CheckCircle2, User, Lock, ArrowRight, ShieldCheck } from "lucide-react";
+import { Eye, EyeOff, Send, MessageCircle, CheckCircle2, User, Lock, ArrowRight, ShieldCheck, Check } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -258,84 +258,86 @@ export default function LoginPage() {
       <div className="auth-right">
         {/* Top Header Bar */}
         <div className="w-full max-w-[420px] mx-auto flex items-center justify-between mb-8 z-20">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-400" />
-            <span className="text-[11px] font-mono tracking-[0.14em] uppercase text-gray-400">System Online</span>
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-zinc-900 border border-white/10 flex items-center justify-center font-black text-xs text-white">
+              VG
+            </div>
+            <span className="text-xs font-semibold tracking-[0.16em] uppercase text-zinc-200">SELLERS</span>
           </div>
           <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={() => setShowSupport(true)}
-              className="text-xs text-gray-400 hover:text-white transition-colors"
+              className="text-xs text-zinc-400 hover:text-white transition-colors"
             >
               Suporte
             </button>
-            <span className="text-gray-700">•</span>
+            <span className="text-zinc-800">|</span>
             <LanguageSwitcher />
           </div>
         </div>
 
         {/* Center Card */}
         <div className="auth-card w-full max-w-[420px] mx-auto my-auto z-10">
-          {/* Brand Mark */}
-          <div className="mb-8">
-            <div className="flex items-center gap-3 mb-5">
-              <div className="w-10 h-10 rounded-xl bg-white/[0.04] border border-white/10 flex items-center justify-center">
-                <ShieldCheck className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <h2 className="text-sm font-bold tracking-[0.2em] text-white uppercase">VG SELLERS</h2>
-                <p className="text-[10px] tracking-[0.14em] text-gray-500 uppercase font-mono">Painel Corporativo B2B</p>
-              </div>
+          <div className="mb-7">
+            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-white/[0.04] border border-white/[0.08] mb-3.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-[10px] font-mono uppercase tracking-[0.16em] text-zinc-300">Console do Revendedor</span>
             </div>
 
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">Autenticação</h1>
-            <p className="text-sm text-gray-400 mt-1.5 leading-relaxed">
-              Insira suas credenciais de revendedor para acessar o console de operações.
+            <h1 className="text-2xl sm:text-[28px] font-bold tracking-tight text-white leading-tight">
+              Acesse sua conta
+            </h1>
+            <p className="text-[13px] text-zinc-400 mt-1.5 leading-relaxed">
+              Entre com suas credenciais autorizadas para gerenciar licenças, estoque e integrações.
             </p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-gray-300">Usuário ou E-mail</label>
+              <label className="text-[11px] font-semibold uppercase tracking-[0.1em] text-zinc-400">
+                Usuário ou E-mail
+              </label>
               <div className="relative flex items-center">
-                <User className="absolute left-3.5 w-4 h-4 text-gray-500 pointer-events-none" />
+                <User className="absolute left-3.5 w-4 h-4 text-zinc-500 pointer-events-none" />
                 <input
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="Seu usuário cadastrado"
                   autoComplete="username"
-                  className="w-full h-11 pl-10 pr-4 text-sm bg-white/[0.03] border border-white/10 rounded-xl text-white placeholder:text-gray-600 focus:outline-none focus:border-white/30 focus:bg-white/[0.05] transition-all"
+                  className="w-full h-11 pl-10 pr-4 text-[13px] bg-[#0a0c10] border border-white/10 rounded-lg text-white placeholder:text-zinc-600 focus:outline-none focus:border-white/30 transition-all"
                 />
               </div>
             </div>
 
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-semibold text-gray-300">Senha de Acesso</label>
+                <label className="text-[11px] font-semibold uppercase tracking-[0.1em] text-zinc-400">
+                  Senha de Acesso
+                </label>
                 <button
                   type="button"
                   onClick={() => toast.info("Para redefinir a senha, entre em contato com o suporte ou administrador.")}
-                  className="text-xs text-gray-400 hover:text-white transition-colors"
+                  className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
                 >
                   Esqueceu a senha?
                 </button>
               </div>
               <div className="relative flex items-center">
-                <Lock className="absolute left-3.5 w-4 h-4 text-gray-500 pointer-events-none" />
+                <Lock className="absolute left-3.5 w-4 h-4 text-zinc-500 pointer-events-none" />
                 <input
                   type={showPass ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••••••"
                   autoComplete="current-password"
-                  className="w-full h-11 pl-10 pr-11 text-sm bg-white/[0.03] border border-white/10 rounded-xl text-white placeholder:text-gray-600 focus:outline-none focus:border-white/30 focus:bg-white/[0.05] transition-all"
+                  className="w-full h-11 pl-10 pr-11 text-[13px] bg-[#0a0c10] border border-white/10 rounded-lg text-white placeholder:text-zinc-600 focus:outline-none focus:border-white/30 transition-all"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPass(!showPass)}
-                  className="absolute right-3 p-1 text-gray-500 hover:text-gray-300 transition-colors"
+                  className="absolute right-3 p-1 text-zinc-500 hover:text-zinc-300 transition-colors"
                 >
                   {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -343,14 +345,17 @@ export default function LoginPage() {
             </div>
 
             <div className="flex items-center justify-between pt-1">
-              <label htmlFor="remember" className="flex items-center gap-2.5 text-xs text-gray-400 cursor-pointer select-none">
-                <input
-                  id="remember"
-                  type="checkbox"
-                  checked={remember}
-                  onChange={(e) => setRemember(e.target.checked)}
-                  className="w-4 h-4 rounded border-white/20 bg-white/5 accent-white cursor-pointer"
-                />
+              <label
+                onClick={() => setRemember(!remember)}
+                className="flex items-center gap-2.5 text-xs text-zinc-400 cursor-pointer select-none"
+              >
+                <div
+                  className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${
+                    remember ? "bg-white border-white text-black" : "bg-[#0a0c10] border-white/20"
+                  }`}
+                >
+                  {remember && <Check className="w-3 h-3 stroke-[3]" />}
+                </div>
                 <span>Manter conectado neste dispositivo</span>
               </label>
             </div>
@@ -358,17 +363,17 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full h-11 rounded-xl bg-white text-black font-semibold text-sm flex items-center justify-center gap-2 hover:bg-gray-100 transition-all active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_4px_20px_rgba(255,255,255,0.08)] mt-3"
+              className="w-full h-11 rounded-lg bg-white text-zinc-950 font-semibold text-xs tracking-[0.06em] uppercase flex items-center justify-center gap-2 hover:bg-zinc-200 transition-all active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_4px_20px_rgba(255,255,255,0.08)] mt-3"
             >
               {isLoading ? (
                 <>
-                  <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+                  <span className="w-3.5 h-3.5 border-2 border-zinc-950/30 border-t-zinc-950 rounded-full animate-spin" />
                   <span>Autenticando...</span>
                 </>
               ) : (
                 <>
                   <span>Entrar no Console</span>
-                  <ArrowRight className="w-4 h-4" />
+                  <ArrowRight className="w-3.5 h-3.5" />
                 </>
               )}
             </button>
@@ -383,24 +388,32 @@ export default function LoginPage() {
             </div>
           )}
 
-          {/* Clean B2B affiliation link */}
-          <div className="mt-7 pt-5 border-t border-white/10 flex items-center justify-between text-xs text-gray-500">
-            <span>Deseja se tornar revendedor?</span>
+          {/* Partner / Affiliation Card */}
+          <div className="mt-8 rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold text-zinc-200">Ainda não é um revendedor?</p>
+              <p className="text-[11px] text-zinc-500">Solicite credenciais para revender nossas ferramentas.</p>
+            </div>
             <button
               type="button"
               onClick={() => setShowApply(true)}
-              className="text-white hover:text-gray-300 font-medium transition-colors"
+              className="px-3.5 py-1.5 rounded-lg border border-white/10 bg-white/[0.05] text-xs font-medium text-white hover:bg-white/10 transition-all shrink-0"
             >
-              Solicitar afiliação →
+              Candidatar-se
             </button>
           </div>
         </div>
 
         {/* Security Footer */}
         <div className="w-full max-w-[420px] mx-auto text-center mt-8 z-10">
-          <p className="text-[11px] text-gray-600 leading-relaxed font-mono">
-            Ambiente seguro • Proteção de sessão por JWT & Whitelist
-            <br />
+          <div className="flex items-center justify-center gap-3 text-[11px] text-zinc-600 font-mono mb-1">
+            <span>Sessão Criptografada</span>
+            <span>•</span>
+            <span>IP Whitelist Ativo</span>
+            <span>•</span>
+            <span>SLA 99.98%</span>
+          </div>
+          <p className="text-[11px] text-zinc-600 font-mono">
             © 2026 VG SELLERS. Todos os direitos reservados.
           </p>
         </div>
