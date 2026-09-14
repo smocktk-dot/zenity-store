@@ -435,49 +435,99 @@ export default function ResellerTickets() {
       {/* New ticket modal */}
       <Dialog open={openNew} onOpenChange={setOpenNew}>
         <DialogContent
-          className="text-white max-w-lg border-0 rounded-2xl p-0 overflow-hidden"
+          className="text-white max-w-lg border-0 rounded-3xl p-0 overflow-hidden shadow-2xl"
           style={{
-            background: "linear-gradient(145deg, rgba(18,12,35,0.98) 0%, rgba(10,8,25,0.98) 100%)",
-            boxShadow: "0 0 0 1px rgba(16,185,129,0.22), 0 30px 70px rgba(0,0,0,0.7), 0 0 50px rgba(16,185,129,0.08)",
+            background: "linear-gradient(170deg, #0b1311 0%, #070a09 100%)",
+            boxShadow: "0 0 0 1px rgba(16,185,129,0.22), 0 30px 80px rgba(0,0,0,0.85), 0 0 60px rgba(16,185,129,0.12)",
           }}
         >
-          <div className="p-6">
+          {/* Glowing Top Line */}
+          <div className="h-[2px] w-full bg-gradient-to-r from-transparent via-emerald-400/70 to-transparent" />
+
+          <div className="p-6 sm:p-7">
             <DialogHeader className="mb-6">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-gradient-to-br from-emerald-500/20 to-emerald-900/20 border border-emerald-500/20">
-                  <Ticket className="w-6 h-6 text-emerald-400" />
-                </div>
-                <div>
-                  <DialogTitle className="text-white text-xl font-semibold">Abrir Ticket</DialogTitle>
-                  <p className="text-gray-500 text-xs mt-0.5">Descreva seu problema para o suporte da Zenity</p>
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 shadow-inner">
+                    <Ticket className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <DialogTitle className="text-white text-xl font-bold tracking-tight">Novo Ticket de Suporte</DialogTitle>
+                    <p className="text-gray-400 text-xs mt-0.5">Nossa equipe responderá o mais rápido possível</p>
+                  </div>
                 </div>
               </div>
             </DialogHeader>
 
             <form onSubmit={handleCreate} className="space-y-5">
+              {/* Sugestões Rápidas de Assunto */}
               <div>
-                <Label className="text-gray-400 text-xs font-bold uppercase tracking-wider">Assunto</Label>
-                <Input
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                  placeholder="Ex: Problema com key"
-                  className="mt-2 text-white border-white/[0.08] focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/10 bg-white/[0.03] rounded-xl"
-                  required
-                />
+                <Label className="text-gray-400 text-[11px] font-semibold uppercase tracking-wider block mb-2">
+                  Atalhos de assunto
+                </Label>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    "Problema com Key",
+                    "Dúvida sobre Créditos / Pix",
+                    "Reset de HWID",
+                    "Solicitação de Suporte",
+                  ].map((preset) => (
+                    <button
+                      type="button"
+                      key={preset}
+                      onClick={() => setSubject(preset)}
+                      className={`text-xs px-3 py-1.5 rounded-xl border transition-all ${
+                        subject === preset
+                          ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm"
+                          : "bg-white/[0.02] text-gray-400 border-white/[0.07] hover:border-emerald-500/30 hover:text-white hover:bg-emerald-500/5"
+                      }`}
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
               </div>
+
+              {/* Campo Assunto */}
               <div>
-                <Label className="text-gray-400 text-xs font-bold uppercase tracking-wider">Mensagem</Label>
+                <Label className="text-gray-300 text-xs font-semibold uppercase tracking-wider">
+                  Assunto *
+                </Label>
+                <div className="relative mt-2">
+                  <Input
+                    value={subject}
+                    onChange={(e) => setSubject(e.target.value)}
+                    placeholder="Ex: Não consigo ativar minha key..."
+                    className="h-11 text-white border-white/[0.08] focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/15 bg-black/40 rounded-xl pl-3.5 pr-4 text-sm placeholder:text-gray-600 transition-all"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Campo Mensagem */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <Label className="text-gray-300 text-xs font-semibold uppercase tracking-wider">
+                    Mensagem *
+                  </Label>
+                  <span className="text-[11px] text-gray-500">
+                    {message.length} caracteres
+                  </span>
+                </div>
                 <Textarea
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  placeholder="Descreva sua dúvida ou problema com o máximo de detalhes..."
-                  className="mt-2 text-white border-white/[0.08] focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/10 bg-white/[0.03] min-h-[140px] resize-none rounded-xl"
+                  placeholder="Explique o que aconteceu, informe dados relevantes ou envie detalhes da key..."
+                  className="text-white border-white/[0.08] focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/15 bg-black/40 min-h-[130px] resize-none rounded-xl p-3.5 text-sm placeholder:text-gray-600 transition-all leading-relaxed"
                   required
                 />
               </div>
 
+              {/* Upload de Anexo com Preview */}
               <div>
-                <Label className="text-gray-400 text-xs font-bold uppercase tracking-wider block mb-2">Anexo (opcional)</Label>
+                <Label className="text-gray-300 text-xs font-semibold uppercase tracking-wider block mb-2">
+                  Anexo de imagem (opcional)
+                </Label>
                 <input
                   type="file"
                   accept="image/*"
@@ -489,36 +539,58 @@ export default function ResellerTickets() {
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="flex items-center gap-2 w-full justify-center px-4 py-4 rounded-xl border border-dashed border-white/[0.12] text-gray-400 hover:text-emerald-400 hover:border-emerald-500/35 hover:bg-emerald-500/5 transition-all text-sm"
+                    className="group flex flex-col items-center justify-center gap-1.5 w-full py-4 px-4 rounded-2xl border border-dashed border-white/[0.12] hover:border-emerald-500/40 bg-black/20 hover:bg-emerald-500/[0.03] text-gray-400 hover:text-emerald-300 transition-all"
                   >
-                    <Image className="w-4 h-4" /> Adicionar foto
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-white/[0.04] group-hover:bg-emerald-500/10 text-gray-400 group-hover:text-emerald-400 transition-all">
+                      <Image className="w-4 h-4" />
+                    </div>
+                    <span className="text-xs font-medium">Clique para adicionar print ou comprovante</span>
+                    <span className="text-[10px] text-gray-500">PNG, JPG ou GIF (máx. 5MB)</span>
                   </button>
                 ) : (
-                  <div className="flex items-center gap-3 px-4 py-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm">
-                    <Image className="w-4 h-4" />
-                    <span className="flex-1 truncate">{imageName}</span>
-                    <button type="button" onClick={() => { setImageBase64(null); setImageName(null); }} className="text-gray-400 hover:text-red-400">
+                  <div className="flex items-center gap-3.5 p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/25">
+                    {imageBase64 && (
+                      <img
+                        src={imageBase64}
+                        alt="Preview"
+                        className="w-12 h-12 rounded-xl object-cover border border-emerald-500/30"
+                      />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-emerald-300 truncate">{imageName}</p>
+                      <p className="text-[10px] text-emerald-400/70 mt-0.5">Imagem pronta para envio</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setImageBase64(null); setImageName(null); }}
+                      className="p-2 rounded-xl text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                      title="Remover anexo"
+                    >
                       <X className="w-4 h-4" />
                     </button>
                   </div>
                 )}
               </div>
 
-              <div className="flex gap-3 pt-2">
+              {/* Botões de Ação */}
+              <div className="flex items-center gap-3 pt-3">
                 <Button
                   type="button"
                   onClick={() => setOpenNew(false)}
-                  className="flex-1 h-11 font-medium text-gray-300 rounded-xl transition-all duration-200 bg-white/[0.05] border border-white/[0.08] hover:bg-white/[0.08] hover:text-white"
+                  className="flex-1 h-12 font-medium text-gray-300 rounded-2xl bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.08] hover:text-white transition-all text-sm"
                 >
                   Cancelar
                 </Button>
                 <Button
                   type="submit"
                   disabled={createTicket.isPending || !subject.trim() || !message.trim()}
-                  className="flex-1 h-11 font-semibold text-white rounded-xl border-0 shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 hover:scale-[1.02] transition-all"
-                  style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}
+                  className="flex-1 h-12 font-semibold text-white rounded-2xl border-0 shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 hover:brightness-110 active:scale-[0.98] transition-all text-sm flex items-center justify-center gap-2"
+                  style={{
+                    background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+                  }}
                 >
-                  {createTicket.isPending ? "Abrindo..." : "Abrir Ticket"}
+                  <Send className="w-4 h-4" />
+                  {createTicket.isPending ? "Abrindo Ticket..." : "Enviar Ticket"}
                 </Button>
               </div>
             </form>
