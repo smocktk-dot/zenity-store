@@ -215,7 +215,7 @@ export default function LoginPage() {
 
   return (
     <div className="auth-page">
-      {/* Left side: WebGL Light Streaks warp speed background (monochrome starlight) */}
+      {/* Left side: Enterprise showcase panel */}
       <div className="auth-left">
         <div className="auth-left-bg">
           <LightStreaks
@@ -237,123 +237,166 @@ export default function LoginPage() {
           />
         </div>
 
-        {/* Enterprise Live Gateway badge on bottom-left */}
-        <div className="relative z-10 p-6 rounded-2xl border border-white/10 bg-black/60 backdrop-blur-2xl max-w-md">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-[11px] font-mono tracking-[0.16em] uppercase text-gray-300">Enterprise Network</span>
+        {/* Subtle grid overlay for depth */}
+        <div className="auth-left-grid" aria-hidden="true" />
+
+        {/* Top: Brand lockup */}
+        <div className="auth-left-top">
+          <div className="auth-brand-mark">
+            <span className="auth-brand-glyph">VG</span>
           </div>
-          <p className="text-sm font-medium text-white/90 leading-snug">
-            Infraestrutura de alta disponibilidade para distribuição e gestão automatizada de licenças B2B.
+          <div className="auth-brand-text">
+            <span className="auth-brand-name">VG SELLERS</span>
+            <span className="auth-brand-sub">Reseller Operations Console</span>
+          </div>
+        </div>
+
+        {/* Middle: Value proposition */}
+        <div className="auth-left-mid">
+          <h2 className="auth-left-title">
+            Distribuição de licenças<br />em escala empresarial.
+          </h2>
+          <p className="auth-left-desc">
+            Plataforma unificada para revendedores autorizados gerenciarem estoque, geração de keys,
+            integrações de gateway e relatórios em tempo real.
           </p>
-          <div className="mt-4 pt-3.5 border-t border-white/10 flex items-center justify-between text-[11px] text-gray-400 font-mono">
-            <span>Latência &lt; 25ms</span>
-            <span>Zero-Downtime</span>
-            <span>Console v2.6</span>
+
+          <ul className="auth-features">
+            <li>
+              <span className="auth-feature-dot" />
+              <div>
+                <p className="auth-feature-title">Geração automatizada de keys</p>
+                <p className="auth-feature-sub">Controle de estoque e revogação por HWID.</p>
+              </div>
+            </li>
+            <li>
+              <span className="auth-feature-dot" />
+              <div>
+                <p className="auth-feature-title">Gateways de API para bots</p>
+                <p className="auth-feature-sub">Integração direta com KeyAuth e PUB EMU.</p>
+              </div>
+            </li>
+            <li>
+              <span className="auth-feature-dot" />
+              <div>
+                <p className="auth-feature-title">Painel de revendedor dedicado</p>
+                <p className="auth-feature-sub">Créditos, percentual e loja própria.</p>
+              </div>
+            </li>
+          </ul>
+        </div>
+
+        {/* Bottom: Status card */}
+        <div className="auth-left-status">
+          <div className="auth-status-head">
+            <span className="auth-status-pulse" />
+            <span className="auth-status-label">Enterprise Network</span>
+          </div>
+          <div className="auth-status-metrics">
+            <div>
+              <span className="auth-status-value">99.98%</span>
+              <span className="auth-status-key">Uptime SLA</span>
+            </div>
+            <div>
+              <span className="auth-status-value">{"<25ms"}</span>
+              <span className="auth-status-key">Latência</span>
+            </div>
+            <div>
+              <span className="auth-status-value">v2.6</span>
+              <span className="auth-status-key">Console</span>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Right side: High-end B2B Authentication Console */}
+      {/* Right side: Authentication console */}
       <div className="auth-right">
         {/* Top Header Bar */}
-        <div className="w-full max-w-[420px] mx-auto flex items-center justify-between mb-8 z-20">
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-zinc-900 border border-white/10 flex items-center justify-center font-black text-xs text-white">
-              VG
-            </div>
-            <span className="text-xs font-semibold tracking-[0.16em] uppercase text-zinc-200">SELLERS</span>
+        <div className="auth-topbar">
+          <div className="auth-topbar-brand">
+            <div className="auth-topbar-glyph">VG</div>
+            <span className="auth-topbar-name">SELLERS</span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="auth-topbar-actions">
             <button
               type="button"
               onClick={() => setShowSupport(true)}
-              className="text-xs text-zinc-400 hover:text-white transition-colors"
+              className="auth-topbar-link"
             >
               Suporte
             </button>
-            <span className="text-zinc-800">|</span>
+            <span className="auth-topbar-sep" />
             <LanguageSwitcher />
           </div>
         </div>
 
         {/* Center Card */}
-        <div className="auth-card w-full max-w-[420px] mx-auto my-auto z-10">
-          <div className="mb-7">
-            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-white/[0.04] border border-white/[0.08] mb-3.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-[10px] font-mono uppercase tracking-[0.16em] text-zinc-300">Console do Revendedor</span>
+        <div className="auth-card">
+          <div className="auth-card-head">
+            <div className="auth-eyebrow">
+              <span className="auth-eyebrow-dot" />
+              <span>Console do Revendedor</span>
             </div>
 
-            <h1 className="text-2xl sm:text-[28px] font-bold tracking-tight text-white leading-tight">
-              Acesse sua conta
-            </h1>
-            <p className="text-[13px] text-zinc-400 mt-1.5 leading-relaxed">
+            <h1 className="auth-card-title">Acesse sua conta</h1>
+            <p className="auth-card-sub">
               Entre com suas credenciais autorizadas para gerenciar licenças, estoque e integrações.
             </p>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-semibold uppercase tracking-[0.1em] text-zinc-400">
-                Usuário ou E-mail
-              </label>
-              <div className="relative flex items-center">
-                <User className="absolute left-3.5 w-4 h-4 text-zinc-500 pointer-events-none" />
+          <form onSubmit={handleLogin} className="auth-form">
+            <div className="auth-field">
+              <label className="auth-label">Usuário ou E-mail</label>
+              <div className="auth-input-wrap">
+                <User className="auth-input-icon" />
                 <input
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="Seu usuário cadastrado"
                   autoComplete="username"
-                  className="w-full h-11 pl-10 pr-4 text-[13px] bg-[#0a0c10] border border-white/10 rounded-lg text-white placeholder:text-zinc-600 focus:outline-none focus:border-white/30 transition-all"
+                  className="auth-input"
                 />
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label className="text-[11px] font-semibold uppercase tracking-[0.1em] text-zinc-400">
-                  Senha de Acesso
-                </label>
+            <div className="auth-field">
+              <div className="auth-label-row">
+                <label className="auth-label">Senha de Acesso</label>
                 <button
                   type="button"
                   onClick={() => toast.info("Para redefinir a senha, entre em contato com o suporte ou administrador.")}
-                  className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+                  className="auth-forgot"
                 >
                   Esqueceu a senha?
                 </button>
               </div>
-              <div className="relative flex items-center">
-                <Lock className="absolute left-3.5 w-4 h-4 text-zinc-500 pointer-events-none" />
+              <div className="auth-input-wrap">
+                <Lock className="auth-input-icon" />
                 <input
                   type={showPass ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••••••"
                   autoComplete="current-password"
-                  className="w-full h-11 pl-10 pr-11 text-[13px] bg-[#0a0c10] border border-white/10 rounded-lg text-white placeholder:text-zinc-600 focus:outline-none focus:border-white/30 transition-all"
+                  className="auth-input auth-input--pass"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPass(!showPass)}
-                  className="absolute right-3 p-1 text-zinc-500 hover:text-zinc-300 transition-colors"
+                  className="auth-pass-toggle"
                 >
                   {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
             </div>
 
-            <div className="flex items-center justify-between pt-1">
+            <div className="auth-remember-row">
               <label
                 onClick={() => setRemember(!remember)}
-                className="flex items-center gap-2.5 text-xs text-zinc-400 cursor-pointer select-none"
+                className="auth-remember"
               >
-                <div
-                  className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${
-                    remember ? "bg-white border-white text-black" : "bg-[#0a0c10] border-white/20"
-                  }`}
-                >
+                <div className={`auth-check ${remember ? "auth-check--on" : ""}`}>
                   {remember && <Check className="w-3 h-3 stroke-[3]" />}
                 </div>
                 <span>Manter conectado neste dispositivo</span>
@@ -363,11 +406,11 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full h-11 rounded-lg bg-white text-zinc-950 font-semibold text-xs tracking-[0.06em] uppercase flex items-center justify-center gap-2 hover:bg-zinc-200 transition-all active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_4px_20px_rgba(255,255,255,0.08)] mt-3"
+              className="auth-submit"
             >
               {isLoading ? (
                 <>
-                  <span className="w-3.5 h-3.5 border-2 border-zinc-950/30 border-t-zinc-950 rounded-full animate-spin" />
+                  <span className="auth-spinner" />
                   <span>Autenticando...</span>
                 </>
               ) : (
@@ -381,23 +424,22 @@ export default function LoginPage() {
 
           {/* Discreet application notice if active */}
           {hasApplication && application?.status === "pre_approved" && (
-            <div className="mt-5 p-3 rounded-xl bg-white/[0.03] border border-white/10 text-center">
-              <p className="text-xs text-emerald-400 font-medium flex items-center justify-center gap-2">
-                <CheckCircle2 className="w-4 h-4" /> Sua aplicação foi pré-aprovada. Fale pelo chat.
-              </p>
+            <div className="auth-notice">
+              <CheckCircle2 className="w-4 h-4" />
+              <span>Sua aplicação foi pré-aprovada. Fale pelo chat.</span>
             </div>
           )}
 
           {/* Partner / Affiliation Card */}
-          <div className="mt-8 rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold text-zinc-200">Ainda não é um revendedor?</p>
-              <p className="text-[11px] text-zinc-500">Solicite credenciais para revender nossas ferramentas.</p>
+          <div className="auth-partner">
+            <div className="auth-partner-text">
+              <p className="auth-partner-title">Ainda não é um revendedor?</p>
+              <p className="auth-partner-sub">Solicite credenciais para revender nossas ferramentas.</p>
             </div>
             <button
               type="button"
               onClick={() => setShowApply(true)}
-              className="px-3.5 py-1.5 rounded-lg border border-white/10 bg-white/[0.05] text-xs font-medium text-white hover:bg-white/10 transition-all shrink-0"
+              className="auth-partner-btn"
             >
               Candidatar-se
             </button>
@@ -405,17 +447,15 @@ export default function LoginPage() {
         </div>
 
         {/* Security Footer */}
-        <div className="w-full max-w-[420px] mx-auto text-center mt-8 z-10">
-          <div className="flex items-center justify-center gap-3 text-[11px] text-zinc-600 font-mono mb-1">
+        <div className="auth-footer">
+          <div className="auth-footer-meta">
             <span>Sessão Criptografada</span>
-            <span>•</span>
+            <span className="auth-footer-sep">•</span>
             <span>IP Whitelist Ativo</span>
-            <span>•</span>
+            <span className="auth-footer-sep">•</span>
             <span>SLA 99.98%</span>
           </div>
-          <p className="text-[11px] text-zinc-600 font-mono">
-            © 2026 VG SELLERS. Todos os direitos reservados.
-          </p>
+          <p className="auth-footer-copy">© 2026 VG SELLERS. Todos os direitos reservados.</p>
         </div>
       </div>
 
