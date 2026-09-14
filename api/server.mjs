@@ -2930,7 +2930,7 @@ var authRouter = router({
   }),
   getMyApplication: publicProcedure.input(z2.object({ id: z2.number() })).query(async ({ input }) => {
     const app2 = await getResellerApplicationById(input.id);
-    if (!app2) throw new TRPCError3({ code: "NOT_FOUND" });
+    if (!app2) return null;
     const messages = await getApplicationMessages(input.id);
     return { ...app2, messages };
   }),
@@ -2969,7 +2969,7 @@ var authRouter = router({
   }),
   getMySupportTicket: publicProcedure.input(z2.object({ id: z2.number() })).query(async ({ input }) => {
     const ticket = await getSupportTicketById(input.id);
-    if (!ticket) throw new TRPCError3({ code: "NOT_FOUND" });
+    if (!ticket) return null;
     const messages = await getSupportMessages(input.id);
     return { ...ticket, messages };
   }),

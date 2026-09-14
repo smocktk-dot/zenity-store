@@ -334,7 +334,7 @@ const authRouter = router({
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
       const app = await getResellerApplicationById(input.id);
-      if (!app) throw new TRPCError({ code: "NOT_FOUND" });
+      if (!app) return null;
       const messages = await getApplicationMessages(input.id);
       return { ...app, messages };
     }),
@@ -382,7 +382,7 @@ const authRouter = router({
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
       const ticket = await getSupportTicketById(input.id);
-      if (!ticket) throw new TRPCError({ code: "NOT_FOUND" });
+      if (!ticket) return null;
       const messages = await getSupportMessages(input.id);
       return { ...ticket, messages };
     }),
