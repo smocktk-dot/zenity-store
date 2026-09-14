@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Eye, EyeOff, LogIn, Send, MessageCircle, CheckCircle2 } from "lucide-react";
+import { Eye, EyeOff, Send, MessageCircle, CheckCircle2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useLanguage } from "@/contexts/LanguageContext";
+import LightStreaks from "@/components/LightStreaks";
 
 const APP_STORAGE_KEY = "zenity_application_id";
 const SUPPORT_STORAGE_KEY = "zenity_support_id";
@@ -20,19 +21,6 @@ function formatDate(d: Date | string | null | undefined) {
     day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
   });
 }
-
-const LOGIN_STREAKS = Array.from({ length: 92 }, (_, i) => {
-  const normalized = i / 91 - 0.5;
-  return {
-    left: (i / 91) * 100,
-    height: 78 + ((i * 41) % 190),
-    delay: (i * 0.15) % 3.8,
-    duration: 4.1 + ((i * 23) % 30) / 10,
-    opacity: 0.2 + ((i * 11) % 50) / 100,
-    drift: Math.round(normalized * 220),
-    width: 1 + ((i * 7) % 2),
-  };
-});
 
 export default function LoginPage() {
   const [, navigate] = useLocation();
@@ -226,170 +214,195 @@ export default function LoginPage() {
   }, [supportTicket]);
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#050507] text-white">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_12%_0%,rgba(124,58,237,0.22),transparent_38%),radial-gradient(circle_at_82%_10%,rgba(255,255,255,0.06),transparent_35%)] pointer-events-none" />
-
-      <div className="hidden lg:block absolute inset-y-0 left-0 w-1/2 overflow-hidden">
-        <div className="login-streak-stage">
-          {LOGIN_STREAKS.map((line, idx) => (
-            <span
-              key={idx}
-              className="login-streak-line"
-              style={{
-                left: `${line.left}%`,
-                height: `${line.height}px`,
-                animationDelay: `-${line.delay}s`,
-                animationDuration: `${line.duration}s`,
-                opacity: line.opacity,
-                width: `${line.width}px`,
-                ["--drift" as any]: `${line.drift}px`,
-              }}
-            />
-          ))}
+    <div className="auth-page">
+      {/* Left side: WebGL Light Streaks warp speed background */}
+      <div className="auth-left">
+        <div className="auth-left-bg">
+          <LightStreaks
+            colors={["#ffffff", "#888888", "#cccccc"]}
+            backgroundColor="#050508"
+            speed={0.4}
+            streakCount={6}
+            streakWidth={1}
+            streakLength={1.2}
+            glow={0.8}
+            density={0.5}
+            twinkle={0.8}
+            zoom={2.5}
+            backgroundGlow={0.3}
+            opacity={0.7}
+            mouseInteraction={true}
+            mouseStrength={0.4}
+            mouseRadius={0.8}
+          />
         </div>
-        <div className="absolute inset-y-0 right-0 w-52 bg-gradient-to-l from-[#050507] to-transparent" />
       </div>
 
-      <div className="relative z-10 flex min-h-screen lg:justify-end">
-        <div
-          className="w-full lg:w-1/2 min-h-screen border-l border-white/10"
-          style={{ background: "rgba(7,7,10,0.9)", backdropFilter: "blur(18px)" }}
-        >
-          <div className="mx-auto flex min-h-screen w-full max-w-[500px] flex-col justify-center px-8 py-10 sm:px-12">
-            <div className="mb-9 flex items-center justify-between">
-              <p className="text-[11px] tracking-[0.16em] uppercase text-gray-300">✦ Stellar Sellers</p>
-              <LanguageSwitcher />
+      {/* Right side: Authentication card */}
+      <div className="auth-right">
+        {/* Language switcher discretely top-right */}
+        <div className="absolute top-6 right-6 z-20">
+          <LanguageSwitcher />
+        </div>
+
+        <div className="auth-card">
+          {/* Brand Logo */}
+          <a href="/" className="auth-logo">
+            <span className="flex items-center gap-2">
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,0.12)" strokeWidth="0.8" strokeDasharray="4 3" />
+                <path d="M12 2 L13.2 10.8 L22 12 L13.2 13.2 L12 22 L10.8 13.2 L2 12 L10.8 10.8 Z" fill="rgba(255,255,255,0.9)" />
+                <circle cx="12" cy="12" r="1.4" fill="white" />
+                <line x1="12" y1="4.5" x2="12" y2="6.5" stroke="rgba(255,255,255,0.35)" strokeWidth="0.8" strokeLinecap="round" />
+                <line x1="19.5" y1="12" x2="17.5" y2="12" stroke="rgba(255,255,255,0.35)" strokeWidth="0.8" strokeLinecap="round" />
+                <line x1="12" y1="19.5" x2="12" y2="17.5" stroke="rgba(255,255,255,0.35)" strokeWidth="0.8" strokeLinecap="round" />
+                <line x1="4.5" y1="12" x2="6.5" y2="12" stroke="rgba(255,255,255,0.35)" strokeWidth="0.8" strokeLinecap="round" />
+              </svg>
+              <span className="text-sm font-semibold tracking-wider text-white">StellarX</span>
+            </span>
+          </a>
+
+          <h1 className="auth-title">Bem-vindo de volta.</h1>
+          <p className="auth-sub">Entre na sua conta para continuar.</p>
+
+          <div className="social-btns">
+            <button
+              type="button"
+              onClick={() => toast.info("Use o login com usuário e senha.")}
+              className="social-btn social-btn-google"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+              </svg>
+              <span>Entrar com Google</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => toast.info("Use o login com usuário e senha.")}
+              className="social-btn social-btn-discord"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M13.545 2.907a13.2 13.2 0 0 0-3.257-1.011.05.05 0 0 0-.052.025c-.141.25-.297.577-.406.833a12.2 12.2 0 0 0-3.658 0 8 8 0 0 0-.412-.833.05.05 0 0 0-.052-.025c-1.125.194-2.22.534-3.257 1.011a.04.04 0 0 0-.021.018C.356 6.024-.213 9.047.066 12.032q.003.022.021.037a13.3 13.3 0 0 0 3.995 2.02.05.05 0 0 0 .056-.019q.463-.63.818-1.329a.05.05 0 0 0-.01-.059l-.018-.011a9 9 0 0 1-1.248-.595.05.05 0 0 1-.02-.066l.015-.019q.127-.095.248-.195a.05.05 0 0 1 .051-.007c2.619 1.196 5.454 1.196 8.041 0a.05.05 0 0 1 .053.007q.121.1.248.195a.05.05 0 0 1-.004.085 8 8 0 0 1-1.249.594.05.05 0 0 0-.03.03.05.05 0 0 0 .003.041c.24.465.515.909.817 1.329a.05.05 0 0 0 .056.019 13.2 13.2 0 0 0 4.001-2.02.05.05 0 0 0 .021-.037c.334-3.451-.559-6.449-2.366-9.106a.03.03 0 0 0-.02-.019m-8.198 7.307c-.789 0-1.438-.724-1.438-1.612s.637-1.613 1.438-1.613c.807 0 1.45.73 1.438 1.613 0 .888-.637 1.612-1.438 1.612m5.316 0c-.788 0-1.438-.724-1.438-1.612s.637-1.613 1.438-1.613c.807 0 1.451.73 1.438 1.613 0 .888-.631 1.612-1.438 1.612" />
+              </svg>
+              <span>Entrar com Discord</span>
+            </button>
+          </div>
+
+          <div className="auth-divider">
+            <span>ou</span>
+          </div>
+
+          <form onSubmit={handleLogin} className="auth-form">
+            <div className="field">
+              <label htmlFor="email">Email ou Usuário</label>
+              <input
+                id="email"
+                type="text"
+                placeholder="voce@exemplo.com ou usuário"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                autoComplete="username"
+              />
             </div>
 
-            <div className="mb-7">
-              <h1 className="text-[34px] sm:text-[38px] font-semibold leading-tight text-white">Bem-vindo de volta.</h1>
-              <p className="mt-2 text-[13px] text-gray-400">Entre na sua conta para continuar.</p>
-            </div>
-
-            <div className="space-y-2">
-              <button
-                type="button"
-                onClick={() => toast.info("Use o login com usuário e senha.")}
-                className="w-full h-10 rounded-md border border-white/12 bg-white/[0.03] text-xs font-medium text-gray-200 transition-colors hover:bg-white/[0.06]"
-              >
-                Entrar com Google
-              </button>
-              <button
-                type="button"
-                onClick={() => toast.info("Use o login com usuário e senha.")}
-                className="w-full h-10 rounded-md border border-white/12 bg-white/[0.03] text-xs font-medium text-gray-200 transition-colors hover:bg-white/[0.06]"
-              >
-                Entrar com Discord
-              </button>
-            </div>
-
-            <div className="my-5 flex items-center gap-3 text-[10px] uppercase tracking-[0.16em] text-gray-600">
-              <div className="h-px flex-1 bg-white/10" />
-              ou
-              <div className="h-px flex-1 bg-white/10" />
-            </div>
-
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">{t.login_username}</label>
-                <Input
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder={t.login_username_placeholder}
-                  autoComplete="username"
-                  className="h-10 rounded-md border-white/15 bg-white/[0.03] text-sm text-white placeholder:text-gray-600 focus-visible:ring-0 focus-visible:border-violet-400/50"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">{t.login_password}</label>
-                <div className="relative">
-                  <Input
-                    type={showPass ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••••"
-                    autoComplete="current-password"
-                    className="h-10 rounded-md border-white/15 bg-white/[0.03] pr-10 text-sm text-white placeholder:text-gray-600 focus-visible:ring-0 focus-visible:border-violet-400/50"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPass(!showPass)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
-                  >
-                    {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between pt-1">
-                <label htmlFor="remember" className="flex items-center gap-2 text-xs text-gray-400 cursor-pointer select-none">
-                  <input
-                    id="remember"
-                    type="checkbox"
-                    checked={remember}
-                    onChange={(e) => setRemember(e.target.checked)}
-                    className="h-4 w-4 rounded border-white/20 bg-black/30 accent-violet-500"
-                  />
-                  Lembrar de mim
-                </label>
+            <div className="field">
+              <label htmlFor="password">
+                <span>Senha</span>
                 <button
                   type="button"
-                  className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
-                  onClick={() => toast.info("Entre em contato com o admin.")}
+                  className="field-link"
+                  onClick={() => toast.info("Entre em contato com o suporte ou administrador.")}
                 >
                   Esqueceu a senha?
                 </button>
+              </label>
+              <div className="pw-wrap">
+                <input
+                  id="password"
+                  type={showPass ? "text" : "password"}
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                />
+                <button
+                  type="button"
+                  className="pw-eye"
+                  onClick={() => setShowPass(!showPass)}
+                >
+                  {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
-
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="mt-2 flex h-10 w-full items-center justify-center gap-2 rounded-md text-sm font-semibold text-black transition-all"
-                style={{
-                  background: isLoading
-                    ? "linear-gradient(135deg, rgba(234,234,255,0.55), rgba(202,202,230,0.55))"
-                    : "linear-gradient(135deg, #f5f5f8, #d9d9de)",
-                  cursor: isLoading ? "not-allowed" : "pointer",
-                }}
-              >
-                {isLoading ? (
-                  <>
-                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-black/30 border-t-black" />
-                    {t.login_signing_in}
-                  </>
-                ) : (
-                  <>
-                    <LogIn className="w-3.5 h-3.5" />
-                    {t.login_sign_in}
-                  </>
-                )}
-              </button>
-            </form>
-
-            <div className="mt-5 text-center text-xs text-gray-500">
-              Não tem conta?{" "}
-              <button type="button" onClick={() => setShowApply(true)} className="text-gray-300 hover:text-violet-300 transition-colors">
-                Criar uma
-              </button>
-              <span className="mx-2 text-gray-700">•</span>
-              <button type="button" onClick={() => setShowSupport(true)} className="hover:text-gray-300 transition-colors">
-                Ajuda
-              </button>
             </div>
 
-            {hasApplication && application?.status === "pre_approved" && (
-              <p className="mt-4 flex items-center gap-2 text-sm font-medium text-emerald-400">
-                <CheckCircle2 className="h-4 w-4" /> Pré-aprovado! Clique no chat flutuante.
-              </p>
-            )}
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={remember}
+                onChange={(e) => setRemember(e.target.checked)}
+              />
+              <span className={`toggle-track ${remember ? "toggle-on" : ""}`}>
+                <span className="toggle-thumb" />
+              </span>
+              <span>Lembrar de mim</span>
+            </label>
 
-            <p className="mt-8 text-[11px] leading-relaxed text-gray-600">
-              {t.login_secure_access}
-              <br />
-              {t.login_copyright}
+            {/* Cloudflare Turnstile Verified badge identical to reference */}
+            <div className="flex items-center justify-between px-3.5 py-2.5 rounded-lg border border-white/10 bg-white/[0.02]">
+              <div className="flex items-center gap-2 text-xs text-emerald-400 font-medium">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                <span>Sucesso!</span>
+              </div>
+              <div className="flex items-center gap-1.5 opacity-60 text-[10px] uppercase tracking-wider text-gray-400">
+                <svg className="w-4 h-4 text-amber-500" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/>
+                </svg>
+                <span className="font-semibold text-gray-300">CLOUDFLARE</span>
+              </div>
+            </div>
+
+            <button type="submit" disabled={isLoading} className="auth-submit">
+              {isLoading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+                  {t.login_signing_in}
+                </span>
+              ) : (
+                "Entrar →"
+              )}
+            </button>
+          </form>
+
+          <p className="auth-footer-text">
+            Não tem conta?{" "}
+            <button type="button" onClick={() => setShowApply(true)} className="text-white hover:underline">
+              Criar uma
+            </button>
+            <span className="mx-2 text-gray-600">•</span>
+            <button type="button" onClick={() => setShowSupport(true)} className="hover:underline">
+              Ajuda
+            </button>
+          </p>
+
+          {hasApplication && application?.status === "pre_approved" && (
+            <p className="mt-4 flex items-center justify-center gap-2 text-sm font-medium text-emerald-400">
+              <CheckCircle2 className="h-4 w-4" /> Pré-aprovado! Clique no chat flutuante.
             </p>
-          </div>
+          )}
+
+          <p className="auth-legal text-center">
+            Ao continuar, você concorda com nossos{" "}
+            <a href="#" onClick={(e) => { e.preventDefault(); toast.info("Termos de Serviço disponíveis no suporte."); }}>
+              Termos de Serviço
+            </a>{" "}
+            e{" "}
+            <a href="#" onClick={(e) => { e.preventDefault(); toast.info("Política de Privacidade disponível no suporte."); }}>
+              Política de Privacidade
+            </a>.
+          </p>
         </div>
       </div>
 
