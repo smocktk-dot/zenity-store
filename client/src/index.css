@@ -1319,34 +1319,49 @@ input:-webkit-autofill:active {
 
 /* ─── Right content ─── */
 .ri-right {
-  padding: 40px 48px 32px;
+  padding: 28px 48px 32px;
+  justify-content: flex-start;
+  gap: 16px;
 }
 
 .ri-content {
   width: 100%;
   max-width: 760px;
-  margin: 0 auto;
+  margin: 0;
   position: relative;
   z-index: 10;
 }
 
 .ri-content-head {
-  margin-bottom: 32px;
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .ri-content-title {
-  font-size: 26px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
   color: #ffffff;
-  margin-top: 14px;
+  margin-top: 12px;
+}
+
+.ri-content-title::after {
+  content: '';
+  display: block;
+  width: 48px;
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #34d399, transparent);
+  margin-top: 12px;
 }
 
 .ri-content-sub {
-  font-size: 13px;
-  line-height: 1.55;
-  color: #a1a1aa;
-  margin-top: 8px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.5);
+  margin-top: 10px;
   max-width: 560px;
 }
 

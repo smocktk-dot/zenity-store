@@ -1108,16 +1108,17 @@ const adminRouter = router({
     .mutation(async ({ input }) => {
       let imageUrl: string | undefined;
       if (input.imageUrlBase64) {
-        imageUrl = (await uploadBase64Image(input.imageUrlBase64, "reseller-info")) || undefined;
+        const uploaded = await uploadBase64Image(input.imageUrlBase64, "reseller-info");
+        imageUrl = uploaded ?? input.imageUrlBase64;
       }
       let galleryImages: string | undefined;
       if (input.galleryImagesBase64 && input.galleryImagesBase64.length > 0) {
-        const urls: string[] = [];
+        const entries: string[] = [];
         for (const b64 of input.galleryImagesBase64) {
           const url = await uploadBase64Image(b64, "reseller-info");
-          if (url) urls.push(url);
+          entries.push(url ?? b64);
         }
-        if (urls.length > 0) galleryImages = JSON.stringify(urls);
+        if (entries.length > 0) galleryImages = JSON.stringify(entries);
       }
       const { imageUrlBase64, galleryImagesBase64, ...data } = input;
       const row = await createResellerInfoProduct({
@@ -1149,18 +1150,19 @@ const adminRouter = router({
       const { id, imageUrlBase64, clearImage, galleryImagesBase64, clearGallery, ...data } = input;
       let imageUrl: string | undefined | null;
       if (imageUrlBase64) {
-        imageUrl = (await uploadBase64Image(imageUrlBase64, "reseller-info")) || undefined;
+        const uploaded = await uploadBase64Image(imageUrlBase64, "reseller-info");
+        imageUrl = uploaded ?? imageUrlBase64;
       } else if (clearImage) {
         imageUrl = null;
       }
       let galleryImages: string | undefined | null;
       if (galleryImagesBase64 && galleryImagesBase64.length > 0) {
-        const urls: string[] = [];
+        const entries: string[] = [];
         for (const b64 of galleryImagesBase64) {
           const url = await uploadBase64Image(b64, "reseller-info");
-          if (url) urls.push(url);
+          entries.push(url ?? b64);
         }
-        if (urls.length > 0) galleryImages = JSON.stringify(urls);
+        if (entries.length > 0) galleryImages = JSON.stringify(entries);
       } else if (clearGallery) {
         galleryImages = null;
       }
