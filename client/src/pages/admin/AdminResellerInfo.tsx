@@ -43,14 +43,40 @@ type Product = {
 };
 
 const DEFAULT_DISCORD_URL = "https://discord.gg/vgseller";
+const MAX_IMAGE_MB = 5; // tamanho bruto do file
+const MAX_BASE64_CHARS = 3_000_000; // ~3 MB de base64 no body JSON (protege contra Vercel 413)
+
+function currentBase64Size(cover: string, gallery: string[]) {
+  return cover.length + gallery.reduce((sum, b) => sum + b.length, 0);
+}
+
+async function compressImage(file: File, maxWidth = 1200, maxHeight = 1200, quality = 0.88): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > maxWidth || height > maxHeight) {
+        const scale = Math.min(maxWidth / width, maxHeight / height);
+        width = Math.floor(width * scale);
+        height = Math.floor(height * scale);
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { reject(new Error("Canvas não suportado")); return; }
+      ctx.fillStyle = "#0a0c10";
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = (e) => reject(e);
+    img.src = URL.createObjectURL(file);
+  });
+}
 
 function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
+  return compressImage(file);
 }
 
 const emptyForm = {
@@ -131,8 +157,9 @@ export default function AdminResellerInfo() {
 
   const handleCoverFile = async (file: File) => {
     if (!file.type.startsWith("image/")) { toast.error("Selecione uma imagem"); return; }
-    if (file.size > 5 * 1024 * 1024) { toast.error("Imagem muito grande (máx 5MB)"); return; }
+    if (file.size > MAX_IMAGE_MB * 1024 * 1024) { toast.error(`Imagem muito grande (máx ${MAX_IMAGE_MB}MB)`); return; }
     const base64 = await fileToBase64(file);
+    if (base64.length > MAX_BASE64_CHARS) { toast.error("Imagem ainda muito grande após compressão. Tente uma imagem menor."); return; }
     setCoverBase64(base64);
     setCoverPreview(base64);
     setClearCover(false);
@@ -141,10 +168,17 @@ export default function AdminResellerInfo() {
   const handleGalleryFiles = async (files: FileList) => {
     const newPreviews: string[] = [];
     const newBase64: string[] = [];
+    let currentSize = currentBase64Size(coverBase64, [...galleryBase64, ...newBase64]);
+
     for (const file of Array.from(files)) {
       if (!file.type.startsWith("image/")) continue;
-      if (file.size > 5 * 1024 * 1024) { toast.error(`${file.name} muito grande (máx 5MB)`); continue; }
+      if (file.size > MAX_IMAGE_MB * 1024 * 1024) { toast.error(`${file.name} muito grande (máx ${MAX_IMAGE_MB}MB)`); continue; }
       const base64 = await fileToBase64(file);
+      if (currentSize + base64.length > MAX_BASE64_CHARS) {
+        toast.error(`Limite de tamanho atingido. Adicione menos imagens ou use arquivos menores. (${newBase64.length} adicionadas)`);
+        break;
+      }
+      currentSize += base64.length;
       newPreviews.push(base64);
       newBase64.push(base64);
     }
@@ -192,6 +226,10 @@ export default function AdminResellerInfo() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (currentBase64Size(coverBase64, galleryBase64) > MAX_BASE64_CHARS) {
+      toast.error("As imagens anexadas são muito grandes. Reduza a quantidade/tamanho ou comprima-as.");
+      return;
+    }
     const base = {
       title: form.title.trim(),
       slug: form.slug.trim() || slugify(form.title),

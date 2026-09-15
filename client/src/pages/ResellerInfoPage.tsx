@@ -85,47 +85,68 @@ export default function ResellerInfoPage() {
 
         {/* Center hero copy */}
         <div className="ri-left-hero">
-          <div className="ri-eyebrow">
-            <span className="ri-eyebrow-dot" />
-            <span>Programa de Revenda</span>
-          </div>
-          <h1 className="ri-left-title">
-            Torne-se um<br />
-            <span className="ri-left-title-accent">Revendedor Oficial</span>
-          </h1>
-          <p className="ri-left-sub">
-            Acesse tecnologia exclusiva, painéis profissionais e margens reais de lucro.
-            Escolha o produto que combina com seu público e comece a vender hoje mesmo.
-          </p>
+          <div className="ri-hero-glow" aria-hidden="true" />
+          <div className="ri-hero-card">
+            <div className="ri-eyebrow">
+              <span className="ri-eyebrow-dot" />
+              <span>Programa de Revenda</span>
+            </div>
+            <h1 className="ri-left-title">
+              Torne-se um<br />
+              <span className="ri-left-title-accent">Revendedor Oficial</span>
+            </h1>
+            <p className="ri-left-sub">
+              Acesse tecnologia exclusiva, painéis profissionais e margens reais de lucro.
+              Escolha o produto que combina com seu público e comece a vender hoje mesmo.
+            </p>
 
-          <div className="ri-left-features">
-            <div className="ri-feature">
-              <div className="ri-feature-icon">
-                <ShieldCheck className="w-4 h-4" />
+            <div className="ri-left-features">
+              <div className="ri-feature">
+                <div className="ri-feature-icon">
+                  <ShieldCheck className="w-4 h-4" />
+                </div>
+                <div className="ri-feature-text">
+                  <span className="ri-feature-title">Tecnologia Exclusiva</span>
+                  <span className="ri-feature-desc">Servidores privados e zero detecção</span>
+                </div>
               </div>
-              <div className="ri-feature-text">
-                <span className="ri-feature-title">Tecnologia Exclusiva</span>
-                <span className="ri-feature-desc">Servidores privados e zero detecção</span>
+              <div className="ri-feature">
+                <div className="ri-feature-icon">
+                  <Crown className="w-4 h-4" />
+                </div>
+                <div className="ri-feature-text">
+                  <span className="ri-feature-title">Painel Profissional</span>
+                  <span className="ri-feature-desc">Gestão completa de keys e estoque</span>
+                </div>
+              </div>
+              <div className="ri-feature">
+                <div className="ri-feature-icon">
+                  <Zap className="w-4 h-4" />
+                </div>
+                <div className="ri-feature-text">
+                  <span className="ri-feature-title">Geração Automática</span>
+                  <span className="ri-feature-desc">Keys entregues na hora via API</span>
+                </div>
               </div>
             </div>
-            <div className="ri-feature">
-              <div className="ri-feature-icon">
-                <Crown className="w-4 h-4" />
-              </div>
-              <div className="ri-feature-text">
-                <span className="ri-feature-title">Painel Profissional</span>
-                <span className="ri-feature-desc">Gestão completa de keys e estoque</span>
-              </div>
-            </div>
-            <div className="ri-feature">
-              <div className="ri-feature-icon">
-                <Zap className="w-4 h-4" />
-              </div>
-              <div className="ri-feature-text">
-                <span className="ri-feature-title">Geração Automática</span>
-                <span className="ri-feature-desc">Keys entregues na hora via API</span>
-              </div>
-            </div>
+          </div>
+        </div>
+
+        {/* Bottom stats */}
+        <div className="ri-left-stats">
+          <div className="ri-left-stat">
+            <span className="ri-left-stat-value">24/7</span>
+            <span className="ri-left-stat-label">Suporte</span>
+          </div>
+          <div className="ri-left-stat-sep" />
+          <div className="ri-left-stat">
+            <span className="ri-left-stat-value">API</span>
+            <span className="ri-left-stat-label">Própria</span>
+          </div>
+          <div className="ri-left-stat-sep" />
+          <div className="ri-left-stat">
+            <span className="ri-left-stat-value">Auto</span>
+            <span className="ri-left-stat-label">Entrega</span>
           </div>
         </div>
 
