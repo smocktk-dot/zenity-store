@@ -1,0 +1,13 @@
+Campos de traducao EN para produtos do reseller info
+
+- Adiciona `descriptionEn`, `pricingCreditsEn` e `pricingPercentageEn` na
+  tabela `reseller_info_products` (schema, migration e ensureResellerInfoSchema)
+- Expoe os campos nas procedures create/update do tRPC
+- Atualiza o admin para cadastrar/editar as versoes PT e EN
+- /resellerinfo usa o i18n helper para mostrar a versao EN quando o
+  LanguageSwitcher estiver em EN, com fallback para PT se vazio
+- Os produtos que ja existem continuam em PT ate voce preencher o EN
+
+Generated with [Devin](https://devin.ai)
+
+Co-Authored-By: Devin <158243242+devin-ai-integration[bot]@users.noreply.github.com>

@@ -48,8 +48,11 @@ type Product = {
   slug: string;
   tagline: string | null;
   description: string | null;
+  descriptionEn: string | null;
   pricingCredits: string | null;
+  pricingCreditsEn: string | null;
   pricingPercentage: string | null;
+  pricingPercentageEn: string | null;
   imageUrl: string | null;
   galleryImages: string | null;
   discordUrl: string | null;
@@ -67,6 +70,12 @@ function allProductImages(p: Product): string[] {
     } catch { /* ignore */ }
   }
   return images;
+}
+
+function i18nField(p: Product, ptField: keyof Product, enField: keyof Product, lang: "pt" | "en"): string | null {
+  const en = lang === "en" ? (p[enField] as string | null) : null;
+  if (en && en.trim().length > 0) return en;
+  return p[ptField] as string | null;
 }
 
 function ProductImageBanner({ product }: { product: Product }) {
@@ -522,7 +531,7 @@ export default function ResellerInfoPage() {
                     <span>{L.description}</span>
                   </div>
                   <div className="ri-description">
-                    {selectedProduct.description.split("\n").map((line, i) => (
+                    {(i18nField(selectedProduct, "description", "descriptionEn", language) || "").split("\n").map((line, i) => (
                       <p key={i}>{line}</p>
                     ))}
                   </div>
@@ -542,7 +551,7 @@ export default function ResellerInfoPage() {
                     </div>
                   </div>
                   <div className="ri-pricing-body">
-                    {selectedProduct.pricingCredits.split("\n").map((line, i) => (
+                    {(i18nField(selectedProduct, "pricingCredits", "pricingCreditsEn", language) || "").split("\n").map((line, i) => (
                       <div key={i} className="ri-pricing-line">
                         <span className="ri-pricing-bullet" />
                         <span>{line}</span>
@@ -565,7 +574,7 @@ export default function ResellerInfoPage() {
                     </div>
                   </div>
                   <div className="ri-pricing-body">
-                    {selectedProduct.pricingPercentage.split("\n").map((line, i) => (
+                    {(i18nField(selectedProduct, "pricingPercentage", "pricingPercentageEn", language) || "").split("\n").map((line, i) => (
                       <div key={i} className="ri-pricing-line">
                         <span className="ri-pricing-bullet" />
                         <span>{line}</span>

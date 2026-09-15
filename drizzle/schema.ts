@@ -373,9 +373,12 @@ export const resellerInfoProducts = pgTable("reseller_info_products", {
   title: varchar("title", { length: 128 }).notNull(),
   slug: varchar("slug", { length: 128 }).notNull().unique(),
   tagline: varchar("tagline", { length: 255 }),
-  description: text("description"), // markdown / texto estruturado (PT/EN)
-  pricingCredits: text("pricingCredits"), // bloco de texto com valores Seller Credits
-  pricingPercentage: text("pricingPercentage"), // bloco de texto com valores Seller Porcentagem
+  description: text("description"), // PT
+  descriptionEn: text("descriptionEn"), // EN
+  pricingCredits: text("pricingCredits"), // PT
+  pricingCreditsEn: text("pricingCreditsEn"), // EN
+  pricingPercentage: text("pricingPercentage"), // PT
+  pricingPercentageEn: text("pricingPercentageEn"), // EN
   imageUrl: text("imageUrl"), // imagem principal (capa)
   galleryImages: text("galleryImages"), // JSON array de URLs de imagens para preview
   discordUrl: text("discordUrl"), // override do link Discord por produto (opcional)

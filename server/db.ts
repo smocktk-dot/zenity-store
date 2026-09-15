@@ -1364,8 +1364,11 @@ export async function ensureResellerInfoSchema(): Promise<void> {
           "slug" varchar(128) NOT NULL UNIQUE,
           "tagline" varchar(255),
           "description" text,
+          "descriptionEn" text,
           "pricingCredits" text,
+          "pricingCreditsEn" text,
           "pricingPercentage" text,
+          "pricingPercentageEn" text,
           "imageUrl" text,
           "galleryImages" text,
           "discordUrl" text,
@@ -1378,6 +1381,14 @@ export async function ensureResellerInfoSchema(): Promise<void> {
         console.error("[Database] Failed to create reseller_info_products table:", e);
         throw e;
       }
+
+      try {
+        await _sqlClient!.unsafe(`ALTER TABLE "reseller_info_products"
+          ADD COLUMN IF NOT EXISTS "descriptionEn" text,
+          ADD COLUMN IF NOT EXISTS "pricingCreditsEn" text,
+          ADD COLUMN IF NOT EXISTS "pricingPercentageEn" text
+        `);
+      } catch (e) { /* ignore if already exists */ }
     })().then(() => undefined).catch(error => {
       _resellerInfoSchemaReady = null;
       console.error("[Database] Failed to ensure reseller info schema:", error);

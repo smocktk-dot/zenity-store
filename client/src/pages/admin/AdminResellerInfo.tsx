@@ -31,8 +31,11 @@ type Product = {
   slug: string;
   tagline: string | null;
   description: string | null;
+  descriptionEn: string | null;
   pricingCredits: string | null;
+  pricingCreditsEn: string | null;
   pricingPercentage: string | null;
+  pricingPercentageEn: string | null;
   imageUrl: string | null;
   galleryImages: string | null;
   discordUrl: string | null;
@@ -84,8 +87,11 @@ const emptyForm = {
   slug: "",
   tagline: "",
   description: "",
+  descriptionEn: "",
   pricingCredits: "",
+  pricingCreditsEn: "",
   pricingPercentage: "",
+  pricingPercentageEn: "",
   discordUrl: "",
   sortOrder: "0",
   status: "active" as "active" | "inactive",
@@ -209,8 +215,11 @@ export default function AdminResellerInfo() {
       slug: p.slug,
       tagline: p.tagline || "",
       description: p.description || "",
+      descriptionEn: p.descriptionEn || "",
       pricingCredits: p.pricingCredits || "",
+      pricingCreditsEn: p.pricingCreditsEn || "",
       pricingPercentage: p.pricingPercentage || "",
+      pricingPercentageEn: p.pricingPercentageEn || "",
       discordUrl: p.discordUrl || "",
       sortOrder: String(p.sortOrder || 0),
       status: p.status as "active" | "inactive",
@@ -235,8 +244,11 @@ export default function AdminResellerInfo() {
       slug: form.slug.trim() || slugify(form.title),
       tagline: form.tagline.trim() || null,
       description: form.description.trim() || null,
+      descriptionEn: form.descriptionEn.trim() || null,
       pricingCredits: form.pricingCredits.trim() || null,
+      pricingCreditsEn: form.pricingCreditsEn.trim() || null,
       pricingPercentage: form.pricingPercentage.trim() || null,
+      pricingPercentageEn: form.pricingPercentageEn.trim() || null,
       discordUrl: form.discordUrl.trim() || null,
       sortOrder: parseInt(form.sortOrder) || 0,
       status: form.status,
@@ -521,42 +533,82 @@ export default function AdminResellerInfo() {
               {clearGallery && <span className="text-[11px] text-amber-400">Galeria será removida ao salvar</span>}
             </div>
 
-            {/* Description */}
+            {/* Description PT */}
             <div>
-              <Label className="text-gray-300 text-xs font-medium block mb-1">Descrição Completa (uma linha por parágrafo)</Label>
+              <Label className="text-gray-300 text-xs font-medium block mb-1">Descrição Completa — PT (uma linha por parágrafo)</Label>
               <Textarea
                 value={form.description}
                 onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                rows={5}
-                placeholder={"COMO FUNCIONA O PUBLIC EMULATOR?\nO Public Emulator funciona emulando uma sessão da Riot Games...\n\nTECNOLOGIA EXCLUSIVA\nNosso emulador cria um servidor privado para cada usuário..."}
+                rows={4}
+                placeholder={"COMO FUNCIONA?\n..."}
                 className="w-full bg-black/30 border border-white/[0.1] text-white rounded-lg p-2.5 text-xs resize-none outline-none focus:border-emerald-500/50"
               />
             </div>
 
-            {/* Pricing Credits */}
+            {/* Description EN */}
+            <div>
+              <Label className="text-gray-300 text-xs font-medium block mb-1">Full Description — EN (one line per paragraph)</Label>
+              <Textarea
+                value={form.descriptionEn}
+                onChange={e => setForm(f => ({ ...f, descriptionEn: e.target.value }))}
+                rows={4}
+                placeholder={"HOW DOES IT WORK?\n..."}
+                className="w-full bg-black/30 border border-white/[0.1] text-white rounded-lg p-2.5 text-xs resize-none outline-none focus:border-emerald-500/50"
+              />
+            </div>
+
+            {/* Pricing Credits PT */}
             <div>
               <Label className="text-gray-300 text-xs font-medium block mb-1 flex items-center gap-1.5">
-                <Coins className="w-3.5 h-3.5 text-emerald-400" /> Seller Credits — Valores (uma linha por item)
+                <Coins className="w-3.5 h-3.5 text-emerald-400" /> Seller Credits — PT (uma linha por item)
               </Label>
               <Textarea
                 value={form.pricingCredits}
                 onChange={e => setForm(f => ({ ...f, pricingCredits: e.target.value }))}
-                rows={4}
-                placeholder={"Painel de Créditos lançado e disponível!\nDepósito mínimo:\n$300 — 60% de desconto em chaves\n$400 — 70% de desconto em chaves\nUnlimited Keys: $600/mês"}
+                rows={3}
+                placeholder={"Painel de Créditos lançado e disponível!\nDepósito mínimo:\n$300 — 60% de desconto em chaves"}
                 className="w-full bg-black/30 border border-white/[0.1] text-white rounded-lg p-2.5 text-xs resize-none outline-none focus:border-emerald-500/50"
               />
             </div>
 
-            {/* Pricing Percentage */}
+            {/* Pricing Credits EN */}
             <div>
               <Label className="text-gray-300 text-xs font-medium block mb-1 flex items-center gap-1.5">
-                <Percent className="w-3.5 h-3.5 text-indigo-400" /> Seller Porcentagem — Valores (uma linha por item)
+                <Coins className="w-3.5 h-3.5 text-emerald-400" /> Seller Credits — EN (one line per item)
+              </Label>
+              <Textarea
+                value={form.pricingCreditsEn}
+                onChange={e => setForm(f => ({ ...f, pricingCreditsEn: e.target.value }))}
+                rows={3}
+                placeholder={"Credits panel is now available!\nMinimum deposit:\n$300 — 60% discount per key"}
+                className="w-full bg-black/30 border border-white/[0.1] text-white rounded-lg p-2.5 text-xs resize-none outline-none focus:border-emerald-500/50"
+              />
+            </div>
+
+            {/* Pricing Percentage PT */}
+            <div>
+              <Label className="text-gray-300 text-xs font-medium block mb-1 flex items-center gap-1.5">
+                <Percent className="w-3.5 h-3.5 text-indigo-400" /> Seller Percentage — PT (uma linha por item)
               </Label>
               <Textarea
                 value={form.pricingPercentage}
                 onChange={e => setForm(f => ({ ...f, pricingPercentage: e.target.value }))}
-                rows={4}
-                placeholder={"Painel Porcentagem disponível\nSem depósito mínimo\nVocê começa com 35% de desconto\nApós 10 vendas: 50% de desconto em cada key"}
+                rows={3}
+                placeholder={"Painel Porcentagem disponível\nSem depósito mínimo\nVocê começa com 35% de desconto"}
+                className="w-full bg-black/30 border border-white/[0.1] text-white rounded-lg p-2.5 text-xs resize-none outline-none focus:border-emerald-500/50"
+              />
+            </div>
+
+            {/* Pricing Percentage EN */}
+            <div>
+              <Label className="text-gray-300 text-xs font-medium block mb-1 flex items-center gap-1.5">
+                <Percent className="w-3.5 h-3.5 text-indigo-400" /> Seller Percentage — EN (one line per item)
+              </Label>
+              <Textarea
+                value={form.pricingPercentageEn}
+                onChange={e => setForm(f => ({ ...f, pricingPercentageEn: e.target.value }))}
+                rows={3}
+                placeholder={"Percentage panel available\nNo minimum deposit\nYou start with 35% discount"}
                 className="w-full bg-black/30 border border-white/[0.1] text-white rounded-lg p-2.5 text-xs resize-none outline-none focus:border-emerald-500/50"
               />
             </div>
