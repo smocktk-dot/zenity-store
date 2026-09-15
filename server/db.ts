@@ -594,6 +594,19 @@ export async function getKeysByResellerId(resellerId: number) {
   return db.select().from(licenseKeys).where(eq(licenseKeys.resellerId, resellerId)).orderBy(desc(licenseKeys.createdAt));
 }
 
+export async function getKeysByResellerIdWithApp(resellerId: number) {
+  await ensureLicenseKeysSchema();
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db
+    .select({ key: licenseKeys, appName: apps.name })
+    .from(licenseKeys)
+    .leftJoin(apps, eq(licenseKeys.appId, apps.id))
+    .where(eq(licenseKeys.resellerId, resellerId))
+    .orderBy(desc(licenseKeys.createdAt));
+  return rows.map(r => ({ ...r.key, appName: r.appName }));
+}
+
 export async function getAllKeys() {
   await ensureLicenseKeysSchema();
   const db = await getDb();

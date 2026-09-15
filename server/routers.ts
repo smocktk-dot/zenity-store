@@ -7,7 +7,7 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { ENV } from "./_core/env";
-import { keyauthCreateLicense } from "./keyauth";
+import { keyauthCreateLicense, keyauthFetchKeyInfo } from "./keyauth";
 import { acquireLicenseKeyValues } from "./keyFulfillment";
 import { calcDiscount } from "./resellerPricing";
 import { checkPurinPaymentStatus, processPurinPaymentUpdate } from "./purinCashWebhook";
@@ -21,7 +21,7 @@ import {
   getDashboardKeysByMonth, getDashboardTopApps,
   getPlansByAppId, getPlanById, createPlan, updatePlan, deletePlan,
   getAppsByResellerId, assignAppToReseller, removeAppFromReseller, getAssignedAppIds,
-  getKeysByResellerId, getAllKeys, getAllKeysWithReseller, getKeyById, createLicenseKey, updateLicenseKey,
+  getKeysByResellerId, getKeysByResellerIdWithApp, getAllKeys, getAllKeysWithReseller, getKeyById, createLicenseKey, updateLicenseKey,
   getTransactionsByResellerId, createCreditTransaction,
   getAllIpWhitelist, addIpToWhitelist, removeIpFromWhitelist, isIpWhitelisted,
   listResellerApiKeys, createResellerApiKey, revokeResellerApiKey,
@@ -1142,14 +1142,30 @@ const resellerRouter = router({
     }),
 
   myKeys: resellerProcedure.query(async ({ ctx }) => {
-    return getKeysByResellerId(ctx.resellerId);
+    return getKeysByResellerIdWithApp(ctx.resellerId);
   }),
 
   myKeysByApp: resellerProcedure
     .input(z.object({ appId: z.number() }))
     .query(async ({ ctx, input }) => {
-      const keys = await getKeysByResellerId(ctx.resellerId);
+      const keys = await getKeysByResellerIdWithApp(ctx.resellerId);
       return keys.filter(k => k.appId === input.appId);
+    }),
+
+  // Detalhes da licença na KeyAuth (usada por quem, HWID, expiração real)
+  keyInfo: resellerProcedure
+    .input(z.object({ keyId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      const key = await getKeyById(input.keyId);
+      if (!key || key.resellerId !== ctx.resellerId) throw new TRPCError({ code: "NOT_FOUND" });
+      const app = await getAppById(key.appId);
+      if (!app?.keyauthSellerKey?.trim()) return { remote: null };
+      try {
+        const remote = await keyauthFetchKeyInfo({ sellerKey: app.keyauthSellerKey.trim(), keyValue: key.keyValue });
+        return { remote };
+      } catch {
+        return { remote: null };
+      }
     }),
 
   getDownloadsByApp: resellerProcedure

@@ -45,3 +45,64 @@ export async function keyauthCreateLicense(opts: {
 
   return keys;
 }
+
+export interface KeyauthLicenseInfo {
+  key: string;
+  used: boolean;
+  usedBy: string | null;
+  status: string | null;
+  expiry: number | null;
+  created: number | null;
+  level: string | number | null;
+  note: string | null;
+  banned: boolean;
+}
+
+/**
+ * Busca os detalhes de uma licença específica via fetchallkeys.
+ * Retorna null se a licença não for encontrada no app.
+ */
+export async function keyauthFetchKeyInfo(opts: {
+  sellerKey: string;
+  keyValue: string;
+}): Promise<KeyauthLicenseInfo | null> {
+  if (!opts.sellerKey) return null;
+
+  const url = new URL("https://keyauth.win/api/seller/");
+  url.searchParams.set("sellerkey", opts.sellerKey);
+  url.searchParams.set("type", "fetchallkeys");
+  url.searchParams.set("format", "json");
+
+  const res = await fetch(url.toString(), { signal: AbortSignal.timeout(15_000) });
+  if (!res.ok) {
+    throw new Error(`KeyAuth respondeu HTTP ${res.status}`);
+  }
+
+  const data = await res.json() as any;
+  if (!data.success) return null;
+
+  const licenses: any[] = Array.isArray(data.licenses)
+    ? data.licenses
+    : Array.isArray(data.keys)
+      ? data.keys
+      : [];
+
+  const lic = licenses.find(l => String(l.key ?? l.license ?? "") === opts.keyValue);
+  if (!lic) return null;
+
+  const used =
+    lic.used === 1 || lic.used === "1" || lic.used === true ||
+    String(lic.status ?? "").toLowerCase() === "used";
+
+  return {
+    key: String(lic.key ?? lic.license ?? opts.keyValue),
+    used,
+    usedBy: lic.usedby ?? lic.usedBy ?? null,
+    status: lic.status ?? null,
+    expiry: Number.isFinite(Number(lic.expiry)) ? Number(lic.expiry) : null,
+    created: Number.isFinite(Number(lic.created)) ? Number(lic.created) : null,
+    level: lic.level ?? null,
+    note: lic.note ?? null,
+    banned: lic.banned === 1 || lic.banned === "1" || lic.banned === true,
+  };
+}

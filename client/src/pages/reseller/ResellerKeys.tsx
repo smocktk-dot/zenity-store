@@ -22,6 +22,11 @@ export default function ResellerKeys() {
   const { fmt } = useCurrency();
   const utils = trpc.useUtils();
   const { data: keys = [], isLoading } = trpc.reseller.myKeys.useQuery();
+  const [viewKeyId, setViewKeyId] = useState<number | null>(null);
+  const { data: keyInfo } = trpc.reseller.keyInfo.useQuery(
+    { keyId: viewKeyId ?? 0 },
+    { enabled: viewKeyId !== null, retry: false }
+  );
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [copied, setCopied] = useState<number | null>(null);
@@ -177,7 +182,7 @@ export default function ResellerKeys() {
                     <button onClick={() => copyKey(k.id, k.keyValue)} title={t.keys_copy} className="p-2 rounded-xl text-gray-500 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all">
                       {copied === k.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                     </button>
-                    <button onClick={() => setViewKey(k)} title={language === "en" ? "View details" : "Ver detalhes"} className="p-2 rounded-xl text-gray-500 hover:text-blue-400 hover:bg-blue-500/10 transition-all">
+                    <button onClick={() => { setViewKey(k); setViewKeyId(k.id); }} title={language === "en" ? "View details" : "Ver detalhes"} className="p-2 rounded-xl text-gray-500 hover:text-blue-400 hover:bg-blue-500/10 transition-all">
                       <Eye className="w-3.5 h-3.5" />
                     </button>
                     {k.status === "active" && (
@@ -227,7 +232,7 @@ export default function ResellerKeys() {
       )}
 
       {/* Key Detail Modal */}
-      <Dialog open={!!viewKey} onOpenChange={() => setViewKey(null)}>
+      <Dialog open={!!viewKey} onOpenChange={() => { setViewKey(null); setViewKeyId(null); }}>
         <DialogContent className="bg-[#080808] border-white/[0.08] text-white max-w-md rounded-3xl p-0 overflow-hidden">
           <div className="p-6 space-y-5" style={{ background: "linear-gradient(180deg, rgba(16,185,129,0.08) 0%, rgba(8,8,8,0.9) 120px)" }}>
             <DialogHeader>
@@ -261,13 +266,49 @@ export default function ResellerKeys() {
                     </div>
                   ))}
                 </div>
+                {/* Status em tempo real na KeyAuth (apps com Seller API) */}
+                {keyInfo?.remote && (
+                  <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.05] p-3.5 space-y-2.5">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400/80 flex items-center gap-1.5">
+                      <RefreshCw className="w-3 h-3" /> {language === "en" ? "Live status (Seller API)" : "Status em tempo real (Seller API)"}
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="rounded-xl bg-black/30 border border-white/[0.05] p-2.5">
+                        <p className="text-gray-500 text-[10px]">{language === "en" ? "Activation" : "Ativação"}</p>
+                        <p className={`text-xs font-semibold mt-0.5 ${keyInfo.remote.used ? "text-blue-400" : "text-gray-300"}`}>
+                          {keyInfo.remote.used
+                            ? (language === "en" ? "Used" : "Usada")
+                            : (language === "en" ? "Not used yet" : "Ainda não usada")}
+                        </p>
+                      </div>
+                      <div className="rounded-xl bg-black/30 border border-white/[0.05] p-2.5">
+                        <p className="text-gray-500 text-[10px]">{language === "en" ? "Activated by" : "Usada por"}</p>
+                        <p className="text-white text-xs font-semibold mt-0.5 break-all">{keyInfo.remote.usedBy || "—"}</p>
+                      </div>
+                      {keyInfo.remote.expiry ? (
+                        <div className="rounded-xl bg-black/30 border border-white/[0.05] p-2.5">
+                          <p className="text-gray-500 text-[10px]">{language === "en" ? "Real expiry" : "Expiração real"}</p>
+                          <p className="text-white text-xs font-semibold mt-0.5">
+                            {new Date(keyInfo.remote.expiry * 1000).toLocaleString(language === "en" ? "en-US" : "pt-BR")}
+                          </p>
+                        </div>
+                      ) : null}
+                      {keyInfo.remote.status && (
+                        <div className="rounded-xl bg-black/30 border border-white/[0.05] p-2.5">
+                          <p className="text-gray-500 text-[10px]">Status KeyAuth</p>
+                          <p className="text-white text-xs font-semibold mt-0.5">{keyInfo.remote.status}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
                 {viewKey.hwid && (
                   <div className="rounded-2xl bg-white/[0.03] border border-white/[0.06] p-3">
                     <p className="text-gray-500 text-xs">Hardware ID (HWID)</p>
                     <p className="text-white text-xs font-mono mt-1 break-all">{viewKey.hwid}</p>
                   </div>
                 )}
-                {viewKey.note && (
+                {viewKey.note && !/^(pix|ltc|other-store):/.test(viewKey.note) && (
                   <div className="rounded-2xl bg-white/[0.03] border border-white/[0.06] p-3">
                     <p className="text-gray-500 text-xs">{t.general_note}</p>
                     <p className="text-gray-300 text-sm mt-1">{viewKey.note}</p>
