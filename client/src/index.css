@@ -1503,6 +1503,23 @@ input:-webkit-autofill:active {
   font-size: 13px;
 }
 
+/* ─── Reseller info topbar pill ─── */
+.ri-topbar {
+  justify-content: flex-end;
+  margin-bottom: 18px;
+}
+
+.ri-topbar-pill {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(8px);
+}
+
 /* ─── CTA banner ─── */
 .ri-cta-banner {
   display: flex;

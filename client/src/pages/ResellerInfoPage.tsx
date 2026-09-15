@@ -145,9 +145,85 @@ function ProductImageBanner({ product }: { product: Product }) {
   );
 }
 
+const riLabels = {
+  pt: {
+    backToLogin: "Voltar ao Login",
+    program: "Programa de Revenda",
+    become: "Torne-se um",
+    officialReseller: "Revendedor Oficial",
+    heroSub: "Acesse tecnologia exclusiva, painéis profissionais e margens reais de lucro. Escolha o produto que combina com seu público e comece a vender hoje mesmo.",
+    featureExclusive: "Tecnologia Exclusiva",
+    featureExclusiveDesc: "Servidores privados e zero detecção",
+    featurePanel: "Painel Profissional",
+    featurePanelDesc: "Gestão completa de keys e estoque",
+    featureAuto: "Geração Automática",
+    featureAutoDesc: "Keys entregues na hora via API",
+    catalog: "Catálogo de Produtos",
+    available: "Produtos Disponíveis para Revenda",
+    catalogSub: "Conheça cada produto, seus planos e formas de se tornar reseller. Clique em um produto para ver detalhes completos.",
+    noProducts: "Nenhum produto cadastrado ainda.",
+    availableStatus: "Disponível",
+    soonStatus: "Em breve",
+    viewDetails: "Ver detalhes",
+    product: "Produto",
+    description: "Descrição",
+    gallery: "Galeria de Imagens",
+    credits: "Seller Credits",
+    percentage: "Seller Porcentagem",
+    creditsSub: "Painel de créditos — pague conforme vende",
+    percentageSub: "Sem depósito — desconto direto nas keys",
+    ready: "Pronto para começar?",
+    readySub: "Entre no nosso Discord e solicite seu acesso de reseller.",
+    beReseller: "Seja um Reseller",
+    wantReseller: "Quero virar Reseller",
+    statSupport: "Suporte",
+    statApi: "Própria",
+    statDelivery: "Entrega",
+    loading: "Carregando...",
+    system: "Sistema Operacional",
+  },
+  en: {
+    backToLogin: "Back to Login",
+    program: "Reseller Program",
+    become: "Become an",
+    officialReseller: "Official Reseller",
+    heroSub: "Get exclusive technology, professional panels and real profit margins. Choose the product that fits your audience and start selling today.",
+    featureExclusive: "Exclusive Technology",
+    featureExclusiveDesc: "Private servers and zero detection",
+    featurePanel: "Professional Panel",
+    featurePanelDesc: "Complete key and stock management",
+    featureAuto: "Automatic Generation",
+    featureAutoDesc: "Keys delivered instantly via API",
+    catalog: "Product Catalog",
+    available: "Products Available for Resale",
+    catalogSub: "Learn about each product, its plans and how to become a reseller. Click a product to see full details.",
+    noProducts: "No products registered yet.",
+    availableStatus: "Available",
+    soonStatus: "Coming soon",
+    viewDetails: "View details",
+    product: "Product",
+    description: "Description",
+    gallery: "Image Gallery",
+    credits: "Seller Credits",
+    percentage: "Seller Percentage",
+    creditsSub: "Credits panel — pay as you sell",
+    percentageSub: "No deposit — direct discount on keys",
+    ready: "Ready to start?",
+    readySub: "Join our Discord and request your reseller access.",
+    beReseller: "Become a Reseller",
+    wantReseller: "I want to be a Reseller",
+    statSupport: "Support",
+    statApi: "Own",
+    statDelivery: "Auto",
+    loading: "Loading...",
+    system: "Operational System",
+  },
+};
+
 export default function ResellerInfoPage() {
   const [location, navigate] = useLocation();
-  const { t } = useLanguage();
+  const { language } = useLanguage();
+  const L = riLabels[language];
   const { data: products = [], isLoading } = trpc.auth.listResellerInfo.useQuery();
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
@@ -192,7 +268,7 @@ export default function ResellerInfoPage() {
           </div>
           <div className="auth-brand-text">
             <span className="auth-brand-name">VG SELLERS</span>
-            <span className="auth-brand-sub">Reseller Program</span>
+            <span className="auth-brand-sub">{L.program}</span>
           </div>
         </div>
 
@@ -207,16 +283,13 @@ export default function ResellerInfoPage() {
           >
             <div className="ri-eyebrow">
               <span className="ri-eyebrow-dot" />
-              <span>Programa de Revenda</span>
+              <span>{L.program}</span>
             </div>
             <h1 className="ri-left-title">
-              Torne-se um<br />
-              <span className="ri-left-title-accent">Revendedor Oficial</span>
+              {L.become}<br />
+              <span className="ri-left-title-accent">{L.officialReseller}</span>
             </h1>
-            <p className="ri-left-sub">
-              Acesse tecnologia exclusiva, painéis profissionais e margens reais de lucro.
-              Escolha o produto que combina com seu público e comece a vender hoje mesmo.
-            </p>
+            <p className="ri-left-sub">{L.heroSub}</p>
 
             <div className="ri-left-features">
               <div className="ri-feature">
@@ -224,8 +297,8 @@ export default function ResellerInfoPage() {
                   <ShieldCheck className="w-4 h-4" />
                 </div>
                 <div className="ri-feature-text">
-                  <span className="ri-feature-title">Tecnologia Exclusiva</span>
-                  <span className="ri-feature-desc">Servidores privados e zero detecção</span>
+                  <span className="ri-feature-title">{L.featureExclusive}</span>
+                  <span className="ri-feature-desc">{L.featureExclusiveDesc}</span>
                 </div>
               </div>
               <div className="ri-feature">
@@ -233,8 +306,8 @@ export default function ResellerInfoPage() {
                   <Crown className="w-4 h-4" />
                 </div>
                 <div className="ri-feature-text">
-                  <span className="ri-feature-title">Painel Profissional</span>
-                  <span className="ri-feature-desc">Gestão completa de keys e estoque</span>
+                  <span className="ri-feature-title">{L.featurePanel}</span>
+                  <span className="ri-feature-desc">{L.featurePanelDesc}</span>
                 </div>
               </div>
               <div className="ri-feature">
@@ -242,8 +315,8 @@ export default function ResellerInfoPage() {
                   <Zap className="w-4 h-4" />
                 </div>
                 <div className="ri-feature-text">
-                  <span className="ri-feature-title">Geração Automática</span>
-                  <span className="ri-feature-desc">Keys entregues na hora via API</span>
+                  <span className="ri-feature-title">{L.featureAuto}</span>
+                  <span className="ri-feature-desc">{L.featureAutoDesc}</span>
                 </div>
               </div>
             </div>
@@ -254,24 +327,24 @@ export default function ResellerInfoPage() {
         <div className="ri-left-stats">
           <div className="ri-left-stat">
             <span className="ri-left-stat-value">24/7</span>
-            <span className="ri-left-stat-label">Suporte</span>
+            <span className="ri-left-stat-label">{L.statSupport}</span>
           </div>
           <div className="ri-left-stat-sep" />
           <div className="ri-left-stat">
             <span className="ri-left-stat-value">API</span>
-            <span className="ri-left-stat-label">Própria</span>
+            <span className="ri-left-stat-label">{L.statApi}</span>
           </div>
           <div className="ri-left-stat-sep" />
           <div className="ri-left-stat">
             <span className="ri-left-stat-value">Auto</span>
-            <span className="ri-left-stat-label">Entrega</span>
+            <span className="ri-left-stat-label">{L.statDelivery}</span>
           </div>
         </div>
 
         {/* Bottom status */}
         <div className="auth-left-foot">
           <div className="auth-status-pulse" />
-          <span className="auth-status-label">Sistema Operacional</span>
+          <span className="auth-status-label">{L.system}</span>
         </div>
       </motion.aside>
 
@@ -283,17 +356,13 @@ export default function ResellerInfoPage() {
         transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
       >
         {/* Top bar */}
-        <div className="auth-topbar">
-          <div className="auth-topbar-brand">
-            <div className="auth-topbar-glyph">VG</div>
-            <span className="auth-topbar-name">Reseller Info</span>
-          </div>
-          <div className="auth-topbar-actions">
+        <div className="auth-topbar ri-topbar">
+          <div className="ri-topbar-pill">
             <button
               onClick={() => navigate("/")}
               className="auth-topbar-link"
             >
-              Voltar ao Login
+              {L.backToLogin}
             </button>
             <div className="auth-topbar-sep" />
             <LanguageSwitcher />
@@ -305,24 +374,21 @@ export default function ResellerInfoPage() {
           <div className="ri-content-head">
             <div className="ri-eyebrow">
               <span className="ri-eyebrow-dot" />
-              <span>Catálogo de Produtos</span>
+              <span>{L.catalog}</span>
             </div>
-            <h2 className="ri-content-title">Produtos Disponíveis para Revenda</h2>
-            <p className="ri-content-sub">
-              Conheça cada produto, seus planos e formas de se tornar reseller.
-              Clique em um produto para ver detalhes completos.
-            </p>
+            <h2 className="ri-content-title">{L.available}</h2>
+            <p className="ri-content-sub">{L.catalogSub}</p>
           </div>
 
           {isLoading ? (
             <div className="ri-loading">
               <div className="ri-spinner" />
-              <span>Carregando produtos...</span>
+              <span>{L.loading}</span>
             </div>
           ) : products.length === 0 ? (
             <div className="ri-empty">
               <Sparkles className="w-8 h-8" style={{ color: "rgba(255,255,255,0.2)" }} />
-              <p>Nenhum produto cadastrado ainda.</p>
+              <p>{L.noProducts}</p>
             </div>
           ) : (
             <div className="ri-grid">
@@ -350,12 +416,12 @@ export default function ResellerInfoPage() {
                   <div className="ri-card-body">
                     <div className="ri-card-tag">
                       <span className="ri-card-tag-dot" />
-                      <span>{p.status === "active" ? "Disponível" : "Em breve"}</span>
+                      <span>{p.status === "active" ? L.availableStatus : L.soonStatus}</span>
                     </div>
                     <h3 className="ri-card-title">{p.title}</h3>
                     {p.tagline && <p className="ri-card-tagline">{p.tagline}</p>}
                     <div className="ri-card-foot">
-                      <span className="ri-card-cta">Ver detalhes</span>
+                      <span className="ri-card-cta">{L.viewDetails}</span>
                       <ArrowRight className="w-3.5 h-3.5" />
                     </div>
                   </div>
@@ -369,8 +435,8 @@ export default function ResellerInfoPage() {
             <div className="ri-cta-content">
               <Lock className="w-5 h-5" style={{ color: "#34d399" }} />
               <div>
-                <p className="ri-cta-title">Pronto para começar?</p>
-                <p className="ri-cta-sub">Entre no nosso Discord e solicite seu acesso de reseller.</p>
+                <p className="ri-cta-title">{L.ready}</p>
+                <p className="ri-cta-sub">{L.readySub}</p>
               </div>
             </div>
             <a
@@ -379,7 +445,7 @@ export default function ResellerInfoPage() {
               rel="noopener noreferrer"
               className="ri-cta-btn"
             >
-              <span>Seja um Reseller</span>
+              <span>{L.beReseller}</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </a>
           </div>
@@ -417,7 +483,7 @@ export default function ResellerInfoPage() {
                 <div className="ri-modal-headtext">
                   <div className="ri-eyebrow">
                     <span className="ri-eyebrow-dot" />
-                    <span>Produto</span>
+                    <span>{L.product}</span>
                   </div>
                   <h2 className="ri-modal-title">{selectedProduct.title}</h2>
                   {selectedProduct.tagline && <p className="ri-modal-tagline">{selectedProduct.tagline}</p>}
@@ -429,7 +495,7 @@ export default function ResellerInfoPage() {
                 <div className="ri-gallery">
                   <div className="ri-gallery-label">
                     <ImageIcon className="w-3.5 h-3.5" />
-                    <span>Galeria de Imagens</span>
+                    <span>{L.gallery}</span>
                   </div>
                   <div className="ri-gallery-grid">
                     {galleryFor(selectedProduct).map((url, i) => (
@@ -453,7 +519,7 @@ export default function ResellerInfoPage() {
                 <div className="ri-section">
                   <div className="ri-section-label">
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span>Descrição</span>
+                    <span>{L.description}</span>
                   </div>
                   <div className="ri-description">
                     {selectedProduct.description.split("\n").map((line, i) => (
@@ -471,8 +537,8 @@ export default function ResellerInfoPage() {
                       <Coins className="w-4 h-4" />
                     </div>
                     <div>
-                      <h3 className="ri-pricing-title">Seller Credits</h3>
-                      <p className="ri-pricing-sub">Painel de créditos — pague conforme vende</p>
+                      <h3 className="ri-pricing-title">{L.credits}</h3>
+                      <p className="ri-pricing-sub">{L.creditsSub}</p>
                     </div>
                   </div>
                   <div className="ri-pricing-body">
@@ -494,8 +560,8 @@ export default function ResellerInfoPage() {
                       <Percent className="w-4 h-4" />
                     </div>
                     <div>
-                      <h3 className="ri-pricing-title">Seller Porcentagem</h3>
-                      <p className="ri-pricing-sub">Sem depósito — desconto direto nas keys</p>
+                      <h3 className="ri-pricing-title">{L.percentage}</h3>
+                      <p className="ri-pricing-sub">{L.percentageSub}</p>
                     </div>
                   </div>
                   <div className="ri-pricing-body">
@@ -516,7 +582,7 @@ export default function ResellerInfoPage() {
                 rel="noopener noreferrer"
                 className="ri-modal-cta"
               >
-                <span>Quero virar Reseller</span>
+                <span>{L.wantReseller}</span>
                 <ArrowRight className="w-4 h-4" />
               </a>
             </div>
