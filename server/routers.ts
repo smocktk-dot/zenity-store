@@ -1143,6 +1143,13 @@ const resellerRouter = router({
     return getKeysByResellerId(ctx.resellerId);
   }),
 
+  myKeysByApp: resellerProcedure
+    .input(z.object({ appId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      const keys = await getKeysByResellerId(ctx.resellerId);
+      return keys.filter(k => k.appId === input.appId);
+    }),
+
   getDownloadsByApp: resellerProcedure
     .input(z.object({ appId: z.number() }))
     .query(async ({ input }) => {

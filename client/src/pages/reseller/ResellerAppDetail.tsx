@@ -6,7 +6,7 @@ import {
   ArrowLeft, Key, Clock, Star, ShoppingCart, CreditCard,
   Percent, CheckCircle, QrCode, Copy, CheckCircle2, Loader2, X,
   Bitcoin, Wallet, Download, Film, ShieldCheck, Tag,
-  LayoutGrid, List, Check, Zap, ExternalLink
+  LayoutGrid, List, Check, Zap, ExternalLink, RefreshCw, XCircle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,6 +58,13 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
               className="data-[state=active]:bg-white/[0.08] data-[state=active]:text-white text-gray-400 text-xs font-semibold rounded-lg px-3.5 py-1.5 transition-all"
             >
               Visão Geral & Planos
+            </TabsTrigger>
+            <TabsTrigger
+              value="keys"
+              className="data-[state=active]:bg-white/[0.08] data-[state=active]:text-white text-gray-400 text-xs font-semibold rounded-lg px-3.5 py-1.5 transition-all flex items-center gap-1.5"
+            >
+              <Key className="w-3.5 h-3.5 text-emerald-400" />
+              Minhas Keys
             </TabsTrigger>
             <TabsTrigger
               value="downloads"
@@ -265,6 +272,10 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
           </div>
         )}
       </div>
+        </TabsContent>
+
+        <TabsContent value="keys" className="mt-4">
+          <AppKeysPanel appId={id} />
         </TabsContent>
 
         <TabsContent value="downloads" className="mt-4">
@@ -779,6 +790,13 @@ function PercentageAppDetail({ app, id, otherStore }: { app: any; id: number; ot
               Visão Geral & Planos
             </TabsTrigger>
             <TabsTrigger
+              value="keys"
+              className="data-[state=active]:bg-white/[0.08] data-[state=active]:text-white text-gray-400 text-xs font-semibold rounded-lg px-3.5 py-1.5 transition-all flex items-center gap-1.5"
+            >
+              <Key className="w-3.5 h-3.5 text-emerald-400" />
+              Minhas Keys
+            </TabsTrigger>
+            <TabsTrigger
               value="downloads"
               className="data-[state=active]:bg-white/[0.08] data-[state=active]:text-white text-gray-400 text-xs font-semibold rounded-lg px-3.5 py-1.5 transition-all flex items-center gap-1.5"
             >
@@ -1004,6 +1022,10 @@ function PercentageAppDetail({ app, id, otherStore }: { app: any; id: number; ot
           )}
         </TabsContent>
 
+        <TabsContent value="keys" className="mt-4">
+          <AppKeysPanel appId={id} />
+        </TabsContent>
+
         <TabsContent value="downloads" className="mt-4">
           <ResellerDownloads appId={id} />
         </TabsContent>
@@ -1176,6 +1198,127 @@ function ResellerDownloads({ appId }: { appId: number }) {
           <p className="text-gray-400 text-xs">Nenhum download ou tutorial cadastrado para este aplicativo.</p>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Keys por App (aba Minhas Keys) ───────────────────────────────────────────
+function AppKeysPanel({ appId }: { appId: number }) {
+  const utils = trpc.useUtils();
+  const { data: keys = [], isLoading } = trpc.reseller.myKeysByApp.useQuery({ appId });
+  const [copied, setCopied] = useState<number | null>(null);
+
+  const resetHwid = trpc.reseller.resetHwid.useMutation({
+    onSuccess: () => {
+      toast.success("HWID resetado com sucesso!");
+      utils.reseller.myKeysByApp.invalidate({ appId });
+    },
+    onError: e => toast.error(e.message),
+  });
+
+  const revokeKey = trpc.reseller.revokeKey.useMutation({
+    onSuccess: () => {
+      toast.success("Key revogada!");
+      utils.reseller.myKeysByApp.invalidate({ appId });
+    },
+    onError: e => toast.error(e.message),
+  });
+
+  const copyKey = (id: number, val: string) => {
+    navigator.clipboard.writeText(val);
+    setCopied(id);
+    toast.success("Key copiada!");
+    setTimeout(() => setCopied(null), 2000);
+  };
+
+  if (isLoading) {
+    return <div className="text-gray-500 text-xs py-6 text-center animate-pulse">Carregando keys...</div>;
+  }
+
+  if (keys.length === 0) {
+    return (
+      <div className="text-center py-10 rounded-2xl border border-dashed border-white/[0.08] bg-white/[0.01]">
+        <Key className="w-7 h-7 text-gray-600 mx-auto mb-2" />
+        <p className="text-gray-400 text-xs">Nenhuma key gerada para este aplicativo ainda.</p>
+      </div>
+    );
+  }
+
+  const statusMap: Record<string, string> = {
+    active: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+    used: "bg-blue-500/15 text-blue-400 border-blue-500/30",
+    revoked: "bg-orange-500/15 text-orange-400 border-orange-500/30",
+    expired: "bg-gray-500/15 text-gray-400 border-gray-500/30",
+  };
+
+  return (
+    <div className="rounded-2xl border border-white/[0.08] bg-white/[0.015] overflow-hidden">
+      <div className="px-5 py-4 border-b border-white/[0.06] flex items-center justify-between">
+        <h4 className="text-white font-semibold text-xs uppercase tracking-wider text-gray-400 flex items-center gap-2">
+          <Key className="w-3.5 h-3.5 text-emerald-400" /> Keys deste Aplicativo
+        </h4>
+        <span className="text-[11px] text-gray-500 font-mono">{keys.length} key(s)</span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-xs">
+          <thead>
+            <tr className="border-b border-white/[0.06] text-gray-400 font-semibold uppercase tracking-wider text-[11px]">
+              <th className="px-5 py-3">Key</th>
+              <th className="px-4 py-3">Plano</th>
+              <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">Criado em</th>
+              <th className="px-4 py-3">Expira</th>
+              <th className="px-5 py-3 text-right">Ações</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-white/[0.04]">
+            {keys.map((k: any) => (
+              <tr key={k.id} className="hover:bg-white/[0.02] transition-colors">
+                <td className="px-5 py-3">
+                  <span className="text-gray-200 font-mono text-[11px] bg-white/[0.03] px-2 py-1 rounded-md border border-white/[0.05]">{k.keyValue}</span>
+                </td>
+                <td className="px-4 py-3 text-gray-300">{k.planName}</td>
+                <td className="px-4 py-3">
+                  <span className={`text-[10px] px-2 py-0.5 rounded-md border font-semibold uppercase ${statusMap[k.status] ?? statusMap.expired}`}>{k.status}</span>
+                </td>
+                <td className="px-4 py-3 text-gray-500">{new Date(k.createdAt).toLocaleDateString("pt-BR")}</td>
+                <td className="px-4 py-3 text-gray-500">
+                  {k.expiresAt
+                    ? new Date(k.expiresAt).toLocaleDateString("pt-BR")
+                    : k.durationDays >= 9000
+                      ? "Lifetime"
+                      : "Após uso"}
+                </td>
+                <td className="px-5 py-3">
+                  <div className="flex items-center justify-end gap-1">
+                    <button onClick={() => copyKey(k.id, k.keyValue)} title="Copiar key" className="p-1.5 rounded-lg text-gray-500 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all">
+                      {copied === k.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                    {k.status === "active" && (
+                      <button
+                        onClick={() => { if (confirm("Resetar HWID desta key?")) resetHwid.mutate({ keyId: k.id }); }}
+                        title="Resetar HWID"
+                        className="p-1.5 rounded-lg text-gray-500 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    {(k.status === "active" || k.status === "used") && (
+                      <button
+                        onClick={() => { if (confirm("Revogar esta key? Esta ação não pode ser desfeita.")) revokeKey.mutate({ keyId: k.id }); }}
+                        title="Revogar"
+                        className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                      >
+                        <XCircle className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
