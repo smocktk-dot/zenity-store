@@ -19,7 +19,6 @@ import {
 } from "lucide-react";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useLanguage } from "@/contexts/LanguageContext";
-import LightStreaks from "@/components/LightStreaks";
 
 const DEFAULT_DISCORD_URL = "https://discord.gg/vgseller";
 
@@ -72,7 +71,6 @@ export default function ResellerInfoPage() {
           </div>
         </div>
         <div className="auth-left-grid" />
-        <LightStreaks />
 
         {/* Top brand lockup */}
         <div className="auth-left-top">
