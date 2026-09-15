@@ -32,6 +32,7 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
     onSuccess: (data) => {
       toast.success(`${data.keys.length} ${language === "en" ? "key(s) generated successfully!" : "key(s) gerada(s) com sucesso!"}`);
       utils.reseller.myKeys.invalidate();
+      utils.reseller.myKeysByApp.invalidate();
       utils.reseller.profile.invalidate();
       setShowGenerate(false);
       setGenForm({ planId: "", quantity: "1", customMask: "", note: "" });
@@ -445,6 +446,7 @@ function PixKeyModal({
       setDeliveredKeys((statusData.keys as string[]) || []);
       toast.success("Pagamento confirmado! Keys entregues.");
       utils.reseller.myKeys.invalidate();
+      utils.reseller.myKeysByApp.invalidate();
       utils.reseller.profile.invalidate();
     }
   }, [statusData?.status, step, utils]);
@@ -590,6 +592,7 @@ function LtcKeyModal({
       setDeliveredKeys((statusData.keys as string[]) || []);
       toast.success("Pagamento confirmado! Keys entregues.");
       utils.reseller.myKeys.invalidate();
+      utils.reseller.myKeysByApp.invalidate();
       utils.reseller.profile.invalidate();
     }
   }, [statusData?.status, step, utils]);

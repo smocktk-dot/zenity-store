@@ -12,6 +12,11 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
   const [location, navigate] = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const { data: session, isLoading } = trpc.auth.session.useQuery(undefined, { retry: false });
+  // Saldo live — a sessão é um snapshot do login e ficaria desatualizada
+  const { data: liveProfile } = trpc.reseller.profile.useQuery(undefined, {
+    enabled: session?.role === "reseller",
+    retry: false,
+  });
   const { t } = useLanguage();
   const logout = trpc.auth.logout.useMutation({
     onSuccess: () => { toast.success(t.nav_logout_success); navigate("/"); },
@@ -101,7 +106,7 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-semibold"
                 style={{ background: "rgba(234,179,8,0.08)", border: "1px solid rgba(234,179,8,0.2)", color: "#fbbf24" }}
               >
-                {parseFloat((resellerSession as any).credits ?? "0").toFixed(2)} cr
+                {parseFloat((liveProfile as any)?.credits ?? (resellerSession as any)?.credits ?? "0").toFixed(2)} cr
               </div>
             )}
             {resellerSession && isPercentage && (
