@@ -4,15 +4,14 @@ import {
   createCreditTransaction,
   createLicenseKey,
   getAppById,
-  getAvailableStockForPlan,
   getKeysByPaymentId,
   getPixPaymentByPaymentId,
   getPlanById,
   getResellerById,
-  reserveStockForReseller,
   updatePixPaymentStatus,
   updateResellerCredits,
 } from "./db";
+import { acquireLicenseKeyValues } from "./keyFulfillment";
 
 const FINAL_PAYMENT_STATUSES = new Set(["expired", "cancelled", "refunded"]);
 const PURIN_API_KEY = process.env.PURIN_CASH_API_KEY;
@@ -146,17 +145,17 @@ export async function processPurinPaymentUpdate(
       }
       const missingQuantity = Math.max(0, quantity - existingKeys.length);
       if (missingQuantity > 0) {
-        const stockItems = await getAvailableStockForPlan(appId, planId, missingQuantity);
-        if (stockItems.length < missingQuantity) {
-          throw new Error(`Estoque insuficiente para ${plan.name}: tem ${stockItems.length}, precisa ${missingQuantity}`);
-        }
-        for (const item of stockItems) {
-          const reserved = await reserveStockForReseller(item.id, payment.resellerId);
-          if (!reserved) {
-            throw new Error(`Falha ao reservar key do estoque: ${item.id}`);
-          }
+        const { keyValues } = await acquireLicenseKeyValues({
+          app,
+          plan,
+          quantity: missingQuantity,
+          resellerId: payment.resellerId,
+          owner: reseller.username,
+          note: `other-store:${paymentId}`,
+        });
+        for (const keyValue of keyValues) {
           await createLicenseKey({
-            keyValue: reserved.keyValue,
+            keyValue,
             resellerId: payment.resellerId,
             appId,
             planId: plan.id,
@@ -202,20 +201,19 @@ export async function processPurinPaymentUpdate(
 
       const missingQuantity = Math.max(0, quantity - existingKeys.length);
       if (missingQuantity > 0) {
-        const stockItems = await getAvailableStockForPlan(appId, planId, missingQuantity);
-        if (stockItems.length < missingQuantity) {
-          throw new Error(`Estoque insuficiente para ${plan.name}: tem ${stockItems.length}, precisa ${missingQuantity}`);
-        }
-
         const pricePerKey = payment.amountCents / quantity / 100;
         const notePrefix = (payment as any).paymentMethod === "ltc" ? "ltc" : "pix";
-        for (const item of stockItems) {
-          const reserved = await reserveStockForReseller(item.id, payment.resellerId);
-          if (!reserved) {
-            throw new Error(`Falha ao reservar key do estoque: ${item.id}`);
-          }
+        const { keyValues } = await acquireLicenseKeyValues({
+          app,
+          plan,
+          quantity: missingQuantity,
+          resellerId: payment.resellerId,
+          owner: reseller.username,
+          note: `${notePrefix}:${paymentId}`,
+        });
+        for (const keyValue of keyValues) {
           await createLicenseKey({
-            keyValue: reserved.keyValue,
+            keyValue,
             resellerId: payment.resellerId,
             appId,
             planId: plan.id,

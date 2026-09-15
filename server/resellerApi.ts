@@ -2,10 +2,11 @@ import express, { type Express, type Request, type Response } from "express";
 import {
   getResellerByApiKey, getResellerById, getAssignedAppIds, getAppsByResellerId,
   getAppById, getPlansByAppId, getPlanById, getStockByApp,
-  getAvailableStockForPlan, reserveStockForReseller, releaseStockReservation, createLicenseKey,
+  getAvailableStockForPlan, createLicenseKey,
   updateResellerCredits, createCreditTransaction,
   getOtherStoreResellerByHwid, getOtherStoreHwidsByResellerId,
 } from "./db";
+import { acquireLicenseKeyValues, appGeneratesOnDemand } from "./keyFulfillment";
 import type { Reseller } from "../drizzle/schema";
 
 async function authReseller(req: Request): Promise<Reseller | undefined> {
@@ -64,7 +65,7 @@ export function registerResellerApi(app: Express) {
         resellerSellingPrice: p.resellerSellingPrice,
         stockCount: stock.filter(s => s.planId === p.id && s.status === "available").length,
       }));
-      return { id: app.id, name: app.name, description: app.description, version: app.version, plans: planList };
+      return { id: app.id, name: app.name, description: app.description, version: app.version, autoGenerate: appGeneratesOnDemand(app), plans: planList };
     }));
     res.json(result);
   });
@@ -89,7 +90,7 @@ export function registerResellerApi(app: Express) {
           inStock: available.length > 0,
         };
       }));
-      return { id: app.id, name: app.name, stock };
+      return { id: app.id, name: app.name, autoGenerate: appGeneratesOnDemand(app), stock };
     }));
     res.json(result);
   });
@@ -107,22 +108,18 @@ export function registerResellerApi(app: Express) {
     const plan = await resolvePlan(app.id, planId ? Number(planId) : undefined, planName);
     if (!plan) return res.status(404).json({ error: "Plan not found" });
     const qty = Math.max(1, Math.min(100, Number(quantity) || 1));
-    const stock = await getAvailableStockForPlan(app.id, plan.id, qty);
-    if (stock.length < qty) return res.status(409).json({ error: `Insufficient stock. Available: ${stock.length}, requested: ${qty}` });
-    const reserved: any[] = [];
-    for (const s of stock) {
-      const r = await reserveStockForReseller(s.id, reseller.id);
-      if (!r) return res.status(409).json({ error: "Stock reservation failed" });
-      reserved.push(r);
-    }
     const noteParts: string[] = [];
     if (customer) noteParts.push(`customer: ${customer}`);
     if (note) noteParts.push(note);
     const noteValue = noteParts.length ? noteParts.join(" | ") : undefined;
+    const { keyValues } = await acquireLicenseKeyValues({
+      app, plan, quantity: qty, resellerId: reseller.id,
+      owner: reseller.username, note: noteValue,
+    });
     const keys: string[] = [];
-    for (const r of reserved) {
+    for (const keyValue of keyValues) {
       await createLicenseKey({
-        keyValue: r.keyValue,
+        keyValue,
         resellerId: reseller.id,
         appId: app.id,
         planId: plan.id,
@@ -132,7 +129,7 @@ export function registerResellerApi(app: Express) {
         source: "api",
         ...(noteValue ? { note: noteValue } : {}),
       } as any);
-      keys.push(r.keyValue);
+      keys.push(keyValue);
     }
     res.json({ keys, plan: { id: plan.id, name: plan.name, durationDays: plan.durationDays } });
   });
@@ -189,21 +186,17 @@ export function registerResellerApi(app: Express) {
 
     if (!plan) return res.status(404).json({ data: null, error: "Plan not found" });
     const qty = Math.max(1, Math.min(100, Number(quantity) || 1));
-    const stock = await getAvailableStockForPlan(app.id, plan.id, qty);
-    if (stock.length < qty) return res.status(409).json({ data: null, error: `Insufficient stock. Available: ${stock.length}, requested: ${qty}` });
-    const reserved: any[] = [];
-    for (const s of stock) {
-      const r = await reserveStockForReseller(s.id, reseller.id);
-      if (!r) return res.status(409).json({ data: null, error: "Stock reservation failed" });
-      reserved.push(r);
-    }
     const noteParts: string[] = [];
     if (customer) noteParts.push(`customer: ${customer}`);
     const noteValue = noteParts.length ? noteParts.join(" | ") : undefined;
+    const { keyValues } = await acquireLicenseKeyValues({
+      app, plan, quantity: qty, resellerId: reseller.id,
+      owner: reseller.username, note: noteValue,
+    });
     const keys: string[] = [];
-    for (const r of reserved) {
+    for (const keyValue of keyValues) {
       await createLicenseKey({
-        keyValue: r.keyValue,
+        keyValue,
         resellerId: reseller.id,
         appId: app.id,
         planId: plan.id,
@@ -213,7 +206,7 @@ export function registerResellerApi(app: Express) {
         source: "api",
         ...(noteValue ? { note: noteValue } : {}),
       } as any);
-      keys.push(r.keyValue);
+      keys.push(keyValue);
     }
     res.json({
       data: {
@@ -269,23 +262,18 @@ export function registerResellerApi(app: Express) {
     if (!foundPlan || !foundApp) return res.status(404).json({ data: null, error: `Plan "${rawSlug}" not found for reseller ${reseller.username}` });
 
     const qty = Math.max(1, Math.min(100, Number(req.query.qtd ?? req.query.quantity ?? req.query.qty ?? 1) || 1));
-    const stock = await getAvailableStockForPlan(foundApp.id, foundPlan.id, qty);
-    if (stock.length < qty) return res.status(409).json({ data: null, error: `Insufficient stock. Available: ${stock.length}, requested: ${qty}` });
-
-    const reserved: any[] = [];
-    for (const s of stock) {
-      const r = await reserveStockForReseller(s.id, reseller.id);
-      if (!r) return res.status(409).json({ data: null, error: "Stock reservation failed" });
-      reserved.push(r);
-    }
     const noteParts: string[] = [];
     const customer = req.query.customer ?? req.query.email ?? req.query.cliente;
     if (customer) noteParts.push(`customer: ${customer}`);
     const noteValue = noteParts.length ? noteParts.join(" | ") : undefined;
+    const { keyValues } = await acquireLicenseKeyValues({
+      app: foundApp, plan: foundPlan, quantity: qty, resellerId: reseller.id,
+      owner: reseller.username, note: noteValue,
+    });
     const keys: string[] = [];
-    for (const r of reserved) {
+    for (const keyValue of keyValues) {
       await createLicenseKey({
-        keyValue: r.keyValue,
+        keyValue,
         resellerId: reseller.id,
         appId: foundApp.id,
         planId: foundPlan.id,
@@ -295,7 +283,7 @@ export function registerResellerApi(app: Express) {
         source: "api",
         ...(noteValue ? { note: noteValue } : {}),
       } as any);
-      keys.push(r.keyValue);
+      keys.push(keyValue);
     }
     res.json({
       data: {
@@ -326,30 +314,27 @@ export function registerResellerApi(app: Express) {
     const totalCost = pricePerKey * qty;
     let currentCredits = parseFloat(reseller.credits as string);
     if (currentCredits < totalCost) return res.status(402).json({ error: `Insufficient credits. Need: ${totalCost.toFixed(2)}, have: ${currentCredits.toFixed(2)}` });
-    const stock = await getAvailableStockForPlan(app.id, plan.id, qty);
-    if (stock.length < qty) return res.status(409).json({ error: `Insufficient stock. Available: ${stock.length}, requested: ${qty}` });
-    const reserved: any[] = [];
-    for (const s of stock) {
-      const r = await reserveStockForReseller(s.id, reseller.id);
-      if (!r) return res.status(409).json({ error: "Stock reservation failed" });
-      reserved.push(r);
-    }
-    const freshReseller = await getResellerById(reseller.id);
-    currentCredits = parseFloat(String(freshReseller?.credits ?? reseller.credits));
-    if (currentCredits < totalCost) {
-      for (const r of reserved) await releaseStockReservation(r.id);
-      return res.status(402).json({ error: `Insufficient credits after reservation. Need: ${totalCost.toFixed(2)}, have: ${currentCredits.toFixed(2)}` });
-    }
-    const newCredits = currentCredits - totalCost;
-    const newPurchases = reseller.totalPurchases + qty;
     const noteParts: string[] = [];
     if (customer) noteParts.push(`customer: ${customer}`);
     if (note) noteParts.push(note);
     const noteValue = noteParts.length ? noteParts.join(" | ") : undefined;
+    // Adquire as keys ANTES de debitar (KeyAuth on-demand ou estoque local)
+    const acquisition = await acquireLicenseKeyValues({
+      app, plan, quantity: qty, resellerId: reseller.id,
+      owner: reseller.username, note: noteValue,
+    });
+    const freshReseller = await getResellerById(reseller.id);
+    currentCredits = parseFloat(String(freshReseller?.credits ?? reseller.credits));
+    if (currentCredits < totalCost) {
+      await acquisition.release();
+      return res.status(402).json({ error: `Insufficient credits after reservation. Need: ${totalCost.toFixed(2)}, have: ${currentCredits.toFixed(2)}` });
+    }
+    const newCredits = currentCredits - totalCost;
+    const newPurchases = reseller.totalPurchases + qty;
     const keys: string[] = [];
-    for (const r of reserved) {
+    for (const keyValue of acquisition.keyValues) {
       await createLicenseKey({
-        keyValue: r.keyValue,
+        keyValue,
         resellerId: reseller.id,
         appId: app.id,
         planId: plan.id,
@@ -360,7 +345,7 @@ export function registerResellerApi(app: Express) {
         source: "api",
         ...(noteValue ? { note: noteValue } : {}),
       } as any);
-      keys.push(r.keyValue);
+      keys.push(keyValue);
     }
     await updateResellerCredits(reseller.id, newCredits.toFixed(2), newPurchases, reseller.discountPercent as string);
     await createCreditTransaction({
@@ -401,8 +386,11 @@ export function registerResellerApi(app: Express) {
     const plan = await resolvePlan(app.id, undefined, planName);
     if (!plan) return res.status(404).json({ error: "Plan not found" });
     const qty = Math.max(1, Math.min(100, Number(quantity) || 1));
-    const available = await getAvailableStockForPlan(app.id, plan.id, qty);
-    if (available.length < qty) return res.status(409).json({ error: `Insufficient stock. Available: ${available.length}, requested: ${qty}` });
+    // Apps com geração on-demand (KeyAuth) não precisam de estoque local
+    if (!appGeneratesOnDemand(app)) {
+      const available = await getAvailableStockForPlan(app.id, plan.id, qty);
+      if (available.length < qty) return res.status(409).json({ error: `Insufficient stock. Available: ${available.length}, requested: ${qty}` });
+    }
     const price = parseFloat(String(plan.resellerSellingPrice));
     if (!price || price <= 0) return res.status(400).json({ error: "Reseller selling price not set for plan" });
     const amountCents = Math.round(price * 100 * qty);

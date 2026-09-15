@@ -8,6 +8,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { ENV } from "./_core/env";
 import { keyauthCreateLicense } from "./keyauth";
+import { acquireLicenseKeyValues } from "./keyFulfillment";
 import { calcDiscount } from "./resellerPricing";
 import { checkPurinPaymentStatus, processPurinPaymentUpdate } from "./purinCashWebhook";
 import { storagePut } from "./storage";
@@ -1118,7 +1119,9 @@ const resellerRouter = router({
     const rows = await getAppsByResellerId(ctx.resellerId);
     const result = await Promise.all(rows.map(async (row) => {
       const plans = await getPlansByAppId(row.app.id);
-      return { ...row.app, plans, assignedAt: row.assignedAt };
+      // Nunca expor a seller key para resellers
+      const { keyauthSellerKey, ...safeApp } = row.app;
+      return { ...safeApp, autoKeys: !!keyauthSellerKey, plans, assignedAt: row.assignedAt };
     }));
     return result;
   }),
@@ -1131,7 +1134,9 @@ const resellerRouter = router({
       const app = await getAppById(input.appId);
       if (!app) throw new TRPCError({ code: "NOT_FOUND" });
       const plans = await getPlansByAppId(input.appId);
-      return { ...app, plans };
+      // Nunca expor a seller key para resellers
+      const { keyauthSellerKey, ...safeApp } = app;
+      return { ...safeApp, autoKeys: !!keyauthSellerKey, plans };
     }),
 
   myKeys: resellerProcedure.query(async ({ ctx }) => {
@@ -1174,7 +1179,28 @@ const resellerRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: `Créditos insuficientes. Necessário: ${totalCost.toFixed(2)}, Disponível: ${currentCredits.toFixed(2)}` });
       }
 
-      const newCredits = currentCredits - totalCost;
+      // Adquire as keys ANTES de debitar: KeyAuth on-demand (apps com seller
+      // key, ex.: Unlock All Web) ou reserva do estoque local. Se falhar,
+      // nenhum crédito é cobrado.
+      const acquisition = await acquireLicenseKeyValues({
+        app,
+        plan,
+        quantity: input.quantity,
+        resellerId: ctx.resellerId,
+        owner: reseller.username,
+        note: input.note,
+        mask: input.customMask,
+      });
+
+      // Re-verifica o saldo para evitar débito concorrente deixar saldo negativo
+      const freshReseller = await getResellerById(ctx.resellerId);
+      const freshCredits = parseFloat(String(freshReseller?.credits ?? "0"));
+      if (freshCredits < totalCost) {
+        await acquisition.release();
+        throw new TRPCError({ code: "BAD_REQUEST", message: `Créditos insuficientes. Necessário: ${totalCost.toFixed(2)}, Disponível: ${freshCredits.toFixed(2)}` });
+      }
+
+      const newCredits = freshCredits - totalCost;
       const newPurchases = reseller.totalPurchases + input.quantity;
       // Para créditos, o discountPercent é fixo (definido pelo admin), não atualiza automaticamente
       await updateResellerCredits(ctx.resellerId, newCredits.toFixed(2), newPurchases, reseller.discountPercent as string);
@@ -1182,32 +1208,22 @@ const resellerRouter = router({
       await createCreditTransaction({
         resellerId: ctx.resellerId, type: "deduct",
         amount: totalCost.toFixed(2),
-        balanceBefore: currentCredits.toFixed(2),
+        balanceBefore: freshCredits.toFixed(2),
         balanceAfter: newCredits.toFixed(2),
         description: `Geração de ${input.quantity}x key(s) - ${app.name} (${plan.name})`,
       });
 
-      // Try to pull from pre-loaded stock first
-      const reserved = await getAvailableStockForPlan(input.appId, input.planId, input.quantity);
-      if (reserved.length < input.quantity) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: `Estoque insuficiente. Disponível: ${reserved.length}, Solicitado: ${input.quantity}`,
-        });
-      }
-
       const generatedKeys: string[] = [];
-      for (const stock of reserved) {
-        await reserveStockForReseller(stock.id, ctx.resellerId);
+      for (const keyValue of acquisition.keyValues) {
         await createLicenseKey({
-          keyValue: stock.keyValue, resellerId: ctx.resellerId, appId: input.appId,
+          keyValue, resellerId: ctx.resellerId, appId: input.appId,
           planId: plan.id, planName: plan.name, durationDays: plan.durationDays,
           creditsSpent: discountedPrice.toFixed(2),
           resellerCredits: newCredits.toFixed(2),
           ...(input.note ? { note: input.note } : {}),
           ...(input.customMask ? { customMask: input.customMask } : {}),
         } as any);
-        generatedKeys.push(stock.keyValue);
+        generatedKeys.push(keyValue);
       }
 
       return { success: true, keys: generatedKeys, creditsSpent: totalCost, newBalance: newCredits };
@@ -1297,8 +1313,12 @@ const resellerRouter = router({
       const assigned = await getAssignedAppIds(ctx.resellerId);
       if (!assigned.includes(input.appId)) throw new TRPCError({ code: "FORBIDDEN", message: "App não atribuído" });
       const qty = input.quantity;
-      const available = await getAvailableStockForPlan(input.appId, input.planId, qty);
-      if (available.length < qty) throw new TRPCError({ code: "BAD_REQUEST", message: `Estoque insuficiente: ${available.length} disponível` });
+      const chargeApp = await getAppById(input.appId);
+      // Apps com geração on-demand (KeyAuth) não precisam de estoque local
+      if (!chargeApp?.keyauthSellerKey?.trim()) {
+        const available = await getAvailableStockForPlan(input.appId, input.planId, qty);
+        if (available.length < qty) throw new TRPCError({ code: "BAD_REQUEST", message: `Estoque insuficiente: ${available.length} disponível` });
+      }
       const price = parseFloat(String(plan.resellerSellingPrice));
       if (!price || price <= 0) throw new TRPCError({ code: "BAD_REQUEST", message: "Preço de venda não configurado para este plano" });
       const discount = parseFloat(String(ctx.reseller.discountPercent));
