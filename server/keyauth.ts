@@ -1,4 +1,4 @@
-const DEFAULT_KEY_MASK = "***t**-***m**-*****k";
+const DEFAULT_KEY_MASK = "KEY-******-******";
 
 export async function keyauthCreateLicense(opts: {
   sellerKey: string;

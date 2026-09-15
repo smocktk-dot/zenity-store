@@ -114,6 +114,7 @@ export const apps = pgTable("apps", {
   maxUsers: integer("maxUsers").default(5000),
   features: text("features"), // JSON string of feature list
   keyauthSellerKey: varchar("keyauthSellerKey", { length: 64 }), // KeyAuth Seller API Key for this app
+  keyMask: varchar("keyMask", { length: 64 }), // Máscara das keys geradas via KeyAuth (ex.: KEY-******-******)
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
 });

@@ -17,7 +17,7 @@ export default function AdminApps() {
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [editApp, setEditApp] = useState<any>(null);
-  const [form, setForm] = useState({ name: "", description: "", version: "v1.0", categoryId: "" as string, maxUsers: "5000", features: "", keyauthSellerKey: "" });
+  const [form, setForm] = useState({ name: "", description: "", version: "v1.0", categoryId: "" as string, maxUsers: "5000", features: "", keyauthSellerKey: "", keyMask: "" });
 
   const create = trpc.admin.createApp.useMutation({
     onSuccess: () => { toast.success("Aplicativo cadastrado com sucesso!"); utils.admin.listApps.invalidate(); setShowCreate(false); resetForm(); },
@@ -32,7 +32,7 @@ export default function AdminApps() {
     onError: e => toast.error(e.message),
   });
 
-  const resetForm = () => setForm({ name: "", description: "", version: "v1.0", categoryId: "", maxUsers: "5000", features: "", keyauthSellerKey: "" });
+  const resetForm = () => setForm({ name: "", description: "", version: "v1.0", categoryId: "", maxUsers: "5000", features: "", keyauthSellerKey: "", keyMask: "" });
 
   const filtered = apps.filter((a: any) =>
     a.name?.toLowerCase().includes(search.toLowerCase()) ||
@@ -42,11 +42,12 @@ export default function AdminApps() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const keyauthSellerKey = form.keyauthSellerKey.trim() || undefined;
+    const keyMask = form.keyMask.trim() || undefined;
     const payload = {
       name: form.name, description: form.description, version: form.version,
       categoryId: form.categoryId ? parseInt(form.categoryId) : undefined,
       maxUsers: parseInt(form.maxUsers) || 5000, features: form.features,
-      keyauthSellerKey,
+      keyauthSellerKey, keyMask,
     };
     if (editApp) update.mutate({ id: editApp.id, ...payload });
     else create.mutate(payload);
@@ -62,6 +63,7 @@ export default function AdminApps() {
       maxUsers: String(app.maxUsers || 5000),
       features: app.features || "",
       keyauthSellerKey: app.keyauthSellerKey || "",
+      keyMask: app.keyMask || "",
     });
   };
 
@@ -251,6 +253,18 @@ export default function AdminApps() {
                   placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
                   className="bg-black/30 border-white/[0.1] text-white font-mono rounded-lg h-9 text-xs"
                 />
+              </div>
+
+              <div className="col-span-2">
+                <Label className="text-gray-300 text-xs font-medium block mb-1">Máscara das Keys (Opcional - * = caractere aleatório)</Label>
+                <Input
+                  value={form.keyMask}
+                  onChange={e => setForm(f => ({ ...f, keyMask: e.target.value }))}
+                  maxLength={64}
+                  placeholder="KEY-******-******"
+                  className="bg-black/30 border-white/[0.1] text-white font-mono rounded-lg h-9 text-xs"
+                />
+                <p className="text-[11px] text-gray-500 mt-1">Formato das keys geradas via Seller API. Ex: <code className="text-emerald-400/80">KEY-******-******</code> gera <code className="text-emerald-400/80">KEY-a1b2c3-d4e5f6</code></p>
               </div>
             </div>
 

@@ -119,6 +119,30 @@ export async function ensureLicenseKeysSchema(): Promise<void> {
   return _licenseKeysSchemaReady;
 }
 
+let _appsSchemaReady: Promise<void> | null = null;
+
+export async function ensureAppsSchema(): Promise<void> {
+  await getDb();
+  if (!_sqlClient) throw new Error("DB not available");
+
+  if (!_appsSchemaReady) {
+    _appsSchemaReady = (async () => {
+      try {
+        await _sqlClient!.unsafe(`ALTER TABLE "apps" ADD COLUMN IF NOT EXISTS "keyMask" varchar(64)`);
+      } catch (e) {
+        console.error("[Database] Failed to ensure apps schema:", e);
+        throw e;
+      }
+    })().then(() => undefined).catch(error => {
+      _appsSchemaReady = null;
+      console.error("[Database] Failed to ensure apps schema:", error);
+      throw new Error("Não foi possível preparar o banco para apps");
+    });
+  }
+
+  return _appsSchemaReady;
+}
+
 let _appDownloadsSchemaReady: Promise<void> | null = null;
 
 export async function ensureAppDownloadsSchema(): Promise<void> {
@@ -427,12 +451,14 @@ export async function deleteCategory(id: number) {
 
 // ─── Apps ─────────────────────────────────────────────────────────────────────
 export async function getAllApps() {
+  await ensureAppsSchema();
   const db = await getDb();
   if (!db) return [];
   return db.select().from(apps).orderBy(desc(apps.createdAt));
 }
 
 export async function getAppById(id: number) {
+  await ensureAppsSchema();
   const db = await getDb();
   if (!db) return undefined;
   const result = await db.select().from(apps).where(eq(apps.id, id)).limit(1);
@@ -440,6 +466,7 @@ export async function getAppById(id: number) {
 }
 
 export async function getAppByName(name: string) {
+  await ensureAppsSchema();
   const db = await getDb();
   if (!db) return undefined;
   const n = name.trim();
@@ -448,6 +475,7 @@ export async function getAppByName(name: string) {
 }
 
 export async function getAppByNameLike(term: string) {
+  await ensureAppsSchema();
   const db = await getDb();
   if (!db) return undefined;
   const t = `%${term.trim().toLowerCase()}%`;
@@ -456,6 +484,7 @@ export async function getAppByNameLike(term: string) {
 }
 
 export async function createApp(data: InsertApp) {
+  await ensureAppsSchema();
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const result = await db.insert(apps).values(data);
@@ -463,6 +492,7 @@ export async function createApp(data: InsertApp) {
 }
 
 export async function updateApp(id: number, data: Partial<InsertApp>) {
+  await ensureAppsSchema();
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   await db.update(apps).set(data).where(eq(apps.id, id));
@@ -521,6 +551,7 @@ export async function deletePlan(id: number) {
 
 // ─── Reseller Apps ────────────────────────────────────────────────────────────
 export async function getAppsByResellerId(resellerId: number) {
+  await ensureAppsSchema();
   const db = await getDb();
   if (!db) return [];
   const rows = await db

@@ -34,7 +34,7 @@ export interface AcquireKeysResult {
  * saldo de créditos suficiente — nunca entregar keys sem essas verificações.
  */
 export async function acquireLicenseKeyValues(opts: {
-  app: { id: number; keyauthSellerKey?: string | null };
+  app: { id: number; keyauthSellerKey?: string | null; keyMask?: string | null };
   plan: { id: number; name: string; durationDays: number };
   quantity: number;
   resellerId: number;
@@ -51,7 +51,8 @@ export async function acquireLicenseKeyValues(opts: {
       quantity,
       owner,
       note,
-      mask,
+      // Prioridade: máscara custom da requisição > máscara do app > padrão
+      mask: mask || app.keyMask?.trim() || undefined,
     });
     return { keyValues, release: async () => {} };
   }

@@ -565,6 +565,7 @@ const adminRouter = router({
       version: z.string().optional(), categoryId: z.number().optional(),
       maxUsers: z.number().optional(), features: z.string().optional(),
       keyauthSellerKey: z.string().length(32).optional(),
+      keyMask: z.string().max(64).optional(),
     }))
     .mutation(async ({ input }) => { await createApp(input as any); return { success: true }; }),
 
@@ -575,6 +576,7 @@ const adminRouter = router({
       status: z.enum(["active", "inactive"]).optional(),
       maxUsers: z.number().optional(), features: z.string().optional(),
       keyauthSellerKey: z.string().length(32).optional().nullable(),
+      keyMask: z.string().max(64).optional().nullable(),
     }))
     .mutation(async ({ input }) => { const { id, ...data } = input; await updateApp(id, data as any); return { success: true }; }),
 
