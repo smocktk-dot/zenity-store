@@ -43,6 +43,89 @@ async function resolvePlan(appId: number, planId: number | undefined, planName: 
   return plans.find(p => p.name.toLowerCase().trim() === name);
 }
 
+/**
+ * Entrega keys para endpoints de gateway.
+ *
+ * Proteção anti-key-grátis: apps com geração on-demand (keyauthSellerKey) criam
+ * licenças reais na conta KeyAuth do dono — exigem reseller do tipo "credits"
+ * com saldo suficiente. Resellers de porcentagem/other-store devem passar pelo
+ * fluxo pago (charge Pix + webhook). Apps de estoque mantêm o comportamento
+ * original (take grátis limitado pelo estoque físico).
+ */
+class GatewayError extends Error {
+  constructor(public httpStatus: number, public publicMessage: string) {
+    super(publicMessage);
+  }
+}
+
+async function takeKeysGuarded(opts: {
+  reseller: Reseller;
+  app: { id: number; name?: string; keyauthSellerKey?: string | null; keyMask?: string | null };
+  plan: { id: number; name: string; durationDays: number; priceCredits: string };
+  qty: number;
+  noteValue?: string;
+}): Promise<string[]> {
+  const { reseller, app, plan, qty, noteValue } = opts;
+
+  if (appGeneratesOnDemand(app)) {
+    if (reseller.resellerType !== "credits") {
+      throw new GatewayError(403, "This app requires a paid purchase (PIX) or a credits reseller account");
+    }
+    const discount = parseFloat(String(reseller.discountPercent ?? "0"));
+    const pricePerKey = parseFloat(String(plan.priceCredits)) * (1 - discount / 100);
+    const totalCost = pricePerKey * qty;
+    const currentCredits = parseFloat(String(reseller.credits));
+    if (currentCredits < totalCost) {
+      throw new GatewayError(402, `Insufficient credits. Need: ${totalCost.toFixed(2)}, have: ${currentCredits.toFixed(2)}`);
+    }
+    const acquisition = await acquireLicenseKeyValues({
+      app, plan, quantity: qty, resellerId: reseller.id,
+      owner: reseller.username, note: noteValue,
+    });
+    const fresh = await getResellerById(reseller.id);
+    const freshCredits = parseFloat(String(fresh?.credits ?? reseller.credits));
+    if (freshCredits < totalCost) {
+      await acquisition.release();
+      throw new GatewayError(402, `Insufficient credits. Need: ${totalCost.toFixed(2)}, have: ${freshCredits.toFixed(2)}`);
+    }
+    const newCredits = freshCredits - totalCost;
+    for (const keyValue of acquisition.keyValues) {
+      await createLicenseKey({
+        keyValue, resellerId: reseller.id, appId: app.id, planId: plan.id,
+        planName: plan.name, durationDays: plan.durationDays,
+        creditsSpent: pricePerKey.toFixed(2), resellerCredits: newCredits.toFixed(2),
+        source: "api", ...(noteValue ? { note: noteValue } : {}),
+      } as any);
+    }
+    await updateResellerCredits(reseller.id, newCredits.toFixed(2), reseller.totalPurchases + qty, reseller.discountPercent as string);
+    await createCreditTransaction({
+      resellerId: reseller.id, type: "deduct", amount: totalCost.toFixed(2),
+      balanceBefore: freshCredits.toFixed(2), balanceAfter: newCredits.toFixed(2),
+      description: `API take ${qty}x ${app.name} (${plan.name})`,
+    });
+    return acquisition.keyValues;
+  }
+
+  let acquisition;
+  try {
+    acquisition = await acquireLicenseKeyValues({
+      app, plan, quantity: qty, resellerId: reseller.id,
+      owner: reseller.username, note: noteValue,
+    });
+  } catch (e: any) {
+    throw new GatewayError(409, e?.message || "Insufficient stock");
+  }
+  for (const keyValue of acquisition.keyValues) {
+    await createLicenseKey({
+      keyValue, resellerId: reseller.id, appId: app.id, planId: plan.id,
+      planName: plan.name, durationDays: plan.durationDays,
+      creditsSpent: "0", source: "api",
+      ...(noteValue ? { note: noteValue } : {}),
+    } as any);
+  }
+  return acquisition.keyValues;
+}
+
 export function registerResellerApi(app: Express) {
   app.post("/api/reseller/v1/auth/verify", async (req, res) => {
     const reseller = await authReseller(req);
@@ -112,26 +195,12 @@ export function registerResellerApi(app: Express) {
     if (customer) noteParts.push(`customer: ${customer}`);
     if (note) noteParts.push(note);
     const noteValue = noteParts.length ? noteParts.join(" | ") : undefined;
-    const { keyValues } = await acquireLicenseKeyValues({
-      app, plan, quantity: qty, resellerId: reseller.id,
-      owner: reseller.username, note: noteValue,
-    });
-    const keys: string[] = [];
-    for (const keyValue of keyValues) {
-      await createLicenseKey({
-        keyValue,
-        resellerId: reseller.id,
-        appId: app.id,
-        planId: plan.id,
-        planName: plan.name,
-        durationDays: plan.durationDays,
-        creditsSpent: "0",
-        source: "api",
-        ...(noteValue ? { note: noteValue } : {}),
-      } as any);
-      keys.push(keyValue);
+    try {
+      const keys = await takeKeysGuarded({ reseller, app, plan, qty, noteValue });
+      res.json({ keys, plan: { id: plan.id, name: plan.name, durationDays: plan.durationDays } });
+    } catch (e: any) {
+      return res.status(e instanceof GatewayError ? e.httpStatus : 500).json({ error: e instanceof GatewayError ? e.publicMessage : "Failed to deliver keys" });
     }
-    res.json({ keys, plan: { id: plan.id, name: plan.name, durationDays: plan.durationDays } });
   });
 
   // Gateway-compatible endpoint that returns { data: { key: ... } }
@@ -189,24 +258,11 @@ export function registerResellerApi(app: Express) {
     const noteParts: string[] = [];
     if (customer) noteParts.push(`customer: ${customer}`);
     const noteValue = noteParts.length ? noteParts.join(" | ") : undefined;
-    const { keyValues } = await acquireLicenseKeyValues({
-      app, plan, quantity: qty, resellerId: reseller.id,
-      owner: reseller.username, note: noteValue,
-    });
-    const keys: string[] = [];
-    for (const keyValue of keyValues) {
-      await createLicenseKey({
-        keyValue,
-        resellerId: reseller.id,
-        appId: app.id,
-        planId: plan.id,
-        planName: plan.name,
-        durationDays: plan.durationDays,
-        creditsSpent: "0",
-        source: "api",
-        ...(noteValue ? { note: noteValue } : {}),
-      } as any);
-      keys.push(keyValue);
+    let keys: string[];
+    try {
+      keys = await takeKeysGuarded({ reseller, app, plan, qty, noteValue });
+    } catch (e: any) {
+      return res.status(e instanceof GatewayError ? e.httpStatus : 500).json({ data: null, error: e instanceof GatewayError ? e.publicMessage : "Failed to deliver keys" });
     }
     res.json({
       data: {
@@ -266,24 +322,11 @@ export function registerResellerApi(app: Express) {
     const customer = req.query.customer ?? req.query.email ?? req.query.cliente;
     if (customer) noteParts.push(`customer: ${customer}`);
     const noteValue = noteParts.length ? noteParts.join(" | ") : undefined;
-    const { keyValues } = await acquireLicenseKeyValues({
-      app: foundApp, plan: foundPlan, quantity: qty, resellerId: reseller.id,
-      owner: reseller.username, note: noteValue,
-    });
-    const keys: string[] = [];
-    for (const keyValue of keyValues) {
-      await createLicenseKey({
-        keyValue,
-        resellerId: reseller.id,
-        appId: foundApp.id,
-        planId: foundPlan.id,
-        planName: foundPlan.name,
-        durationDays: foundPlan.durationDays,
-        creditsSpent: "0",
-        source: "api",
-        ...(noteValue ? { note: noteValue } : {}),
-      } as any);
-      keys.push(keyValue);
+    let keys: string[];
+    try {
+      keys = await takeKeysGuarded({ reseller, app: foundApp, plan: foundPlan, qty, noteValue });
+    } catch (e: any) {
+      return res.status(e instanceof GatewayError ? e.httpStatus : 500).json({ data: null, error: e instanceof GatewayError ? e.publicMessage : "Failed to deliver keys" });
     }
     res.json({
       data: {
