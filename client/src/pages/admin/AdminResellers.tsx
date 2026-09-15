@@ -575,7 +575,7 @@ export default function AdminResellers() {
               <Button
                 onClick={() => {
                   if (creditReseller && creditAmount) {
-                    addCredits.mutate({ resellerId: creditReseller.id, credits: parseFloat(creditAmount) });
+                    addCredits.mutate({ resellerId: creditReseller.id, amount: parseFloat(creditAmount) });
                   }
                 }}
                 disabled={addCredits.isPending || !creditAmount}

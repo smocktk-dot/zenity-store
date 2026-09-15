@@ -1,4 +1,4 @@
-import { eq, and, desc, sql, inArray, or, aliasedTable, ilike, lower } from "drizzle-orm";
+import { eq, and, asc, desc, sql, inArray, or, aliasedTable, ilike, lower } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { InsertUser, users, admins, resellers, resellerApiKeys, categories, apps, subscriptionPlans, resellerApps, licenseKeys, appStock, appDownloads, creditTransactions, ipWhitelist, pixPayments, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages, otherStoreResellers, otherStoreHwids } from "../drizzle/schema";
@@ -486,7 +486,10 @@ export async function deleteApp(id: number) {
 export async function getPlansByAppId(appId: number) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(subscriptionPlans).where(eq(subscriptionPlans.appId, appId));
+  // Ordena por duração: diário → trial → semanal → mensal → lifetime
+  return db.select().from(subscriptionPlans)
+    .where(eq(subscriptionPlans.appId, appId))
+    .orderBy(asc(subscriptionPlans.durationDays), asc(subscriptionPlans.id));
 }
 
 export async function getPlanById(id: number) {
