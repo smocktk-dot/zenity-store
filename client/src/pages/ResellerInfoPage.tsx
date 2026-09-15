@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -56,6 +56,94 @@ type Product = {
   sortOrder: number;
   status: string;
 };
+
+function allProductImages(p: Product): string[] {
+  const images: string[] = [];
+  if (p.imageUrl) images.push(p.imageUrl);
+  if (p.galleryImages) {
+    try {
+      const arr = JSON.parse(p.galleryImages);
+      if (Array.isArray(arr)) images.push(...arr);
+    } catch { /* ignore */ }
+  }
+  return images;
+}
+
+function ProductImageBanner({ product }: { product: Product }) {
+  const images = allProductImages(product);
+  const [idx, setIdx] = useState(0);
+
+  useEffect(() => {
+    setIdx(0);
+  }, [product.id]);
+
+  useEffect(() => {
+    if (images.length <= 1) return;
+    const t = setInterval(() => setIdx(i => (i + 1) % images.length), 4000);
+    return () => clearInterval(t);
+  }, [images.length, product.id]);
+
+  const goPrev = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIdx(i => (i - 1 + images.length) % images.length);
+  };
+  const goNext = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIdx(i => (i + 1) % images.length);
+  };
+  const goDot = (e: React.MouseEvent, i: number) => {
+    e.stopPropagation();
+    setIdx(i);
+  };
+
+  if (images.length === 0) {
+    return (
+      <div
+        className="ri-modal-cover ri-modal-cover--placeholder"
+        style={{ background: productGradient(product.title) }}
+      >
+        <span className="ri-modal-cover-initial">{productInitial(product.title)}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="ri-modal-cover ri-modal-cover-banner">
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={idx}
+          className="ri-modal-cover-slide"
+          style={{ backgroundImage: `url(${images[idx]})` }}
+          initial={{ opacity: 0, scale: 1.05 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+        />
+      </AnimatePresence>
+      {images.length > 1 && (
+        <>
+          <button className="ri-modal-arrow ri-modal-arrow--prev" onClick={goPrev} type="button">
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <button className="ri-modal-arrow ri-modal-arrow--next" onClick={goNext} type="button">
+            <ChevronRight className="w-4 h-4" />
+          </button>
+          <div className="ri-modal-dots">
+            {images.map((_, i) => (
+              <button
+                key={i}
+                onClick={(e) => goDot(e, i)}
+                className={`ri-modal-dot ${i === idx ? "active" : ""}`}
+                type="button"
+                aria-label={`Imagem ${i + 1}`}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 export default function ResellerInfoPage() {
   const [location, navigate] = useLocation();
@@ -325,16 +413,7 @@ export default function ResellerInfoPage() {
             <div className="ri-modal-scroll">
               {/* Header */}
               <div className="ri-modal-head">
-                {selectedProduct.imageUrl ? (
-                  <div className="ri-modal-cover" style={{ backgroundImage: `url(${selectedProduct.imageUrl})` }} />
-                ) : (
-                  <div
-                    className="ri-modal-cover ri-modal-cover--placeholder"
-                    style={{ background: productGradient(selectedProduct.title) }}
-                  >
-                    <span className="ri-modal-cover-initial">{productInitial(selectedProduct.title)}</span>
-                  </div>
-                )}
+                <ProductImageBanner product={selectedProduct} />
                 <div className="ri-modal-headtext">
                   <div className="ri-eyebrow">
                     <span className="ri-eyebrow-dot" />
