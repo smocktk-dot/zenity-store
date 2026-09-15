@@ -22,6 +22,25 @@ import { useLanguage } from "@/contexts/LanguageContext";
 
 const DEFAULT_DISCORD_URL = "https://discord.gg/vgseller";
 
+const productGradients = [
+  "linear-gradient(135deg, rgba(16,185,129,0.35) 0%, rgba(5,150,105,0.18) 50%, rgba(2,44,34,0.25) 100%)",
+  "linear-gradient(135deg, rgba(99,102,241,0.35) 0%, rgba(79,70,229,0.18) 50%, rgba(30,27,75,0.25) 100%)",
+  "linear-gradient(135deg, rgba(236,72,153,0.35) 0%, rgba(190,24,93,0.18) 50%, rgba(88,28,66,0.25) 100%)",
+  "linear-gradient(135deg, rgba(245,158,11,0.35) 0%, rgba(180,83,9,0.18) 50%, rgba(69,26,3,0.25) 100%)",
+];
+
+function productGradient(title: string) {
+  let hash = 0;
+  for (let i = 0; i < title.length; i++) hash = title.charCodeAt(i) + ((hash << 5) - hash);
+  const index = Math.abs(hash) % productGradients.length;
+  return productGradients[index];
+}
+
+function productInitial(title: string) {
+  const first = title?.trim()[0];
+  return (first || "?").toUpperCase();
+}
+
 type Product = {
   id: number;
   title: string;
@@ -212,8 +231,11 @@ export default function ResellerInfoPage() {
                   {p.imageUrl ? (
                     <div className="ri-card-image" style={{ backgroundImage: `url(${p.imageUrl})` }} />
                   ) : (
-                    <div className="ri-card-image ri-card-image--placeholder">
-                      <ImageIcon className="w-7 h-7" style={{ color: "rgba(255,255,255,0.15)" }} />
+                    <div
+                      className="ri-card-image ri-card-image--placeholder"
+                      style={{ background: productGradient(p.title) }}
+                    >
+                      <span className="ri-card-initial">{productInitial(p.title)}</span>
                     </div>
                   )}
                   <div className="ri-card-body">
@@ -269,8 +291,11 @@ export default function ResellerInfoPage() {
                 {selectedProduct.imageUrl ? (
                   <div className="ri-modal-cover" style={{ backgroundImage: `url(${selectedProduct.imageUrl})` }} />
                 ) : (
-                  <div className="ri-modal-cover ri-modal-cover--placeholder">
-                    <ImageIcon className="w-10 h-10" style={{ color: "rgba(255,255,255,0.15)" }} />
+                  <div
+                    className="ri-modal-cover ri-modal-cover--placeholder"
+                    style={{ background: productGradient(selectedProduct.title) }}
+                  >
+                    <span className="ri-modal-cover-initial">{productInitial(selectedProduct.title)}</span>
                   </div>
                 )}
                 <div className="ri-modal-headtext">

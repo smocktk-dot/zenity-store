@@ -1392,6 +1392,14 @@ input:-webkit-autofill:active {
   background: linear-gradient(160deg, rgba(16, 185, 129, 0.04), rgba(255, 255, 255, 0.01));
 }
 
+.ri-card-initial {
+  font-size: 56px;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.7);
+  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.4);
+  line-height: 1;
+}
+
 .ri-card-body {
   padding: 18px 18px 20px;
   display: flex;
@@ -1632,6 +1640,14 @@ input:-webkit-autofill:active {
   align-items: center;
   justify-content: center;
   background: linear-gradient(160deg, rgba(16, 185, 129, 0.06), rgba(255, 255, 255, 0.01));
+}
+
+.ri-modal-cover-initial {
+  font-size: 42px;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.75);
+  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.4);
+  line-height: 1;
 }
 
 .ri-modal-headtext {
