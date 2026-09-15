@@ -1,8 +1,8 @@
 import { eq, and, asc, desc, sql, inArray, or, aliasedTable, ilike, lower } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { InsertUser, users, admins, resellers, resellerApiKeys, categories, apps, subscriptionPlans, resellerApps, licenseKeys, appStock, appDownloads, creditTransactions, ipWhitelist, pixPayments, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages, otherStoreResellers, otherStoreHwids } from "../drizzle/schema";
-import type { InsertAdmin, InsertReseller, InsertResellerApiKey, InsertCategory, InsertApp, InsertSubscriptionPlan, InsertResellerApp, InsertLicenseKey, InsertAppStock, InsertAppDownload, InsertCreditTransaction, InsertPixPayment, InsertTicket, InsertTicketMessage, InsertResellerApplication, InsertApplicationMessage, InsertSupportTicket, InsertSupportMessage, InsertOtherStoreReseller, InsertOtherStoreHwid } from "../drizzle/schema";
+import { InsertUser, users, admins, resellers, resellerApiKeys, categories, apps, subscriptionPlans, resellerApps, licenseKeys, appStock, appDownloads, creditTransactions, ipWhitelist, pixPayments, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages, otherStoreResellers, otherStoreHwids, resellerInfoProducts } from "../drizzle/schema";
+import type { InsertAdmin, InsertReseller, InsertResellerApiKey, InsertCategory, InsertApp, InsertSubscriptionPlan, InsertResellerApp, InsertLicenseKey, InsertAppStock, InsertAppDownload, InsertCreditTransaction, InsertPixPayment, InsertTicket, InsertTicketMessage, InsertResellerApplication, InsertApplicationMessage, InsertSupportTicket, InsertSupportMessage, InsertOtherStoreReseller, InsertOtherStoreHwid, InsertResellerInfoProduct } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import { randomUUID } from "crypto";
 
@@ -1342,4 +1342,95 @@ export async function deleteOtherStoreHwid(id: number) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   await db.delete(otherStoreHwids).where(eq(otherStoreHwids.id, id));
+}
+
+// ─── Reseller Info Products (página pública /resellerinfo) ──────────────────────
+let _resellerInfoSchemaReady: Promise<void> | null = null;
+
+export async function ensureResellerInfoSchema(): Promise<void> {
+  await getDb();
+  if (!_sqlClient) throw new Error("DB not available");
+
+  if (!_resellerInfoSchemaReady) {
+    _resellerInfoSchemaReady = (async () => {
+      try {
+        await _sqlClient!.unsafe(`DO $$ BEGIN CREATE TYPE "reseller_info_status" AS ENUM('active', 'inactive'); EXCEPTION WHEN duplicate_object THEN null; END $$;`);
+      } catch (e) { /* ignore duplicate */ }
+
+      try {
+        await _sqlClient!.unsafe(`CREATE TABLE IF NOT EXISTS "reseller_info_products" (
+          "id" serial PRIMARY KEY,
+          "title" varchar(128) NOT NULL,
+          "slug" varchar(128) NOT NULL UNIQUE,
+          "tagline" varchar(255),
+          "description" text,
+          "pricingCredits" text,
+          "pricingPercentage" text,
+          "imageUrl" text,
+          "galleryImages" text,
+          "discordUrl" text,
+          "sortOrder" integer DEFAULT 0 NOT NULL,
+          "status" "reseller_info_status" DEFAULT 'active' NOT NULL,
+          "createdAt" timestamp DEFAULT now() NOT NULL,
+          "updatedAt" timestamp DEFAULT now() NOT NULL
+        )`);
+      } catch (e) {
+        console.error("[Database] Failed to create reseller_info_products table:", e);
+        throw e;
+      }
+    })().then(() => undefined).catch(error => {
+      _resellerInfoSchemaReady = null;
+      console.error("[Database] Failed to ensure reseller info schema:", error);
+      throw new Error("Não foi possível preparar o banco para reseller info");
+    });
+  }
+
+  return _resellerInfoSchemaReady;
+}
+
+export async function getAllResellerInfoProducts() {
+  await ensureResellerInfoSchema();
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(resellerInfoProducts).orderBy(resellerInfoProducts.sortOrder, resellerInfoProducts.createdAt);
+}
+
+export async function getActiveResellerInfoProducts() {
+  await ensureResellerInfoSchema();
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(resellerInfoProducts)
+    .where(eq(resellerInfoProducts.status, "active"))
+    .orderBy(resellerInfoProducts.sortOrder, resellerInfoProducts.createdAt);
+}
+
+export async function getResellerInfoProductById(id: number) {
+  await ensureResellerInfoSchema();
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db.select().from(resellerInfoProducts).where(eq(resellerInfoProducts.id, id));
+  return row ?? null;
+}
+
+export async function createResellerInfoProduct(data: InsertResellerInfoProduct) {
+  await ensureResellerInfoSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.insert(resellerInfoProducts).values(data).returning();
+  return row;
+}
+
+export async function updateResellerInfoProduct(id: number, data: Partial<InsertResellerInfoProduct>) {
+  await ensureResellerInfoSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.update(resellerInfoProducts).set({ ...data, updatedAt: new Date() }).where(eq(resellerInfoProducts.id, id)).returning();
+  return row;
+}
+
+export async function deleteResellerInfoProduct(id: number) {
+  await ensureResellerInfoSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.delete(resellerInfoProducts).where(eq(resellerInfoProducts.id, id));
 }

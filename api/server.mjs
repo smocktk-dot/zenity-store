@@ -20,7 +20,7 @@ import {
   boolean,
   serial
 } from "drizzle-orm/pg-core";
-var userRoleEnum, resellerTypeEnum, resellerStatusEnum, appStatusEnum, planLevelEnum, keyStatusEnum, transactionTypeEnum, pixPaymentStatusEnum, ticketStatusEnum, ticketSenderEnum, applicationStatusEnum, applicationSenderEnum, supportTicketStatusEnum, supportMessageSenderEnum, appDownloadTypeEnum, users, admins, resellers, resellerApiKeys, categories, apps, stockStatusEnum, subscriptionPlans, resellerApps, licenseKeys, appStock, creditTransactions, pixPayments, ipWhitelist, otherStoreResellers, otherStoreHwids, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages, appDownloads;
+var userRoleEnum, resellerTypeEnum, resellerStatusEnum, appStatusEnum, planLevelEnum, keyStatusEnum, transactionTypeEnum, pixPaymentStatusEnum, ticketStatusEnum, ticketSenderEnum, applicationStatusEnum, applicationSenderEnum, supportTicketStatusEnum, supportMessageSenderEnum, appDownloadTypeEnum, users, admins, resellers, resellerApiKeys, categories, apps, stockStatusEnum, subscriptionPlans, resellerApps, licenseKeys, appStock, creditTransactions, pixPayments, ipWhitelist, otherStoreResellers, otherStoreHwids, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages, appDownloads, resellerInfoStatusEnum, resellerInfoProducts;
 var init_schema = __esm({
   "drizzle/schema.ts"() {
     "use strict";
@@ -103,6 +103,8 @@ var init_schema = __esm({
       // JSON string of feature list
       keyauthSellerKey: varchar("keyauthSellerKey", { length: 64 }),
       // KeyAuth Seller API Key for this app
+      keyMask: varchar("keyMask", { length: 64 }),
+      // Máscara das keys geradas via KeyAuth (ex.: KEY-******-******)
       createdAt: timestamp("createdAt").defaultNow().notNull(),
       updatedAt: timestamp("updatedAt").defaultNow().notNull()
     });
@@ -280,6 +282,29 @@ var init_schema = __esm({
       createdAt: timestamp("createdAt").defaultNow().notNull(),
       updatedAt: timestamp("updatedAt").defaultNow().notNull()
     });
+    resellerInfoStatusEnum = pgEnum("reseller_info_status", ["active", "inactive"]);
+    resellerInfoProducts = pgTable("reseller_info_products", {
+      id: serial("id").primaryKey(),
+      title: varchar("title", { length: 128 }).notNull(),
+      slug: varchar("slug", { length: 128 }).notNull().unique(),
+      tagline: varchar("tagline", { length: 255 }),
+      description: text("description"),
+      // markdown / texto estruturado (PT/EN)
+      pricingCredits: text("pricingCredits"),
+      // bloco de texto com valores Seller Credits
+      pricingPercentage: text("pricingPercentage"),
+      // bloco de texto com valores Seller Porcentagem
+      imageUrl: text("imageUrl"),
+      // imagem principal (capa)
+      galleryImages: text("galleryImages"),
+      // JSON array de URLs de imagens para preview
+      discordUrl: text("discordUrl"),
+      // override do link Discord por produto (opcional)
+      sortOrder: integer("sortOrder").default(0).notNull(),
+      status: resellerInfoStatusEnum("status").default("active").notNull(),
+      createdAt: timestamp("createdAt").defaultNow().notNull(),
+      updatedAt: timestamp("updatedAt").defaultNow().notNull()
+    });
   }
 });
 
@@ -324,6 +349,7 @@ __export(db_exports, {
   createReseller: () => createReseller,
   createResellerApiKey: () => createResellerApiKey,
   createResellerApplication: () => createResellerApplication,
+  createResellerInfoProduct: () => createResellerInfoProduct,
   createSupportMessage: () => createSupportMessage,
   createSupportTicket: () => createSupportTicket,
   createTicket: () => createTicket,
@@ -336,15 +362,19 @@ __export(db_exports, {
   deletePlan: () => deletePlan,
   deleteResellerApplication: () => deleteResellerApplication,
   deleteResellerById: () => deleteResellerById,
+  deleteResellerInfoProduct: () => deleteResellerInfoProduct,
   deleteStock: () => deleteStock,
   deleteSupportTicket: () => deleteSupportTicket,
   deleteTicket: () => deleteTicket,
   ensureAppDownloadsSchema: () => ensureAppDownloadsSchema,
   ensureAppStockSchema: () => ensureAppStockSchema,
+  ensureAppsSchema: () => ensureAppsSchema,
   ensureLicenseKeysSchema: () => ensureLicenseKeysSchema,
   ensureOtherStoreSchema: () => ensureOtherStoreSchema,
   ensurePixPaymentSchema: () => ensurePixPaymentSchema,
   ensureResellerApiKeySchema: () => ensureResellerApiKeySchema,
+  ensureResellerInfoSchema: () => ensureResellerInfoSchema,
+  getActiveResellerInfoProducts: () => getActiveResellerInfoProducts,
   getAdminById: () => getAdminById,
   getAdminByUsername: () => getAdminByUsername,
   getAllApps: () => getAllApps,
@@ -353,6 +383,7 @@ __export(db_exports, {
   getAllKeys: () => getAllKeys,
   getAllKeysWithReseller: () => getAllKeysWithReseller,
   getAllResellerApplications: () => getAllResellerApplications,
+  getAllResellerInfoProducts: () => getAllResellerInfoProducts,
   getAllResellers: () => getAllResellers,
   getAllSupportTickets: () => getAllSupportTickets,
   getAllTickets: () => getAllTickets,
@@ -371,6 +402,7 @@ __export(db_exports, {
   getKeyById: () => getKeyById,
   getKeysByPaymentId: () => getKeysByPaymentId,
   getKeysByResellerId: () => getKeysByResellerId,
+  getKeysByResellerIdWithApp: () => getKeysByResellerIdWithApp,
   getOtherStoreHwidsByResellerId: () => getOtherStoreHwidsByResellerId,
   getOtherStoreResellerByDiscordId: () => getOtherStoreResellerByDiscordId,
   getOtherStoreResellerByHwid: () => getOtherStoreResellerByHwid,
@@ -389,6 +421,7 @@ __export(db_exports, {
   getResellerByApiKey: () => getResellerByApiKey,
   getResellerById: () => getResellerById,
   getResellerByUsername: () => getResellerByUsername,
+  getResellerInfoProductById: () => getResellerInfoProductById,
   getResellerKeyStatsByType: () => getResellerKeyStatsByType,
   getResellerKeysByApp: () => getResellerKeysByApp,
   getResellerKeysByMonth: () => getResellerKeysByMonth,
@@ -427,6 +460,7 @@ __export(db_exports, {
   updateResellerApplicationStatus: () => updateResellerApplicationStatus,
   updateResellerApplicationTimestamp: () => updateResellerApplicationTimestamp,
   updateResellerCredits: () => updateResellerCredits,
+  updateResellerInfoProduct: () => updateResellerInfoProduct,
   updateResellerPassword: () => updateResellerPassword,
   updateSupportTicketStatus: () => updateSupportTicketStatus,
   updateSupportTicketTimestamp: () => updateSupportTicketTimestamp,
@@ -434,7 +468,7 @@ __export(db_exports, {
   updateTicketTimestamp: () => updateTicketTimestamp,
   upsertUser: () => upsertUser
 });
-import { eq, and, desc, sql, or, aliasedTable, ilike } from "drizzle-orm";
+import { eq, and, asc, desc, sql, or, aliasedTable, ilike } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { randomUUID } from "crypto";
@@ -524,6 +558,25 @@ async function ensureLicenseKeysSchema() {
     });
   }
   return _licenseKeysSchemaReady;
+}
+async function ensureAppsSchema() {
+  await getDb();
+  if (!_sqlClient) throw new Error("DB not available");
+  if (!_appsSchemaReady) {
+    _appsSchemaReady = (async () => {
+      try {
+        await _sqlClient.unsafe(`ALTER TABLE "apps" ADD COLUMN IF NOT EXISTS "keyMask" varchar(64)`);
+      } catch (e) {
+        console.error("[Database] Failed to ensure apps schema:", e);
+        throw e;
+      }
+    })().then(() => void 0).catch((error) => {
+      _appsSchemaReady = null;
+      console.error("[Database] Failed to ensure apps schema:", error);
+      throw new Error("N\xE3o foi poss\xEDvel preparar o banco para apps");
+    });
+  }
+  return _appsSchemaReady;
 }
 async function ensureAppDownloadsSchema() {
   await getDb();
@@ -798,17 +851,20 @@ async function deleteCategory(id) {
   await db.delete(categories).where(eq(categories.id, id));
 }
 async function getAllApps() {
+  await ensureAppsSchema();
   const db = await getDb();
   if (!db) return [];
   return db.select().from(apps).orderBy(desc(apps.createdAt));
 }
 async function getAppById(id) {
+  await ensureAppsSchema();
   const db = await getDb();
   if (!db) return void 0;
   const result = await db.select().from(apps).where(eq(apps.id, id)).limit(1);
   return result.length > 0 ? result[0] : void 0;
 }
 async function getAppByName(name) {
+  await ensureAppsSchema();
   const db = await getDb();
   if (!db) return void 0;
   const n = name.trim();
@@ -816,6 +872,7 @@ async function getAppByName(name) {
   return result.length > 0 ? result[0] : void 0;
 }
 async function getAppByNameLike(term) {
+  await ensureAppsSchema();
   const db = await getDb();
   if (!db) return void 0;
   const t2 = `%${term.trim().toLowerCase()}%`;
@@ -823,12 +880,14 @@ async function getAppByNameLike(term) {
   return result.length > 0 ? result[0] : void 0;
 }
 async function createApp(data) {
+  await ensureAppsSchema();
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const result = await db.insert(apps).values(data);
   return result;
 }
 async function updateApp(id, data) {
+  await ensureAppsSchema();
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   await db.update(apps).set(data).where(eq(apps.id, id));
@@ -847,7 +906,7 @@ async function deleteApp(id) {
 async function getPlansByAppId(appId) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(subscriptionPlans).where(eq(subscriptionPlans.appId, appId));
+  return db.select().from(subscriptionPlans).where(eq(subscriptionPlans.appId, appId)).orderBy(asc(subscriptionPlans.durationDays), asc(subscriptionPlans.id));
 }
 async function getPlanById(id) {
   const db = await getDb();
@@ -872,6 +931,7 @@ async function deletePlan(id) {
   await db.delete(subscriptionPlans).where(eq(subscriptionPlans.id, id));
 }
 async function getAppsByResellerId(resellerId) {
+  await ensureAppsSchema();
   const db = await getDb();
   if (!db) return [];
   const rows = await db.select({ app: apps, assignedAt: resellerApps.assignedAt }).from(resellerApps).innerJoin(apps, eq(resellerApps.appId, apps.id)).where(eq(resellerApps.resellerId, resellerId));
@@ -900,6 +960,13 @@ async function getKeysByResellerId(resellerId) {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(licenseKeys).where(eq(licenseKeys.resellerId, resellerId)).orderBy(desc(licenseKeys.createdAt));
+}
+async function getKeysByResellerIdWithApp(resellerId) {
+  await ensureLicenseKeysSchema();
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db.select({ key: licenseKeys, appName: apps.name }).from(licenseKeys).leftJoin(apps, eq(licenseKeys.appId, apps.id)).where(eq(licenseKeys.resellerId, resellerId)).orderBy(desc(licenseKeys.createdAt));
+  return rows.map((r) => ({ ...r.key, appName: r.appName }));
 }
 async function getAllKeys() {
   await ensureLicenseKeysSchema();
@@ -1468,7 +1535,84 @@ async function deleteOtherStoreHwid(id) {
   if (!db) throw new Error("DB not available");
   await db.delete(otherStoreHwids).where(eq(otherStoreHwids.id, id));
 }
-var _db, _sqlClient, _pixPaymentSchemaReady, _appStockSchemaReady, _licenseKeysSchemaReady, _appDownloadsSchemaReady, _resellerApiKeysSchemaReady, _otherStoreSchemaReady;
+async function ensureResellerInfoSchema() {
+  await getDb();
+  if (!_sqlClient) throw new Error("DB not available");
+  if (!_resellerInfoSchemaReady) {
+    _resellerInfoSchemaReady = (async () => {
+      try {
+        await _sqlClient.unsafe(`DO $$ BEGIN CREATE TYPE "reseller_info_status" AS ENUM('active', 'inactive'); EXCEPTION WHEN duplicate_object THEN null; END $$;`);
+      } catch (e) {
+      }
+      try {
+        await _sqlClient.unsafe(`CREATE TABLE IF NOT EXISTS "reseller_info_products" (
+          "id" serial PRIMARY KEY,
+          "title" varchar(128) NOT NULL,
+          "slug" varchar(128) NOT NULL UNIQUE,
+          "tagline" varchar(255),
+          "description" text,
+          "pricingCredits" text,
+          "pricingPercentage" text,
+          "imageUrl" text,
+          "galleryImages" text,
+          "discordUrl" text,
+          "sortOrder" integer DEFAULT 0 NOT NULL,
+          "status" "reseller_info_status" DEFAULT 'active' NOT NULL,
+          "createdAt" timestamp DEFAULT now() NOT NULL,
+          "updatedAt" timestamp DEFAULT now() NOT NULL
+        )`);
+      } catch (e) {
+        console.error("[Database] Failed to create reseller_info_products table:", e);
+        throw e;
+      }
+    })().then(() => void 0).catch((error) => {
+      _resellerInfoSchemaReady = null;
+      console.error("[Database] Failed to ensure reseller info schema:", error);
+      throw new Error("N\xE3o foi poss\xEDvel preparar o banco para reseller info");
+    });
+  }
+  return _resellerInfoSchemaReady;
+}
+async function getAllResellerInfoProducts() {
+  await ensureResellerInfoSchema();
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(resellerInfoProducts).orderBy(resellerInfoProducts.sortOrder, resellerInfoProducts.createdAt);
+}
+async function getActiveResellerInfoProducts() {
+  await ensureResellerInfoSchema();
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(resellerInfoProducts).where(eq(resellerInfoProducts.status, "active")).orderBy(resellerInfoProducts.sortOrder, resellerInfoProducts.createdAt);
+}
+async function getResellerInfoProductById(id) {
+  await ensureResellerInfoSchema();
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db.select().from(resellerInfoProducts).where(eq(resellerInfoProducts.id, id));
+  return row ?? null;
+}
+async function createResellerInfoProduct(data) {
+  await ensureResellerInfoSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.insert(resellerInfoProducts).values(data).returning();
+  return row;
+}
+async function updateResellerInfoProduct(id, data) {
+  await ensureResellerInfoSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.update(resellerInfoProducts).set({ ...data, updatedAt: /* @__PURE__ */ new Date() }).where(eq(resellerInfoProducts.id, id)).returning();
+  return row;
+}
+async function deleteResellerInfoProduct(id) {
+  await ensureResellerInfoSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.delete(resellerInfoProducts).where(eq(resellerInfoProducts.id, id));
+}
+var _db, _sqlClient, _pixPaymentSchemaReady, _appStockSchemaReady, _licenseKeysSchemaReady, _appsSchemaReady, _appDownloadsSchemaReady, _resellerApiKeysSchemaReady, _otherStoreSchemaReady, _resellerInfoSchemaReady;
 var init_db = __esm({
   "server/db.ts"() {
     "use strict";
@@ -1479,9 +1623,11 @@ var init_db = __esm({
     _pixPaymentSchemaReady = null;
     _appStockSchemaReady = null;
     _licenseKeysSchemaReady = null;
+    _appsSchemaReady = null;
     _appDownloadsSchemaReady = null;
     _resellerApiKeysSchemaReady = null;
     _otherStoreSchemaReady = null;
+    _resellerInfoSchemaReady = null;
   }
 });
 
@@ -1847,6 +1993,117 @@ function registerOAuthRoutes(app2) {
 
 // server/resellerApi.ts
 init_db();
+
+// server/keyauth.ts
+var DEFAULT_KEY_MASK = "KEY-******-******";
+async function keyauthCreateLicense(opts) {
+  if (!opts.sellerKey) {
+    throw new Error("Seller key da KeyAuth n\xE3o configurada");
+  }
+  const expiry = opts.durationDays >= 9e3 ? 0 : opts.durationDays;
+  const url = new URL("https://keyauth.win/api/seller/");
+  url.searchParams.set("sellerkey", opts.sellerKey);
+  url.searchParams.set("type", "add");
+  url.searchParams.set("format", "json");
+  url.searchParams.set("expiry", String(expiry));
+  url.searchParams.set("mask", opts.mask || DEFAULT_KEY_MASK);
+  url.searchParams.set("amount", String(opts.quantity));
+  if (opts.owner) url.searchParams.set("owner", opts.owner);
+  if (opts.note) url.searchParams.set("note", opts.note);
+  const res = await fetch(url.toString(), { signal: AbortSignal.timeout(15e3) });
+  if (!res.ok) {
+    throw new Error(`KeyAuth respondeu HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  if (!data.success) {
+    throw new Error(`KeyAuth: ${data.message || "falha ao criar licen\xE7a"}`);
+  }
+  const keys = Array.isArray(data.keys) ? data.keys : typeof data.key === "string" && data.key.length > 0 ? [data.key] : [];
+  if (keys.length !== opts.quantity || keys.some((key) => typeof key !== "string" || key.length === 0)) {
+    throw new Error(`KeyAuth retornou ${keys.length} de ${opts.quantity} licen\xE7a(s)`);
+  }
+  return keys;
+}
+async function keyauthFetchKeyInfo(opts) {
+  if (!opts.sellerKey) return null;
+  const url = new URL("https://keyauth.win/api/seller/");
+  url.searchParams.set("sellerkey", opts.sellerKey);
+  url.searchParams.set("type", "fetchallkeys");
+  url.searchParams.set("format", "json");
+  const res = await fetch(url.toString(), { signal: AbortSignal.timeout(15e3) });
+  if (!res.ok) {
+    throw new Error(`KeyAuth respondeu HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  if (!data.success) return null;
+  const licenses = Array.isArray(data.licenses) ? data.licenses : Array.isArray(data.keys) ? data.keys : [];
+  const lic = licenses.find((l) => String(l.key ?? l.license ?? "") === opts.keyValue);
+  if (!lic) return null;
+  const used = lic.used === 1 || lic.used === "1" || lic.used === true || String(lic.status ?? "").toLowerCase() === "used";
+  return {
+    key: String(lic.key ?? lic.license ?? opts.keyValue),
+    used,
+    usedBy: lic.usedby ?? lic.usedBy ?? null,
+    status: lic.status ?? null,
+    expiry: Number.isFinite(Number(lic.expiry)) ? Number(lic.expiry) : null,
+    created: Number.isFinite(Number(lic.created)) ? Number(lic.created) : null,
+    level: lic.level ?? null,
+    note: lic.note ?? null,
+    banned: lic.banned === 1 || lic.banned === "1" || lic.banned === true
+  };
+}
+
+// server/keyFulfillment.ts
+init_db();
+function appGeneratesOnDemand(app2) {
+  return !!app2?.keyauthSellerKey?.trim();
+}
+async function acquireLicenseKeyValues(opts) {
+  const { app: app2, plan, quantity, resellerId, owner, note, mask } = opts;
+  if (appGeneratesOnDemand(app2)) {
+    const keyValues2 = await keyauthCreateLicense({
+      sellerKey: app2.keyauthSellerKey.trim(),
+      durationDays: plan.durationDays,
+      quantity,
+      owner,
+      note,
+      // Prioridade: máscara custom da requisição > máscara do app > padrão
+      mask: mask || app2.keyMask?.trim() || void 0
+    });
+    return { keyValues: keyValues2, release: async () => {
+    } };
+  }
+  const stock = await getAvailableStockForPlan(app2.id, plan.id, quantity);
+  if (stock.length < quantity) {
+    throw new Error(`Estoque insuficiente para ${plan.name}: tem ${stock.length}, precisa ${quantity}`);
+  }
+  const reservedIds = [];
+  const keyValues = [];
+  const release = async () => {
+    for (const id of reservedIds) {
+      try {
+        await releaseStockReservation(id);
+      } catch {
+      }
+    }
+  };
+  try {
+    for (const item of stock) {
+      const reserved = await reserveStockForReseller(item.id, resellerId);
+      if (!reserved) {
+        throw new Error(`Falha ao reservar key do estoque: ${item.id}`);
+      }
+      reservedIds.push(item.id);
+      keyValues.push(reserved.keyValue);
+    }
+  } catch (err) {
+    await release();
+    throw err;
+  }
+  return { keyValues, release };
+}
+
+// server/resellerApi.ts
 async function authReseller(req) {
   const getHeader = (names) => {
     for (const n of names) {
@@ -1876,6 +2133,94 @@ async function resolvePlan(appId, planId, planName) {
   const name = String(planName).toLowerCase().trim();
   return plans.find((p) => p.name.toLowerCase().trim() === name);
 }
+var GatewayError = class extends Error {
+  constructor(httpStatus, publicMessage) {
+    super(publicMessage);
+    this.httpStatus = httpStatus;
+    this.publicMessage = publicMessage;
+  }
+};
+async function takeKeysGuarded(opts) {
+  const { reseller, app: app2, plan, qty, noteValue } = opts;
+  if (appGeneratesOnDemand(app2)) {
+    if (reseller.resellerType !== "credits") {
+      throw new GatewayError(403, "This app requires a paid purchase (PIX) or a credits reseller account");
+    }
+    const discount = parseFloat(String(reseller.discountPercent ?? "0"));
+    const pricePerKey = parseFloat(String(plan.priceCredits)) * (1 - discount / 100);
+    const totalCost = pricePerKey * qty;
+    const currentCredits = parseFloat(String(reseller.credits));
+    if (currentCredits < totalCost) {
+      throw new GatewayError(402, `Insufficient credits. Need: ${totalCost.toFixed(2)}, have: ${currentCredits.toFixed(2)}`);
+    }
+    const acquisition2 = await acquireLicenseKeyValues({
+      app: app2,
+      plan,
+      quantity: qty,
+      resellerId: reseller.id,
+      owner: reseller.username,
+      note: noteValue
+    });
+    const fresh = await getResellerById(reseller.id);
+    const freshCredits = parseFloat(String(fresh?.credits ?? reseller.credits));
+    if (freshCredits < totalCost) {
+      await acquisition2.release();
+      throw new GatewayError(402, `Insufficient credits. Need: ${totalCost.toFixed(2)}, have: ${freshCredits.toFixed(2)}`);
+    }
+    const newCredits = freshCredits - totalCost;
+    for (const keyValue of acquisition2.keyValues) {
+      await createLicenseKey({
+        keyValue,
+        resellerId: reseller.id,
+        appId: app2.id,
+        planId: plan.id,
+        planName: plan.name,
+        durationDays: plan.durationDays,
+        creditsSpent: pricePerKey.toFixed(2),
+        resellerCredits: newCredits.toFixed(2),
+        source: "api",
+        ...noteValue ? { note: noteValue } : {}
+      });
+    }
+    await updateResellerCredits(reseller.id, newCredits.toFixed(2), reseller.totalPurchases + qty, reseller.discountPercent);
+    await createCreditTransaction({
+      resellerId: reseller.id,
+      type: "deduct",
+      amount: totalCost.toFixed(2),
+      balanceBefore: freshCredits.toFixed(2),
+      balanceAfter: newCredits.toFixed(2),
+      description: `API take ${qty}x ${app2.name} (${plan.name})`
+    });
+    return acquisition2.keyValues;
+  }
+  let acquisition;
+  try {
+    acquisition = await acquireLicenseKeyValues({
+      app: app2,
+      plan,
+      quantity: qty,
+      resellerId: reseller.id,
+      owner: reseller.username,
+      note: noteValue
+    });
+  } catch (e) {
+    throw new GatewayError(409, e?.message || "Insufficient stock");
+  }
+  for (const keyValue of acquisition.keyValues) {
+    await createLicenseKey({
+      keyValue,
+      resellerId: reseller.id,
+      appId: app2.id,
+      planId: plan.id,
+      planName: plan.name,
+      durationDays: plan.durationDays,
+      creditsSpent: "0",
+      source: "api",
+      ...noteValue ? { note: noteValue } : {}
+    });
+  }
+  return acquisition.keyValues;
+}
 function registerResellerApi(app2) {
   app2.post("/api/reseller/v1/auth/verify", async (req, res) => {
     const reseller = await authReseller(req);
@@ -1897,7 +2242,7 @@ function registerResellerApi(app2) {
         resellerSellingPrice: p.resellerSellingPrice,
         stockCount: stock.filter((s) => s.planId === p.id && s.status === "available").length
       }));
-      return { id: app3.id, name: app3.name, description: app3.description, version: app3.version, plans: planList };
+      return { id: app3.id, name: app3.name, description: app3.description, version: app3.version, autoGenerate: appGeneratesOnDemand(app3), plans: planList };
     }));
     res.json(result);
   });
@@ -1921,7 +2266,7 @@ function registerResellerApi(app2) {
           inStock: available.length > 0
         };
       }));
-      return { id: app3.id, name: app3.name, stock };
+      return { id: app3.id, name: app3.name, autoGenerate: appGeneratesOnDemand(app3), stock };
     }));
     res.json(result);
   });
@@ -1938,34 +2283,16 @@ function registerResellerApi(app2) {
     const plan = await resolvePlan(app3.id, planId ? Number(planId) : void 0, planName);
     if (!plan) return res.status(404).json({ error: "Plan not found" });
     const qty = Math.max(1, Math.min(100, Number(quantity) || 1));
-    const stock = await getAvailableStockForPlan(app3.id, plan.id, qty);
-    if (stock.length < qty) return res.status(409).json({ error: `Insufficient stock. Available: ${stock.length}, requested: ${qty}` });
-    const reserved = [];
-    for (const s of stock) {
-      const r = await reserveStockForReseller(s.id, reseller.id);
-      if (!r) return res.status(409).json({ error: "Stock reservation failed" });
-      reserved.push(r);
-    }
     const noteParts = [];
     if (customer) noteParts.push(`customer: ${customer}`);
     if (note) noteParts.push(note);
     const noteValue = noteParts.length ? noteParts.join(" | ") : void 0;
-    const keys = [];
-    for (const r of reserved) {
-      await createLicenseKey({
-        keyValue: r.keyValue,
-        resellerId: reseller.id,
-        appId: app3.id,
-        planId: plan.id,
-        planName: plan.name,
-        durationDays: plan.durationDays,
-        creditsSpent: "0",
-        source: "api",
-        ...noteValue ? { note: noteValue } : {}
-      });
-      keys.push(r.keyValue);
+    try {
+      const keys = await takeKeysGuarded({ reseller, app: app3, plan, qty, noteValue });
+      res.json({ keys, plan: { id: plan.id, name: plan.name, durationDays: plan.durationDays } });
+    } catch (e) {
+      return res.status(e instanceof GatewayError ? e.httpStatus : 500).json({ error: e instanceof GatewayError ? e.publicMessage : "Failed to deliver keys" });
     }
-    res.json({ keys, plan: { id: plan.id, name: plan.name, durationDays: plan.durationDays } });
   });
   const gatewayTake = async (req, res) => {
     console.error("[gateway take] hit", req.method, req.path, req.ip, "query:", req.query, "body:", req.body);
@@ -2009,31 +2336,14 @@ function registerResellerApi(app2) {
     }
     if (!plan) return res.status(404).json({ data: null, error: "Plan not found" });
     const qty = Math.max(1, Math.min(100, Number(quantity) || 1));
-    const stock = await getAvailableStockForPlan(app3.id, plan.id, qty);
-    if (stock.length < qty) return res.status(409).json({ data: null, error: `Insufficient stock. Available: ${stock.length}, requested: ${qty}` });
-    const reserved = [];
-    for (const s of stock) {
-      const r = await reserveStockForReseller(s.id, reseller.id);
-      if (!r) return res.status(409).json({ data: null, error: "Stock reservation failed" });
-      reserved.push(r);
-    }
     const noteParts = [];
     if (customer) noteParts.push(`customer: ${customer}`);
     const noteValue = noteParts.length ? noteParts.join(" | ") : void 0;
-    const keys = [];
-    for (const r of reserved) {
-      await createLicenseKey({
-        keyValue: r.keyValue,
-        resellerId: reseller.id,
-        appId: app3.id,
-        planId: plan.id,
-        planName: plan.name,
-        durationDays: plan.durationDays,
-        creditsSpent: "0",
-        source: "api",
-        ...noteValue ? { note: noteValue } : {}
-      });
-      keys.push(r.keyValue);
+    let keys;
+    try {
+      keys = await takeKeysGuarded({ reseller, app: app3, plan, qty, noteValue });
+    } catch (e) {
+      return res.status(e instanceof GatewayError ? e.httpStatus : 500).json({ data: null, error: e instanceof GatewayError ? e.publicMessage : "Failed to deliver keys" });
     }
     res.json({
       data: {
@@ -2080,32 +2390,15 @@ function registerResellerApi(app2) {
     }
     if (!foundPlan || !foundApp) return res.status(404).json({ data: null, error: `Plan "${rawSlug}" not found for reseller ${reseller.username}` });
     const qty = Math.max(1, Math.min(100, Number(req.query.qtd ?? req.query.quantity ?? req.query.qty ?? 1) || 1));
-    const stock = await getAvailableStockForPlan(foundApp.id, foundPlan.id, qty);
-    if (stock.length < qty) return res.status(409).json({ data: null, error: `Insufficient stock. Available: ${stock.length}, requested: ${qty}` });
-    const reserved = [];
-    for (const s of stock) {
-      const r = await reserveStockForReseller(s.id, reseller.id);
-      if (!r) return res.status(409).json({ data: null, error: "Stock reservation failed" });
-      reserved.push(r);
-    }
     const noteParts = [];
     const customer = req.query.customer ?? req.query.email ?? req.query.cliente;
     if (customer) noteParts.push(`customer: ${customer}`);
     const noteValue = noteParts.length ? noteParts.join(" | ") : void 0;
-    const keys = [];
-    for (const r of reserved) {
-      await createLicenseKey({
-        keyValue: r.keyValue,
-        resellerId: reseller.id,
-        appId: foundApp.id,
-        planId: foundPlan.id,
-        planName: foundPlan.name,
-        durationDays: foundPlan.durationDays,
-        creditsSpent: "0",
-        source: "api",
-        ...noteValue ? { note: noteValue } : {}
-      });
-      keys.push(r.keyValue);
+    let keys;
+    try {
+      keys = await takeKeysGuarded({ reseller, app: foundApp, plan: foundPlan, qty, noteValue });
+    } catch (e) {
+      return res.status(e instanceof GatewayError ? e.httpStatus : 500).json({ data: null, error: e instanceof GatewayError ? e.publicMessage : "Failed to deliver keys" });
     }
     res.json({
       data: {
@@ -2135,30 +2428,30 @@ function registerResellerApi(app2) {
     const totalCost = pricePerKey * qty;
     let currentCredits = parseFloat(reseller.credits);
     if (currentCredits < totalCost) return res.status(402).json({ error: `Insufficient credits. Need: ${totalCost.toFixed(2)}, have: ${currentCredits.toFixed(2)}` });
-    const stock = await getAvailableStockForPlan(app3.id, plan.id, qty);
-    if (stock.length < qty) return res.status(409).json({ error: `Insufficient stock. Available: ${stock.length}, requested: ${qty}` });
-    const reserved = [];
-    for (const s of stock) {
-      const r = await reserveStockForReseller(s.id, reseller.id);
-      if (!r) return res.status(409).json({ error: "Stock reservation failed" });
-      reserved.push(r);
-    }
-    const freshReseller = await getResellerById(reseller.id);
-    currentCredits = parseFloat(String(freshReseller?.credits ?? reseller.credits));
-    if (currentCredits < totalCost) {
-      for (const r of reserved) await releaseStockReservation(r.id);
-      return res.status(402).json({ error: `Insufficient credits after reservation. Need: ${totalCost.toFixed(2)}, have: ${currentCredits.toFixed(2)}` });
-    }
-    const newCredits = currentCredits - totalCost;
-    const newPurchases = reseller.totalPurchases + qty;
     const noteParts = [];
     if (customer) noteParts.push(`customer: ${customer}`);
     if (note) noteParts.push(note);
     const noteValue = noteParts.length ? noteParts.join(" | ") : void 0;
+    const acquisition = await acquireLicenseKeyValues({
+      app: app3,
+      plan,
+      quantity: qty,
+      resellerId: reseller.id,
+      owner: reseller.username,
+      note: noteValue
+    });
+    const freshReseller = await getResellerById(reseller.id);
+    currentCredits = parseFloat(String(freshReseller?.credits ?? reseller.credits));
+    if (currentCredits < totalCost) {
+      await acquisition.release();
+      return res.status(402).json({ error: `Insufficient credits after reservation. Need: ${totalCost.toFixed(2)}, have: ${currentCredits.toFixed(2)}` });
+    }
+    const newCredits = currentCredits - totalCost;
+    const newPurchases = reseller.totalPurchases + qty;
     const keys = [];
-    for (const r of reserved) {
+    for (const keyValue of acquisition.keyValues) {
       await createLicenseKey({
-        keyValue: r.keyValue,
+        keyValue,
         resellerId: reseller.id,
         appId: app3.id,
         planId: plan.id,
@@ -2169,7 +2462,7 @@ function registerResellerApi(app2) {
         source: "api",
         ...noteValue ? { note: noteValue } : {}
       });
-      keys.push(r.keyValue);
+      keys.push(keyValue);
     }
     await updateResellerCredits(reseller.id, newCredits.toFixed(2), newPurchases, reseller.discountPercent);
     await createCreditTransaction({
@@ -2205,8 +2498,10 @@ function registerResellerApi(app2) {
     const plan = await resolvePlan(app3.id, void 0, planName);
     if (!plan) return res.status(404).json({ error: "Plan not found" });
     const qty = Math.max(1, Math.min(100, Number(quantity) || 1));
-    const available = await getAvailableStockForPlan(app3.id, plan.id, qty);
-    if (available.length < qty) return res.status(409).json({ error: `Insufficient stock. Available: ${available.length}, requested: ${qty}` });
+    if (!appGeneratesOnDemand(app3)) {
+      const available = await getAvailableStockForPlan(app3.id, plan.id, qty);
+      if (available.length < qty) return res.status(409).json({ error: `Insufficient stock. Available: ${available.length}, requested: ${qty}` });
+    }
     const price = parseFloat(String(plan.resellerSellingPrice));
     if (!price || price <= 0) return res.status(400).json({ error: "Reseller selling price not set for plan" });
     const amountCents = Math.round(price * 100 * qty);
@@ -2537,17 +2832,17 @@ async function processPurinPaymentUpdate(paymentId, status, paidAt) {
       }
       const missingQuantity = Math.max(0, quantity - existingKeys.length);
       if (missingQuantity > 0) {
-        const stockItems = await getAvailableStockForPlan(appId, planId, missingQuantity);
-        if (stockItems.length < missingQuantity) {
-          throw new Error(`Estoque insuficiente para ${plan.name}: tem ${stockItems.length}, precisa ${missingQuantity}`);
-        }
-        for (const item of stockItems) {
-          const reserved = await reserveStockForReseller(item.id, payment.resellerId);
-          if (!reserved) {
-            throw new Error(`Falha ao reservar key do estoque: ${item.id}`);
-          }
+        const { keyValues } = await acquireLicenseKeyValues({
+          app: app2,
+          plan,
+          quantity: missingQuantity,
+          resellerId: payment.resellerId,
+          owner: reseller.username,
+          note: `other-store:${paymentId}`
+        });
+        for (const keyValue of keyValues) {
           await createLicenseKey({
-            keyValue: reserved.keyValue,
+            keyValue,
             resellerId: payment.resellerId,
             appId,
             planId: plan.id,
@@ -2590,19 +2885,19 @@ async function processPurinPaymentUpdate(paymentId, status, paidAt) {
       }
       const missingQuantity = Math.max(0, quantity - existingKeys.length);
       if (missingQuantity > 0) {
-        const stockItems = await getAvailableStockForPlan(appId, planId, missingQuantity);
-        if (stockItems.length < missingQuantity) {
-          throw new Error(`Estoque insuficiente para ${plan.name}: tem ${stockItems.length}, precisa ${missingQuantity}`);
-        }
         const pricePerKey = payment.amountCents / quantity / 100;
         const notePrefix = payment.paymentMethod === "ltc" ? "ltc" : "pix";
-        for (const item of stockItems) {
-          const reserved = await reserveStockForReseller(item.id, payment.resellerId);
-          if (!reserved) {
-            throw new Error(`Falha ao reservar key do estoque: ${item.id}`);
-          }
+        const { keyValues } = await acquireLicenseKeyValues({
+          app: app2,
+          plan,
+          quantity: missingQuantity,
+          resellerId: payment.resellerId,
+          owner: reseller.username,
+          note: `${notePrefix}:${paymentId}`
+        });
+        for (const keyValue of keyValues) {
           await createLicenseKey({
-            keyValue: reserved.keyValue,
+            keyValue,
             resellerId: payment.resellerId,
             appId,
             planId: plan.id,
@@ -2990,6 +3285,10 @@ var authRouter = router({
     });
     await updateSupportTicketTimestamp(input.ticketId);
     return msg;
+  }),
+  // ─── Página pública /resellerinfo — lista de produtos ─────────────────────────
+  listResellerInfo: publicProcedure.query(async () => {
+    return getActiveResellerInfoProducts();
   })
 });
 var adminProcedure2 = publicProcedure.use(async ({ ctx, next }) => {
@@ -3128,7 +3427,8 @@ var adminRouter = router({
     categoryId: z2.number().optional(),
     maxUsers: z2.number().optional(),
     features: z2.string().optional(),
-    keyauthSellerKey: z2.string().length(32).optional()
+    keyauthSellerKey: z2.string().length(32).optional(),
+    keyMask: z2.string().max(64).optional()
   })).mutation(async ({ input }) => {
     await createApp(input);
     return { success: true };
@@ -3142,7 +3442,8 @@ var adminRouter = router({
     status: z2.enum(["active", "inactive"]).optional(),
     maxUsers: z2.number().optional(),
     features: z2.string().optional(),
-    keyauthSellerKey: z2.string().length(32).optional().nullable()
+    keyauthSellerKey: z2.string().length(32).optional().nullable(),
+    keyMask: z2.string().max(64).optional().nullable()
   })).mutation(async ({ input }) => {
     const { id, ...data } = input;
     await updateApp(id, data);
@@ -3520,6 +3821,89 @@ var adminRouter = router({
   removeOtherStoreHwid: adminProcedure2.input(z2.object({ id: z2.number() })).mutation(async ({ input }) => {
     await deleteOtherStoreHwid(input.id);
     return { success: true };
+  }),
+  // ─── Reseller Info Products (página pública /resellerinfo) ────────────────────
+  listResellerInfoProducts: adminProcedure2.query(async () => {
+    return getAllResellerInfoProducts();
+  }),
+  createResellerInfoProduct: adminProcedure2.input(z2.object({
+    title: z2.string().min(2),
+    slug: z2.string().min(2),
+    tagline: z2.string().optional(),
+    description: z2.string().optional(),
+    pricingCredits: z2.string().optional(),
+    pricingPercentage: z2.string().optional(),
+    imageUrlBase64: z2.string().optional(),
+    galleryImagesBase64: z2.array(z2.string()).optional(),
+    discordUrl: z2.string().optional(),
+    sortOrder: z2.number().optional(),
+    status: z2.enum(["active", "inactive"]).optional()
+  })).mutation(async ({ input }) => {
+    let imageUrl;
+    if (input.imageUrlBase64) {
+      imageUrl = await uploadBase64Image(input.imageUrlBase64, "reseller-info") || void 0;
+    }
+    let galleryImages;
+    if (input.galleryImagesBase64 && input.galleryImagesBase64.length > 0) {
+      const urls = [];
+      for (const b64 of input.galleryImagesBase64) {
+        const url = await uploadBase64Image(b64, "reseller-info");
+        if (url) urls.push(url);
+      }
+      if (urls.length > 0) galleryImages = JSON.stringify(urls);
+    }
+    const { imageUrlBase64, galleryImagesBase64, ...data } = input;
+    const row = await createResellerInfoProduct({
+      ...data,
+      imageUrl,
+      galleryImages
+    });
+    return row;
+  }),
+  updateResellerInfoProduct: adminProcedure2.input(z2.object({
+    id: z2.number(),
+    title: z2.string().min(2).optional(),
+    slug: z2.string().min(2).optional(),
+    tagline: z2.string().optional().nullable(),
+    description: z2.string().optional().nullable(),
+    pricingCredits: z2.string().optional().nullable(),
+    pricingPercentage: z2.string().optional().nullable(),
+    imageUrlBase64: z2.string().optional(),
+    clearImage: z2.boolean().optional(),
+    galleryImagesBase64: z2.array(z2.string()).optional(),
+    clearGallery: z2.boolean().optional(),
+    discordUrl: z2.string().optional().nullable(),
+    sortOrder: z2.number().optional(),
+    status: z2.enum(["active", "inactive"]).optional()
+  })).mutation(async ({ input }) => {
+    const { id, imageUrlBase64, clearImage, galleryImagesBase64, clearGallery, ...data } = input;
+    let imageUrl;
+    if (imageUrlBase64) {
+      imageUrl = await uploadBase64Image(imageUrlBase64, "reseller-info") || void 0;
+    } else if (clearImage) {
+      imageUrl = null;
+    }
+    let galleryImages;
+    if (galleryImagesBase64 && galleryImagesBase64.length > 0) {
+      const urls = [];
+      for (const b64 of galleryImagesBase64) {
+        const url = await uploadBase64Image(b64, "reseller-info");
+        if (url) urls.push(url);
+      }
+      if (urls.length > 0) galleryImages = JSON.stringify(urls);
+    } else if (clearGallery) {
+      galleryImages = null;
+    }
+    const row = await updateResellerInfoProduct(id, {
+      ...data,
+      ...imageUrl !== void 0 ? { imageUrl } : {},
+      ...galleryImages !== void 0 ? { galleryImages } : {}
+    });
+    return row;
+  }),
+  deleteResellerInfoProduct: adminProcedure2.input(z2.object({ id: z2.number() })).mutation(async ({ input }) => {
+    await deleteResellerInfoProduct(input.id);
+    return { success: true };
   })
 });
 var resellerRouter = router({
@@ -3569,7 +3953,8 @@ var resellerRouter = router({
     const rows = await getAppsByResellerId(ctx.resellerId);
     const result = await Promise.all(rows.map(async (row) => {
       const plans = await getPlansByAppId(row.app.id);
-      return { ...row.app, plans, assignedAt: row.assignedAt };
+      const { keyauthSellerKey, ...safeApp } = row.app;
+      return { ...safeApp, autoKeys: !!keyauthSellerKey, plans, assignedAt: row.assignedAt };
     }));
     return result;
   }),
@@ -3579,10 +3964,28 @@ var resellerRouter = router({
     const app2 = await getAppById(input.appId);
     if (!app2) throw new TRPCError3({ code: "NOT_FOUND" });
     const plans = await getPlansByAppId(input.appId);
-    return { ...app2, plans };
+    const { keyauthSellerKey, ...safeApp } = app2;
+    return { ...safeApp, autoKeys: !!keyauthSellerKey, plans };
   }),
   myKeys: resellerProcedure.query(async ({ ctx }) => {
-    return getKeysByResellerId(ctx.resellerId);
+    return getKeysByResellerIdWithApp(ctx.resellerId);
+  }),
+  myKeysByApp: resellerProcedure.input(z2.object({ appId: z2.number() })).query(async ({ ctx, input }) => {
+    const keys = await getKeysByResellerIdWithApp(ctx.resellerId);
+    return keys.filter((k) => k.appId === input.appId);
+  }),
+  // Detalhes da licença na KeyAuth (usada por quem, HWID, expiração real)
+  keyInfo: resellerProcedure.input(z2.object({ keyId: z2.number() })).query(async ({ ctx, input }) => {
+    const key = await getKeyById(input.keyId);
+    if (!key || key.resellerId !== ctx.resellerId) throw new TRPCError3({ code: "NOT_FOUND" });
+    const app2 = await getAppById(key.appId);
+    if (!app2?.keyauthSellerKey?.trim()) return { remote: null };
+    try {
+      const remote = await keyauthFetchKeyInfo({ sellerKey: app2.keyauthSellerKey.trim(), keyValue: key.keyValue });
+      return { remote };
+    } catch {
+      return { remote: null };
+    }
   }),
   getDownloadsByApp: resellerProcedure.input(z2.object({ appId: z2.number() })).query(async ({ input }) => {
     return getDownloadsByAppId(input.appId);
@@ -3611,29 +4014,36 @@ var resellerRouter = router({
     if (currentCredits < totalCost) {
       throw new TRPCError3({ code: "BAD_REQUEST", message: `Cr\xE9ditos insuficientes. Necess\xE1rio: ${totalCost.toFixed(2)}, Dispon\xEDvel: ${currentCredits.toFixed(2)}` });
     }
-    const newCredits = currentCredits - totalCost;
+    const acquisition = await acquireLicenseKeyValues({
+      app: app2,
+      plan,
+      quantity: input.quantity,
+      resellerId: ctx.resellerId,
+      owner: reseller.username,
+      note: input.note,
+      mask: input.customMask
+    });
+    const freshReseller = await getResellerById(ctx.resellerId);
+    const freshCredits = parseFloat(String(freshReseller?.credits ?? "0"));
+    if (freshCredits < totalCost) {
+      await acquisition.release();
+      throw new TRPCError3({ code: "BAD_REQUEST", message: `Cr\xE9ditos insuficientes. Necess\xE1rio: ${totalCost.toFixed(2)}, Dispon\xEDvel: ${freshCredits.toFixed(2)}` });
+    }
+    const newCredits = freshCredits - totalCost;
     const newPurchases = reseller.totalPurchases + input.quantity;
     await updateResellerCredits(ctx.resellerId, newCredits.toFixed(2), newPurchases, reseller.discountPercent);
     await createCreditTransaction({
       resellerId: ctx.resellerId,
       type: "deduct",
       amount: totalCost.toFixed(2),
-      balanceBefore: currentCredits.toFixed(2),
+      balanceBefore: freshCredits.toFixed(2),
       balanceAfter: newCredits.toFixed(2),
       description: `Gera\xE7\xE3o de ${input.quantity}x key(s) - ${app2.name} (${plan.name})`
     });
-    const reserved = await getAvailableStockForPlan(input.appId, input.planId, input.quantity);
-    if (reserved.length < input.quantity) {
-      throw new TRPCError3({
-        code: "BAD_REQUEST",
-        message: `Estoque insuficiente. Dispon\xEDvel: ${reserved.length}, Solicitado: ${input.quantity}`
-      });
-    }
     const generatedKeys = [];
-    for (const stock of reserved) {
-      await reserveStockForReseller(stock.id, ctx.resellerId);
+    for (const keyValue of acquisition.keyValues) {
       await createLicenseKey({
-        keyValue: stock.keyValue,
+        keyValue,
         resellerId: ctx.resellerId,
         appId: input.appId,
         planId: plan.id,
@@ -3644,7 +4054,7 @@ var resellerRouter = router({
         ...input.note ? { note: input.note } : {},
         ...input.customMask ? { customMask: input.customMask } : {}
       });
-      generatedKeys.push(stock.keyValue);
+      generatedKeys.push(keyValue);
     }
     return { success: true, keys: generatedKeys, creditsSpent: totalCost, newBalance: newCredits };
   }),
@@ -3717,8 +4127,11 @@ var resellerRouter = router({
     const assigned = await getAssignedAppIds(ctx.resellerId);
     if (!assigned.includes(input.appId)) throw new TRPCError3({ code: "FORBIDDEN", message: "App n\xE3o atribu\xEDdo" });
     const qty = input.quantity;
-    const available = await getAvailableStockForPlan(input.appId, input.planId, qty);
-    if (available.length < qty) throw new TRPCError3({ code: "BAD_REQUEST", message: `Estoque insuficiente: ${available.length} dispon\xEDvel` });
+    const chargeApp = await getAppById(input.appId);
+    if (!chargeApp?.keyauthSellerKey?.trim()) {
+      const available = await getAvailableStockForPlan(input.appId, input.planId, qty);
+      if (available.length < qty) throw new TRPCError3({ code: "BAD_REQUEST", message: `Estoque insuficiente: ${available.length} dispon\xEDvel` });
+    }
     const price = parseFloat(String(plan.resellerSellingPrice));
     if (!price || price <= 0) throw new TRPCError3({ code: "BAD_REQUEST", message: "Pre\xE7o de venda n\xE3o configurado para este plano" });
     const discount = parseFloat(String(ctx.reseller.discountPercent));

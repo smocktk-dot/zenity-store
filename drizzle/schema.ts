@@ -364,3 +364,26 @@ export const appDownloads = pgTable("app_downloads", {
 
 export type AppDownload = typeof appDownloads.$inferSelect;
 export type InsertAppDownload = typeof appDownloads.$inferInsert;
+
+// ─── Reseller Info Products (página pública /resellerinfo) ─────────────────────
+export const resellerInfoStatusEnum = pgEnum("reseller_info_status", ["active", "inactive"]);
+
+export const resellerInfoProducts = pgTable("reseller_info_products", {
+  id: serial("id").primaryKey(),
+  title: varchar("title", { length: 128 }).notNull(),
+  slug: varchar("slug", { length: 128 }).notNull().unique(),
+  tagline: varchar("tagline", { length: 255 }),
+  description: text("description"), // markdown / texto estruturado (PT/EN)
+  pricingCredits: text("pricingCredits"), // bloco de texto com valores Seller Credits
+  pricingPercentage: text("pricingPercentage"), // bloco de texto com valores Seller Porcentagem
+  imageUrl: text("imageUrl"), // imagem principal (capa)
+  galleryImages: text("galleryImages"), // JSON array de URLs de imagens para preview
+  discordUrl: text("discordUrl"), // override do link Discord por produto (opcional)
+  sortOrder: integer("sortOrder").default(0).notNull(),
+  status: resellerInfoStatusEnum("status").default("active").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
+export type ResellerInfoProduct = typeof resellerInfoProducts.$inferSelect;
+export type InsertResellerInfoProduct = typeof resellerInfoProducts.$inferInsert;

@@ -6,6 +6,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import LoginPage from "./pages/LoginPage";
+import ResellerInfoPage from "./pages/ResellerInfoPage";
 import AdminLayout from "./pages/admin/AdminLayout";
 import AdminResellers from "./pages/admin/AdminResellers";
 import AdminCategories from "./pages/admin/AdminCategories";
@@ -24,6 +25,7 @@ import AdminStock from "./pages/admin/AdminStock";
 import AdminOtherStore from "./pages/admin/AdminOtherStore";
 import AdminManualDelivery from "./pages/admin/AdminManualDelivery";
 import AdminDownloads from "./pages/admin/AdminDownloads";
+import AdminResellerInfo from "./pages/admin/AdminResellerInfo";
 import ResellerLayout from "./pages/reseller/ResellerLayout";
 import ResellerProfile from "./pages/reseller/ResellerProfile";
 import ResellerApps from "./pages/reseller/ResellerApps";
@@ -39,6 +41,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={LoginPage} />
+      <Route path="/resellerinfo" component={ResellerInfoPage} />
       <Route path="/setup" component={SetupPage} />
 
       {/* Admin routes */}
@@ -158,6 +161,13 @@ function Router() {
         {() => (
           <AdminLayout>
             <AdminOtherStore />
+          </AdminLayout>
+        )}
+      </Route>
+      <Route path="/admin/reseller-info">
+        {() => (
+          <AdminLayout>
+            <AdminResellerInfo />
           </AdminLayout>
         )}
       </Route>

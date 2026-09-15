@@ -43,6 +43,7 @@ import {
   getOtherStoreResellers, createOtherStoreReseller, updateOtherStoreReseller, deleteOtherStoreReseller,
   getOtherStoreResellerById, getOtherStoreResellerByResellerId, getOtherStoreResellerByOwnerResellerId, getOtherStoreHwidsByResellerId,
   createOtherStoreHwid, deleteOtherStoreHwid,
+  getAllResellerInfoProducts, getActiveResellerInfoProducts, createResellerInfoProduct, updateResellerInfoProduct, deleteResellerInfoProduct,
 } from "./db";
 
 function getJwtSecret() {
@@ -407,6 +408,12 @@ const authRouter = router({
       });
       await updateSupportTicketTimestamp(input.ticketId);
       return msg;
+    }),
+
+  // ─── Página pública /resellerinfo — lista de produtos ─────────────────────────
+  listResellerInfo: publicProcedure
+    .query(async () => {
+      return getActiveResellerInfoProducts();
     }),
 });
 
@@ -1075,6 +1082,100 @@ const adminRouter = router({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       await deleteOtherStoreHwid(input.id);
+      return { success: true };
+    }),
+
+  // ─── Reseller Info Products (página pública /resellerinfo) ────────────────────
+  listResellerInfoProducts: adminProcedure
+    .query(async () => {
+      return getAllResellerInfoProducts();
+    }),
+
+  createResellerInfoProduct: adminProcedure
+    .input(z.object({
+      title: z.string().min(2),
+      slug: z.string().min(2),
+      tagline: z.string().optional(),
+      description: z.string().optional(),
+      pricingCredits: z.string().optional(),
+      pricingPercentage: z.string().optional(),
+      imageUrlBase64: z.string().optional(),
+      galleryImagesBase64: z.array(z.string()).optional(),
+      discordUrl: z.string().optional(),
+      sortOrder: z.number().optional(),
+      status: z.enum(["active", "inactive"]).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      let imageUrl: string | undefined;
+      if (input.imageUrlBase64) {
+        imageUrl = (await uploadBase64Image(input.imageUrlBase64, "reseller-info")) || undefined;
+      }
+      let galleryImages: string | undefined;
+      if (input.galleryImagesBase64 && input.galleryImagesBase64.length > 0) {
+        const urls: string[] = [];
+        for (const b64 of input.galleryImagesBase64) {
+          const url = await uploadBase64Image(b64, "reseller-info");
+          if (url) urls.push(url);
+        }
+        if (urls.length > 0) galleryImages = JSON.stringify(urls);
+      }
+      const { imageUrlBase64, galleryImagesBase64, ...data } = input;
+      const row = await createResellerInfoProduct({
+        ...data,
+        imageUrl,
+        galleryImages,
+      } as any);
+      return row;
+    }),
+
+  updateResellerInfoProduct: adminProcedure
+    .input(z.object({
+      id: z.number(),
+      title: z.string().min(2).optional(),
+      slug: z.string().min(2).optional(),
+      tagline: z.string().optional().nullable(),
+      description: z.string().optional().nullable(),
+      pricingCredits: z.string().optional().nullable(),
+      pricingPercentage: z.string().optional().nullable(),
+      imageUrlBase64: z.string().optional(),
+      clearImage: z.boolean().optional(),
+      galleryImagesBase64: z.array(z.string()).optional(),
+      clearGallery: z.boolean().optional(),
+      discordUrl: z.string().optional().nullable(),
+      sortOrder: z.number().optional(),
+      status: z.enum(["active", "inactive"]).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { id, imageUrlBase64, clearImage, galleryImagesBase64, clearGallery, ...data } = input;
+      let imageUrl: string | undefined | null;
+      if (imageUrlBase64) {
+        imageUrl = (await uploadBase64Image(imageUrlBase64, "reseller-info")) || undefined;
+      } else if (clearImage) {
+        imageUrl = null;
+      }
+      let galleryImages: string | undefined | null;
+      if (galleryImagesBase64 && galleryImagesBase64.length > 0) {
+        const urls: string[] = [];
+        for (const b64 of galleryImagesBase64) {
+          const url = await uploadBase64Image(b64, "reseller-info");
+          if (url) urls.push(url);
+        }
+        if (urls.length > 0) galleryImages = JSON.stringify(urls);
+      } else if (clearGallery) {
+        galleryImages = null;
+      }
+      const row = await updateResellerInfoProduct(id, {
+        ...data,
+        ...(imageUrl !== undefined ? { imageUrl } : {}),
+        ...(galleryImages !== undefined ? { galleryImages } : {}),
+      } as any);
+      return row;
+    }),
+
+  deleteResellerInfoProduct: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      await deleteResellerInfoProduct(input.id);
       return { success: true };
     }),
 });
