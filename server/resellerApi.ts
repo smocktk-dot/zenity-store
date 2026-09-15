@@ -1,7 +1,7 @@
 import express, { type Express, type Request, type Response } from "express";
 import {
   getResellerByApiKey, getResellerById, getAssignedAppIds, getAppsByResellerId,
-  getAppById, getPlansByAppId, getPlanById, getStockByApp,
+  getAppById, getAppByName, getAppByNameLike, getPlansByAppId, getPlanById, getStockByApp,
   getAvailableStockForPlan, createLicenseKey,
   updateResellerCredits, createCreditTransaction,
   getOtherStoreResellerByHwid, getOtherStoreHwidsByResellerId,
@@ -124,6 +124,139 @@ async function takeKeysGuarded(opts: {
     } as any);
   }
   return acquisition.keyValues;
+}
+
+async function findAppByCandidates(candidates: string[]) {
+  for (const name of candidates) {
+    const app = await getAppByName(name);
+    if (app) return app;
+  }
+  const like = await getAppByNameLike(candidates[candidates.length - 1]);
+  return like;
+}
+
+async function appIsAssigned(resellerId: number, appId: number) {
+  const assigned = await getAppsByResellerId(resellerId);
+  return assigned.some((row: any) => row.app.id === appId);
+}
+
+function registerAppResellerApi(expressApp: Express, basePath: string, appNames: string[]) {
+  // GET /products - list plans
+  expressApp.get(`${basePath}/products`, async (req, res) => {
+    const reseller = await authReseller(req);
+    if (!reseller) return res.status(401).json({ error: "Invalid API key" });
+    const app = await findAppByCandidates(appNames);
+    if (!app) return res.status(404).json({ error: "App not configured" });
+    if (!(await appIsAssigned(reseller.id, app.id))) return res.status(403).json({ error: "App not assigned" });
+    const plans = await getPlansByAppId(app.id);
+    const stock = await getStockByApp(app.id);
+    const planList = plans.map(p => ({
+      id: p.id,
+      name: p.name,
+      durationDays: p.durationDays,
+      priceCredits: p.priceCredits,
+      resellerSellingPrice: p.resellerSellingPrice,
+      stockCount: stock.filter(s => s.planId === p.id && s.status === "available").length,
+    }));
+    res.json({ app: { id: app.id, name: app.name, description: app.description, version: app.version, autoGenerate: appGeneratesOnDemand(app) }, plans: planList, balance: reseller.credits });
+  });
+
+  // GET /stock - per-plan stock
+  expressApp.get(`${basePath}/stock`, async (req, res) => {
+    const reseller = await authReseller(req);
+    if (!reseller) return res.status(401).json({ error: "Invalid API key" });
+    const app = await findAppByCandidates(appNames);
+    if (!app) return res.status(404).json({ error: "App not configured" });
+    if (!(await appIsAssigned(reseller.id, app.id))) return res.status(403).json({ error: "App not assigned" });
+    const plans = await getPlansByAppId(app.id);
+    const stock = await Promise.all(plans.map(async p => {
+      const available = await getAvailableStockForPlan(app.id, p.id, 1000);
+      return {
+        id: p.id,
+        name: p.name,
+        durationDays: p.durationDays,
+        priceCredits: p.priceCredits,
+        resellerSellingPrice: p.resellerSellingPrice,
+        stockCount: available.length,
+        inStock: available.length > 0,
+      };
+    }));
+    res.json({ app: { id: app.id, name: app.name, autoGenerate: appGeneratesOnDemand(app) }, stock });
+  });
+
+  // POST /take - generate/retrieve keys
+  const takeHandler = async (req: Request, res: Response) => {
+    const reseller = await authReseller(req);
+    if (!reseller) return res.status(401).json({ data: null, error: "Invalid API key" });
+    const app = await findAppByCandidates(appNames);
+    if (!app) return res.status(404).json({ data: null, error: "App not configured" });
+    if (!(await appIsAssigned(reseller.id, app.id))) return res.status(403).json({ data: null, error: "App not assigned" });
+
+    const raw = { ...(req.query ?? {}), ...(req.body ?? {}) } as any;
+    const planId = raw.planId ?? raw.planID ?? raw.plan_id;
+    const planName = raw.planName ?? raw.plan ?? raw.plano;
+    const quantity = raw.qtd ?? raw.quantidade ?? raw.quantity ?? raw.qty ?? 1;
+    const customer = raw.customer ?? raw.cliente ?? raw.client ?? raw.email ?? raw.buyerEmail;
+    const noteValue = customer ? `customer: ${customer}` : undefined;
+
+    if (!planId && !planName) return res.status(400).json({ data: null, error: "planId or planName is required" });
+    const plan = await resolvePlan(app.id, planId ? Number(planId) : undefined, planName);
+    if (!plan) return res.status(404).json({ data: null, error: "Plan not found" });
+    const qty = Math.max(1, Math.min(100, Number(quantity) || 1));
+    let keys: string[];
+    try {
+      keys = await takeKeysGuarded({ reseller, app, plan, qty, noteValue });
+    } catch (e: any) {
+      return res.status(e instanceof GatewayError ? e.httpStatus : 500).json({ data: null, error: e instanceof GatewayError ? e.publicMessage : "Failed to deliver keys" });
+    }
+    res.json({
+      data: {
+        key: keys[0],
+        keys: keys.length > 1 ? keys : undefined,
+        plan: { id: plan.id, name: plan.name, durationDays: plan.durationDays },
+        balance: reseller.credits,
+      }
+    });
+  };
+  expressApp.get(`${basePath}/take`, takeHandler);
+  expressApp.post(`${basePath}/take`, takeHandler);
+
+  // GET /take/:planSlug - fixed URL for simple gateways
+  expressApp.get(`${basePath}/take/:planSlug`, async (req, res) => {
+    const reseller = await authReseller(req);
+    if (!reseller) return res.status(401).json({ data: null, error: "Invalid API key" });
+    const app = await findAppByCandidates(appNames);
+    if (!app) return res.status(404).json({ data: null, error: "App not configured" });
+    if (!(await appIsAssigned(reseller.id, app.id))) return res.status(403).json({ data: null, error: "App not assigned" });
+
+    const rawSlug = String(req.params.planSlug).toLowerCase().trim();
+    const plans = await getPlansByAppId(app.id);
+    const plan = plans.find((p: any) => {
+      const name = String(p.name).toLowerCase().trim();
+      const normalized = name.replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+      const noSpace = name.replace(/\s+/g, "").replace(/[^a-z0-9]/g, "");
+      const hyphen = name.replace(/\s+/g, "-");
+      return normalized === rawSlug || name === rawSlug || noSpace === rawSlug.replace(/-/g, "") || hyphen === rawSlug;
+    });
+    if (!plan) return res.status(404).json({ data: null, error: `Plan "${rawSlug}" not found for ${app.name}` });
+    const qty = Math.max(1, Math.min(100, Number(req.query.qtd ?? req.query.quantity ?? req.query.qty ?? 1) || 1));
+    const customer = req.query.customer ?? req.query.email ?? req.query.cliente;
+    const noteValue = customer ? `customer: ${customer}` : undefined;
+    let keys: string[];
+    try {
+      keys = await takeKeysGuarded({ reseller, app, plan, qty, noteValue });
+    } catch (e: any) {
+      return res.status(e instanceof GatewayError ? e.httpStatus : 500).json({ data: null, error: e instanceof GatewayError ? e.publicMessage : "Failed to deliver keys" });
+    }
+    res.json({
+      data: {
+        key: keys[0],
+        keys: keys.length > 1 ? keys : undefined,
+        plan: { id: plan.id, name: plan.name, durationDays: plan.durationDays },
+        balance: reseller.credits,
+      }
+    });
+  });
 }
 
 export function registerResellerApi(app: Express) {
@@ -463,4 +596,8 @@ export function registerResellerApi(app: Express) {
     const qrCodeImage = data?.pix?.qrCodeImage || data?.qrCodeImage || null;
     res.json({ paymentId: data.paymentId, amountCents, brCode, qrCodeImage, expiresAt: data.expiresAt, plan: { id: plan.id, name: plan.name, durationDays: plan.durationDays } });
   });
+
+  // App-specific APIs (igual para Public Emulator e Unlock All Web)
+  registerAppResellerApi(app, "/api/public-emulator/v1", ["EMULATOR PUBLIC", "Public Emulator", "public-emulator"]);
+  registerAppResellerApi(app, "/api/unlock-all-web/v1", ["UNLOCK ALL WEB", "Unlock All Web", "unlock-all-web", "unlockallweb"]);
 }

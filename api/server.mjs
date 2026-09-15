@@ -289,11 +289,17 @@ var init_schema = __esm({
       slug: varchar("slug", { length: 128 }).notNull().unique(),
       tagline: varchar("tagline", { length: 255 }),
       description: text("description"),
-      // markdown / texto estruturado (PT/EN)
+      // PT
+      descriptionEn: text("descriptionEn"),
+      // EN
       pricingCredits: text("pricingCredits"),
-      // bloco de texto com valores Seller Credits
+      // PT
+      pricingCreditsEn: text("pricingCreditsEn"),
+      // EN
       pricingPercentage: text("pricingPercentage"),
-      // bloco de texto com valores Seller Porcentagem
+      // PT
+      pricingPercentageEn: text("pricingPercentageEn"),
+      // EN
       imageUrl: text("imageUrl"),
       // imagem principal (capa)
       galleryImages: text("galleryImages"),
@@ -1551,8 +1557,11 @@ async function ensureResellerInfoSchema() {
           "slug" varchar(128) NOT NULL UNIQUE,
           "tagline" varchar(255),
           "description" text,
+          "descriptionEn" text,
           "pricingCredits" text,
+          "pricingCreditsEn" text,
           "pricingPercentage" text,
+          "pricingPercentageEn" text,
           "imageUrl" text,
           "galleryImages" text,
           "discordUrl" text,
@@ -1564,6 +1573,14 @@ async function ensureResellerInfoSchema() {
       } catch (e) {
         console.error("[Database] Failed to create reseller_info_products table:", e);
         throw e;
+      }
+      try {
+        await _sqlClient.unsafe(`ALTER TABLE "reseller_info_products"
+          ADD COLUMN IF NOT EXISTS "descriptionEn" text,
+          ADD COLUMN IF NOT EXISTS "pricingCreditsEn" text,
+          ADD COLUMN IF NOT EXISTS "pricingPercentageEn" text
+        `);
+      } catch (e) {
       }
     })().then(() => void 0).catch((error) => {
       _resellerInfoSchemaReady = null;
@@ -2221,6 +2238,126 @@ async function takeKeysGuarded(opts) {
   }
   return acquisition.keyValues;
 }
+async function findAppByCandidates(candidates) {
+  for (const name of candidates) {
+    const app2 = await getAppByName(name);
+    if (app2) return app2;
+  }
+  const like = await getAppByNameLike(candidates[candidates.length - 1]);
+  return like;
+}
+async function appIsAssigned(resellerId, appId) {
+  const assigned = await getAppsByResellerId(resellerId);
+  return assigned.some((row) => row.app.id === appId);
+}
+function registerAppResellerApi(expressApp, basePath, appNames) {
+  expressApp.get(`${basePath}/products`, async (req, res) => {
+    const reseller = await authReseller(req);
+    if (!reseller) return res.status(401).json({ error: "Invalid API key" });
+    const app2 = await findAppByCandidates(appNames);
+    if (!app2) return res.status(404).json({ error: "App not configured" });
+    if (!await appIsAssigned(reseller.id, app2.id)) return res.status(403).json({ error: "App not assigned" });
+    const plans = await getPlansByAppId(app2.id);
+    const stock = await getStockByApp(app2.id);
+    const planList = plans.map((p) => ({
+      id: p.id,
+      name: p.name,
+      durationDays: p.durationDays,
+      priceCredits: p.priceCredits,
+      resellerSellingPrice: p.resellerSellingPrice,
+      stockCount: stock.filter((s) => s.planId === p.id && s.status === "available").length
+    }));
+    res.json({ app: { id: app2.id, name: app2.name, description: app2.description, version: app2.version, autoGenerate: appGeneratesOnDemand(app2) }, plans: planList, balance: reseller.credits });
+  });
+  expressApp.get(`${basePath}/stock`, async (req, res) => {
+    const reseller = await authReseller(req);
+    if (!reseller) return res.status(401).json({ error: "Invalid API key" });
+    const app2 = await findAppByCandidates(appNames);
+    if (!app2) return res.status(404).json({ error: "App not configured" });
+    if (!await appIsAssigned(reseller.id, app2.id)) return res.status(403).json({ error: "App not assigned" });
+    const plans = await getPlansByAppId(app2.id);
+    const stock = await Promise.all(plans.map(async (p) => {
+      const available = await getAvailableStockForPlan(app2.id, p.id, 1e3);
+      return {
+        id: p.id,
+        name: p.name,
+        durationDays: p.durationDays,
+        priceCredits: p.priceCredits,
+        resellerSellingPrice: p.resellerSellingPrice,
+        stockCount: available.length,
+        inStock: available.length > 0
+      };
+    }));
+    res.json({ app: { id: app2.id, name: app2.name, autoGenerate: appGeneratesOnDemand(app2) }, stock });
+  });
+  const takeHandler = async (req, res) => {
+    const reseller = await authReseller(req);
+    if (!reseller) return res.status(401).json({ data: null, error: "Invalid API key" });
+    const app2 = await findAppByCandidates(appNames);
+    if (!app2) return res.status(404).json({ data: null, error: "App not configured" });
+    if (!await appIsAssigned(reseller.id, app2.id)) return res.status(403).json({ data: null, error: "App not assigned" });
+    const raw = { ...req.query ?? {}, ...req.body ?? {} };
+    const planId = raw.planId ?? raw.planID ?? raw.plan_id;
+    const planName = raw.planName ?? raw.plan ?? raw.plano;
+    const quantity = raw.qtd ?? raw.quantidade ?? raw.quantity ?? raw.qty ?? 1;
+    const customer = raw.customer ?? raw.cliente ?? raw.client ?? raw.email ?? raw.buyerEmail;
+    const noteValue = customer ? `customer: ${customer}` : void 0;
+    if (!planId && !planName) return res.status(400).json({ data: null, error: "planId or planName is required" });
+    const plan = await resolvePlan(app2.id, planId ? Number(planId) : void 0, planName);
+    if (!plan) return res.status(404).json({ data: null, error: "Plan not found" });
+    const qty = Math.max(1, Math.min(100, Number(quantity) || 1));
+    let keys;
+    try {
+      keys = await takeKeysGuarded({ reseller, app: app2, plan, qty, noteValue });
+    } catch (e) {
+      return res.status(e instanceof GatewayError ? e.httpStatus : 500).json({ data: null, error: e instanceof GatewayError ? e.publicMessage : "Failed to deliver keys" });
+    }
+    res.json({
+      data: {
+        key: keys[0],
+        keys: keys.length > 1 ? keys : void 0,
+        plan: { id: plan.id, name: plan.name, durationDays: plan.durationDays },
+        balance: reseller.credits
+      }
+    });
+  };
+  expressApp.get(`${basePath}/take`, takeHandler);
+  expressApp.post(`${basePath}/take`, takeHandler);
+  expressApp.get(`${basePath}/take/:planSlug`, async (req, res) => {
+    const reseller = await authReseller(req);
+    if (!reseller) return res.status(401).json({ data: null, error: "Invalid API key" });
+    const app2 = await findAppByCandidates(appNames);
+    if (!app2) return res.status(404).json({ data: null, error: "App not configured" });
+    if (!await appIsAssigned(reseller.id, app2.id)) return res.status(403).json({ data: null, error: "App not assigned" });
+    const rawSlug = String(req.params.planSlug).toLowerCase().trim();
+    const plans = await getPlansByAppId(app2.id);
+    const plan = plans.find((p) => {
+      const name = String(p.name).toLowerCase().trim();
+      const normalized = name.replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+      const noSpace = name.replace(/\s+/g, "").replace(/[^a-z0-9]/g, "");
+      const hyphen = name.replace(/\s+/g, "-");
+      return normalized === rawSlug || name === rawSlug || noSpace === rawSlug.replace(/-/g, "") || hyphen === rawSlug;
+    });
+    if (!plan) return res.status(404).json({ data: null, error: `Plan "${rawSlug}" not found for ${app2.name}` });
+    const qty = Math.max(1, Math.min(100, Number(req.query.qtd ?? req.query.quantity ?? req.query.qty ?? 1) || 1));
+    const customer = req.query.customer ?? req.query.email ?? req.query.cliente;
+    const noteValue = customer ? `customer: ${customer}` : void 0;
+    let keys;
+    try {
+      keys = await takeKeysGuarded({ reseller, app: app2, plan, qty, noteValue });
+    } catch (e) {
+      return res.status(e instanceof GatewayError ? e.httpStatus : 500).json({ data: null, error: e instanceof GatewayError ? e.publicMessage : "Failed to deliver keys" });
+    }
+    res.json({
+      data: {
+        key: keys[0],
+        keys: keys.length > 1 ? keys : void 0,
+        plan: { id: plan.id, name: plan.name, durationDays: plan.durationDays },
+        balance: reseller.credits
+      }
+    });
+  });
+}
 function registerResellerApi(app2) {
   app2.post("/api/reseller/v1/auth/verify", async (req, res) => {
     const reseller = await authReseller(req);
@@ -2531,6 +2668,8 @@ function registerResellerApi(app2) {
     const qrCodeImage = data?.pix?.qrCodeImage || data?.qrCodeImage || null;
     res.json({ paymentId: data.paymentId, amountCents, brCode, qrCodeImage, expiresAt: data.expiresAt, plan: { id: plan.id, name: plan.name, durationDays: plan.durationDays } });
   });
+  registerAppResellerApi(app2, "/api/public-emulator/v1", ["EMULATOR PUBLIC", "Public Emulator", "public-emulator"]);
+  registerAppResellerApi(app2, "/api/unlock-all-web/v1", ["UNLOCK ALL WEB", "Unlock All Web", "unlock-all-web", "unlockallweb"]);
 }
 
 // server/_core/storageProxy.ts
@@ -3831,8 +3970,11 @@ var adminRouter = router({
     slug: z2.string().min(2),
     tagline: z2.string().optional(),
     description: z2.string().optional(),
+    descriptionEn: z2.string().optional(),
     pricingCredits: z2.string().optional(),
+    pricingCreditsEn: z2.string().optional(),
     pricingPercentage: z2.string().optional(),
+    pricingPercentageEn: z2.string().optional(),
     imageUrlBase64: z2.string().optional(),
     galleryImagesBase64: z2.array(z2.string()).optional(),
     discordUrl: z2.string().optional(),
@@ -3841,16 +3983,17 @@ var adminRouter = router({
   })).mutation(async ({ input }) => {
     let imageUrl;
     if (input.imageUrlBase64) {
-      imageUrl = await uploadBase64Image(input.imageUrlBase64, "reseller-info") || void 0;
+      const uploaded = await uploadBase64Image(input.imageUrlBase64, "reseller-info");
+      imageUrl = uploaded ?? input.imageUrlBase64;
     }
     let galleryImages;
     if (input.galleryImagesBase64 && input.galleryImagesBase64.length > 0) {
-      const urls = [];
+      const entries = [];
       for (const b64 of input.galleryImagesBase64) {
         const url = await uploadBase64Image(b64, "reseller-info");
-        if (url) urls.push(url);
+        entries.push(url ?? b64);
       }
-      if (urls.length > 0) galleryImages = JSON.stringify(urls);
+      if (entries.length > 0) galleryImages = JSON.stringify(entries);
     }
     const { imageUrlBase64, galleryImagesBase64, ...data } = input;
     const row = await createResellerInfoProduct({
@@ -3866,8 +4009,11 @@ var adminRouter = router({
     slug: z2.string().min(2).optional(),
     tagline: z2.string().optional().nullable(),
     description: z2.string().optional().nullable(),
+    descriptionEn: z2.string().optional().nullable(),
     pricingCredits: z2.string().optional().nullable(),
+    pricingCreditsEn: z2.string().optional().nullable(),
     pricingPercentage: z2.string().optional().nullable(),
+    pricingPercentageEn: z2.string().optional().nullable(),
     imageUrlBase64: z2.string().optional(),
     clearImage: z2.boolean().optional(),
     galleryImagesBase64: z2.array(z2.string()).optional(),
@@ -3879,18 +4025,19 @@ var adminRouter = router({
     const { id, imageUrlBase64, clearImage, galleryImagesBase64, clearGallery, ...data } = input;
     let imageUrl;
     if (imageUrlBase64) {
-      imageUrl = await uploadBase64Image(imageUrlBase64, "reseller-info") || void 0;
+      const uploaded = await uploadBase64Image(imageUrlBase64, "reseller-info");
+      imageUrl = uploaded ?? imageUrlBase64;
     } else if (clearImage) {
       imageUrl = null;
     }
     let galleryImages;
     if (galleryImagesBase64 && galleryImagesBase64.length > 0) {
-      const urls = [];
+      const entries = [];
       for (const b64 of galleryImagesBase64) {
         const url = await uploadBase64Image(b64, "reseller-info");
-        if (url) urls.push(url);
+        entries.push(url ?? b64);
       }
-      if (urls.length > 0) galleryImages = JSON.stringify(urls);
+      if (entries.length > 0) galleryImages = JSON.stringify(entries);
     } else if (clearGallery) {
       galleryImages = null;
     }
