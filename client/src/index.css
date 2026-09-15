@@ -178,35 +178,45 @@ button:active:not(:disabled) {
 
 /* ─── Sonner Toast Notifications ─── */
 .toaster [data-sonner-toast] {
-  background: rgba(13, 10, 25, 0.96) !important;
-  border: 1px solid rgba(124, 58, 237, 0.35) !important;
-  border-radius: 16px !important;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), 0 0 20px rgba(124, 58, 237, 0.15) !important;
-  backdrop-filter: blur(16px) !important;
-  color: #f3f4f6 !important;
-  padding: 16px !important;
+  background: rgba(11, 13, 12, 0.97) !important;
+  border: 1px solid rgba(255, 255, 255, 0.09) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+  backdrop-filter: blur(20px) !important;
+  color: #e7e9ea !important;
+  padding: 13px 16px !important;
 }
 
 .toaster [data-sonner-toast][data-type="success"] {
-  border-left: 4px solid #22c55e !important;
+  border-color: rgba(16, 185, 129, 0.30) !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55), 0 0 28px rgba(16, 185, 129, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
 }
 
 .toaster [data-sonner-toast][data-type="error"] {
-  border-left: 4px solid #ef4444 !important;
+  border-color: rgba(239, 68, 68, 0.30) !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55), 0 0 28px rgba(239, 68, 68, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
 }
 
 .toaster [data-sonner-toast][data-type="info"] {
-  border-left: 4px solid #3b82f6 !important;
+  border-color: rgba(56, 189, 248, 0.30) !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55), 0 0 28px rgba(56, 189, 248, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
 }
 
 .toaster [data-sonner-toast][data-type="warning"] {
-  border-left: 4px solid #eab308 !important;
+  border-color: rgba(245, 158, 11, 0.30) !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55), 0 0 28px rgba(245, 158, 11, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
 }
+
+.toaster [data-sonner-toast][data-type="success"] [data-icon] svg { color: #34d399 !important; }
+.toaster [data-sonner-toast][data-type="error"] [data-icon] svg { color: #f87171 !important; }
+.toaster [data-sonner-toast][data-type="info"] [data-icon] svg { color: #38bdf8 !important; }
+.toaster [data-sonner-toast][data-type="warning"] [data-icon] svg { color: #fbbf24 !important; }
 
 .toaster [data-sonner-toast] [data-title] {
   font-weight: 600 !important;
   color: #ffffff !important;
-  font-size: 14px !important;
+  font-size: 13px !important;
+  letter-spacing: -0.01em !important;
 }
 
 .toaster [data-sonner-toast] [data-description] {
@@ -216,13 +226,15 @@ button:active:not(:disabled) {
 }
 
 .toaster [data-sonner-toast] [data-close-button] {
-  background: transparent !important;
+  background: rgba(255, 255, 255, 0.04) !important;
   color: #6b7280 !important;
-  border: none !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 8px !important;
 }
 
 .toaster [data-sonner-toast] [data-close-button]:hover {
   color: #ffffff !important;
+  background: rgba(255, 255, 255, 0.08) !important;
 }
 
 /* ─── StellarX-style Auth Page ─── */
