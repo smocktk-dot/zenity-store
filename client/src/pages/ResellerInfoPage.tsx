@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { motion, AnimatePresence } from "framer-motion";
 
 const DEFAULT_DISCORD_URL = "https://discord.gg/vgseller";
 
@@ -81,7 +82,12 @@ export default function ResellerInfoPage() {
   return (
     <div className="auth-page ri-page">
       {/* ─── Left brand panel ─── */}
-      <aside className="auth-left ri-left">
+      <motion.aside
+        className="auth-left ri-left"
+        initial={{ opacity: 0, x: -50 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+      >
         <div className="auth-left-bg">
           <div className="galaxy-bg">
             <div className="galaxy-stars" />
@@ -105,7 +111,12 @@ export default function ResellerInfoPage() {
         {/* Center hero copy */}
         <div className="ri-left-hero">
           <div className="ri-hero-glow" aria-hidden="true" />
-          <div className="ri-hero-card">
+          <motion.div
+            className="ri-hero-card"
+            initial={{ opacity: 0, y: 30, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.6, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+          >
             <div className="ri-eyebrow">
               <span className="ri-eyebrow-dot" />
               <span>Programa de Revenda</span>
@@ -148,7 +159,7 @@ export default function ResellerInfoPage() {
                 </div>
               </div>
             </div>
-          </div>
+          </motion.div>
         </div>
 
         {/* Bottom stats */}
@@ -174,10 +185,15 @@ export default function ResellerInfoPage() {
           <div className="auth-status-pulse" />
           <span className="auth-status-label">Sistema Operacional</span>
         </div>
-      </aside>
+      </motion.aside>
 
       {/* ─── Right content panel ─── */}
-      <main className="auth-right ri-right">
+      <motion.main
+        className="auth-right ri-right"
+        initial={{ opacity: 0, x: 50 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+      >
         {/* Top bar */}
         <div className="auth-topbar">
           <div className="auth-topbar-brand">
@@ -222,11 +238,16 @@ export default function ResellerInfoPage() {
             </div>
           ) : (
             <div className="ri-grid">
-              {products.map((p) => (
-                <button
+              {products.map((p, i) => (
+                <motion.button
                   key={p.id}
                   onClick={() => openProduct(p)}
                   className="ri-card"
+                  initial={{ opacity: 0, y: 24 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: 0.2 + i * 0.08, ease: [0.22, 1, 0.36, 1] }}
+                  whileHover={{ y: -5, transition: { duration: 0.2 } }}
+                  whileTap={{ scale: 0.98 }}
                 >
                   {p.imageUrl ? (
                     <div className="ri-card-image" style={{ backgroundImage: `url(${p.imageUrl})` }} />
@@ -250,7 +271,7 @@ export default function ResellerInfoPage() {
                       <ArrowRight className="w-3.5 h-3.5" />
                     </div>
                   </div>
-                </button>
+                </motion.button>
               ))}
             </div>
           )}
@@ -275,12 +296,28 @@ export default function ResellerInfoPage() {
             </a>
           </div>
         </div>
-      </main>
+      </motion.main>
 
       {/* ─── Product detail modal ─── */}
-      {selectedProduct && (
-        <div className="ri-modal-overlay" onClick={closeProduct}>
-          <div className="ri-modal" onClick={(e) => e.stopPropagation()}>
+      <AnimatePresence>
+        {selectedProduct && (
+          <motion.div
+            key="product-modal"
+            className="ri-modal-overlay"
+            onClick={closeProduct}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
+          >
+            <motion.div
+              className="ri-modal"
+              onClick={(e: any) => e.stopPropagation()}
+              initial={{ opacity: 0, y: 30, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 30, scale: 0.96 }}
+              transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+            >
             <button className="ri-modal-close" onClick={closeProduct}>
               <X className="w-5 h-5" />
             </button>
@@ -404,9 +441,10 @@ export default function ResellerInfoPage() {
                 <ArrowRight className="w-4 h-4" />
               </a>
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
+      </AnimatePresence>
 
       {/* ─── Lightbox ─── */}
       {lightboxIndex !== null && selectedProduct && (
