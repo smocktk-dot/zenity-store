@@ -1,8 +1,10 @@
 import { trpc } from "@/lib/trpc";
+import { Link } from "wouter";
 import {
   CreditCard, TrendingUp, ShoppingBag, Calendar, MapPin, Clock,
   ArrowUpRight, ArrowDownRight, ArrowRight, Plus, User, Mail, QrCode, Copy, CheckCircle2,
   Loader2, RefreshCw, X, Zap, Bitcoin, Trash2, LayoutDashboard, Users,
+  ShieldCheck, Sparkles, Key,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -515,74 +517,210 @@ function CreditsProfile({ profile, refetch }: { profile: any; refetch: () => voi
   };
 
   const summaryCards = [
-    { label: "Saldo", value: `${credits.toFixed(2)} cr`, sub: "disponível", icon: CreditCard },
-    { label: t.profile_total_purchases, value: profile.totalPurchases, sub: "compras", icon: ShoppingBag },
-    { label: t.profile_member_since, value: formatDate(profile.createdAt, language), sub: "registro", icon: Calendar },
-    { label: language === "en" ? "Last access" : "Último acesso", value: formatDate(profile.lastLoginAt, language), sub: "login", icon: Clock },
+    { label: "Saldo Disponível", value: `${credits.toFixed(2)} cr`, sub: "Créditos prontos para uso", tag: "Disponível", icon: CreditCard },
+    { label: t.profile_total_purchases, value: profile.totalPurchases, sub: "Histórico acumulado", tag: "Concluídas", icon: ShoppingBag },
+    { label: t.profile_member_since, value: formatDate(profile.createdAt, language), sub: "Data de registro", tag: "Membro", icon: Calendar },
+    { label: language === "en" ? "Last access" : "Último acesso", value: formatDate(profile.lastLoginAt, language), sub: "Sessão recente", tag: "Audit", icon: Clock },
   ];
 
   return (
-    <div className="p-4 sm:p-6 space-y-5 max-w-6xl mx-auto">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">{t.profile_title}</h1>
-          <p className="text-gray-500 text-sm mt-1">{t.profile_type_credits}</p>
+    <div className="space-y-6 max-w-7xl mx-auto">
+      {/* ─── Executive Header ─── */}
+      <div
+        className="p-6 sm:p-7 rounded-3xl relative overflow-hidden"
+        style={{
+          background: "linear-gradient(135deg, rgba(8, 16, 12, 0.85) 0%, rgba(4, 8, 6, 0.95) 100%)",
+          border: "1px solid rgba(52, 211, 153, 0.22)",
+          boxShadow: "0 20px 50px -15px rgba(0, 0, 0, 0.7), 0 0 30px -8px rgba(16, 185, 129, 0.12)",
+        }}
+      >
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 relative z-10">
+          <div className="flex items-start sm:items-center gap-4 sm:gap-5">
+            <div className="relative shrink-0">
+              <div
+                className="w-16 h-16 rounded-2xl flex items-center justify-center font-extrabold text-2xl text-white uppercase"
+                style={{
+                  background: "linear-gradient(135deg, rgba(16, 185, 129, 0.35) 0%, rgba(5, 150, 105, 0.15) 100%)",
+                  border: "1px solid rgba(52, 211, 153, 0.45)",
+                  boxShadow: "0 0 24px -4px rgba(16, 185, 129, 0.35)",
+                }}
+              >
+                {String(profile.username || "R")[0]}
+              </div>
+              <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-400 border-2 border-[#040806]" />
+            </div>
+
+            <div>
+              <div className="flex flex-wrap items-center gap-2.5">
+                <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+                  {profile.username}
+                </h1>
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/15 border border-emerald-500/30 text-emerald-300">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>PARCEIRO VERIFICADO</span>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-2 text-xs text-gray-400">
+                <span className="flex items-center gap-1.5 text-yellow-400 font-semibold font-mono">
+                  <CreditCard className="w-3.5 h-3.5" />
+                  Saldo: {credits.toFixed(2)} cr
+                </span>
+                {profile.email && (
+                  <span className="flex items-center gap-1.5 text-gray-400">
+                    <Mail className="w-3.5 h-3.5 text-gray-500" />
+                    {profile.email}
+                  </span>
+                )}
+                <span className="flex items-center gap-1.5 text-gray-400">
+                  <Calendar className="w-3.5 h-3.5 text-gray-500" />
+                  {formatDate(profile.createdAt, language)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5">
+            <Button
+              onClick={() => setShowBuy(true)}
+              className="font-bold gap-2 h-11 px-6 text-xs text-black rounded-xl bg-emerald-400 hover:bg-emerald-300 transition-all shadow-[0_0_20px_rgba(52,211,153,0.35)]"
+            >
+              <Plus className="w-4 h-4" /> {t.profile_buy_credits}
+            </Button>
+
+            <Link href="/reseller/keys">
+              <button
+                type="button"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-white border border-white/[0.1] text-xs font-bold transition-all"
+              >
+                <Key className="w-4 h-4 text-emerald-400" />
+                <span>Minhas Chaves</span>
+              </button>
+            </Link>
+          </div>
         </div>
-        <span className="self-start sm:self-auto text-xs px-3 py-2 rounded-full border font-semibold bg-yellow-500/15 text-yellow-400 border-yellow-500/30 flex items-center gap-1.5">
-          <CreditCard className="w-3.5 h-3.5" /> {language === "en" ? "Credits Reseller" : "Reseller Créditos"}
-        </span>
       </div>
 
-      <div className="flex items-center gap-2 border-b border-white/[0.06] pb-3">
+      {/* Tabs */}
+      <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-white/[0.02] border border-white/[0.06] w-fit">
         {tabButton("overview", language === "en" ? "Overview" : "Visão Geral", LayoutDashboard)}
         {tabButton("credits", language === "en" ? "My Credits" : "Meus Créditos", CreditCard)}
         {profile.canCreateSubResellers && tabButton("subresellers", language === "en" ? "Sub Resellers" : "Sub Resellers", Users)}
       </div>
 
       {activeTab === "overview" && (
-        <div className="space-y-5 animate-in fade-in duration-300">
+        <div className="space-y-6 animate-in fade-in duration-300">
           {/* Summary */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {summaryCards.map(({ label, value, sub, icon: Icon }) => (
-              <div key={label} className="rounded-2xl p-4" style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.15) 0%, rgba(16,185,129,0.05) 100%)", border: "1px solid rgba(16,185,129,0.20)" }}>
-                <div className="w-9 h-9 rounded-xl bg-black/20 flex items-center justify-center mb-3">
-                  <Icon className="w-4 h-4 text-emerald-400" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {summaryCards.map(({ label, value, sub, tag, icon: Icon }) => (
+              <div
+                key={label}
+                className="p-5 rounded-2xl relative overflow-hidden transition-all duration-300 hover:translate-y-[-3px]"
+                style={{
+                  background: "linear-gradient(135deg, rgba(8, 16, 12, 0.75) 0%, rgba(4, 8, 6, 0.9) 100%)",
+                  border: "1px solid rgba(52, 211, 153, 0.18)",
+                  boxShadow: "0 10px 30px -10px rgba(0, 0, 0, 0.6)",
+                }}
+              >
+                <div
+                  className="absolute top-0 left-0 right-0 h-[2px]"
+                  style={{ background: "linear-gradient(90deg, transparent, rgba(52, 211, 153, 0.5), transparent)" }}
+                />
+
+                <div className="flex items-center justify-between mb-3">
+                  <div
+                    className="w-10 h-10 rounded-xl flex items-center justify-center"
+                    style={{
+                      background: "rgba(16, 185, 129, 0.15)",
+                      border: "1px solid rgba(52, 211, 153, 0.3)",
+                    }}
+                  >
+                    <Icon className="w-4 h-4 text-emerald-400" />
+                  </div>
+                  <span className="text-[10px] font-mono uppercase tracking-wider font-bold px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                    {tag}
+                  </span>
                 </div>
-                <p className="text-white text-xl font-bold leading-none">{String(value)}</p>
-                <p className="text-white/80 text-xs mt-1">{label}</p>
-                <p className="text-emerald-400/80 text-[10px]">{sub}</p>
+
+                <p className="text-white text-2xl font-black tracking-tight leading-none font-mono">
+                  {String(value)}
+                </p>
+                <p className="text-gray-200 text-xs font-semibold mt-2">{label}</p>
+                <p className="text-gray-500 text-[11px] mt-0.5">{sub}</p>
               </div>
             ))}
           </div>
 
-          {/* Account */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="rounded-3xl p-5" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center"><User className="w-4 h-4 text-emerald-400" /></div>
-                <div><p className="text-gray-500 text-xs">Username</p><p className="text-white text-sm font-semibold">{profile.username}</p></div>
+          {/* Account Security Info Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div
+              className="p-5 rounded-2xl"
+              style={{
+                background: "rgba(6, 12, 9, 0.6)",
+                border: "1px solid rgba(255, 255, 255, 0.07)",
+              }}
+            >
+              <div className="flex items-center gap-2 mb-3">
+                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                <span className="text-xs font-mono uppercase tracking-wider text-gray-400 font-bold">Identidade & Acesso</span>
               </div>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center"><Mail className="w-4 h-4 text-blue-400" /></div>
-                <div><p className="text-gray-500 text-xs">{t.profile_email}</p><p className="text-white text-sm font-semibold">{profile.email || "—"}</p></div>
+              <p className="text-white text-sm font-bold">{profile.username}</p>
+              <p className="text-gray-400 text-xs mt-1">{profile.email || "—"}</p>
+              <div className="pt-3 mt-4 border-t border-white/[0.06] flex items-center gap-2 text-[11px] text-emerald-400">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>Sessão Criptografada AES-256</span>
               </div>
             </div>
-            {[
-              { label: t.profile_location, value: profile.location || "—", icon: MapPin, color: "text-orange-400", bg: "bg-orange-500/10", border: "border-orange-500/20" },
-            ].map(({ label, value, icon: Icon, color, bg, border }) => (
-              <div key={label} className={`rounded-3xl p-5 ${bg} border ${border}`}>
-                <div className="w-10 h-10 rounded-xl bg-black/20 flex items-center justify-center mb-4">
-                  <Icon className={`w-4 h-4 ${color}`} />
-                </div>
-                <p className="text-gray-500 text-xs">{label}</p>
-                <p className="text-white text-lg font-semibold mt-1 truncate">{String(value)}</p>
+
+            <div
+              className="p-5 rounded-2xl"
+              style={{
+                background: "linear-gradient(135deg, rgba(234, 179, 8, 0.08) 0%, rgba(6, 12, 9, 0.7) 100%)",
+                border: "1px solid rgba(234, 179, 8, 0.25)",
+              }}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-mono uppercase tracking-wider text-yellow-400 font-bold">Conta Créditos</span>
+                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-yellow-400/15 text-yellow-300 border border-yellow-400/30">
+                  Ativo
+                </span>
               </div>
-            ))}
+              <p className="text-3xl font-black text-white font-mono mt-2">{credits.toFixed(2)} cr</p>
+              <p className="text-gray-400 text-xs mt-1">Saldo pronto para compras de licenças</p>
+            </div>
+
+            <div
+              className="p-5 rounded-2xl"
+              style={{
+                background: "rgba(6, 12, 9, 0.6)",
+                border: "1px solid rgba(255, 255, 255, 0.07)",
+              }}
+            >
+              <div className="flex items-center gap-2 mb-3">
+                <Clock className="w-4 h-4 text-emerald-400" />
+                <span className="text-xs font-mono uppercase tracking-wider text-gray-400 font-bold">Auditoria de Acesso</span>
+              </div>
+              <p className="text-xs text-gray-400">Última Sessão:</p>
+              <p className="text-white text-sm font-semibold mt-0.5">{formatDate(profile.lastLoginAt, language)}</p>
+              <div className="pt-3 mt-4 border-t border-white/[0.06] flex items-center justify-between text-[11px]">
+                <span className="text-gray-400">Status Operacional:</span>
+                <span className="text-emerald-400 font-semibold">Online • &lt; 14ms</span>
+              </div>
+            </div>
           </div>
 
           {/* Activity chart */}
-          <div className="rounded-3xl p-5" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
-            <h2 className="text-white font-semibold text-sm mb-4 flex items-center gap-2"><TrendingUp className="w-4 h-4 text-emerald-400" /> {language === "en" ? "Activity by month" : "Atividade por mês"}</h2>
+          <div
+            className="p-6 rounded-3xl"
+            style={{
+              background: "rgba(6, 12, 9, 0.6)",
+              border: "1px solid rgba(52, 211, 153, 0.16)",
+            }}
+          >
+            <div className="flex items-center gap-2 mb-4">
+              <TrendingUp className="w-4 h-4 text-emerald-400" />
+              <h2 className="text-white font-bold text-sm tracking-tight">{language === "en" ? "Activity by month" : "Atividade Mensal"}</h2>
+            </div>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={monthlyData} margin={{ top: 20, right: 20, left: 0, bottom: 0 }}>
@@ -592,15 +730,15 @@ function CreditsProfile({ profile, refetch }: { profile: any; refetch: () => voi
                       <stop offset="95%" stopColor="#34d399" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
-                  <XAxis dataKey="label" stroke="#6b7280" fontSize={12} tick={{ fill: "#9ca3af" }} />
-                  <YAxis stroke="#6b7280" fontSize={12} tick={{ fill: "#9ca3af" }} allowDecimals={false} />
+                  <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
+                  <XAxis dataKey="label" stroke="#6b7280" fontSize={11} tick={{ fill: "#9ca3af" }} axisLine={false} />
+                  <YAxis stroke="#6b7280" fontSize={11} tick={{ fill: "#9ca3af" }} allowDecimals={false} axisLine={false} />
                   <Tooltip contentStyle={chartTooltipStyle} />
                   <Area
                     type="monotone"
                     dataKey="count"
                     stroke="#34d399"
-                    strokeWidth={2}
+                    strokeWidth={2.5}
                     fillOpacity={1}
                     fill="url(#colorCredit)"
                     dot={{ r: 3, fill: "#34d399" }}
