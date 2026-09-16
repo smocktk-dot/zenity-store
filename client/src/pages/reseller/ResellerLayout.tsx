@@ -6,21 +6,24 @@ import {
   User,
   AppWindow,
   Key,
-  LogOut,
   Shield,
   Ticket,
   BarChart3,
   Menu,
   X,
-  Sparkles,
   ExternalLink,
+  Search,
+  ShoppingCart,
+  Bell,
 } from "lucide-react";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useLanguage } from "@/contexts/LanguageContext";
+import UserMenuDropdown from "@/components/UserMenuDropdown";
 
 export default function ResellerLayout({ children }: { children: React.ReactNode }) {
   const [location, navigate] = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const { data: session, isLoading } = trpc.auth.session.useQuery(undefined, { retry: false });
   // Live balance check
   const { data: liveProfile } = trpc.reseller.profile.useQuery(undefined, {
@@ -34,6 +37,18 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
       navigate("/");
     },
   });
+
+  // Global Ctrl + K shortcut
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        navigate("/reseller/apps");
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [navigate]);
 
   const navItems = [
     { href: "/reseller", icon: User, label: t.nav_profile },
@@ -65,7 +80,6 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
   const resellerSession = session?.role === "reseller" ? session : null;
   const isCredits = resellerSession?.resellerType === "credits";
   const isPercentage = resellerSession?.resellerType === "percentage";
-  const isOther = resellerSession?.resellerType === "other";
   const displayUsername = session?.username ?? "User";
 
   return (
@@ -148,13 +162,51 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
             </nav>
           </div>
 
-          {/* Right: language + badges + user + logout */}
-          <div className="flex items-center gap-2.5">
+          {/* Right: search + cart + language + separator + bell + user menu trigger (as in image) */}
+          <div className="flex items-center gap-2 sm:gap-2.5 relative">
+            {/* Search shortcut button (Ctrl K) */}
+            <button
+              onClick={() => navigate("/reseller/apps")}
+              className="hidden md:flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-zinc-400 hover:text-white bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.06] transition-all"
+              title="Buscar softwares (Ctrl + K)"
+              type="button"
+            >
+              <Search className="w-3.5 h-3.5" />
+              <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-white/[0.06] border border-white/[0.08] text-zinc-400">Ctrl K</span>
+            </button>
+
+            {/* Cart / Store icon */}
+            <Link href="/reseller/apps">
+              <button
+                className="w-9 h-9 rounded-lg flex items-center justify-center text-zinc-400 hover:text-white bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.06] transition-all"
+                title="Catálogo de Apps"
+                type="button"
+              >
+                <ShoppingCart className="w-4 h-4" />
+              </button>
+            </Link>
+
+            {/* Language Switcher */}
             <LanguageSwitcher />
 
+            {/* White dot separator */}
+            <span className="w-1 h-1 rounded-full bg-white/20 hidden sm:inline-block" />
+
+            {/* Notification Bell */}
+            <button
+              onClick={() => toast.info("Você não possui notificações pendentes.")}
+              className="relative w-9 h-9 rounded-lg flex items-center justify-center text-zinc-400 hover:text-white bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.06] transition-all"
+              title="Notificações"
+              type="button"
+            >
+              <Bell className="w-4 h-4" />
+              <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-emerald-400" />
+            </button>
+
+            {/* Status badges */}
             {isAdmin && (
               <div
-                className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium"
+                className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium"
                 style={{
                   background: "rgba(255, 255, 255, 0.04)",
                   border: "1px solid rgba(255, 255, 255, 0.08)",
@@ -168,7 +220,7 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
 
             {resellerSession && isCredits && (
               <div
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-medium"
+                className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-medium"
                 style={{
                   background: "rgba(255, 255, 255, 0.03)",
                   border: "1px solid rgba(255, 255, 255, 0.08)",
@@ -182,7 +234,7 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
 
             {resellerSession && isPercentage && (
               <div
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
+                className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
                 style={{
                   background: "rgba(255, 255, 255, 0.03)",
                   border: "1px solid rgba(255, 255, 255, 0.08)",
@@ -190,52 +242,35 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
                 }}
               >
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                <span>{parseFloat((resellerSession as any).discountPercent ?? "0").toFixed(0)}% {t.general_discount}</span>
+                <span>{parseFloat((resellerSession as any).discountPercent ?? "0").toFixed(0)}% desc</span>
               </div>
             )}
 
-            {resellerSession && isOther && (
-              <div
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
-                style={{
-                  background: "rgba(255, 255, 255, 0.03)",
-                  border: "1px solid rgba(255, 255, 255, 0.08)",
-                  color: "#d4d4d8",
-                }}
-              >
-                {t.general_other_store}
-              </div>
-            )}
-
-            {/* User Capsule */}
-            <div
-              className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg"
-              style={{
-                background: "rgba(255, 255, 255, 0.03)",
-                border: "1px solid rgba(255, 255, 255, 0.06)",
-              }}
-            >
-              <div
-                className="w-5 h-5 rounded-md flex items-center justify-center text-[11px] font-bold uppercase"
-                style={{
-                  background: "rgba(255, 255, 255, 0.08)",
-                  color: "#ffffff",
-                }}
-              >
-                {displayUsername[0]}
-              </div>
-              <span className="text-zinc-300 text-xs font-medium">{displayUsername}</span>
-            </div>
-
-            {/* Logout button */}
+            {/* User Avatar Menu Trigger (matching Image 1!) */}
             <button
-              onClick={() => logout.mutate()}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-zinc-400 hover:text-red-400 hover:bg-red-500/10 transition-all text-xs font-medium"
-              title={t.nav_logout}
+              onClick={() => setUserMenuOpen(!userMenuOpen)}
+              className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all ${
+                userMenuOpen
+                  ? "bg-white/[0.1] text-white border border-white/[0.2]"
+                  : "bg-white/[0.03] text-zinc-300 hover:text-white hover:bg-white/[0.06] border border-white/[0.06]"
+              }`}
+              title="Menu do Usuário"
+              aria-label="Menu do Usuário"
+              type="button"
             >
-              <LogOut className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">{t.nav_logout}</span>
+              <Menu className="w-4 h-4" />
             </button>
+
+            {/* Floating User Profile Dropdown Popover */}
+            <UserMenuDropdown
+              open={userMenuOpen}
+              onClose={() => setUserMenuOpen(false)}
+              username={displayUsername}
+              email={session?.email || undefined}
+              resellerType={resellerSession?.resellerType}
+              isAdmin={isAdmin}
+              onLogout={() => logout.mutate()}
+            />
           </div>
         </div>
       </header>
