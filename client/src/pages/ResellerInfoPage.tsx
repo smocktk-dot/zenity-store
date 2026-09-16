@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useLanguage } from "@/contexts/LanguageContext";
-import LightStreaks from "@/components/LightStreaks";
+import CyberNetwork from "@/components/CyberNetwork";
 import { motion, AnimatePresence } from "framer-motion";
 
 const DEFAULT_DISCORD_URL = "https://discord.gg/vgseller";
@@ -363,23 +363,7 @@ export default function ResellerInfoPage() {
         transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
       >
         <div className="auth-left-bg">
-          <LightStreaks
-            colors={["#34d399", "#10b981", "#6ee7b7", "#ffffff", "#059669", "#a7f3d0"]}
-            backgroundColor="#030305"
-            speed={0.35}
-            streakCount={7}
-            streakWidth={1.2}
-            streakLength={1.4}
-            glow={0.85}
-            density={0.55}
-            twinkle={0.85}
-            zoom={2.4}
-            backgroundGlow={0.15}
-            opacity={0.85}
-            mouseInteraction={true}
-            mouseStrength={0.45}
-            mouseRadius={0.85}
-          />
+          <CyberNetwork nodeCount={65} />
         </div>
         <div className="auth-left-grid" aria-hidden="true" />
 

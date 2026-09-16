@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Eye, EyeOff, Send, MessageCircle, CheckCircle2, User, Lock, ArrowRight, ShieldCheck, Check } from "lucide-react";
+import { Eye, EyeOff, Send, MessageCircle, CheckCircle2, User, Lock, ArrowRight, ShieldCheck, Check, Zap } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useLanguage } from "@/contexts/LanguageContext";
-import LightStreaks from "@/components/LightStreaks";
+import CyberNetwork from "@/components/CyberNetwork";
 
 const APP_STORAGE_KEY = "zenity_application_id";
 const SUPPORT_STORAGE_KEY = "zenity_support_id";
@@ -218,23 +218,7 @@ export default function LoginPage() {
       {/* Left side: Enterprise showcase panel */}
       <div className="auth-left">
         <div className="auth-left-bg">
-          <LightStreaks
-            colors={["#ffffff", "#e0e0e0", "#a8a8a8", "#666666"]}
-            backgroundColor="#030305"
-            speed={0.4}
-            streakCount={6}
-            streakWidth={1}
-            streakLength={1.2}
-            glow={0.7}
-            density={0.5}
-            twinkle={0.8}
-            zoom={2.5}
-            backgroundGlow={0.12}
-            opacity={0.7}
-            mouseInteraction={true}
-            mouseStrength={0.4}
-            mouseRadius={0.8}
-          />
+          <CyberNetwork nodeCount={65} />
         </div>
 
         {/* Subtle grid overlay for depth */}
@@ -251,10 +235,74 @@ export default function LoginPage() {
           </div>
         </div>
 
+        {/* Center: Enterprise Architecture Showcase */}
+        <div className="auth-left-showcase">
+          <div className="auth-showcase-badge">
+            <span className="auth-status-pulse" style={{ width: 5, height: 5 }} />
+            <span>PLATAFORMA CORPORATIVA</span>
+          </div>
+
+          <h2 className="auth-showcase-title">
+            Infraestrutura Global para<br />
+            <span className="auth-showcase-title-accent">Distribuição de Licenças</span>
+          </h2>
+
+          <p className="auth-showcase-sub">
+            Geração instantânea via API KeyAuth, controle de HWID inteligente e arquitetura com criptografia de ponta-a-ponta.
+          </p>
+
+          <div className="auth-showcase-features">
+            <div className="auth-showcase-row">
+              <div className="auth-showcase-icon">
+                <ShieldCheck className="w-4 h-4" />
+              </div>
+              <div className="auth-showcase-rowtext">
+                <span className="auth-showcase-rowtitle">Hardware ID Shield</span>
+                <span className="auth-showcase-rowdesc">Proteção inteligente contra vazamentos e acessos simultâneos</span>
+              </div>
+            </div>
+
+            <div className="auth-showcase-row">
+              <div className="auth-showcase-icon">
+                <Zap className="w-4 h-4" />
+              </div>
+              <div className="auth-showcase-rowtext">
+                <span className="auth-showcase-rowtitle">Instant Key Dispatch</span>
+                <span className="auth-showcase-rowdesc">Despacho automatizado de chaves via API em menos de 1 segundo</span>
+              </div>
+            </div>
+
+            <div className="auth-showcase-row">
+              <div className="auth-showcase-icon">
+                <Lock className="w-4 h-4" />
+              </div>
+              <div className="auth-showcase-rowtext">
+                <span className="auth-showcase-rowtitle">Sessões Criptografadas AES-256</span>
+                <span className="auth-showcase-rowdesc">Segurança operacional corporativa e isolamento total de dados</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="auth-showcase-telemetry">
+            <div className="auth-showcase-metric">
+              <span>LATÊNCIA:</span>
+              <strong>&lt; 14ms</strong>
+            </div>
+            <div className="auth-showcase-metric" style={{ borderLeft: "1px solid rgba(255,255,255,0.08)", paddingLeft: 12 }}>
+              <span>DISPONIBILIDADE:</span>
+              <strong>99.98%</strong>
+            </div>
+            <div className="auth-showcase-metric" style={{ borderLeft: "1px solid rgba(255,255,255,0.08)", paddingLeft: 12 }}>
+              <span>STATUS:</span>
+              <strong>ONLINE</strong>
+            </div>
+          </div>
+        </div>
+
         {/* Bottom: minimal status line */}
         <div className="auth-left-foot">
           <span className="auth-status-pulse" />
-          <span className="auth-status-label">Enterprise Network</span>
+          <span className="auth-status-label">Enterprise Network • Sistema Operacional</span>
         </div>
       </div>
 
