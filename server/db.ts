@@ -966,7 +966,49 @@ export async function updateResellerPassword(id: number, passwordHash: string) {
 export async function deleteResellerById(id: number) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  await db.delete(resellers).where(eq(resellers.id, id));
+  await db.transaction(async (tx) => {
+    const target = await tx
+      .select({ parentResellerId: resellers.parentResellerId })
+      .from(resellers)
+      .where(eq(resellers.id, id));
+
+    const resellerTickets = await tx
+      .select({ id: tickets.id })
+      .from(tickets)
+      .where(eq(tickets.resellerId, id));
+    const ticketIds = resellerTickets.map(t => t.id);
+    if (ticketIds.length) {
+      await tx.delete(ticketMessages).where(inArray(ticketMessages.ticketId, ticketIds));
+    }
+    await tx.delete(tickets).where(eq(tickets.resellerId, id));
+
+    const osrRows = await tx
+      .select({ id: otherStoreResellers.id })
+      .from(otherStoreResellers)
+      .where(eq(otherStoreResellers.resellerId, id));
+    const osrIds = osrRows.map(r => r.id);
+    if (osrIds.length) {
+      await tx.delete(otherStoreHwids).where(inArray(otherStoreHwids.otherStoreResellerId, osrIds));
+    }
+    await tx.delete(otherStoreResellers).where(eq(otherStoreResellers.resellerId, id));
+
+    await tx.delete(resellerApiKeys).where(eq(resellerApiKeys.resellerId, id));
+    await tx.delete(resellerApps).where(eq(resellerApps.resellerId, id));
+    await tx.delete(creditTransactions).where(eq(creditTransactions.resellerId, id));
+    await tx.delete(pixPayments).where(eq(pixPayments.resellerId, id));
+    await tx.delete(licenseKeys).where(eq(licenseKeys.resellerId, id));
+
+    await tx.update(appStock).set({ resellerId: null }).where(eq(appStock.resellerId, id));
+    await tx
+      .update(resellers)
+      .set({ parentResellerId: target[0]?.parentResellerId ?? null })
+      .where(eq(resellers.parentResellerId, id));
+    await tx
+      .delete(ipWhitelist)
+      .where(and(eq(ipWhitelist.userType, "reseller"), eq(ipWhitelist.userId, id)));
+
+    await tx.delete(resellers).where(eq(resellers.id, id));
+  });
 }
 
 // ─── Tickets ──────────────────────────────────────────────────────────────────
