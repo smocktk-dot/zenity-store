@@ -69,28 +69,28 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
   const displayUsername = session?.username ?? "User";
 
   return (
-    <div className="min-h-screen relative overflow-x-hidden bg-[#020403] text-white">
-      {/* Background with subtle enterprise radial ambient & grid overlay */}
+    <div className="min-h-screen relative overflow-x-hidden bg-[#030305] text-white">
+      {/* Background: clean subtle grid overlay identical to LoginPage */}
       <div
         className="fixed inset-0 pointer-events-none -z-10"
         style={{
           backgroundImage: `
-            radial-gradient(circle at 50% -10%, rgba(16, 185, 129, 0.12) 0%, transparent 55%),
-            radial-gradient(circle at 90% 80%, rgba(5, 150, 105, 0.05) 0%, transparent 45%),
-            linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px)
+            linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px)
           `,
-          backgroundSize: "100% 100%, 100% 100%, 40px 40px, 40px 40px",
+          backgroundSize: "40px 40px",
+          maskImage: "radial-gradient(circle at 50% 30%, black 60%, transparent 95%)",
+          WebkitMaskImage: "radial-gradient(circle at 50% 30%, black 60%, transparent 95%)",
         }}
       />
 
-      {/* Top Header */}
+      {/* Top Header - clean, minimal, monochrome enterprise bar */}
       <header
         className="relative z-30 border-b sticky top-0"
         style={{
-          background: "rgba(4, 7, 5, 0.82)",
+          background: "rgba(3, 3, 5, 0.88)",
           backdropFilter: "blur(20px)",
-          borderColor: "rgba(52, 211, 153, 0.12)",
+          borderColor: "rgba(255, 255, 255, 0.06)",
         }}
       >
         <div className="flex items-center justify-between px-4 sm:px-8 h-16">
@@ -98,8 +98,8 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
           <div className="flex items-center gap-4">
             <button
               onClick={() => setMenuOpen(true)}
-              className="w-9 h-9 rounded-xl flex lg:hidden items-center justify-center text-gray-300 hover:text-white transition-all"
-              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+              className="w-9 h-9 rounded-xl flex lg:hidden items-center justify-center text-zinc-400 hover:text-white transition-all"
+              style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
               aria-label="Abrir menu"
             >
               <Menu className="w-4 h-4" />
@@ -109,38 +109,37 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
             <Link href="/reseller">
               <div className="flex items-center gap-3 cursor-pointer group">
                 <div
-                  className="w-9 h-9 rounded-xl flex items-center justify-center transition-all group-hover:scale-105"
+                  className="w-8 h-8 rounded-lg flex items-center justify-center transition-all group-hover:scale-105"
                   style={{
-                    background: "linear-gradient(135deg, rgba(16, 185, 129, 0.25) 0%, rgba(5, 150, 105, 0.1) 100%)",
-                    border: "1px solid rgba(52, 211, 153, 0.35)",
-                    boxShadow: "0 0 16px -4px rgba(16, 185, 129, 0.3)",
+                    background: "rgba(255, 255, 255, 0.05)",
+                    border: "1px solid rgba(255, 255, 255, 0.1)",
                   }}
                 >
-                  <span className="font-mono font-black text-xs text-white tracking-wider">VG</span>
+                  <span className="font-mono font-bold text-xs text-white">VG</span>
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-white font-extrabold text-sm tracking-wider leading-none">VG SELLERS</span>
-                  <span className="text-[10px] font-mono tracking-widest text-emerald-400 font-semibold uppercase mt-0.5">
-                    RESELLER CONSOLE
+                  <span className="text-white font-bold text-sm tracking-wide leading-none">VG SELLERS</span>
+                  <span className="text-[10px] tracking-wider text-zinc-500 font-medium uppercase mt-0.5">
+                    Console do Revendedor
                   </span>
                 </div>
               </div>
             </Link>
 
-            {/* Desktop Navigation Links */}
-            <nav className="hidden lg:flex items-center gap-1 ml-6 pl-6 border-l border-white/[0.08]">
+            {/* Desktop Navigation Links - clean monochrome pill */}
+            <nav className="hidden lg:flex items-center gap-1 ml-6 pl-6 border-l border-white/[0.06]">
               {navItems.map(({ href, icon: Icon, label }) => {
                 const active = location === href || (href !== "/reseller" && location.startsWith(href));
                 return (
                   <Link key={href} href={href}>
                     <div
-                      className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
+                      className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all ${
                         active
-                          ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shadow-[0_0_12px_rgba(16,185,129,0.15)]"
-                          : "text-gray-400 hover:text-white hover:bg-white/[0.04] border border-transparent"
+                          ? "bg-white/[0.08] text-white border border-white/[0.12]"
+                          : "text-zinc-400 hover:text-white hover:bg-white/[0.03] border border-transparent"
                       }`}
                     >
-                      <Icon className="w-3.5 h-3.5" />
+                      <Icon className="w-3.5 h-3.5 text-zinc-400" />
                       <span>{label}</span>
                     </div>
                   </Link>
@@ -155,55 +154,53 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
 
             {isAdmin && (
               <div
-                className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold"
+                className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium"
                 style={{
-                  background: "rgba(16,185,129,0.12)",
-                  border: "1px solid rgba(16,185,129,0.3)",
-                  color: "#34d399",
+                  background: "rgba(255, 255, 255, 0.04)",
+                  border: "1px solid rgba(255, 255, 255, 0.08)",
+                  color: "#d4d4d8",
                 }}
               >
-                <Shield className="w-3 h-3" />
-                Admin
+                <Shield className="w-3 h-3 text-emerald-400" />
+                <span>Admin</span>
               </div>
             )}
 
             {resellerSession && isCredits && (
               <div
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-bold"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-medium"
                 style={{
-                  background: "rgba(234,179,8,0.1)",
-                  border: "1px solid rgba(234,179,8,0.3)",
-                  color: "#fbbf24",
-                  boxShadow: "0 0 14px -4px rgba(234,179,8,0.2)",
+                  background: "rgba(255, 255, 255, 0.03)",
+                  border: "1px solid rgba(255, 255, 255, 0.08)",
+                  color: "#f4f4f5",
                 }}
               >
-                <Sparkles className="w-3 h-3" />
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
                 <span>{parseFloat((liveProfile as any)?.credits ?? (resellerSession as any)?.credits ?? "0").toFixed(2)} cr</span>
               </div>
             )}
 
             {resellerSession && isPercentage && (
               <div
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
                 style={{
-                  background: "rgba(16,185,129,0.12)",
-                  border: "1px solid rgba(52,211,153,0.35)",
-                  color: "#6ee7b7",
-                  boxShadow: "0 0 14px -4px rgba(16,185,129,0.25)",
+                  background: "rgba(255, 255, 255, 0.03)",
+                  border: "1px solid rgba(255, 255, 255, 0.08)",
+                  color: "#f4f4f5",
                 }}
               >
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                 <span>{parseFloat((resellerSession as any).discountPercent ?? "0").toFixed(0)}% {t.general_discount}</span>
               </div>
             )}
 
             {resellerSession && isOther && (
               <div
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
                 style={{
-                  background: "rgba(59,130,246,0.1)",
-                  border: "1px solid rgba(59,130,246,0.25)",
-                  color: "#60a5fa",
+                  background: "rgba(255, 255, 255, 0.03)",
+                  border: "1px solid rgba(255, 255, 255, 0.08)",
+                  color: "#d4d4d8",
                 }}
               >
                 {t.general_other_store}
@@ -212,29 +209,28 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
 
             {/* User Capsule */}
             <div
-              className="hidden sm:flex items-center gap-2.5 px-3 py-1.5 rounded-xl"
+              className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg"
               style={{
-                background: "rgba(255,255,255,0.03)",
-                border: "1px solid rgba(255,255,255,0.08)",
+                background: "rgba(255, 255, 255, 0.03)",
+                border: "1px solid rgba(255, 255, 255, 0.06)",
               }}
             >
               <div
-                className="w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold uppercase"
+                className="w-5 h-5 rounded-md flex items-center justify-center text-[11px] font-bold uppercase"
                 style={{
-                  background: "linear-gradient(135deg, rgba(16, 185, 129, 0.35), rgba(5, 150, 105, 0.15))",
-                  border: "1px solid rgba(52, 211, 153, 0.3)",
-                  color: "#a7f3d0",
+                  background: "rgba(255, 255, 255, 0.08)",
+                  color: "#ffffff",
                 }}
               >
                 {displayUsername[0]}
               </div>
-              <span className="text-gray-200 text-xs font-semibold tracking-wide">{displayUsername}</span>
+              <span className="text-zinc-300 text-xs font-medium">{displayUsername}</span>
             </div>
 
             {/* Logout button */}
             <button
               onClick={() => logout.mutate()}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-all text-xs font-semibold border border-transparent hover:border-red-500/20"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-zinc-400 hover:text-red-400 hover:bg-red-500/10 transition-all text-xs font-medium"
               title={t.nav_logout}
             >
               <LogOut className="w-3.5 h-3.5" />

@@ -517,232 +517,151 @@ function CreditsProfile({ profile, refetch }: { profile: any; refetch: () => voi
   };
 
   const summaryCards = [
-    { label: "Saldo Disponível", value: `${credits.toFixed(2)} cr`, sub: "Créditos prontos para uso", tag: "Disponível", icon: CreditCard },
-    { label: t.profile_total_purchases, value: profile.totalPurchases, sub: "Histórico acumulado", tag: "Concluídas", icon: ShoppingBag },
-    { label: t.profile_member_since, value: formatDate(profile.createdAt, language), sub: "Data de registro", tag: "Membro", icon: Calendar },
-    { label: language === "en" ? "Last access" : "Último acesso", value: formatDate(profile.lastLoginAt, language), sub: "Sessão recente", tag: "Audit", icon: Clock },
+    { label: "Saldo Disponível", value: `${credits.toFixed(2)} cr`, sub: "créditos prontos para uso", icon: CreditCard },
+    { label: t.profile_total_purchases, value: profile.totalPurchases, sub: "histórico acumulado", icon: ShoppingBag },
+    { label: t.profile_member_since, value: formatDate(profile.createdAt, language), sub: "data de registro", icon: Calendar },
+    { label: language === "en" ? "Last access" : "Último acesso", value: formatDate(profile.lastLoginAt, language), sub: "sessão recente", icon: Clock },
   ];
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      {/* ─── Executive Header ─── */}
-      <div
-        className="p-6 sm:p-7 rounded-3xl relative overflow-hidden"
-        style={{
-          background: "linear-gradient(135deg, rgba(8, 16, 12, 0.85) 0%, rgba(4, 8, 6, 0.95) 100%)",
-          border: "1px solid rgba(52, 211, 153, 0.22)",
-          boxShadow: "0 20px 50px -15px rgba(0, 0, 0, 0.7), 0 0 30px -8px rgba(16, 185, 129, 0.12)",
-        }}
-      >
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 relative z-10">
-          <div className="flex items-start sm:items-center gap-4 sm:gap-5">
-            <div className="relative shrink-0">
-              <div
-                className="w-16 h-16 rounded-2xl flex items-center justify-center font-extrabold text-2xl text-white uppercase"
-                style={{
-                  background: "linear-gradient(135deg, rgba(16, 185, 129, 0.35) 0%, rgba(5, 150, 105, 0.15) 100%)",
-                  border: "1px solid rgba(52, 211, 153, 0.45)",
-                  boxShadow: "0 0 24px -4px rgba(16, 185, 129, 0.35)",
-                }}
-              >
-                {String(profile.username || "R")[0]}
-              </div>
-              <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-400 border-2 border-[#040806]" />
-            </div>
-
-            <div>
-              <div className="flex flex-wrap items-center gap-2.5">
-                <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-                  {profile.username}
-                </h1>
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/15 border border-emerald-500/30 text-emerald-300">
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>PARCEIRO VERIFICADO</span>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-2 text-xs text-gray-400">
-                <span className="flex items-center gap-1.5 text-yellow-400 font-semibold font-mono">
-                  <CreditCard className="w-3.5 h-3.5" />
-                  Saldo: {credits.toFixed(2)} cr
-                </span>
-                {profile.email && (
-                  <span className="flex items-center gap-1.5 text-gray-400">
-                    <Mail className="w-3.5 h-3.5 text-gray-500" />
-                    {profile.email}
-                  </span>
-                )}
-                <span className="flex items-center gap-1.5 text-gray-400">
-                  <Calendar className="w-3.5 h-3.5 text-gray-500" />
-                  {formatDate(profile.createdAt, language)}
-                </span>
-              </div>
-            </div>
+    <div className="space-y-6 max-w-6xl mx-auto">
+      {/* ─── Clean Header ─── */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-white/[0.06]">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-2xl font-bold text-white tracking-tight">
+              {t.profile_title}
+            </h1>
+            <span className="text-[11px] font-medium px-2.5 py-0.5 rounded-md bg-white/[0.04] border border-white/[0.08] text-zinc-300">
+              {credits.toFixed(2)} créditos
+            </span>
           </div>
+          <p className="text-zinc-500 text-xs mt-1">
+            {t.profile_type_credits}
+          </p>
+        </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
-            <Button
-              onClick={() => setShowBuy(true)}
-              className="font-bold gap-2 h-11 px-6 text-xs text-black rounded-xl bg-emerald-400 hover:bg-emerald-300 transition-all shadow-[0_0_20px_rgba(52,211,153,0.35)]"
+        <div className="flex items-center gap-2.5">
+          <Button
+            onClick={() => setShowBuy(true)}
+            className="font-semibold gap-2 h-9 px-4 text-xs text-black rounded-lg bg-white hover:bg-zinc-200 transition-all"
+          >
+            <Plus className="w-3.5 h-3.5" /> {t.profile_buy_credits}
+          </Button>
+
+          <Link href="/reseller/keys">
+            <button
+              type="button"
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-zinc-300 text-xs font-medium transition-all"
             >
-              <Plus className="w-4 h-4" /> {t.profile_buy_credits}
-            </Button>
-
-            <Link href="/reseller/keys">
-              <button
-                type="button"
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-white border border-white/[0.1] text-xs font-bold transition-all"
-              >
-                <Key className="w-4 h-4 text-emerald-400" />
-                <span>Minhas Chaves</span>
-              </button>
-            </Link>
-          </div>
+              <Key className="w-3.5 h-3.5 text-zinc-400" />
+              <span>Minhas Keys</span>
+            </button>
+          </Link>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-white/[0.02] border border-white/[0.06] w-fit">
+      <div className="flex items-center gap-1.5">
         {tabButton("overview", language === "en" ? "Overview" : "Visão Geral", LayoutDashboard)}
         {tabButton("credits", language === "en" ? "My Credits" : "Meus Créditos", CreditCard)}
         {profile.canCreateSubResellers && tabButton("subresellers", language === "en" ? "Sub Resellers" : "Sub Resellers", Users)}
       </div>
 
       {activeTab === "overview" && (
-        <div className="space-y-6 animate-in fade-in duration-300">
+        <div className="space-y-5 animate-in fade-in duration-200">
           {/* Summary */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {summaryCards.map(({ label, value, sub, tag, icon: Icon }) => (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
+            {summaryCards.map(({ label, value, sub, icon: Icon }) => (
               <div
                 key={label}
-                className="p-5 rounded-2xl relative overflow-hidden transition-all duration-300 hover:translate-y-[-3px]"
-                style={{
-                  background: "linear-gradient(135deg, rgba(8, 16, 12, 0.75) 0%, rgba(4, 8, 6, 0.9) 100%)",
-                  border: "1px solid rgba(52, 211, 153, 0.18)",
-                  boxShadow: "0 10px 30px -10px rgba(0, 0, 0, 0.6)",
-                }}
+                className="p-4 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12] transition-colors"
               >
-                <div
-                  className="absolute top-0 left-0 right-0 h-[2px]"
-                  style={{ background: "linear-gradient(90deg, transparent, rgba(52, 211, 153, 0.5), transparent)" }}
-                />
-
-                <div className="flex items-center justify-between mb-3">
-                  <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center"
-                    style={{
-                      background: "rgba(16, 185, 129, 0.15)",
-                      border: "1px solid rgba(52, 211, 153, 0.3)",
-                    }}
-                  >
-                    <Icon className="w-4 h-4 text-emerald-400" />
-                  </div>
-                  <span className="text-[10px] font-mono uppercase tracking-wider font-bold px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                    {tag}
-                  </span>
+                <div className="flex items-center justify-between">
+                  <span className="text-zinc-400 text-xs font-medium">{label}</span>
+                  <Icon className="w-3.5 h-3.5 text-zinc-500" />
                 </div>
-
-                <p className="text-white text-2xl font-black tracking-tight leading-none font-mono">
+                <p className="text-xl font-bold text-white tracking-tight mt-2 font-mono">
                   {String(value)}
                 </p>
-                <p className="text-gray-200 text-xs font-semibold mt-2">{label}</p>
-                <p className="text-gray-500 text-[11px] mt-0.5">{sub}</p>
+                <p className="text-zinc-500 text-[11px] mt-0.5">{sub}</p>
               </div>
             ))}
           </div>
 
           {/* Account Security Info Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div
-              className="p-5 rounded-2xl"
-              style={{
-                background: "rgba(6, 12, 9, 0.6)",
-                border: "1px solid rgba(255, 255, 255, 0.07)",
-              }}
-            >
-              <div className="flex items-center gap-2 mb-3">
-                <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                <span className="text-xs font-mono uppercase tracking-wider text-gray-400 font-bold">Identidade & Acesso</span>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+            <div className="p-4 rounded-xl border border-white/[0.06] bg-white/[0.02] flex flex-col justify-between">
+              <div>
+                <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-500 mb-2">Conta</p>
+                <p className="text-sm font-semibold text-white">{profile.username}</p>
+                <p className="text-xs text-zinc-400 mt-0.5 truncate">{profile.email || "—"}</p>
               </div>
-              <p className="text-white text-sm font-bold">{profile.username}</p>
-              <p className="text-gray-400 text-xs mt-1">{profile.email || "—"}</p>
-              <div className="pt-3 mt-4 border-t border-white/[0.06] flex items-center gap-2 text-[11px] text-emerald-400">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>Sessão Criptografada AES-256</span>
+              <div className="pt-3 mt-3 border-t border-white/[0.06] flex items-center gap-1.5 text-xs text-zinc-400">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                <span>Ativo • Créditos</span>
               </div>
             </div>
 
-            <div
-              className="p-5 rounded-2xl"
-              style={{
-                background: "linear-gradient(135deg, rgba(234, 179, 8, 0.08) 0%, rgba(6, 12, 9, 0.7) 100%)",
-                border: "1px solid rgba(234, 179, 8, 0.25)",
-              }}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-mono uppercase tracking-wider text-yellow-400 font-bold">Conta Créditos</span>
-                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-yellow-400/15 text-yellow-300 border border-yellow-400/30">
-                  Ativo
-                </span>
+            <div className="p-4 rounded-xl border border-white/[0.06] bg-white/[0.02] flex flex-col justify-between">
+              <div>
+                <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-500 mb-1">Saldo Atual</p>
+                <p className="text-2xl font-bold text-white font-mono mt-1">{credits.toFixed(2)} cr</p>
+                <p className="text-xs text-zinc-400 mt-0.5">Saldo disponível para chaves</p>
               </div>
-              <p className="text-3xl font-black text-white font-mono mt-2">{credits.toFixed(2)} cr</p>
-              <p className="text-gray-400 text-xs mt-1">Saldo pronto para compras de licenças</p>
+              <div className="pt-3 mt-3 border-t border-white/[0.06] flex items-center justify-between">
+                <button
+                  onClick={() => setShowBuy(true)}
+                  className="text-xs text-emerald-400 hover:text-emerald-300 font-medium"
+                >
+                  + Adicionar créditos
+                </button>
+              </div>
             </div>
 
-            <div
-              className="p-5 rounded-2xl"
-              style={{
-                background: "rgba(6, 12, 9, 0.6)",
-                border: "1px solid rgba(255, 255, 255, 0.07)",
-              }}
-            >
-              <div className="flex items-center gap-2 mb-3">
-                <Clock className="w-4 h-4 text-emerald-400" />
-                <span className="text-xs font-mono uppercase tracking-wider text-gray-400 font-bold">Auditoria de Acesso</span>
+            <div className="p-4 rounded-xl border border-white/[0.06] bg-white/[0.02] flex flex-col justify-between">
+              <div>
+                <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-500 mb-2">Sessão & Registro</p>
+                <p className="text-xs text-zinc-400">Membro desde: <span className="text-white font-medium">{formatDate(profile.createdAt, language)}</span></p>
+                <p className="text-xs text-zinc-400 mt-1">Último acesso: <span className="text-white font-medium">{formatDate(profile.lastLoginAt, language)}</span></p>
               </div>
-              <p className="text-xs text-gray-400">Última Sessão:</p>
-              <p className="text-white text-sm font-semibold mt-0.5">{formatDate(profile.lastLoginAt, language)}</p>
-              <div className="pt-3 mt-4 border-t border-white/[0.06] flex items-center justify-between text-[11px]">
-                <span className="text-gray-400">Status Operacional:</span>
-                <span className="text-emerald-400 font-semibold">Online • &lt; 14ms</span>
+              <div className="pt-3 mt-3 border-t border-white/[0.06] flex items-center justify-between text-xs text-zinc-400">
+                <span>Criptografia:</span>
+                <span className="text-zinc-300 font-medium">AES-256</span>
               </div>
             </div>
           </div>
 
           {/* Activity chart */}
-          <div
-            className="p-6 rounded-3xl"
-            style={{
-              background: "rgba(6, 12, 9, 0.6)",
-              border: "1px solid rgba(52, 211, 153, 0.16)",
-            }}
-          >
-            <div className="flex items-center gap-2 mb-4">
-              <TrendingUp className="w-4 h-4 text-emerald-400" />
-              <h2 className="text-white font-bold text-sm tracking-tight">{language === "en" ? "Activity by month" : "Atividade Mensal"}</h2>
+          <div className="p-5 rounded-xl border border-white/[0.06] bg-white/[0.02]">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-white">{language === "en" ? "Activity by month" : "Atividade Mensal"}</h2>
+                <p className="text-zinc-500 text-xs mt-0.5">Histórico de volume de chaves</p>
+              </div>
             </div>
-            <div className="h-64">
+            <div className="h-56">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={monthlyData} margin={{ top: 20, right: 20, left: 0, bottom: 0 }}>
+                <AreaChart data={monthlyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <defs>
-                    <linearGradient id="colorCredit" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#34d399" stopOpacity={0.35} />
-                      <stop offset="95%" stopColor="#34d399" stopOpacity={0} />
+                    <linearGradient id="colorCreditClean" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#34d399" stopOpacity={0.2} />
+                      <stop offset="95%" stopColor="#34d399" stopOpacity={0.0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
-                  <XAxis dataKey="label" stroke="#6b7280" fontSize={11} tick={{ fill: "#9ca3af" }} axisLine={false} />
-                  <YAxis stroke="#6b7280" fontSize={11} tick={{ fill: "#9ca3af" }} allowDecimals={false} axisLine={false} />
+                  <CartesianGrid stroke="rgba(255,255,255,0.03)" vertical={false} />
+                  <XAxis dataKey="label" stroke="#52525b" fontSize={11} tick={{ fill: "#71717a" }} axisLine={false} />
+                  <YAxis stroke="#52525b" fontSize={11} tick={{ fill: "#71717a" }} allowDecimals={false} axisLine={false} />
                   <Tooltip contentStyle={chartTooltipStyle} />
                   <Area
                     type="monotone"
                     dataKey="count"
                     stroke="#34d399"
-                    strokeWidth={2.5}
+                    strokeWidth={2}
                     fillOpacity={1}
-                    fill="url(#colorCredit)"
+                    fill="url(#colorCreditClean)"
                     dot={{ r: 3, fill: "#34d399" }}
-                    activeDot={{ r: 6 }}
+                    activeDot={{ r: 5 }}
                   />
                 </AreaChart>
               </ResponsiveContainer>
@@ -752,50 +671,44 @@ function CreditsProfile({ profile, refetch }: { profile: any; refetch: () => voi
       )}
 
       {activeTab === "credits" && (
-        <div className="space-y-5 animate-in fade-in duration-300">
+        <div className="space-y-5 animate-in fade-in duration-200">
           {/* Balance card */}
-          <div className="rounded-3xl p-8 text-center" style={{ background: "linear-gradient(145deg, rgba(16,185,129,0.15) 0%, rgba(8,8,10,0.75) 55%)", border: "1px solid rgba(16,185,129,0.25)" }}>
-            <div className="flex items-center justify-center gap-2 mb-3">
-              <CreditCard className="w-5 h-5 text-emerald-400" />
-              <p className="text-emerald-400/80 text-sm font-medium">{t.profile_balance}</p>
-            </div>
-            <p className="text-white text-5xl sm:text-6xl font-bold tracking-tight mb-6">{credits.toFixed(2)} <span className="text-xl sm:text-2xl text-emerald-400/70">cr</span></p>
+          <div className="p-8 rounded-xl border border-white/[0.06] bg-white/[0.02] text-center">
+            <p className="text-zinc-400 text-xs font-medium uppercase tracking-wider mb-2">{t.profile_balance}</p>
+            <p className="text-5xl font-bold text-white font-mono tracking-tight mb-4">{credits.toFixed(2)} <span className="text-xl text-zinc-400">cr</span></p>
             <Button
               onClick={() => setShowBuy(true)}
-              className="font-semibold gap-2 h-11 px-6 text-sm text-white rounded-xl"
-              style={{ background: "linear-gradient(135deg, #10b981, #059669)", boxShadow: "0 4px 20px rgba(16,185,129,0.35)" }}
+              className="font-semibold gap-2 h-9 px-5 text-xs text-black bg-white hover:bg-zinc-200 rounded-lg transition-all"
             >
-              <Plus className="w-4 h-4" /> {t.profile_buy_credits}
+              <Plus className="w-3.5 h-3.5" /> {t.profile_buy_credits}
             </Button>
           </div>
 
           {/* Transactions */}
-          <div className="rounded-3xl p-5" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
-            <h2 className="text-white font-semibold text-sm mb-4 flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-emerald-400" /> {t.profile_recent_transactions}
+          <div className="p-5 rounded-xl border border-white/[0.06] bg-white/[0.02]">
+            <h2 className="text-white font-semibold text-sm mb-4">
+              {t.profile_recent_transactions}
             </h2>
             {!profile.transactions?.length ? (
-              <p className="text-gray-600 text-sm text-center py-8">{t.profile_no_transactions}</p>
+              <p className="text-zinc-500 text-xs text-center py-8">{t.profile_no_transactions}</p>
             ) : (
               <div className="space-y-2">
                 {profile.transactions.slice(0, 20).map((tx: any) => (
-                  <div key={tx.id} className="flex items-center justify-between p-4 rounded-2xl border border-white/[0.04] hover:bg-white/[0.02] transition-colors" style={{ background: "rgba(255,255,255,0.01)" }}>
-                    <div className="flex items-center gap-4">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${tx.type === "add" ? "bg-emerald-500/15" : "bg-red-500/15"}`}>
-                        {tx.type === "add"
-                          ? <ArrowUpRight className="w-4 h-4 text-emerald-400" />
-                          : <ArrowDownRight className="w-4 h-4 text-red-400" />}
+                  <div key={tx.id} className="flex items-center justify-between p-3 rounded-lg border border-white/[0.04] bg-white/[0.01]">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${tx.type === "add" ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"}`}>
+                        {tx.type === "add" ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
                       </div>
                       <div>
-                        <p className="text-white text-sm font-medium">{tx.description}</p>
-                        <p className="text-gray-600 text-xs">{formatDate(tx.createdAt, language)}</p>
+                        <p className="text-white text-xs font-medium">{tx.description}</p>
+                        <p className="text-zinc-500 text-[11px]">{formatDate(tx.createdAt, language)}</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className={`font-mono font-bold text-sm ${tx.type === "add" ? "text-emerald-400" : "text-red-400"}`}>
+                      <p className={`font-mono font-bold text-xs ${tx.type === "add" ? "text-emerald-400" : "text-red-400"}`}>
                         {tx.type === "add" ? "+" : "-"}{parseFloat(tx.amount).toFixed(2)} cr
                       </p>
-                      <p className="text-gray-600 text-xs font-mono">{language === "en" ? "Balance:" : "Saldo:"} {parseFloat(tx.balanceAfter).toFixed(2)} cr</p>
+                      <p className="text-zinc-500 text-[10px] font-mono">{language === "en" ? "Balance:" : "Saldo:"} {parseFloat(tx.balanceAfter).toFixed(2)} cr</p>
                     </div>
                   </div>
                 ))}

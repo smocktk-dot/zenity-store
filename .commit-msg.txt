@@ -1,0 +1,13 @@
+Refatoracao clean e minimalista do painel do revendedor estilo Login Page
+
+- Remove bordas verdes pesadas, badges chamativos e sombras neon
+- Aplica fundo obsidian #030305 com grid sutil de 40px (identico a Login Page)
+- Redesenha header do painel com navegacao e identidade visual minimalista
+- Transforma os 4 cards de metricas em KPIs limpos com bordas 1px discretas
+- Simplifica a secao de conta, sessao e desconto com tipografia executiva
+- Suaviza o grafico de volume mensal com gradiente sutil e sem poluição visual
+- Padroniza o visual limpo tanto para contas Porcentagem quanto Creditos
+
+Generated with [Devin](https://devin.ai)
+
+Co-Authored-By: Devin <158243242+devin-ai-integration[bot]@users.noreply.github.com>

@@ -19,10 +19,7 @@ import {
   ShieldCheck,
   CheckCircle2,
   ArrowRight,
-  Sparkles,
   Zap,
-  Lock,
-  Layers,
 } from "lucide-react";
 import SubResellersSection from "./SubResellersSection";
 import {
@@ -42,12 +39,12 @@ import { useLanguage } from "@/contexts/LanguageContext";
 const months = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 
 const chartTooltipStyle = {
-  backgroundColor: "rgba(6, 12, 9, 0.95)",
-  border: "1px solid rgba(52, 211, 153, 0.3)",
-  borderRadius: 14,
-  boxShadow: "0 10px 30px rgba(0,0,0,0.8)",
+  backgroundColor: "#0a0a0f",
+  border: "1px solid rgba(255,255,255,0.08)",
+  borderRadius: 10,
   color: "#fff",
-  padding: "10px 14px",
+  padding: "8px 12px",
+  fontSize: "12px",
 };
 
 function formatDate(d: Date | null | undefined, lang: "pt" | "en") {
@@ -92,19 +89,10 @@ export default function PercentageProfile({
     });
   }, [dashboard?.monthly, selectedYear]);
 
-  // Year analytics stats
-  const yearStats = useMemo(() => {
-    const total = monthlyData.reduce((acc, cur) => acc + cur.count, 0);
-    const maxItem = [...monthlyData].sort((a, b) => b.count - a.count)[0];
-    const activeMonths = monthlyData.filter(m => m.count > 0).length || 1;
-    const avg = (total / activeMonths).toFixed(1);
-    return { total, maxMonth: maxItem?.count > 0 ? `${maxItem.label.toUpperCase()} (${maxItem.count})` : "—", avg };
-  }, [monthlyData]);
-
   const levels = [
-    { label: language === "en" ? "Starter" : "Iniciante", discount: 35, from: 0, to: 10, color: "text-emerald-300", bg: "bg-emerald-500/10", border: "border-emerald-500/25" },
-    { label: language === "en" ? "Advanced" : "Avançado", discount: 40, from: 10, to: 20, color: "text-emerald-400", bg: "bg-emerald-500/15", border: "border-emerald-500/35" },
-    { label: language === "en" ? "Elite" : "Elite Partner", discount: 50, from: 20, to: Infinity, color: "text-emerald-200", bg: "bg-emerald-400/20", border: "border-emerald-400/40" },
+    { label: language === "en" ? "Starter" : "Iniciante", discount: 35, from: 0, to: 10 },
+    { label: language === "en" ? "Advanced" : "Avançado", discount: 40, from: 10, to: 20 },
+    { label: language === "en" ? "Elite" : "Elite", discount: 50, from: 20, to: Infinity },
   ];
 
   const currentLevelIdx = purchases >= 20 ? 2 : purchases >= 10 ? 1 : 0;
@@ -117,31 +105,27 @@ export default function PercentageProfile({
 
   const summaryCards = [
     {
-      label: language === "en" ? "Total Licenses" : "Total de Licenças",
+      label: language === "en" ? "Total Keys" : "Total de Keys",
       value: counts.totalKeys,
-      sub: language === "en" ? "Lifetime generated keys" : "Histórico acumulado de chaves",
-      tag: language === "en" ? "Delivered" : "Entregues",
+      sub: language === "en" ? "purchased" : "compradas",
       icon: Key,
     },
     {
-      label: language === "en" ? "Total Volume" : "Volume Total Faturado",
+      label: language === "en" ? "Total Spent" : "Gasto Total",
       value: `R$ ${Number(counts.totalSpent).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      sub: language === "en" ? "Gross key volume (credits)" : "Valor bruto faturado em chaves",
-      tag: language === "en" ? "Gross Volume" : "Volume Real",
+      sub: language === "en" ? "credits" : "créditos",
       icon: DollarSign,
     },
     {
-      label: language === "en" ? "Active Stock" : "Licenças em Estoque",
+      label: language === "en" ? "Active Keys" : "Keys Ativas",
       value: counts.activeKeys,
-      sub: language === "en" ? "Available for client delivery" : "Chaves ativas prontas para entrega",
-      tag: language === "en" ? "Ready" : "Disponíveis",
+      sub: language === "en" ? "available" : "disponíveis",
       icon: ShoppingBag,
     },
     {
-      label: language === "en" ? "Used Keys" : "Licenças Ativadas",
+      label: language === "en" ? "Used Keys" : "Keys Usadas",
       value: counts.usedKeys,
-      sub: language === "en" ? "Consumed by end users" : "Chaves resgatadas pelos clientes",
-      tag: language === "en" ? "Consumed" : "Em Uso",
+      sub: language === "en" ? "consumed" : "consumidas",
       icon: BarChart3,
     },
   ];
@@ -155,294 +139,151 @@ export default function PercentageProfile({
       <button
         key={id}
         onClick={() => setActiveTab(id)}
-        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold tracking-wide transition-all ${
+        className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-medium transition-all ${
           active
-            ? "text-emerald-300 bg-emerald-500/15 border border-emerald-500/35 shadow-[0_0_16px_rgba(16,185,129,0.2)]"
-            : "text-gray-400 hover:text-white hover:bg-white/[0.04] border border-transparent"
+            ? "text-white bg-white/[0.08] border border-white/[0.12]"
+            : "text-zinc-400 hover:text-white hover:bg-white/[0.03] border border-transparent"
         }`}
       >
-        <Icon className="w-4 h-4" /> {label}
+        <Icon className="w-3.5 h-3.5" />
+        <span>{label}</span>
       </button>
     );
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      {/* ─── Executive Reseller Header ─── */}
-      <div
-        className="p-6 sm:p-7 rounded-3xl relative overflow-hidden"
-        style={{
-          background: "linear-gradient(135deg, rgba(8, 16, 12, 0.85) 0%, rgba(4, 8, 6, 0.95) 100%)",
-          border: "1px solid rgba(52, 211, 153, 0.22)",
-          boxShadow: "0 20px 50px -15px rgba(0, 0, 0, 0.7), 0 0 30px -8px rgba(16, 185, 129, 0.12)",
-        }}
-      >
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 relative z-10">
-          {/* Left: Avatar + Identity */}
-          <div className="flex items-start sm:items-center gap-4 sm:gap-5">
-            {/* Avatar Monogram */}
-            <div className="relative shrink-0">
-              <div
-                className="w-16 h-16 rounded-2xl flex items-center justify-center font-extrabold text-2xl text-white uppercase"
-                style={{
-                  background: "linear-gradient(135deg, rgba(16, 185, 129, 0.35) 0%, rgba(5, 150, 105, 0.15) 100%)",
-                  border: "1px solid rgba(52, 211, 153, 0.45)",
-                  boxShadow: "0 0 24px -4px rgba(16, 185, 129, 0.35)",
-                }}
-              >
-                {String(profile.username || "R")[0]}
-              </div>
-              <span
-                className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-400 border-2 border-[#040806]"
-                title="Online"
-              />
-            </div>
-
-            {/* Texts */}
-            <div>
-              <div className="flex flex-wrap items-center gap-2.5">
-                <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-                  {profile.username}
-                </h1>
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/15 border border-emerald-500/30 text-emerald-300">
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>{language === "en" ? "VERIFIED PARTNER" : "PARCEIRO VERIFICADO"}</span>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-2 text-xs text-gray-400">
-                <span className="flex items-center gap-1.5 text-emerald-400 font-semibold">
-                  <Zap className="w-3.5 h-3.5" />
-                  {otherStore ? "Other Store" : `Contrato Porcentagem (${discount}% OFF)`}
-                </span>
-                {profile.email && (
-                  <span className="flex items-center gap-1.5 text-gray-400">
-                    <Mail className="w-3.5 h-3.5 text-gray-500" />
-                    {profile.email}
-                  </span>
-                )}
-                <span className="flex items-center gap-1.5 text-gray-400">
-                  <Calendar className="w-3.5 h-3.5 text-gray-500" />
-                  {language === "en" ? "Partner since" : "Membro desde"} {formatDate(profile.createdAt, language)}
-                </span>
-              </div>
-            </div>
+    <div className="space-y-6 max-w-6xl mx-auto">
+      {/* ─── Clean Minimal Header ─── */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-white/[0.06]">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-2xl font-bold text-white tracking-tight">
+              {t.profile_title}
+            </h1>
+            <span className="text-[11px] font-medium px-2.5 py-0.5 rounded-md bg-white/[0.04] border border-white/[0.08] text-zinc-300">
+              {otherStore ? "Other Store" : `${discount}% ${language === "en" ? "discount" : "desconto"}`}
+            </span>
           </div>
+          <p className="text-zinc-500 text-xs mt-1">
+            {otherStore ? "Reseller Other Store" : t.profile_type_percentage}
+          </p>
+        </div>
 
-          {/* Right: Quick Action Buttons */}
-          <div className="flex flex-wrap items-center gap-2.5">
-            <Link href="/reseller/apps">
-              <button
-                type="button"
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:scale-[1.02]"
-              >
-                <ShoppingBag className="w-4 h-4" />
-                <span>{language === "en" ? "Purchase Keys" : "Adquirir Keys"}</span>
-              </button>
-            </Link>
-
-            <Link href="/reseller/keys">
-              <button
-                type="button"
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-white border border-white/[0.1] text-xs font-bold transition-all hover:scale-[1.02]"
-              >
-                <Key className="w-4 h-4 text-emerald-400" />
-                <span>{language === "en" ? "My Licenses" : "Minhas Licenças"}</span>
-              </button>
-            </Link>
-          </div>
+        <div className="flex items-center gap-2.5">
+          <Link href="/reseller/apps">
+            <button
+              type="button"
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-white text-black font-semibold text-xs hover:bg-zinc-200 transition-all"
+            >
+              <ShoppingBag className="w-3.5 h-3.5" />
+              <span>{language === "en" ? "Buy Keys" : "Comprar Keys"}</span>
+            </button>
+          </Link>
+          <Link href="/reseller/keys">
+            <button
+              type="button"
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-zinc-300 text-xs font-medium transition-all"
+            >
+              <Key className="w-3.5 h-3.5 text-zinc-400" />
+              <span>{language === "en" ? "My Keys" : "Minhas Keys"}</span>
+            </button>
+          </Link>
         </div>
       </div>
 
-      {/* ─── Segmented Tabs Bar ─── */}
-      <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-white/[0.02] border border-white/[0.06] w-fit">
+      {/* ─── Clean Tabs ─── */}
+      <div className="flex items-center gap-1.5">
         {tabButton("overview", language === "en" ? "Overview" : "Visão Geral", LayoutDashboard)}
-        {tabButton("discount", language === "en" ? "My Discount & Tiers" : "Meu Desconto & Níveis", Award)}
+        {tabButton("discount", language === "en" ? "My Discount" : "Meu Desconto", Award)}
         {profile.canCreateSubResellers && tabButton("subresellers", language === "en" ? "Sub Resellers" : "Sub Resellers", Users)}
       </div>
 
       {/* ─── TAB: OVERVIEW ─── */}
       {activeTab === "overview" && (
-        <div className="space-y-6 animate-in fade-in duration-300">
-          {/* Top 4 KPI Metrics */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {summaryCards.map(({ label, value, sub, tag, icon: Icon }) => (
+        <div className="space-y-5 animate-in fade-in duration-200">
+          {/* 4 Clean Minimal KPI Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
+            {summaryCards.map(({ label, value, sub, icon: Icon }) => (
               <div
                 key={label}
-                className="p-5 rounded-2xl relative overflow-hidden transition-all duration-300 hover:translate-y-[-3px]"
-                style={{
-                  background: "linear-gradient(135deg, rgba(8, 16, 12, 0.75) 0%, rgba(4, 8, 6, 0.9) 100%)",
-                  border: "1px solid rgba(52, 211, 153, 0.18)",
-                  boxShadow: "0 10px 30px -10px rgba(0, 0, 0, 0.6)",
-                }}
+                className="p-4 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12] transition-colors"
               >
-                {/* Top highlight shine */}
-                <div
-                  className="absolute top-0 left-0 right-0 h-[2px]"
-                  style={{ background: "linear-gradient(90deg, transparent, rgba(52, 211, 153, 0.5), transparent)" }}
-                />
-
-                <div className="flex items-center justify-between mb-3">
-                  <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center"
-                    style={{
-                      background: "rgba(16, 185, 129, 0.15)",
-                      border: "1px solid rgba(52, 211, 153, 0.3)",
-                    }}
-                  >
-                    <Icon className="w-4 h-4 text-emerald-400" />
-                  </div>
-                  <span className="text-[10px] font-mono uppercase tracking-wider font-bold px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                    {tag}
-                  </span>
+                <div className="flex items-center justify-between">
+                  <span className="text-zinc-400 text-xs font-medium">{label}</span>
+                  <Icon className="w-3.5 h-3.5 text-zinc-500" />
                 </div>
-
-                <p className="text-white text-2xl font-black tracking-tight leading-none font-mono">
+                <p className="text-xl font-bold text-white tracking-tight mt-2 font-mono">
                   {value}
                 </p>
-                <p className="text-gray-200 text-xs font-semibold mt-2">{label}</p>
-                <p className="text-gray-500 text-[11px] mt-0.5">{sub}</p>
+                <p className="text-zinc-500 text-[11px] mt-0.5">{sub}</p>
               </div>
             ))}
           </div>
 
-          {/* Partner Standing & Security Grid (3 columns) */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Card 1: Identity & Security */}
-            <div
-              className="p-5 rounded-2xl flex flex-col justify-between"
-              style={{
-                background: "rgba(6, 12, 9, 0.6)",
-                border: "1px solid rgba(255, 255, 255, 0.07)",
-              }}
-            >
+          {/* Account & Details (Clean 3 Cards) */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+            {/* Card 1: Account */}
+            <div className="p-4 rounded-xl border border-white/[0.06] bg-white/[0.02] flex flex-col justify-between">
               <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                  <span className="text-xs font-mono uppercase tracking-wider text-gray-400 font-bold">
-                    {language === "en" ? "Security & Status" : "Segurança & Conta"}
-                  </span>
-                </div>
-                <p className="text-white text-sm font-bold">{profile.username}</p>
-                <p className="text-gray-400 text-xs mt-1">{profile.email || "—"}</p>
+                <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-500 mb-2">Conta</p>
+                <p className="text-sm font-semibold text-white">{profile.username}</p>
+                <p className="text-xs text-zinc-400 mt-0.5 truncate">{profile.email || "—"}</p>
               </div>
-
-              <div className="pt-3 mt-4 border-t border-white/[0.06] space-y-1.5">
-                <div className="flex items-center gap-2 text-[11px] text-emerald-400">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>Sessão Criptografada AES-256</span>
-                </div>
-                <div className="flex items-center gap-2 text-[11px] text-emerald-400">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>Proteção de HWID & Anti-Leak</span>
-                </div>
+              <div className="pt-3 mt-3 border-t border-white/[0.06] flex items-center gap-1.5 text-xs text-zinc-400">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                <span>Ativo • {otherStore ? "Other Store" : "Porcentagem"}</span>
               </div>
             </div>
 
-            {/* Card 2: Tier & Discount */}
-            <div
-              className="p-5 rounded-2xl flex flex-col justify-between"
-              style={{
-                background: "linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(6, 12, 9, 0.7) 100%)",
-                border: "1px solid rgba(52, 211, 153, 0.25)",
-              }}
-            >
+            {/* Card 2: Discount */}
+            <div className="p-4 rounded-xl border border-white/[0.06] bg-white/[0.02] flex flex-col justify-between">
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-mono uppercase tracking-wider text-emerald-400 font-bold">
-                    {language === "en" ? "Current Tier" : "Nível & Margem"}
-                  </span>
-                  <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-500">Desconto Atual</p>
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-white/[0.04] text-zinc-300 font-medium border border-white/[0.06]">
                     {currentLevel.label}
                   </span>
                 </div>
-                <div className="flex items-baseline gap-2 mt-1">
-                  <span className="text-4xl font-black text-white font-mono">{discount}%</span>
-                  <span className="text-xs text-gray-400 font-medium">desconto em chaves</span>
-                </div>
+                <p className="text-2xl font-bold text-white font-mono mt-1">{discount}%</p>
+                <p className="text-xs text-zinc-400 mt-0.5">{purchases} compras realizadas</p>
               </div>
-
-              <div className="pt-3 mt-4 border-t border-white/[0.06]">
-                <div className="flex justify-between text-[11px] text-gray-400 mb-1">
-                  <span>{purchases} compras registradas</span>
-                  {nextLevel ? (
-                    <span className="text-emerald-400 font-semibold">Próximo: {nextLevel.discount}%</span>
-                  ) : (
-                    <span className="text-emerald-400 font-semibold">Nível Máximo</span>
-                  )}
-                </div>
-                <div className="h-2 rounded-full bg-white/5 overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-300 transition-all duration-500"
-                    style={{ width: `${progressPct}%` }}
-                  />
+              <div className="pt-3 mt-3 border-t border-white/[0.06]">
+                <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                  <div className="h-full rounded-full bg-emerald-400 transition-all duration-300" style={{ width: `${progressPct}%` }} />
                 </div>
               </div>
             </div>
 
-            {/* Card 3: Timestamps & Network Status */}
-            <div
-              className="p-5 rounded-2xl flex flex-col justify-between"
-              style={{
-                background: "rgba(6, 12, 9, 0.6)",
-                border: "1px solid rgba(255, 255, 255, 0.07)",
-              }}
-            >
+            {/* Card 3: Session */}
+            <div className="p-4 rounded-xl border border-white/[0.06] bg-white/[0.02] flex flex-col justify-between">
               <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <Clock className="w-4 h-4 text-emerald-400" />
-                  <span className="text-xs font-mono uppercase tracking-wider text-gray-400 font-bold">
-                    {language === "en" ? "Audit & Activity" : "Auditoria & Sessão"}
-                  </span>
-                </div>
-                <p className="text-xs text-gray-400">Último Acesso:</p>
-                <p className="text-white text-sm font-semibold mt-0.5">{formatDate(profile.lastLoginAt, language)}</p>
+                <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-500 mb-2">Sessão & Registro</p>
+                <p className="text-xs text-zinc-400">Membro desde: <span className="text-white font-medium">{formatDate(profile.createdAt, language)}</span></p>
+                <p className="text-xs text-zinc-400 mt-1">Último acesso: <span className="text-white font-medium">{formatDate(profile.lastLoginAt, language)}</span></p>
               </div>
-
-              <div className="pt-3 mt-4 border-t border-white/[0.06] flex items-center justify-between text-[11px]">
-                <span className="text-gray-400">Status Operacional:</span>
-                <span className="text-emerald-400 font-semibold flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  Online • &lt; 14ms
-                </span>
+              <div className="pt-3 mt-3 border-t border-white/[0.06] flex items-center justify-between text-xs text-zinc-400">
+                <span>Criptografia:</span>
+                <span className="text-zinc-300 font-medium">AES-256</span>
               </div>
             </div>
           </div>
 
-          {/* ─── Monthly License Analytics Chart ─── */}
-          <div
-            className="p-6 rounded-3xl"
-            style={{
-              background: "rgba(6, 12, 9, 0.6)",
-              border: "1px solid rgba(52, 211, 153, 0.16)",
-              boxShadow: "0 16px 40px -15px rgba(0,0,0,0.7)",
-            }}
-          >
-            {/* Header + year selector */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+          {/* Clean Monthly License Chart */}
+          <div className="p-5 rounded-xl border border-white/[0.06] bg-white/[0.02]">
+            <div className="flex items-center justify-between mb-4">
               <div>
-                <div className="flex items-center gap-2">
-                  <BarChart3 className="w-4 h-4 text-emerald-400" />
-                  <h2 className="text-white font-bold text-base tracking-tight">
-                    {language === "en" ? "Monthly License Volume" : "Volume Mensal de Licenças"}
-                  </h2>
-                </div>
-                <p className="text-gray-500 text-xs mt-0.5">
-                  {language === "en"
-                    ? "Tracking license acquisitions across your reseller account"
-                    : "Acompanhamento do volume mensal de chaves geradas em sua conta"}
-                </p>
+                <h2 className="text-sm font-semibold text-white">Keys por Mês</h2>
+                <p className="text-zinc-500 text-xs mt-0.5">Histórico de licenças geradas por período</p>
               </div>
-
-              <div className="flex items-center gap-1.5 p-1 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+              <div className="flex items-center gap-1">
                 {years.map((y: string) => (
                   <button
                     key={y}
                     onClick={() => setSelectedYear(y)}
-                    className={`px-3 py-1 rounded-lg text-xs font-mono font-bold transition-all ${
+                    className={`px-2.5 py-1 rounded text-xs font-mono transition-colors ${
                       selectedYear === y
-                        ? "text-black bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.4)]"
-                        : "text-gray-400 hover:text-white"
+                        ? "text-white bg-white/[0.08] font-semibold border border-white/[0.12]"
+                        : "text-zinc-400 hover:text-white"
                     }`}
                   >
                     {y}
@@ -451,66 +292,33 @@ export default function PercentageProfile({
               </div>
             </div>
 
-            {/* Quick Chart Analytics Strip */}
-            <div className="grid grid-cols-3 gap-3 p-3 rounded-xl bg-white/[0.02] border border-white/[0.05] mb-5 text-center">
-              <div>
-                <p className="text-[10px] font-mono uppercase text-gray-500">Total no Ano</p>
-                <p className="text-white text-base font-bold font-mono mt-0.5">{yearStats.total} keys</p>
-              </div>
-              <div className="border-x border-white/[0.06]">
-                <p className="text-[10px] font-mono uppercase text-gray-500">Pico Mensal</p>
-                <p className="text-emerald-400 text-base font-bold font-mono mt-0.5">{yearStats.maxMonth}</p>
-              </div>
-              <div>
-                <p className="text-[10px] font-mono uppercase text-gray-500">Média Ativa</p>
-                <p className="text-white text-base font-bold font-mono mt-0.5">{yearStats.avg} keys/mês</p>
-              </div>
-            </div>
-
-            {/* Area Chart */}
-            <div className="h-64 sm:h-72">
+            <div className="h-56">
               {dashLoading ? (
-                <div className="h-full flex items-center justify-center text-gray-500 text-sm">
-                  {language === "en" ? "Loading telemetry..." : "Carregando dados..."}
-                </div>
+                <div className="h-full flex items-center justify-center text-zinc-500 text-xs">Carregando...</div>
               ) : monthlyData.every((d) => d.count === 0) ? (
-                <div className="h-full flex items-center justify-center text-gray-500 text-sm">
-                  {language === "en" ? "No licenses recorded in this year" : "Nenhuma key registrada neste ano"}
-                </div>
+                <div className="h-full flex items-center justify-center text-zinc-500 text-xs">Nenhuma key neste ano</div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={monthlyData} margin={{ top: 15, right: 15, left: -10, bottom: 0 }}>
+                  <AreaChart data={monthlyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <defs>
-                      <linearGradient id="colorCount3" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#34d399" stopOpacity={0.4} />
+                      <linearGradient id="colorCountClean" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#34d399" stopOpacity={0.2} />
                         <stop offset="95%" stopColor="#34d399" stopOpacity={0.0} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
-                    <XAxis
-                      dataKey="label"
-                      stroke="#4b5563"
-                      fontSize={11}
-                      tick={{ fill: "#9ca3af" }}
-                      axisLine={false}
-                    />
-                    <YAxis
-                      stroke="#4b5563"
-                      fontSize={11}
-                      tick={{ fill: "#9ca3af" }}
-                      allowDecimals={false}
-                      axisLine={false}
-                    />
+                    <CartesianGrid stroke="rgba(255,255,255,0.03)" vertical={false} />
+                    <XAxis dataKey="label" stroke="#52525b" fontSize={11} tick={{ fill: "#71717a" }} axisLine={false} />
+                    <YAxis stroke="#52525b" fontSize={11} tick={{ fill: "#71717a" }} allowDecimals={false} axisLine={false} />
                     <Tooltip contentStyle={chartTooltipStyle} />
                     <Area
                       type="monotone"
                       dataKey="count"
                       stroke="#34d399"
-                      strokeWidth={2.5}
+                      strokeWidth={2}
                       fillOpacity={1}
-                      fill="url(#colorCount3)"
-                      dot={{ r: 3, fill: "#34d399", strokeWidth: 2, stroke: "#040806" }}
-                      activeDot={{ r: 6, fill: "#ffffff", stroke: "#34d399", strokeWidth: 2 }}
+                      fill="url(#colorCountClean)"
+                      dot={{ r: 3, fill: "#34d399" }}
+                      activeDot={{ r: 5 }}
                     />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -518,231 +326,98 @@ export default function PercentageProfile({
             </div>
           </div>
 
-          {/* ─── Bottom 2 Cards: Top Apps & Level Roadmap ─── */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            {/* Apps BarChart */}
-            <div
-              className="p-6 rounded-3xl"
-              style={{
-                background: "rgba(6, 12, 9, 0.6)",
-                border: "1px solid rgba(52, 211, 153, 0.16)",
-              }}
-            >
-              <div className="flex items-center gap-2 mb-4">
-                <Package className="w-4 h-4 text-emerald-400" />
-                <h2 className="text-white font-bold text-sm tracking-tight">
-                  {language === "en" ? "Distribution by Software" : "Distribuição por Software"}
-                </h2>
+          {/* Bottom Grid: Apps BarChart */}
+          {topApps.length > 0 && (
+            <div className="p-5 rounded-xl border border-white/[0.06] bg-white/[0.02]">
+              <div className="flex items-center gap-2 mb-3">
+                <Package className="w-4 h-4 text-zinc-400" />
+                <h2 className="text-white font-semibold text-sm">Keys por App</h2>
               </div>
-              <div className="h-60">
-                {topApps.length === 0 ? (
-                  <div className="h-full flex items-center justify-center text-gray-500 text-sm">
-                    {language === "en" ? "No software data recorded" : "Nenhum dado registrado"}
-                  </div>
-                ) : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={topApps} layout="vertical" margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
-                      <CartesianGrid stroke="rgba(255,255,255,0.04)" horizontal={false} />
-                      <XAxis type="number" stroke="#6b7280" fontSize={11} tick={{ fill: "#9ca3af" }} axisLine={false} />
-                      <YAxis type="category" dataKey="region" stroke="#9ca3af" fontSize={11} width={90} axisLine={false} />
-                      <Tooltip contentStyle={chartTooltipStyle} />
-                      <Bar dataKey="value" radius={[0, 8, 8, 0]}>
-                        {topApps.map((_, i) => (
-                          <Cell key={`cell-${i}`} fill={i % 2 === 0 ? "#34d399" : "#10b981"} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                )}
+              <div className="h-48">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={topApps} layout="vertical" margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                    <CartesianGrid stroke="rgba(255,255,255,0.03)" horizontal={false} />
+                    <XAxis type="number" stroke="#52525b" fontSize={10} tick={{ fill: "#71717a" }} axisLine={false} />
+                    <YAxis type="category" dataKey="region" stroke="#71717a" fontSize={11} width={80} axisLine={false} />
+                    <Tooltip contentStyle={chartTooltipStyle} />
+                    <Bar dataKey="value" radius={[0, 4, 4, 0]} fill="#34d399" />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
             </div>
-
-            {/* Next Level Progression Guide */}
-            <div
-              className="p-6 rounded-3xl flex flex-col justify-between"
-              style={{
-                background: "rgba(6, 12, 9, 0.6)",
-                border: "1px solid rgba(52, 211, 153, 0.16)",
-              }}
-            >
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <TrendingUp className="w-4 h-4 text-emerald-400" />
-                  <h2 className="text-white font-bold text-sm tracking-tight">
-                    {language === "en" ? "Progression Roadmap" : "Roadmap de Desconto"}
-                  </h2>
-                </div>
-                <p className="text-gray-400 text-xs leading-relaxed">
-                  {language === "en"
-                    ? "Your discount scales automatically with your completed purchases. Higher tiers unlock greater margin and priority fulfillment."
-                    : "Seu desconto aumenta automaticamente conforme você acumula vendas no painel. Níveis superiores garantem margens maiores de lucro."}
-                </p>
-
-                <div className="mt-4 p-4 rounded-2xl bg-white/[0.02] border border-white/[0.06] flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-emerald-400">
-                      <Award className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <p className="text-white text-xs font-bold">{currentLevel.label}</p>
-                      <p className="text-gray-400 text-[11px]">{purchases} compras concluídas</p>
-                    </div>
-                  </div>
-                  <span className="text-lg font-black text-emerald-400 font-mono">{discount}% OFF</span>
-                </div>
-              </div>
-
-              {nextLevel ? (
-                <div className="mt-4 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-between">
-                  <div>
-                    <p className="text-emerald-300 text-xs font-bold">
-                      {language === "en" ? "Next Milestone:" : "Próxima Meta:"} {nextLevel.discount}% OFF
-                    </p>
-                    <p className="text-gray-400 text-[11px] mt-0.5">
-                      Faltam <strong className="text-white">{10 - progressInLevel} compras</strong> para desbloquear.
-                    </p>
-                  </div>
-                  <Link href="/reseller/apps">
-                    <button
-                      type="button"
-                      className="px-3 py-1.5 rounded-lg bg-emerald-400 text-black font-bold text-xs hover:bg-emerald-300 transition-all"
-                    >
-                      Comprar
-                    </button>
-                  </Link>
-                </div>
-              ) : (
-                <div className="mt-4 p-4 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center gap-3">
-                  <Sparkles className="w-5 h-5 text-emerald-300 shrink-0" />
-                  <div>
-                    <p className="text-emerald-300 text-xs font-bold">Nível Máximo Atingido (Elite Partner)</p>
-                    <p className="text-gray-400 text-[11px] mt-0.5">Você já desfruta da margem máxima de 50% de desconto em todas as chaves.</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+          )}
         </div>
       )}
 
       {/* ─── TAB: DISCOUNT TIERS ─── */}
       {activeTab === "discount" && (
-        <div className="space-y-6 animate-in fade-in duration-300">
-          {/* Big discount hero */}
-          <div
-            className="p-8 sm:p-10 rounded-3xl text-center relative overflow-hidden"
-            style={{
-              background: "linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(6, 12, 9, 0.9) 70%)",
-              border: "1px solid rgba(52, 211, 153, 0.35)",
-              boxShadow: "0 20px 60px -20px rgba(16, 185, 129, 0.25)",
-            }}
-          >
-            <p className="text-emerald-300 text-xs font-mono uppercase tracking-widest font-bold mb-3">
+        <div className="space-y-5 animate-in fade-in duration-200">
+          {/* Big Discount Card */}
+          <div className="p-8 rounded-xl border border-white/[0.06] bg-white/[0.02] text-center">
+            <p className="text-zinc-400 text-xs font-medium uppercase tracking-wider mb-2">
               {t.profile_current_discount}
             </p>
-            <p className="text-white text-6xl sm:text-7xl font-black tracking-tight font-mono">
+            <p className="text-5xl font-bold text-white font-mono tracking-tight">
               {discount}
-              <span className="text-3xl sm:text-4xl text-emerald-400 font-semibold">%</span>
+              <span className="text-2xl text-emerald-400 font-semibold">%</span>
             </p>
-            <div className="mt-4">
-              <span className="text-xs px-4 py-1.5 rounded-full border font-bold bg-emerald-500/20 text-emerald-300 border-emerald-500/35">
-                {currentLevel.label}
-              </span>
-            </div>
+            <p className="text-zinc-500 text-xs mt-2">
+              Nível atual: <span className="text-white font-medium">{currentLevel.label}</span>
+            </p>
           </div>
 
-          {/* Progress to next level */}
-          <div
-            className="p-6 rounded-3xl"
-            style={{
-              background: "rgba(6, 12, 9, 0.6)",
-              border: "1px solid rgba(52, 211, 153, 0.16)",
-            }}
-          >
-            <h2 className="text-white font-bold text-sm mb-4 flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-emerald-400" />
-              <span>{language === "en" ? "Progress to next tier" : "Progresso para o próximo nível"}</span>
+          {/* Progress */}
+          <div className="p-5 rounded-xl border border-white/[0.06] bg-white/[0.02]">
+            <h2 className="text-white font-semibold text-sm mb-3">
+              {language === "en" ? "Progress to next tier" : "Progresso para o próximo nível"}
             </h2>
             {nextLevel ? (
               <div>
-                <div className="flex justify-between text-xs mb-2">
-                  <span className="text-gray-400 font-medium">
-                    {progressInLevel} / 10 {language === "en" ? "purchases completed" : "compras concluídas"}
-                  </span>
-                  <span className="text-emerald-400 font-bold">{nextLevel.discount}% {language === "en" ? "next" : "próximo"}</span>
+                <div className="flex justify-between text-xs text-zinc-400 mb-1.5">
+                  <span>{progressInLevel} / 10 compras</span>
+                  <span className="text-white font-medium">{nextLevel.discount}% próximo</span>
                 </div>
-                <div className="h-3 rounded-full bg-white/5 overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-300 transition-all duration-700"
-                    style={{ width: `${progressPct}%` }}
-                  />
+                <div className="h-2 rounded-full bg-white/[0.06] overflow-hidden">
+                  <div className="h-full rounded-full bg-emerald-400" style={{ width: `${progressPct}%` }} />
                 </div>
-                <p className="text-gray-400 text-xs mt-3">
-                  Faltam <strong className="text-emerald-400">{10 - progressInLevel} compras</strong> para liberar a margem de {nextLevel.discount}%.
+                <p className="text-zinc-500 text-xs mt-2">
+                  Faltam <strong className="text-white">{10 - progressInLevel} compras</strong> para liberar {nextLevel.discount}% de desconto.
                 </p>
               </div>
             ) : (
-              <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-center">
-                <p className="text-emerald-300 text-sm font-bold">Nível Máximo Atingido (50% OFF)</p>
-                <p className="text-gray-400 text-xs mt-1">Parabéns! Sua conta atingiu o patamar mais alto de revenda oficial da VG SELLERS.</p>
+              <div className="p-3 rounded-lg bg-white/[0.03] text-center text-xs text-zinc-300">
+                Nível Máximo Atingido (50% de desconto em todas as chaves).
               </div>
             )}
           </div>
 
-          {/* Levels Breakdown */}
-          <div
-            className="p-6 rounded-3xl"
-            style={{
-              background: "rgba(6, 12, 9, 0.6)",
-              border: "1px solid rgba(52, 211, 153, 0.16)",
-            }}
-          >
-            <h2 className="text-white font-bold text-sm mb-4 flex items-center gap-2">
-              <Award className="w-4 h-4 text-emerald-400" />
-              <span>{language === "en" ? "Discount Tiers" : "Tabela Oficial de Níveis"}</span>
-            </h2>
-            <div className="space-y-3">
+          {/* Tiers List */}
+          <div className="p-5 rounded-xl border border-white/[0.06] bg-white/[0.02]">
+            <h2 className="text-white font-semibold text-sm mb-3">Tabela de Níveis</h2>
+            <div className="space-y-2">
               {levels.map((level, idx) => {
                 const isUnlocked = currentLevelIdx >= idx;
                 const isCurrent = currentLevelIdx === idx;
                 return (
                   <div
                     key={level.label}
-                    className={`flex items-center justify-between p-4 rounded-2xl transition-all ${
+                    className={`flex items-center justify-between p-3.5 rounded-lg border transition-colors ${
                       isCurrent
-                        ? "border border-emerald-500/40 bg-emerald-500/15 shadow-[0_0_20px_rgba(16,185,129,0.15)]"
+                        ? "border-white/[0.15] bg-white/[0.04]"
                         : isUnlocked
-                        ? "border border-white/10 bg-white/[0.02]"
-                        : "border border-white/5 opacity-40"
+                        ? "border-white/[0.06] bg-white/[0.01]"
+                        : "border-white/[0.03] opacity-40"
                     }`}
                   >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`w-10 h-10 rounded-xl flex items-center justify-center font-mono font-bold ${
-                          isUnlocked ? "bg-emerald-500/20 text-emerald-300" : "bg-white/5 text-gray-600"
-                        }`}
-                      >
-                        {level.discount}%
-                      </div>
-                      <div>
-                        <p className="text-white text-sm font-bold">{level.label}</p>
-                        <p className="text-gray-400 text-xs">
-                          {level.from === 0 ? "Disponível no cadastro" : `Após ${level.from} compras realizadas`}
-                        </p>
-                      </div>
-                    </div>
                     <div>
-                      {isCurrent ? (
-                        <span className="text-xs px-2.5 py-1 rounded-full font-bold bg-emerald-400 text-black">
-                          ● Nível Atual
-                        </span>
-                      ) : isUnlocked ? (
-                        <span className="text-xs text-emerald-400 font-semibold flex items-center gap-1">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Desbloqueado
-                        </span>
-                      ) : (
-                        <span className="text-xs text-gray-500 font-medium">Bloqueado</span>
-                      )}
+                      <p className="text-white text-sm font-semibold">{level.label}</p>
+                      <p className="text-zinc-500 text-xs">
+                        {level.from === 0 ? "Inicial" : `A partir de ${level.from} compras`}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-sm font-mono font-bold text-white">{level.discount}%</span>
+                      {isCurrent && <span className="text-[11px] text-emerald-400 block font-medium">● Atual</span>}
                     </div>
                   </div>
                 );
@@ -754,7 +429,7 @@ export default function PercentageProfile({
 
       {/* ─── TAB: SUB RESELLERS ─── */}
       {activeTab === "subresellers" && (
-        <div className="space-y-6 animate-in fade-in duration-300">
+        <div className="space-y-5 animate-in fade-in duration-200">
           <SubResellersSection />
         </div>
       )}
