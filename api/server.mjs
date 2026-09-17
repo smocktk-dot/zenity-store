@@ -341,6 +341,7 @@ __export(db_exports, {
   addIpToWhitelist: () => addIpToWhitelist,
   addStockBatch: () => addStockBatch,
   assignAppToReseller: () => assignAppToReseller,
+  countKeysByReseller: () => countKeysByReseller,
   createAdmin: () => createAdmin,
   createApp: () => createApp,
   createAppDownload: () => createAppDownload,
@@ -454,6 +455,7 @@ __export(db_exports, {
   removeIpFromWhitelist: () => removeIpFromWhitelist,
   reserveStockForReseller: () => reserveStockForReseller,
   revokeResellerApiKey: () => revokeResellerApiKey,
+  transferResellerKeys: () => transferResellerKeys,
   updateAdminPassword: () => updateAdminPassword,
   updateApp: () => updateApp,
   updateAppDownload: () => updateAppDownload,
@@ -1000,6 +1002,24 @@ async function getAllKeysWithReseller() {
     planPrice: r.plan?.resellerSellingPrice ?? "0.00",
     planCredits: r.plan?.priceCredits ?? "0.00"
   }));
+}
+async function countKeysByReseller(resellerId, status) {
+  await ensureLicenseKeysSchema();
+  const db = await getDb();
+  if (!db) return 0;
+  const conds = [eq(licenseKeys.resellerId, resellerId)];
+  if (status) conds.push(eq(licenseKeys.status, status));
+  const rows = await db.select({ count: sql`count(*)::int` }).from(licenseKeys).where(and(...conds));
+  return rows[0]?.count ?? 0;
+}
+async function transferResellerKeys(fromResellerId, toResellerId, status) {
+  await ensureLicenseKeysSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const conds = [eq(licenseKeys.resellerId, fromResellerId)];
+  if (status) conds.push(eq(licenseKeys.status, status));
+  const updated = await db.update(licenseKeys).set({ resellerId: toResellerId }).where(and(...conds)).returning({ id: licenseKeys.id });
+  return updated.length;
 }
 async function getSubResellerKeyStats(parentResellerId) {
   await ensureLicenseKeysSchema();
@@ -3764,6 +3784,29 @@ var adminRouter = router({
   }),
   // All keys
   listAllKeys: adminProcedure2.query(() => getAllKeysWithReseller()),
+  // Transfer keys between resellers
+  resellerKeyCount: adminProcedure2.input(z2.object({
+    resellerId: z2.number(),
+    status: z2.enum(["active", "used", "revoked", "expired"]).optional()
+  })).query(async ({ input }) => ({
+    count: await countKeysByReseller(input.resellerId, input.status)
+  })),
+  transferKeys: adminProcedure2.input(z2.object({
+    fromResellerId: z2.number(),
+    toResellerId: z2.number(),
+    status: z2.enum(["active", "used", "revoked", "expired"]).optional()
+  })).mutation(async ({ input }) => {
+    if (input.fromResellerId === input.toResellerId) {
+      throw new TRPCError3({ code: "BAD_REQUEST", message: "Origem e destino s\xE3o o mesmo revendedor" });
+    }
+    const [from, to] = await Promise.all([
+      getResellerById(input.fromResellerId),
+      getResellerById(input.toResellerId)
+    ]);
+    if (!from || !to) throw new TRPCError3({ code: "NOT_FOUND", message: "Revendedor n\xE3o encontrado" });
+    const transferred = await transferResellerKeys(input.fromResellerId, input.toResellerId, input.status);
+    return { success: true, transferred };
+  }),
   // Reseller API Keys
   listResellerApiKeys: adminProcedure2.input(z2.object({ resellerId: z2.number() })).query(async ({ input }) => {
     const keys = await listResellerApiKeys(input.resellerId);

@@ -26,6 +26,7 @@ import AdminOtherStore from "./pages/admin/AdminOtherStore";
 import AdminManualDelivery from "./pages/admin/AdminManualDelivery";
 import AdminDownloads from "./pages/admin/AdminDownloads";
 import AdminResellerInfo from "./pages/admin/AdminResellerInfo";
+import AdminTransferKeys from "./pages/admin/AdminTransferKeys";
 import ResellerLayout from "./pages/reseller/ResellerLayout";
 import ResellerProfile from "./pages/reseller/ResellerProfile";
 import ResellerApps from "./pages/reseller/ResellerApps";
@@ -91,6 +92,13 @@ function Router() {
         {() => (
           <AdminLayout>
             <AdminKeys />
+          </AdminLayout>
+        )}
+      </Route>
+      <Route path="/admin/transfer-keys">
+        {() => (
+          <AdminLayout>
+            <AdminTransferKeys />
           </AdminLayout>
         )}
       </Route>

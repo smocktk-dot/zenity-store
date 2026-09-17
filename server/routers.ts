@@ -22,6 +22,7 @@ import {
   getPlansByAppId, getPlanById, createPlan, updatePlan, deletePlan,
   getAppsByResellerId, assignAppToReseller, removeAppFromReseller, getAssignedAppIds,
   getKeysByResellerId, getKeysByResellerIdWithApp, getAllKeys, getAllKeysWithReseller, getKeyById, createLicenseKey, updateLicenseKey,
+  countKeysByReseller, transferResellerKeys,
   getTransactionsByResellerId, createCreditTransaction,
   getAllIpWhitelist, addIpToWhitelist, removeIpFromWhitelist, isIpWhitelisted,
   listResellerApiKeys, createResellerApiKey, revokeResellerApiKey,
@@ -784,6 +785,35 @@ const adminRouter = router({
 
   // All keys
   listAllKeys: adminProcedure.query(() => getAllKeysWithReseller()),
+
+  // Transfer keys between resellers
+  resellerKeyCount: adminProcedure
+    .input(z.object({
+      resellerId: z.number(),
+      status: z.enum(["active", "used", "revoked", "expired"]).optional(),
+    }))
+    .query(async ({ input }) => ({
+      count: await countKeysByReseller(input.resellerId, input.status),
+    })),
+
+  transferKeys: adminProcedure
+    .input(z.object({
+      fromResellerId: z.number(),
+      toResellerId: z.number(),
+      status: z.enum(["active", "used", "revoked", "expired"]).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      if (input.fromResellerId === input.toResellerId) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Origem e destino são o mesmo revendedor" });
+      }
+      const [from, to] = await Promise.all([
+        getResellerById(input.fromResellerId),
+        getResellerById(input.toResellerId),
+      ]);
+      if (!from || !to) throw new TRPCError({ code: "NOT_FOUND", message: "Revendedor não encontrado" });
+      const transferred = await transferResellerKeys(input.fromResellerId, input.toResellerId, input.status);
+      return { success: true, transferred };
+    }),
 
   // Reseller API Keys
   listResellerApiKeys: adminProcedure

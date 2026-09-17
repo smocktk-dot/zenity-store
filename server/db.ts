@@ -641,6 +641,33 @@ export async function getAllKeysWithReseller() {
   }));
 }
 
+export async function countKeysByReseller(resellerId: number, status?: "active" | "used" | "revoked" | "expired") {
+  await ensureLicenseKeysSchema();
+  const db = await getDb();
+  if (!db) return 0;
+  const conds = [eq(licenseKeys.resellerId, resellerId)];
+  if (status) conds.push(eq(licenseKeys.status, status));
+  const rows = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(licenseKeys)
+    .where(and(...conds));
+  return rows[0]?.count ?? 0;
+}
+
+export async function transferResellerKeys(fromResellerId: number, toResellerId: number, status?: "active" | "used" | "revoked" | "expired") {
+  await ensureLicenseKeysSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const conds = [eq(licenseKeys.resellerId, fromResellerId)];
+  if (status) conds.push(eq(licenseKeys.status, status));
+  const updated = await db
+    .update(licenseKeys)
+    .set({ resellerId: toResellerId })
+    .where(and(...conds))
+    .returning({ id: licenseKeys.id });
+  return updated.length;
+}
+
 export async function getSubResellerKeyStats(parentResellerId: number) {
   await ensureLicenseKeysSchema();
   await ensureResellerColumns();
