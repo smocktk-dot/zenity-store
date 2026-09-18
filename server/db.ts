@@ -639,7 +639,9 @@ export async function getAllKeysWithReseller() {
     parentResellerName: r.parent?.username,
     resellerType: r.reseller?.resellerType ?? "credits",
     planPrice: r.plan?.resellerSellingPrice ?? "0.00",
+    planPercentage: r.plan?.pricePercentage ?? "0.00",
     planCredits: r.plan?.priceCredits ?? "0.00",
+    resellerDiscount: r.reseller?.discountPercent ?? "0",
   }));
 }
 

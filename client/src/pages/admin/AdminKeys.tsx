@@ -102,13 +102,23 @@ export default function AdminKeys() {
                 <td className="px-5 py-4"><StatusBadge status={k.status} /></td>
                 <td className="px-5 py-4 text-gray-400 text-sm">{k.usedBy || <span className="text-gray-600">—</span>}</td>
                 <td className="px-5 py-4 text-sm font-mono">
-                  {k.resellerType === "credits" ? (
-                    <span className="text-yellow-400">{parseFloat(k.creditsSpent).toFixed(2)} cr</span>
-                  ) : k.resellerType === "other" ? (
-                    <span className="text-violet-400">R$ {parseFloat(k.creditsSpent).toFixed(2)}</span>
-                  ) : (
-                    <span className="text-blue-400">R$ {parseFloat(k.creditsSpent).toFixed(2)}</span>
-                  )}
+                  {(() => {
+                    const spent = parseFloat(k.creditsSpent) || 0;
+                    const discount = parseFloat(k.resellerDiscount) || 0;
+                    if (k.resellerType === "credits") {
+                      const val = spent > 0 ? spent : parseFloat(k.planCredits) || 0;
+                      return <span className="text-yellow-400">{val.toFixed(2)} cr</span>;
+                    }
+                    const base = k.resellerType === "other"
+                      ? parseFloat(k.planPrice) || 0
+                      : parseFloat(k.planPercentage) || 0;
+                    const val = spent > 0 ? spent : base * (1 - discount / 100);
+                    return (
+                      <span className={k.resellerType === "other" ? "text-violet-400" : "text-blue-400"}>
+                        R$ {val.toFixed(2)}
+                      </span>
+                    );
+                  })()}
                 </td>
                 <td className="px-5 py-4 text-sm font-mono">
                   {k.resellerType === "credits" ? (
