@@ -103,6 +103,9 @@ export default function AdminKeys() {
                 <td className="px-5 py-4 text-gray-400 text-sm">{k.usedBy || <span className="text-gray-600">—</span>}</td>
                 <td className="px-5 py-4 text-sm font-mono">
                   {(() => {
+                    if (k.source === "manual") {
+                      return <span className="text-[10px] px-2 py-1 rounded-full border font-semibold uppercase bg-amber-500/10 text-amber-400 border-amber-500/25">Entrega manual</span>;
+                    }
                     const spent = parseFloat(k.creditsSpent) || 0;
                     const discount = parseFloat(k.resellerDiscount) || 0;
                     if (k.resellerType === "credits") {
@@ -132,6 +135,7 @@ export default function AdminKeys() {
                     const sourceConfig: Record<string, { label: string; className: string }> = {
                       api: { label: "API", className: "bg-blue-500/10 text-blue-400 border-blue-500/25" },
                       "other-store": { label: "Other Store", className: "bg-violet-500/10 text-violet-400 border-violet-500/25" },
+                      manual: { label: "Manual", className: "bg-amber-500/10 text-amber-400 border-amber-500/25" },
                     };
                     const cfg = sourceConfig[k.source || ""] || { label: "Painel", className: "bg-emerald-500/10 text-emerald-400 border-emerald-500/25" };
                     return (

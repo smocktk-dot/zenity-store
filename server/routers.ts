@@ -832,6 +832,7 @@ const adminRouter = router({
         durationDays: plan.durationDays,
         creditsSpent: "0.00",
         status: "active",
+        source: "manual",
         ...(input.note ? { note: input.note } : {}),
       } as any);
 
