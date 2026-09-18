@@ -29,6 +29,7 @@ export default function AdminApiKeys() {
   const [appId, setAppId] = useState<string>("");
   const [name, setName] = useState("");
   const [allowedIps, setAllowedIps] = useState("");
+  const [allowUnpaidTake, setAllowUnpaidTake] = useState(false);
   const [newKey, setNewKey] = useState<string | null>(null);
   const [generatedUrls, setGeneratedUrls] = useState<{ name: string; url: string }[]>([]);
   const utils = trpc.useUtils();
@@ -86,7 +87,7 @@ export default function AdminApiKeys() {
         // já atribuído ou falha não-crítica
       }
     }
-    create.mutate({ resellerId: id, name: name || undefined, allowedIps: allowedIps || undefined });
+    create.mutate({ resellerId: id, name: name || undefined, allowedIps: allowedIps || undefined, allowUnpaidTake });
   };
 
   const copyUrl = (url: string) => {
@@ -143,6 +144,33 @@ export default function AdminApiKeys() {
             <Input value={allowedIps} onChange={e => setAllowedIps(e.target.value)} placeholder="Ex: 1.1.1.1, 2.2.2.2" className="h-11 bg-white/[0.03] border-white/[0.06] text-white rounded-xl" />
           </div>
         </div>
+
+        {/* Gateway liberado - take sem cobrança de créditos */}
+        <label
+          className="flex items-start gap-3 rounded-2xl p-4 mb-4 cursor-pointer transition-all"
+          style={{
+            background: allowUnpaidTake ? "rgba(16,185,129,0.06)" : "rgba(255,255,255,0.02)",
+            border: `1px solid ${allowUnpaidTake ? "rgba(16,185,129,0.25)" : "rgba(255,255,255,0.06)"}`,
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={allowUnpaidTake}
+            onChange={e => setAllowUnpaidTake(e.target.checked)}
+            className="mt-0.5 w-4 h-4 accent-emerald-500"
+          />
+          <div>
+            <p className="text-white text-sm font-semibold">
+              {language === "en" ? "Free gateway take" : "Gateway liberado (take sem cobrança)"}
+            </p>
+            <p className="text-gray-500 text-xs mt-0.5">
+              {language === "en"
+                ? "This API key can take keys without requiring a credits reseller. Other keys keep the normal protection."
+                : "Esta API key pode retirar keys sem exigir reseller de créditos. As demais keys continuam com a proteção normal."}
+            </p>
+          </div>
+        </label>
+
         <Button
           onClick={handleCreate}
           disabled={create.isPending || !resellerId}
@@ -167,7 +195,10 @@ export default function AdminApiKeys() {
               <div key={k.id} className="rounded-2xl p-4 flex items-center justify-between" style={{ background: "rgba(255,255,255,0.03)" }}>
                 <div>
                   <p className="text-white font-mono text-sm">{k.apiKey}</p>
-                  <p className="text-gray-500 text-xs mt-1">{k.name || "Sem nome"} • {k.isActive ? <span className="text-emerald-400">Ativa</span> : <span className="text-red-400">Revogada</span>}</p>
+                  <p className="text-gray-500 text-xs mt-1">
+                    {k.name || "Sem nome"} • {k.isActive ? <span className="text-emerald-400">Ativa</span> : <span className="text-red-400">Revogada</span>}
+                    {k.allowUnpaidTake && <span className="text-amber-400"> • Liberada</span>}
+                  </p>
                 </div>
                 <button onClick={() => revoke.mutate({ id: k.id })} className="p-2 rounded-lg hover:bg-red-500/10 text-red-400 transition-all" disabled={!k.isActive}>
                   <Trash2 className="w-4 h-4" />

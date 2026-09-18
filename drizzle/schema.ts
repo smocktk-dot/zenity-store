@@ -84,6 +84,7 @@ export const resellerApiKeys = pgTable("reseller_api_keys", {
   name: varchar("name", { length: 64 }),
   isActive: boolean("isActive").default(true).notNull(),
   allowedIps: text("allowedIps"),
+  allowUnpaidTake: boolean("allowUnpaidTake").default(false).notNull(),
   lastUsedAt: timestamp("lastUsedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),

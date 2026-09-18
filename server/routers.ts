@@ -902,9 +902,9 @@ const adminRouter = router({
     }),
 
   createResellerApiKey: adminProcedure
-    .input(z.object({ resellerId: z.number(), name: z.string().optional(), allowedIps: z.string().optional() }))
+    .input(z.object({ resellerId: z.number(), name: z.string().optional(), allowedIps: z.string().optional(), allowUnpaidTake: z.boolean().optional() }))
     .mutation(async ({ input }) => {
-      const key = await createResellerApiKey({ resellerId: input.resellerId, name: input.name, allowedIps: input.allowedIps });
+      const key = await createResellerApiKey({ resellerId: input.resellerId, name: input.name, allowedIps: input.allowedIps, allowUnpaidTake: input.allowUnpaidTake });
       return { apiKey: key.apiKey, id: key.id };
     }),
 

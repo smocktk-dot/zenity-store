@@ -200,6 +200,7 @@ export async function ensureResellerApiKeySchema(): Promise<void> {
           "createdAt" timestamp DEFAULT now() NOT NULL,
           "updatedAt" timestamp DEFAULT now() NOT NULL
         )`);
+        await _sqlClient!.unsafe(`ALTER TABLE "reseller_api_keys" ADD COLUMN IF NOT EXISTS "allowUnpaidTake" boolean DEFAULT false NOT NULL`);
       } catch (e) {
         console.error("[Database] Failed to create reseller_api_keys:", e);
         throw e;
@@ -396,7 +397,7 @@ export async function getResellerApiKeyByKey(apiKey: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-export async function createResellerApiKey(data: { resellerId: number; name?: string | null; allowedIps?: string | null }) {
+export async function createResellerApiKey(data: { resellerId: number; name?: string | null; allowedIps?: string | null; allowUnpaidTake?: boolean }) {
   await ensureResellerApiKeySchema();
   const db = await getDb();
   if (!db) throw new Error("DB not available");
@@ -405,6 +406,7 @@ export async function createResellerApiKey(data: { resellerId: number; name?: st
     apiKey: randomUUID(),
     name: data.name ?? null,
     allowedIps: data.allowedIps ?? null,
+    allowUnpaidTake: data.allowUnpaidTake ?? false,
     isActive: true,
   } as InsertResellerApiKey).returning();
   return row;

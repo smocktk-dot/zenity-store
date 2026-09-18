@@ -1,6 +1,6 @@
 import express, { type Express, type Request, type Response } from "express";
 import {
-  getResellerByApiKey, getResellerById, getAssignedAppIds, getAppsByResellerId,
+  getResellerByApiKey, getResellerApiKeyByKey, getResellerById, getAssignedAppIds, getAppsByResellerId,
   getAppById, getAppByName, getAppByNameLike, getPlansByAppId, getPlanById, getStockByApp,
   getAvailableStockForPlan, createLicenseKey,
   updateResellerCredits, createCreditTransaction,
@@ -40,6 +40,40 @@ async function authReseller(req: Request): Promise<Reseller | undefined> {
   return undefined;
 }
 
+// Auth para endpoints de retirada de key: retorna o reseller e a flag
+// allowUnpaidTake da API key usada (liberação explícita por chave).
+async function authGateway(req: Request): Promise<{ reseller: Reseller; allowUnpaidTake: boolean } | undefined> {
+  const getHeader = (names: string[]) => {
+    for (const n of names) {
+      const v = (req.headers[n.toLowerCase()] as string | undefined)?.trim();
+      if (v) return v;
+    }
+    return undefined;
+  };
+
+  const auth = (req.headers.authorization as string | undefined)?.trim();
+  const bearerKey = auth?.toLowerCase().startsWith("bearer ") ? auth.slice(7).trim() : undefined;
+
+  const q = req.query as Record<string, unknown>;
+  const pick = (v: unknown) => (typeof v === "string" ? v.trim() : undefined);
+
+  const candidates = [
+    getHeader(["x-api-key", "x-apikey", "api-key", "apikey", "token"]),
+    pick(q.apiKey), pick(q.apikey), pick(q.api_key), pick(q["api-key"]),
+    pick(q.token), pick(q.key),
+    bearerKey,
+  ].filter(Boolean) as string[];
+
+  for (const apiKey of candidates) {
+    const reseller = await getResellerByApiKey(apiKey);
+    if (reseller) {
+      const keyRow = await getResellerApiKeyByKey(apiKey);
+      return { reseller, allowUnpaidTake: !!(keyRow as any)?.allowUnpaidTake };
+    }
+  }
+  return undefined;
+}
+
 async function resolvePlan(appId: number, planId: number | undefined, planName: string | undefined) {
   if (planId) {
     const plan = await getPlanById(Number(planId));
@@ -73,12 +107,30 @@ async function takeKeysGuarded(opts: {
   plan: { id: number; name: string; durationDays: number; priceCredits: string };
   qty: number;
   noteValue?: string;
+  allowUnpaidTake?: boolean;
 }): Promise<string[]> {
-  const { reseller, app, plan, qty, noteValue } = opts;
+  const { reseller, app, plan, qty, noteValue, allowUnpaidTake } = opts;
 
   if (appGeneratesOnDemand(app)) {
     if (reseller.resellerType !== "credits") {
-      throw new GatewayError(403, "This app requires a paid purchase (PIX) or a credits reseller account");
+      // API key com liberação explícita: entrega sem cobrança
+      // (pagamento tratado externamente, ex.: loja Purin Cash)
+      if (!allowUnpaidTake) {
+        throw new GatewayError(403, "This app requires a paid purchase (PIX) or a credits reseller account");
+      }
+      const acquisition = await acquireLicenseKeyValues({
+        app, plan, quantity: qty, resellerId: reseller.id,
+        owner: reseller.username, note: noteValue,
+      });
+      for (const keyValue of acquisition.keyValues) {
+        await createLicenseKey({
+          keyValue, resellerId: reseller.id, appId: app.id, planId: plan.id,
+          planName: plan.name, durationDays: plan.durationDays,
+          creditsSpent: "0", source: "api",
+          ...(noteValue ? { note: noteValue } : {}),
+        } as any);
+      }
+      return acquisition.keyValues;
     }
     const discount = parseFloat(String(reseller.discountPercent ?? "0"));
     const pricePerKey = parseFloat(String(plan.priceCredits)) * (1 - discount / 100);
@@ -227,7 +279,8 @@ function registerAppResellerApi(expressApp: Express, basePath: string, appNames:
 
   // POST /take - generate/retrieve keys
   const takeHandler = async (req: Request, res: Response) => {
-    const reseller = await authReseller(req);
+    const auth = await authGateway(req);
+    const reseller = auth?.reseller;
     if (!reseller) return res.status(401).json({ data: null, error: "Invalid API key" });
     const app = await findAppByCandidates(appNames);
     if (!app) return res.status(404).json({ data: null, error: "App not configured" });
@@ -246,7 +299,7 @@ function registerAppResellerApi(expressApp: Express, basePath: string, appNames:
     const qty = Math.max(1, Math.min(100, Number(quantity) || 1));
     let keys: string[];
     try {
-      keys = await takeKeysGuarded({ reseller, app, plan, qty, noteValue });
+      keys = await takeKeysGuarded({ reseller, app, plan, qty, noteValue, allowUnpaidTake: auth.allowUnpaidTake });
     } catch (e: any) {
       return res.status(e instanceof GatewayError ? e.httpStatus : 500).json({ data: null, error: e instanceof GatewayError ? e.publicMessage : "Failed to deliver keys" });
     }
@@ -264,7 +317,8 @@ function registerAppResellerApi(expressApp: Express, basePath: string, appNames:
 
   // GET /take/:planSlug - fixed URL for simple gateways
   expressApp.get(`${basePath}/take/:planSlug`, async (req, res) => {
-    const reseller = await authReseller(req);
+    const auth = await authGateway(req);
+    const reseller = auth?.reseller;
     if (!reseller) return res.status(401).json({ data: null, error: "Invalid API key" });
     const app = await findAppByCandidates(appNames);
     if (!app) return res.status(404).json({ data: null, error: "App not configured" });
@@ -279,7 +333,7 @@ function registerAppResellerApi(expressApp: Express, basePath: string, appNames:
     const noteValue = customer ? `customer: ${customer}` : undefined;
     let keys: string[];
     try {
-      keys = await takeKeysGuarded({ reseller, app, plan, qty, noteValue });
+      keys = await takeKeysGuarded({ reseller, app, plan, qty, noteValue, allowUnpaidTake: auth.allowUnpaidTake });
     } catch (e: any) {
       return res.status(e instanceof GatewayError ? e.httpStatus : 500).json({ data: null, error: e instanceof GatewayError ? e.publicMessage : "Failed to deliver keys" });
     }
@@ -347,7 +401,8 @@ export function registerResellerApi(app: Express) {
   });
 
   app.post("/api/reseller/v1/stock/take", async (req, res) => {
-    const reseller = await authReseller(req);
+    const auth = await authGateway(req);
+    const reseller = auth?.reseller;
     if (!reseller) return res.status(401).json({ error: "Invalid API key" });
     const { appId, planId, planName, quantity = 1, customer, note } = req.body;
     if (!appId) return res.status(400).json({ error: "appId is required" });
@@ -364,7 +419,7 @@ export function registerResellerApi(app: Express) {
     if (note) noteParts.push(note);
     const noteValue = noteParts.length ? noteParts.join(" | ") : undefined;
     try {
-      const keys = await takeKeysGuarded({ reseller, app, plan, qty, noteValue });
+      const keys = await takeKeysGuarded({ reseller, app, plan, qty, noteValue, allowUnpaidTake: auth.allowUnpaidTake });
       res.json({ keys, plan: { id: plan.id, name: plan.name, durationDays: plan.durationDays } });
     } catch (e: any) {
       return res.status(e instanceof GatewayError ? e.httpStatus : 500).json({ error: e instanceof GatewayError ? e.publicMessage : "Failed to deliver keys" });
@@ -374,7 +429,8 @@ export function registerResellerApi(app: Express) {
   // Gateway-compatible endpoint that returns { data: { key: ... } }
   const gatewayTake = async (req: Request, res: Response) => {
     console.error("[gateway take] hit", req.method, req.path, req.ip, "query:", req.query, "body:", req.body);
-    const reseller = await authReseller(req);
+    const auth = await authGateway(req);
+    const reseller = auth?.reseller;
     if (!reseller) return res.status(401).json({ data: null, error: "Invalid API key" });
     const source = { ...(req.query ?? {}), ...(req.body ?? {}) } as any;
 
@@ -428,7 +484,7 @@ export function registerResellerApi(app: Express) {
     const noteValue = noteParts.length ? noteParts.join(" | ") : undefined;
     let keys: string[];
     try {
-      keys = await takeKeysGuarded({ reseller, app, plan, qty, noteValue });
+      keys = await takeKeysGuarded({ reseller, app, plan, qty, noteValue, allowUnpaidTake: auth.allowUnpaidTake });
     } catch (e: any) {
       return res.status(e instanceof GatewayError ? e.httpStatus : 500).json({ data: null, error: e instanceof GatewayError ? e.publicMessage : "Failed to deliver keys" });
     }
@@ -447,7 +503,8 @@ export function registerResellerApi(app: Express) {
   // Fixed URL endpoint for gateways that cannot send body or query params
   app.get("/api/reseller/v1/gateway/take/:planSlug", async (req, res) => {
     console.error("[gateway take] fixed hit", req.method, req.path, req.params);
-    const reseller = await authReseller(req);
+    const auth = await authGateway(req);
+    const reseller = auth?.reseller;
     if (!reseller) return res.status(401).json({ data: null, error: "Invalid API key" });
 
     const rawSlug = String(req.params.planSlug).toLowerCase().trim();
@@ -508,7 +565,7 @@ export function registerResellerApi(app: Express) {
     const noteValue = noteParts.length ? noteParts.join(" | ") : undefined;
     let keys: string[];
     try {
-      keys = await takeKeysGuarded({ reseller, app: foundApp, plan: foundPlan, qty, noteValue });
+      keys = await takeKeysGuarded({ reseller, app: foundApp, plan: foundPlan, qty, noteValue, allowUnpaidTake: auth.allowUnpaidTake });
     } catch (e: any) {
       return res.status(e instanceof GatewayError ? e.httpStatus : 500).json({ data: null, error: e instanceof GatewayError ? e.publicMessage : "Failed to deliver keys" });
     }
