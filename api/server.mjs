@@ -2576,15 +2576,28 @@ function registerResellerApi(app2) {
     if (!reseller) return res.status(401).json({ data: null, error: "Invalid API key" });
     const rawSlug = String(req.params.planSlug).toLowerCase().trim();
     const aliases = {
-      diario: ["1 dia", "1d", "1-dia", "diario", "daily"],
-      trial: ["3 dias", "3d", "3-dias", "trial"],
+      diario: ["1 dia", "1d", "1-dia", "diario", "daily", "diaria"],
+      trial: ["3 dias", "3d", "3-dias", "trial", "teste"],
       semanal: ["7 dias", "7d", "7-dias", "semanal", "weekly"],
       "15dias": ["15 dias", "15d", "15-dias", "15dias"],
       mensal: ["30 dias", "30d", "30-dias", "mensal", "monthly"],
-      trimestral: ["3 meses", "90d", "90-dias", "3-meses", "trimestral", "trimesal", "trimensal", "quarterly"]
+      trimestral: ["3 meses", "90d", "90-dias", "3-meses", "trimestral", "trimesal", "trimensal", "quarterly"],
+      lifetime: ["lifetime", "vitalicio", "vitalicia", "permanente", "permanent", "forever"]
     };
     const slugSet = new Set(aliases[rawSlug] || [rawSlug]);
-    const assignedApps = (await getAppsByResellerId(reseller.id)).map((r) => r.app);
+    let assignedApps = (await getAppsByResellerId(reseller.id)).map((r) => r.app);
+    const appFilter = req.query.appId ?? req.query.app ?? req.query.product ?? req.query.produto;
+    if (appFilter) {
+      const f = String(appFilter).toLowerCase().trim();
+      const norm = (s) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+      assignedApps = assignedApps.filter((a) => {
+        const name = String(a.name).toLowerCase().trim();
+        return String(a.id) === f || name === f || norm(name) === norm(f) || name.includes(f) || norm(name).includes(norm(f));
+      });
+      if (!assignedApps.length) {
+        return res.status(404).json({ data: null, error: `App "${appFilter}" not assigned to reseller ${reseller.username}` });
+      }
+    }
     console.error("[gateway take] assigned apps:", assignedApps.map((a) => a.name));
     let foundPlan, foundApp;
     for (const a of assignedApps) {
