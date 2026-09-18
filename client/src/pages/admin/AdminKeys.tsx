@@ -105,9 +105,9 @@ export default function AdminKeys() {
                   {k.resellerType === "credits" ? (
                     <span className="text-yellow-400">{parseFloat(k.creditsSpent).toFixed(2)} cr</span>
                   ) : k.resellerType === "other" ? (
-                    <span className="text-violet-400">R$ {parseFloat(k.planPrice).toFixed(2)}</span>
+                    <span className="text-violet-400">R$ {parseFloat(k.creditsSpent).toFixed(2)}</span>
                   ) : (
-                    <span className="text-blue-400">R$ {parseFloat(k.planPrice).toFixed(2)}</span>
+                    <span className="text-blue-400">R$ {parseFloat(k.creditsSpent).toFixed(2)}</span>
                   )}
                 </td>
                 <td className="px-5 py-4 text-sm font-mono">
