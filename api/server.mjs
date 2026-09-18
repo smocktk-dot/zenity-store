@@ -3271,28 +3271,51 @@ async function performHwidReset(key) {
   const appName = (app2?.name || "").toUpperCase();
   if (appName === "PUB EMU" || appName === "PUBEMU" || appName === "EMULATOR PUBLIC") {
     const PUB_EMU_API_URL = "https://resellers.axovgc.site/api/v1/reset";
-    const PUB_EMU_API_KEY = ENV.pubEmuApiKey || "axo_02e54e5771b3207c97cf6874258ad0e1957a7e6b89824df9";
-    try {
-      const url = new URL(PUB_EMU_API_URL);
-      url.searchParams.set("apikey", PUB_EMU_API_KEY);
-      const response = await fetch(url.toString(), {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${PUB_EMU_API_KEY}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ username: key.keyValue, product: "PUB EMU" })
-      });
-      const text2 = await response.text();
-      if (!response.ok) {
-        console.error("[PUB EMU HWID Reset] error:", response.status, text2);
-        throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: `Erro na API de reset HWID: ${response.status} ${text2}` });
+    const apiKeys = [...new Set([ENV.pubEmuApiKey, "axo_02e54e5771b3207c97cf6874258ad0e1957a7e6b89824df9"].filter(Boolean))];
+    let lastError = "";
+    for (const apiKey of apiKeys) {
+      try {
+        const url = new URL(PUB_EMU_API_URL);
+        url.searchParams.set("apikey", apiKey);
+        const response = await fetch(url.toString(), {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${apiKey}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ username: key.keyValue, product: "PUB EMU" })
+        });
+        const text2 = await response.text();
+        if (response.status === 401) {
+          console.warn("[PUB EMU HWID Reset] 401 com uma das chaves, tentando pr\xF3xima:", text2);
+          lastError = `${response.status} ${text2}`;
+          continue;
+        }
+        if (!response.ok) {
+          console.error("[PUB EMU HWID Reset] error:", response.status, text2);
+          throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: `Erro na API de reset HWID: ${response.status} ${text2}` });
+        }
+        try {
+          const data = JSON.parse(text2);
+          if (data && data.success === false) {
+            const msg = data.message || data.error || "Falha ao resetar no provedor";
+            console.error("[PUB EMU HWID Reset] provider soft-fail:", msg);
+            throw new TRPCError3({ code: "BAD_REQUEST", message: `API PUB EMU: ${msg}` });
+          }
+        } catch (err) {
+          if (err instanceof TRPCError3) throw err;
+        }
+        console.log("[PUB EMU HWID Reset] success:", text2);
+        lastError = "";
+        break;
+      } catch (err) {
+        if (err instanceof TRPCError3) throw err;
+        console.error("[PUB EMU HWID Reset] failed:", err);
+        throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: `Falha ao resetar HWID na API externa: ${err}` });
       }
-      console.log("[PUB EMU HWID Reset] success:", text2);
-    } catch (err) {
-      if (err instanceof TRPCError3) throw err;
-      console.error("[PUB EMU HWID Reset] failed:", err);
-      throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: `Falha ao resetar HWID na API externa: ${err}` });
+    }
+    if (lastError) {
+      throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: `Erro na API de reset HWID: ${lastError}` });
     }
   }
 }
