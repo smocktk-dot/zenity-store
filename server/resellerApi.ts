@@ -131,8 +131,11 @@ async function findAppByCandidates(candidates: string[]) {
     const app = await getAppByName(name);
     if (app) return app;
   }
-  const like = await getAppByNameLike(candidates[candidates.length - 1]);
-  return like;
+  for (const name of candidates) {
+    const like = await getAppByNameLike(name);
+    if (like) return like;
+  }
+  return undefined;
 }
 
 async function appIsAssigned(resellerId: number, appId: number) {
@@ -621,7 +624,8 @@ export function registerResellerApi(app: Express) {
   });
 
   // App-specific APIs (igual para Public Emulator e Unlock All Web)
-  registerAppResellerApi(app, "/api/public-emulator/v1", ["EMULATOR PUBLIC", "Public Emulator", "public-emulator"]);
-  registerAppResellerApi(app, "/api/unlock-all-web/v1", ["UNLOCK ALL WEB", "Unlock All Web", "unlock-all-web", "unlockallweb"]);
+  registerAppResellerApi(app, "/api/public-emulator/v1", ["EMULATOR PUBLIC", "Public Emulator", "public-emulator", "PUB EMU", "Pub Emu", "pubemu"]);
+  registerAppResellerApi(app, "/api/unlock-all-web/v1", ["UNLOCK ALL WEB", "Unlock All Web", "unlock-all-web", "unlockallweb", "UNLOCK ALL", "Unlock All", "unlock-all", "unlockall"]);
+  registerAppResellerApi(app, "/api/unlock-all/v1", ["UNLOCK ALL", "Unlock All", "unlock-all", "unlockall", "UNLOCK ALL WEB", "Unlock All Web", "unlock-all-web", "unlockallweb"]);
   registerAppResellerApi(app, "/api/stock/v1", ["STOCK", "Stock", "stock"]);
 }

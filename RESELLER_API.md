@@ -208,6 +208,7 @@ async function buyKey(appId, planId, customer) {
 Além da API genérica, existem bases dedicadas por app (mesma autenticação `X-Api-Key` ou `?apikey=`):
 
 - `/api/public-emulator/v1/` — Public Emulator
+- `/api/unlock-all/v1/` — Unlock All
 - `/api/unlock-all-web/v1/` — Unlock All Web
 - `/api/stock/v1/` — STOCK (DIARIO, TRIAL, SEMANAL, MENSAL, LIFETIME)
 

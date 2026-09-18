@@ -2294,8 +2294,11 @@ async function findAppByCandidates(candidates) {
     const app2 = await getAppByName(name);
     if (app2) return app2;
   }
-  const like = await getAppByNameLike(candidates[candidates.length - 1]);
-  return like;
+  for (const name of candidates) {
+    const like = await getAppByNameLike(name);
+    if (like) return like;
+  }
+  return void 0;
 }
 async function appIsAssigned(resellerId, appId) {
   const assigned = await getAppsByResellerId(resellerId);
@@ -2732,8 +2735,9 @@ function registerResellerApi(app2) {
     const qrCodeImage = data?.pix?.qrCodeImage || data?.qrCodeImage || null;
     res.json({ paymentId: data.paymentId, amountCents, brCode, qrCodeImage, expiresAt: data.expiresAt, plan: { id: plan.id, name: plan.name, durationDays: plan.durationDays } });
   });
-  registerAppResellerApi(app2, "/api/public-emulator/v1", ["EMULATOR PUBLIC", "Public Emulator", "public-emulator"]);
-  registerAppResellerApi(app2, "/api/unlock-all-web/v1", ["UNLOCK ALL WEB", "Unlock All Web", "unlock-all-web", "unlockallweb"]);
+  registerAppResellerApi(app2, "/api/public-emulator/v1", ["EMULATOR PUBLIC", "Public Emulator", "public-emulator", "PUB EMU", "Pub Emu", "pubemu"]);
+  registerAppResellerApi(app2, "/api/unlock-all-web/v1", ["UNLOCK ALL WEB", "Unlock All Web", "unlock-all-web", "unlockallweb", "UNLOCK ALL", "Unlock All", "unlock-all", "unlockall"]);
+  registerAppResellerApi(app2, "/api/unlock-all/v1", ["UNLOCK ALL", "Unlock All", "unlock-all", "unlockall", "UNLOCK ALL WEB", "Unlock All Web", "unlock-all-web", "unlockallweb"]);
   registerAppResellerApi(app2, "/api/stock/v1", ["STOCK", "Stock", "stock"]);
 }
 
