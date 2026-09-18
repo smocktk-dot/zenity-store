@@ -203,6 +203,51 @@ async function buyKey(appId, planId, customer) {
 
 ---
 
+## APIs dedicadas por produto
+
+Além da API genérica, existem bases dedicadas por app (mesma autenticação `X-Api-Key` ou `?apikey=`):
+
+- `/api/public-emulator/v1/` — Public Emulator
+- `/api/unlock-all-web/v1/` — Unlock All Web
+- `/api/stock/v1/` — STOCK (DIARIO, TRIAL, SEMANAL, MENSAL, LIFETIME)
+
+Cada base expõe:
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| GET | `/products` | Lista planos + estoque do app |
+| GET | `/stock` | Estoque por plano |
+| GET/POST | `/take` | Retira key (planId/planName + quantity) |
+| GET | `/take/:plan` | Retira key por slug fixo na URL |
+
+### Exemplo — URLs prontas para Purin Cash (STOCK)
+
+```
+GET https://vgsellers.lat/api/stock/v1/take/diario?apikey=SUA_CHAVE
+GET https://vgsellers.lat/api/stock/v1/take/trial?apikey=SUA_CHAVE
+GET https://vgsellers.lat/api/stock/v1/take/semanal?apikey=SUA_CHAVE
+GET https://vgsellers.lat/api/stock/v1/take/mensal?apikey=SUA_CHAVE
+GET https://vgsellers.lat/api/stock/v1/take/lifetime?apikey=SUA_CHAVE
+```
+
+Também aceitam `?qtd=N` e `?customer=email`.
+
+**Resposta 200:**
+```json
+{
+  "data": {
+    "key": "ABCD-EFGH-IJKL-MNOP",
+    "plan": { "id": 3, "name": "DIARIO", "durationDays": 1 }
+  }
+}
+```
+
+Os slugs também casam nomes equivalentes (ex.: `diario` → "1 Dia", `semanal` → "7 Dias", `mensal` → "30 Dias", `lifetime` → "Vitalício").
+
+**Requisitos:** o reseller precisa da API key gerada no admin e do app STOCK atribuído à conta.
+
+---
+
 ## Observações
 
 - O reseller precisa ser do tipo **créditos**.

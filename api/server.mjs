@@ -2301,6 +2301,25 @@ async function appIsAssigned(resellerId, appId) {
   const assigned = await getAppsByResellerId(resellerId);
   return assigned.some((row) => row.app.id === appId);
 }
+var PLAN_SLUG_ALIASES = {
+  diario: ["1 dia", "1d", "1-dia", "diario", "daily", "diaria"],
+  trial: ["3 dias", "3d", "3-dias", "trial", "teste"],
+  semanal: ["7 dias", "7d", "7-dias", "semanal", "weekly"],
+  "15dias": ["15 dias", "15d", "15-dias", "15dias"],
+  mensal: ["30 dias", "30d", "30-dias", "mensal", "monthly"],
+  trimestral: ["3 meses", "90d", "90-dias", "3-meses", "trimestral", "trimesal", "trimensal", "quarterly"],
+  lifetime: ["lifetime", "vitalicio", "vitalicia", "permanente", "permanent", "forever"]
+};
+function matchPlanBySlug(plans, rawSlug) {
+  const slugSet = /* @__PURE__ */ new Set([rawSlug, ...PLAN_SLUG_ALIASES[rawSlug] || []]);
+  return plans.find((pl) => {
+    const name = String(pl.name).toLowerCase().trim();
+    const normalized = name.replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+    const noSpace = name.replace(/\s+/g, "").replace(/[^a-z0-9]/g, "");
+    const hyphen = name.replace(/\s+/g, "-");
+    return normalized === rawSlug || name === rawSlug || noSpace === rawSlug.replace(/-/g, "") || hyphen === rawSlug || slugSet.has(normalized) || slugSet.has(name) || slugSet.has(noSpace) || slugSet.has(hyphen);
+  });
+}
 function registerAppResellerApi(expressApp, basePath, appNames) {
   expressApp.get(`${basePath}/products`, async (req, res) => {
     const reseller = await authReseller(req);
@@ -2382,13 +2401,7 @@ function registerAppResellerApi(expressApp, basePath, appNames) {
     if (!await appIsAssigned(reseller.id, app2.id)) return res.status(403).json({ data: null, error: "App not assigned" });
     const rawSlug = String(req.params.planSlug).toLowerCase().trim();
     const plans = await getPlansByAppId(app2.id);
-    const plan = plans.find((p) => {
-      const name = String(p.name).toLowerCase().trim();
-      const normalized = name.replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
-      const noSpace = name.replace(/\s+/g, "").replace(/[^a-z0-9]/g, "");
-      const hyphen = name.replace(/\s+/g, "-");
-      return normalized === rawSlug || name === rawSlug || noSpace === rawSlug.replace(/-/g, "") || hyphen === rawSlug;
-    });
+    const plan = matchPlanBySlug(plans, rawSlug);
     if (!plan) return res.status(404).json({ data: null, error: `Plan "${rawSlug}" not found for ${app2.name}` });
     const qty = Math.max(1, Math.min(100, Number(req.query.qtd ?? req.query.quantity ?? req.query.qty ?? 1) || 1));
     const customer = req.query.customer ?? req.query.email ?? req.query.cliente;
@@ -2721,6 +2734,7 @@ function registerResellerApi(app2) {
   });
   registerAppResellerApi(app2, "/api/public-emulator/v1", ["EMULATOR PUBLIC", "Public Emulator", "public-emulator"]);
   registerAppResellerApi(app2, "/api/unlock-all-web/v1", ["UNLOCK ALL WEB", "Unlock All Web", "unlock-all-web", "unlockallweb"]);
+  registerAppResellerApi(app2, "/api/stock/v1", ["STOCK", "Stock", "stock"]);
 }
 
 // server/_core/storageProxy.ts
