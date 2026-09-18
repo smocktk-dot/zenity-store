@@ -17,18 +17,27 @@ async function authReseller(req: Request): Promise<Reseller | undefined> {
     }
     return undefined;
   };
-  let apiKey = getHeader(["x-api-key", "x-apikey", "api-key", "apikey", "token"])
-    ?? ((req.query.apiKey ?? req.query.token ?? req.query.key ?? req.query.api_key) as string | undefined)?.trim();
 
-  if (!apiKey) {
-    const auth = (req.headers.authorization as string | undefined)?.trim();
-    console.error("[gateway auth] Authorization header:", auth);
-    if (auth?.toLowerCase().startsWith("bearer ")) apiKey = auth.slice(7).trim();
+  const auth = (req.headers.authorization as string | undefined)?.trim();
+  const bearerKey = auth?.toLowerCase().startsWith("bearer ") ? auth.slice(7).trim() : undefined;
+
+  const q = req.query as Record<string, unknown>;
+  const pick = (v: unknown) => (typeof v === "string" ? v.trim() : undefined);
+
+  // Tenta todas as fontes de credencial até uma autenticar
+  const candidates = [
+    getHeader(["x-api-key", "x-apikey", "api-key", "apikey", "token"]),
+    pick(q.apiKey), pick(q.apikey), pick(q.api_key), pick(q["api-key"]),
+    pick(q.token), pick(q.key),
+    bearerKey,
+  ].filter(Boolean) as string[];
+
+  for (const apiKey of candidates) {
+    const reseller = await getResellerByApiKey(apiKey);
+    if (reseller) return reseller;
   }
-
-  console.error("[gateway auth] apiKey used:", apiKey);
-  if (!apiKey) return undefined;
-  return getResellerByApiKey(apiKey);
+  if (!candidates.length) console.error("[gateway auth] no credential provided");
+  return undefined;
 }
 
 async function resolvePlan(appId: number, planId: number | undefined, planName: string | undefined) {

@@ -2180,15 +2180,26 @@ async function authReseller(req) {
     }
     return void 0;
   };
-  let apiKey = getHeader(["x-api-key", "x-apikey", "api-key", "apikey", "token"]) ?? (req.query.apiKey ?? req.query.token ?? req.query.key ?? req.query.api_key)?.trim();
-  if (!apiKey) {
-    const auth = req.headers.authorization?.trim();
-    console.error("[gateway auth] Authorization header:", auth);
-    if (auth?.toLowerCase().startsWith("bearer ")) apiKey = auth.slice(7).trim();
+  const auth = req.headers.authorization?.trim();
+  const bearerKey = auth?.toLowerCase().startsWith("bearer ") ? auth.slice(7).trim() : void 0;
+  const q = req.query;
+  const pick = (v) => typeof v === "string" ? v.trim() : void 0;
+  const candidates = [
+    getHeader(["x-api-key", "x-apikey", "api-key", "apikey", "token"]),
+    pick(q.apiKey),
+    pick(q.apikey),
+    pick(q.api_key),
+    pick(q["api-key"]),
+    pick(q.token),
+    pick(q.key),
+    bearerKey
+  ].filter(Boolean);
+  for (const apiKey of candidates) {
+    const reseller = await getResellerByApiKey(apiKey);
+    if (reseller) return reseller;
   }
-  console.error("[gateway auth] apiKey used:", apiKey);
-  if (!apiKey) return void 0;
-  return getResellerByApiKey(apiKey);
+  if (!candidates.length) console.error("[gateway auth] no credential provided");
+  return void 0;
 }
 async function resolvePlan(appId, planId, planName) {
   if (planId) {
