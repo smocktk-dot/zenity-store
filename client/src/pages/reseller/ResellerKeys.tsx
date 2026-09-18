@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Key, Search, Copy, Check, RefreshCw, XCircle, Eye } from "lucide-react";
+import { Key, Search, Copy, Check, RefreshCw, XCircle, Eye, MonitorSmartphone, ShieldCheck } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -32,7 +32,19 @@ export default function ResellerKeys() {
   const [copied, setCopied] = useState<number | null>(null);
   const [viewKey, setViewKey] = useState<any>(null);
   const [page, setPage] = useState(1);
+  const [resetModalOpen, setResetModalOpen] = useState(false);
+  const [resetKeyValue, setResetKeyValue] = useState("");
   const perPage = 15;
+
+  const resetHwidByKey = trpc.reseller.resetHwidByKey.useMutation({
+    onSuccess: () => {
+      toast.success(language === "en" ? "HWID reset successfully!" : "HWID resetado com sucesso!");
+      setResetModalOpen(false);
+      setResetKeyValue("");
+      utils.reseller.myKeys.invalidate();
+    },
+    onError: e => toast.error(e.message),
+  });
 
   const resetHwid = trpc.reseller.resetHwid.useMutation({
     onSuccess: () => {
@@ -106,6 +118,30 @@ export default function ResellerKeys() {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Reset HWID Action Card */}
+      <div className="rounded-2xl border border-white/[0.06] p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4" style={{ background: "rgba(255,255,255,0.02)" }}>
+        <div className="flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
+            <MonitorSmartphone className="w-5 h-5 text-emerald-400" />
+          </div>
+          <div>
+            <p className="text-white text-sm font-semibold">Reset HWID</p>
+            <p className="text-gray-500 text-xs mt-0.5">
+              {language === "en"
+                ? "Reset the hardware ID of a client's key"
+                : "Resete o HWID da key de um cliente"}
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={() => setResetModalOpen(true)}
+          className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 text-sm font-semibold border border-emerald-500/25 transition-all shrink-0"
+        >
+          <RefreshCw className="w-4 h-4" />
+          Reset HWID
+        </button>
       </div>
 
       {/* Filters */}
@@ -331,6 +367,77 @@ export default function ResellerKeys() {
                 </div>
               </div>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reset HWID Modal */}
+      <Dialog open={resetModalOpen} onOpenChange={(open) => { setResetModalOpen(open); if (!open) setResetKeyValue(""); }}>
+        <DialogContent className="bg-[#080808] border-white/[0.08] text-white max-w-md rounded-3xl p-0 overflow-hidden">
+          <div className="p-6 space-y-5" style={{ background: "linear-gradient(180deg, rgba(16,185,129,0.08) 0%, rgba(8,8,8,0.9) 120px)" }}>
+            <DialogHeader>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center">
+                  <MonitorSmartphone className="w-5 h-5 text-emerald-400" />
+                </div>
+                <div>
+                  <DialogTitle className="text-white text-base font-semibold">Reset HWID</DialogTitle>
+                  <p className="text-gray-500 text-xs">
+                    {language === "en" ? "Reset the hardware ID linked to a key" : "Resete o hardware vinculado a uma key"}
+                  </p>
+                </div>
+              </div>
+            </DialogHeader>
+
+            <div className="space-y-4 mt-2">
+              <div>
+                <label className="text-gray-400 text-xs font-semibold uppercase tracking-wider block mb-1.5">
+                  {language === "en" ? "Client Key" : "Key do Cliente"}
+                </label>
+                <div className="relative">
+                  <Key className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                  <Input
+                    value={resetKeyValue}
+                    onChange={e => setResetKeyValue(e.target.value)}
+                    placeholder={language === "en" ? "Paste or type the key..." : "Cole ou digite a key..."}
+                    className="pl-11 h-12 rounded-2xl bg-white/[0.03] border-white/[0.06] text-white font-mono text-sm placeholder:text-gray-600 focus:border-emerald-500/50"
+                    onKeyDown={e => {
+                      if (e.key === "Enter" && resetKeyValue.trim() && !resetHwidByKey.isPending) {
+                        resetHwidByKey.mutate({ keyValue: resetKeyValue.trim() });
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-white/[0.03] border border-white/[0.06] p-3.5 flex items-start gap-3">
+                <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                <p className="text-gray-400 text-[11px] leading-relaxed">
+                  {language === "en"
+                    ? "The key must belong to your account or to one of your sub-resellers. The reset clears the linked HWID locally and on the provider."
+                    : "A key precisa pertencer à sua conta ou a um dos seus sub-resellers. O reset limpa o HWID vinculado localmente e no provedor."}
+                </p>
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={() => { setResetModalOpen(false); setResetKeyValue(""); }}
+                  className="flex-1 py-2.5 rounded-xl bg-white/[0.05] hover:bg-white/10 text-gray-300 text-sm transition-all border border-white/[0.06]"
+                >
+                  {language === "en" ? "Cancel" : "Cancelar"}
+                </button>
+                <button
+                  onClick={() => resetHwidByKey.mutate({ keyValue: resetKeyValue.trim() })}
+                  disabled={!resetKeyValue.trim() || resetHwidByKey.isPending}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 text-sm font-semibold transition-all border border-emerald-500/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${resetHwidByKey.isPending ? "animate-spin" : ""}`} />
+                  {resetHwidByKey.isPending
+                    ? (language === "en" ? "Resetting..." : "Resetando...")
+                    : "Reset HWID"}
+                </button>
+              </div>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

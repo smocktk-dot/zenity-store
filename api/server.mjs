@@ -407,6 +407,7 @@ __export(db_exports, {
   getDownloadById: () => getDownloadById,
   getDownloadsByAppId: () => getDownloadsByAppId,
   getKeyById: () => getKeyById,
+  getKeyByValue: () => getKeyByValue,
   getKeysByPaymentId: () => getKeysByPaymentId,
   getKeysByResellerId: () => getKeysByResellerId,
   getKeysByResellerIdWithApp: () => getKeysByResellerIdWithApp,
@@ -1106,6 +1107,13 @@ async function getKeyById(id) {
   const db = await getDb();
   if (!db) return void 0;
   const result = await db.select().from(licenseKeys).where(eq(licenseKeys.id, id)).limit(1);
+  return result.length > 0 ? result[0] : void 0;
+}
+async function getKeyByValue(keyValue) {
+  await ensureLicenseKeysSchema();
+  const db = await getDb();
+  if (!db) return void 0;
+  const result = await db.select().from(licenseKeys).where(eq(licenseKeys.keyValue, keyValue)).limit(1);
   return result.length > 0 ? result[0] : void 0;
 }
 async function createLicenseKey(data) {
@@ -3244,6 +3252,50 @@ async function keyauthResetHwid(sellerKey, username) {
     console.warn("[KeyAuth] HWID reset warning:", data.message);
   }
 }
+async function resellerOwnsKey(resellerId, key) {
+  if (key.resellerId === resellerId) return true;
+  const owner = await getResellerById(key.resellerId);
+  return owner?.parentResellerId === resellerId;
+}
+async function performHwidReset(key) {
+  await updateLicenseKey(key.id, { hwid: null });
+  const app2 = await getAppById(key.appId);
+  if (key.usedBy) {
+    const sellerKey = app2?.keyauthSellerKey || KEYAUTH_SELLER_KEY;
+    try {
+      await keyauthResetHwid(sellerKey, key.usedBy);
+    } catch (err) {
+      console.warn("[KeyAuth] HWID reset failed (non-critical):", err);
+    }
+  }
+  const appName = (app2?.name || "").toUpperCase();
+  if (appName === "PUB EMU" || appName === "PUBEMU" || appName === "EMULATOR PUBLIC") {
+    const PUB_EMU_API_URL = "https://resellers.axovgc.site/api/v1/reset";
+    const PUB_EMU_API_KEY = ENV.pubEmuApiKey || "axo_02e54e5771b3207c97cf6874258ad0e1957a7e6b89824df9";
+    try {
+      const url = new URL(PUB_EMU_API_URL);
+      url.searchParams.set("apikey", PUB_EMU_API_KEY);
+      const response = await fetch(url.toString(), {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${PUB_EMU_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ username: key.keyValue, product: "PUB EMU" })
+      });
+      const text2 = await response.text();
+      if (!response.ok) {
+        console.error("[PUB EMU HWID Reset] error:", response.status, text2);
+        throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: `Erro na API de reset HWID: ${response.status} ${text2}` });
+      }
+      console.log("[PUB EMU HWID Reset] success:", text2);
+    } catch (err) {
+      if (err instanceof TRPCError3) throw err;
+      console.error("[PUB EMU HWID Reset] failed:", err);
+      throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: `Falha ao resetar HWID na API externa: ${err}` });
+    }
+  }
+}
 async function signCustomJwt(payload) {
   return new SignJWT2(payload).setProtectedHeader({ alg: "HS256" }).setExpirationTime("7d").sign(getJwtSecret());
 }
@@ -4273,49 +4325,18 @@ var resellerRouter = router({
   }),
   resetHwid: resellerProcedure.input(z2.object({ keyId: z2.number() })).mutation(async ({ ctx, input }) => {
     const key = await getKeyById(input.keyId);
-    if (!key || key.resellerId !== ctx.resellerId) throw new TRPCError3({ code: "FORBIDDEN" });
-    await updateLicenseKey(input.keyId, { hwid: null });
-    const app2 = await getAppById(key.appId);
-    if (key.usedBy) {
-      const sellerKey = app2?.keyauthSellerKey || KEYAUTH_SELLER_KEY;
-      try {
-        await keyauthResetHwid(sellerKey, key.usedBy);
-      } catch (err) {
-        console.warn("[KeyAuth] HWID reset failed (non-critical):", err);
-      }
+    if (!key || !await resellerOwnsKey(ctx.resellerId, key)) throw new TRPCError3({ code: "FORBIDDEN" });
+    await performHwidReset(key);
+    return { success: true };
+  }),
+  // Resetar HWID informando o valor da key (tela "Reset HWID" do painel)
+  resetHwidByKey: resellerProcedure.input(z2.object({ keyValue: z2.string().min(1).max(128) })).mutation(async ({ ctx, input }) => {
+    const key = await getKeyByValue(input.keyValue.trim());
+    if (!key) throw new TRPCError3({ code: "NOT_FOUND", message: "Key n\xE3o encontrada" });
+    if (!await resellerOwnsKey(ctx.resellerId, key)) {
+      throw new TRPCError3({ code: "FORBIDDEN", message: "Esta key n\xE3o pertence a voc\xEA" });
     }
-    const PUB_EMU_API_URL = "https://resellers.axovgc.site/api/v1/reset";
-    const PUB_EMU_API_KEY = ENV.pubEmuApiKey;
-    if (!PUB_EMU_API_KEY) {
-      throw new TRPCError3({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "PUB_EMU_API_KEY n\xE3o configurada. Configure a vari\xE1vel de ambiente."
-      });
-    }
-    const appName = (app2?.name || "").toUpperCase();
-    if (appName === "PUB EMU" || appName === "PUBEMU" || appName === "EMULATOR PUBLIC") {
-      try {
-        const url = new URL(PUB_EMU_API_URL);
-        url.searchParams.set("apikey", PUB_EMU_API_KEY);
-        const response = await fetch(url.toString(), {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${PUB_EMU_API_KEY}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({ username: key.keyValue, product: "PUB EMU" })
-        });
-        const text2 = await response.text();
-        if (!response.ok) {
-          console.error("[PUB EMU HWID Reset] error:", response.status, text2);
-          throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: `Erro na API de reset HWID: ${response.status} ${text2}` });
-        }
-        console.log("[PUB EMU HWID Reset] success:", text2);
-      } catch (err) {
-        console.error("[PUB EMU HWID Reset] failed:", err);
-        throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: `Falha ao resetar HWID na API externa: ${err}` });
-      }
-    }
+    await performHwidReset(key);
     return { success: true };
   }),
   revokeKey: resellerProcedure.input(z2.object({ keyId: z2.number() })).mutation(async ({ ctx, input }) => {

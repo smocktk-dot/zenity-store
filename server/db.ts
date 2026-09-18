@@ -795,6 +795,14 @@ export async function getKeyById(id: number) {
   return result.length > 0 ? result[0] : undefined;
 }
 
+export async function getKeyByValue(keyValue: string) {
+  await ensureLicenseKeysSchema();
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(licenseKeys).where(eq(licenseKeys.keyValue, keyValue)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
 export async function createLicenseKey(data: InsertLicenseKey) {
   await ensureLicenseKeysSchema();
   const db = await getDb();
