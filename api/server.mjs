@@ -20,7 +20,7 @@ import {
   boolean,
   serial
 } from "drizzle-orm/pg-core";
-var userRoleEnum, resellerTypeEnum, resellerStatusEnum, appStatusEnum, planLevelEnum, keyStatusEnum, transactionTypeEnum, pixPaymentStatusEnum, ticketStatusEnum, ticketSenderEnum, applicationStatusEnum, applicationSenderEnum, supportTicketStatusEnum, supportMessageSenderEnum, appDownloadTypeEnum, users, admins, resellers, resellerApiKeys, categories, apps, stockStatusEnum, subscriptionPlans, resellerApps, licenseKeys, appStock, creditTransactions, pixPayments, ipWhitelist, otherStoreResellers, otherStoreHwids, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages, appDownloads, resellerInfoStatusEnum, resellerInfoProducts;
+var userRoleEnum, resellerTypeEnum, resellerStatusEnum, appStatusEnum, planLevelEnum, keyStatusEnum, transactionTypeEnum, pixPaymentStatusEnum, ticketStatusEnum, ticketSenderEnum, applicationStatusEnum, applicationSenderEnum, supportTicketStatusEnum, supportMessageSenderEnum, appDownloadTypeEnum, users, admins, resellers, resellerApiKeys, categories, apps, stockStatusEnum, subscriptionPlans, resellerApps, licenseKeys, appStock, creditTransactions, pixPayments, ipWhitelist, otherStoreResellers, otherStoreHwids, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages, appDownloads, resellerInfoStatusEnum, resellerInfoProducts, vgauthApps, vgauthLicenses, vgauthUsers, vgauthBans, vgauthSessions, vgauthLogs;
 var init_schema = __esm({
   "drizzle/schema.ts"() {
     "use strict";
@@ -312,6 +312,89 @@ var init_schema = __esm({
       createdAt: timestamp("createdAt").defaultNow().notNull(),
       updatedAt: timestamp("updatedAt").defaultNow().notNull()
     });
+    vgauthApps = pgTable("vgauth_apps", {
+      id: serial("id").primaryKey(),
+      name: varchar("name", { length: 128 }).notNull(),
+      ownerId: varchar("ownerId", { length: 64 }).notNull().unique(),
+      secret: varchar("secret", { length: 128 }).notNull().unique(),
+      version: varchar("version", { length: 32 }).default("1.0").notNull(),
+      status: varchar("status", { length: 16 }).default("active").notNull(),
+      // active | disabled
+      createdAt: timestamp("createdAt").defaultNow().notNull(),
+      updatedAt: timestamp("updatedAt").defaultNow().notNull()
+    });
+    vgauthLicenses = pgTable("vgauth_licenses", {
+      id: serial("id").primaryKey(),
+      appId: integer("appId").notNull().references(() => vgauthApps.id),
+      keyValue: varchar("keyValue", { length: 128 }).notNull().unique(),
+      note: varchar("note", { length: 255 }),
+      subLevel: varchar("subLevel", { length: 64 }).default("default").notNull(),
+      durationValue: integer("durationValue").notNull(),
+      durationUnit: varchar("durationUnit", { length: 16 }).default("days").notNull(),
+      // days|weeks|months|years|lifetime
+      status: varchar("status", { length: 16 }).default("active").notNull(),
+      // active | banned | revoked
+      usedBy: varchar("usedBy", { length: 128 }),
+      hwidMb: varchar("hwidMb", { length: 255 }),
+      hwidCpu: varchar("hwidCpu", { length: 255 }),
+      ip: varchar("ip", { length: 64 }),
+      hwidViolations: integer("hwidViolations").default(0).notNull(),
+      activatedAt: timestamp("activatedAt"),
+      expiresAt: timestamp("expiresAt"),
+      paused: boolean("paused").default(false).notNull(),
+      pausedRemainingSec: integer("pausedRemainingSec"),
+      createdAt: timestamp("createdAt").defaultNow().notNull()
+    });
+    vgauthUsers = pgTable("vgauth_users", {
+      id: serial("id").primaryKey(),
+      appId: integer("appId").notNull().references(() => vgauthApps.id),
+      username: varchar("username", { length: 128 }).notNull(),
+      passwordHash: varchar("passwordHash", { length: 255 }).notNull(),
+      email: varchar("email", { length: 320 }),
+      licenseId: integer("licenseId").references(() => vgauthLicenses.id),
+      subLevel: varchar("subLevel", { length: 64 }).default("default").notNull(),
+      hwidMb: varchar("hwidMb", { length: 255 }),
+      hwidCpu: varchar("hwidCpu", { length: 255 }),
+      ip: varchar("ip", { length: 64 }),
+      status: varchar("status", { length: 16 }).default("active").notNull(),
+      // active | banned
+      expiresAt: timestamp("expiresAt"),
+      lastLogin: timestamp("lastLogin"),
+      createdAt: timestamp("createdAt").defaultNow().notNull()
+    });
+    vgauthBans = pgTable("vgauth_bans", {
+      id: serial("id").primaryKey(),
+      appId: integer("appId").references(() => vgauthApps.id),
+      // app de origem (o ban é global)
+      username: varchar("username", { length: 128 }),
+      ip: varchar("ip", { length: 64 }),
+      hwidMb: varchar("hwidMb", { length: 255 }),
+      hwidCpu: varchar("hwidCpu", { length: 255 }),
+      reason: varchar("reason", { length: 255 }),
+      createdBy: varchar("createdBy", { length: 64 }).default("admin").notNull(),
+      createdAt: timestamp("createdAt").defaultNow().notNull()
+    });
+    vgauthSessions = pgTable("vgauth_sessions", {
+      id: serial("id").primaryKey(),
+      appId: integer("appId").notNull().references(() => vgauthApps.id),
+      token: varchar("token", { length: 128 }).notNull().unique(),
+      encKey: varchar("encKey", { length: 128 }),
+      userId: integer("userId"),
+      username: varchar("username", { length: 128 }),
+      hwidMb: varchar("hwidMb", { length: 255 }),
+      hwidCpu: varchar("hwidCpu", { length: 255 }),
+      ip: varchar("ip", { length: 64 }),
+      expiresAt: timestamp("expiresAt").notNull(),
+      createdAt: timestamp("createdAt").defaultNow().notNull()
+    });
+    vgauthLogs = pgTable("vgauth_logs", {
+      id: serial("id").primaryKey(),
+      appId: integer("appId").references(() => vgauthApps.id),
+      action: varchar("action", { length: 64 }).notNull(),
+      detail: text("detail"),
+      ip: varchar("ip", { length: 64 }),
+      createdAt: timestamp("createdAt").defaultNow().notNull()
+    });
   }
 });
 
@@ -339,6 +422,7 @@ var init_env = __esm({
 // server/db.ts
 var db_exports = {};
 __export(db_exports, {
+  addDaysAllVgauthLicenses: () => addDaysAllVgauthLicenses,
   addIpToWhitelist: () => addIpToWhitelist,
   addStockBatch: () => addStockBatch,
   assignAppToReseller: () => assignAppToReseller,
@@ -362,6 +446,12 @@ __export(db_exports, {
   createSupportTicket: () => createSupportTicket,
   createTicket: () => createTicket,
   createTicketMessage: () => createTicketMessage,
+  createVgauthApp: () => createVgauthApp,
+  createVgauthBan: () => createVgauthBan,
+  createVgauthLicense: () => createVgauthLicense,
+  createVgauthLog: () => createVgauthLog,
+  createVgauthSession: () => createVgauthSession,
+  createVgauthUser: () => createVgauthUser,
   deleteApp: () => deleteApp,
   deleteAppDownload: () => deleteAppDownload,
   deleteCategory: () => deleteCategory,
@@ -374,6 +464,10 @@ __export(db_exports, {
   deleteStock: () => deleteStock,
   deleteSupportTicket: () => deleteSupportTicket,
   deleteTicket: () => deleteTicket,
+  deleteVgauthApp: () => deleteVgauthApp,
+  deleteVgauthBan: () => deleteVgauthBan,
+  deleteVgauthLicense: () => deleteVgauthLicense,
+  deleteVgauthUser: () => deleteVgauthUser,
   ensureAppDownloadsSchema: () => ensureAppDownloadsSchema,
   ensureAppStockSchema: () => ensureAppStockSchema,
   ensureAppsSchema: () => ensureAppsSchema,
@@ -382,6 +476,8 @@ __export(db_exports, {
   ensurePixPaymentSchema: () => ensurePixPaymentSchema,
   ensureResellerApiKeySchema: () => ensureResellerApiKeySchema,
   ensureResellerInfoSchema: () => ensureResellerInfoSchema,
+  ensureVgAuthSchema: () => ensureVgAuthSchema,
+  findVgauthBan: () => findVgauthBan,
   getActiveResellerInfoProducts: () => getActiveResellerInfoProducts,
   getAdminById: () => getAdminById,
   getAdminByUsername: () => getAdminByUsername,
@@ -395,6 +491,7 @@ __export(db_exports, {
   getAllResellers: () => getAllResellers,
   getAllSupportTickets: () => getAllSupportTickets,
   getAllTickets: () => getAllTickets,
+  getAllVgauthApps: () => getAllVgauthApps,
   getAppById: () => getAppById,
   getAppByName: () => getAppByName,
   getAppByNameLike: () => getAppByNameLike,
@@ -447,15 +544,27 @@ __export(db_exports, {
   getTicketsByResellerId: () => getTicketsByResellerId,
   getTransactionsByResellerId: () => getTransactionsByResellerId,
   getUserByOpenId: () => getUserByOpenId,
+  getVgauthAppById: () => getVgauthAppById,
+  getVgauthAppByOwnerId: () => getVgauthAppByOwnerId,
+  getVgauthBans: () => getVgauthBans,
+  getVgauthLicenseById: () => getVgauthLicenseById,
+  getVgauthLicenseByKey: () => getVgauthLicenseByKey,
+  getVgauthLicensesByApp: () => getVgauthLicensesByApp,
+  getVgauthLogs: () => getVgauthLogs,
+  getVgauthSessionByToken: () => getVgauthSessionByToken,
+  getVgauthUserByUsername: () => getVgauthUserByUsername,
+  getVgauthUsersByApp: () => getVgauthUsersByApp,
   isAdminIpAllowed: () => isAdminIpAllowed,
   isIpWhitelisted: () => isIpWhitelisted,
   isResellerIpAllowed: () => isResellerIpAllowed,
   listResellerApiKeys: () => listResellerApiKeys,
   normalizeIp: () => normalizeIp,
+  pauseAllVgauthLicenses: () => pauseAllVgauthLicenses,
   releaseStockReservation: () => releaseStockReservation,
   removeAppFromReseller: () => removeAppFromReseller,
   removeIpFromWhitelist: () => removeIpFromWhitelist,
   reserveStockForReseller: () => reserveStockForReseller,
+  resumeAllVgauthLicenses: () => resumeAllVgauthLicenses,
   revokeResellerApiKey: () => revokeResellerApiKey,
   transferResellerKeys: () => transferResellerKeys,
   updateAdminPassword: () => updateAdminPassword,
@@ -476,6 +585,10 @@ __export(db_exports, {
   updateSupportTicketTimestamp: () => updateSupportTicketTimestamp,
   updateTicketStatus: () => updateTicketStatus,
   updateTicketTimestamp: () => updateTicketTimestamp,
+  updateVgauthApp: () => updateVgauthApp,
+  updateVgauthLicense: () => updateVgauthLicense,
+  updateVgauthSession: () => updateVgauthSession,
+  updateVgauthUser: () => updateVgauthUser,
   upsertUser: () => upsertUser
 });
 import { eq, and, asc, desc, sql, inArray, or, aliasedTable, ilike } from "drizzle-orm";
@@ -1685,7 +1798,335 @@ async function deleteResellerInfoProduct(id) {
   if (!db) throw new Error("DB not available");
   await db.delete(resellerInfoProducts).where(eq(resellerInfoProducts.id, id));
 }
-var _db, _sqlClient, _pixPaymentSchemaReady, _appStockSchemaReady, _licenseKeysSchemaReady, _appsSchemaReady, _appDownloadsSchemaReady, _resellerApiKeysSchemaReady, _otherStoreSchemaReady, _resellerInfoSchemaReady;
+async function ensureVgAuthSchema() {
+  await getDb();
+  if (!_sqlClient) throw new Error("DB not available");
+  if (!_vgauthSchemaReady) {
+    _vgauthSchemaReady = (async () => {
+      await _sqlClient.unsafe(`CREATE TABLE IF NOT EXISTS "vgauth_apps" (
+        "id" serial PRIMARY KEY,
+        "name" varchar(128) NOT NULL,
+        "ownerId" varchar(64) NOT NULL UNIQUE,
+        "secret" varchar(128) NOT NULL UNIQUE,
+        "version" varchar(32) DEFAULT '1.0' NOT NULL,
+        "status" varchar(16) DEFAULT 'active' NOT NULL,
+        "createdAt" timestamp DEFAULT now() NOT NULL,
+        "updatedAt" timestamp DEFAULT now() NOT NULL
+      )`);
+      await _sqlClient.unsafe(`CREATE TABLE IF NOT EXISTS "vgauth_licenses" (
+        "id" serial PRIMARY KEY,
+        "appId" integer NOT NULL REFERENCES "vgauth_apps"("id"),
+        "keyValue" varchar(128) NOT NULL UNIQUE,
+        "note" varchar(255),
+        "subLevel" varchar(64) DEFAULT 'default' NOT NULL,
+        "durationValue" integer NOT NULL,
+        "durationUnit" varchar(16) DEFAULT 'days' NOT NULL,
+        "status" varchar(16) DEFAULT 'active' NOT NULL,
+        "usedBy" varchar(128),
+        "hwidMb" varchar(255),
+        "hwidCpu" varchar(255),
+        "ip" varchar(64),
+        "hwidViolations" integer DEFAULT 0 NOT NULL,
+        "activatedAt" timestamp,
+        "expiresAt" timestamp,
+        "paused" boolean DEFAULT false NOT NULL,
+        "pausedRemainingSec" integer,
+        "createdAt" timestamp DEFAULT now() NOT NULL
+      )`);
+      await _sqlClient.unsafe(`CREATE TABLE IF NOT EXISTS "vgauth_users" (
+        "id" serial PRIMARY KEY,
+        "appId" integer NOT NULL REFERENCES "vgauth_apps"("id"),
+        "username" varchar(128) NOT NULL,
+        "passwordHash" varchar(255) NOT NULL,
+        "email" varchar(320),
+        "licenseId" integer REFERENCES "vgauth_licenses"("id"),
+        "subLevel" varchar(64) DEFAULT 'default' NOT NULL,
+        "hwidMb" varchar(255),
+        "hwidCpu" varchar(255),
+        "ip" varchar(64),
+        "status" varchar(16) DEFAULT 'active' NOT NULL,
+        "expiresAt" timestamp,
+        "lastLogin" timestamp,
+        "createdAt" timestamp DEFAULT now() NOT NULL
+      )`);
+      await _sqlClient.unsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "vgauth_users_app_username" ON "vgauth_users" ("appId", "username")`);
+      await _sqlClient.unsafe(`CREATE TABLE IF NOT EXISTS "vgauth_bans" (
+        "id" serial PRIMARY KEY,
+        "appId" integer REFERENCES "vgauth_apps"("id"),
+        "username" varchar(128),
+        "ip" varchar(64),
+        "hwidMb" varchar(255),
+        "hwidCpu" varchar(255),
+        "reason" varchar(255),
+        "createdBy" varchar(64) DEFAULT 'admin' NOT NULL,
+        "createdAt" timestamp DEFAULT now() NOT NULL
+      )`);
+      await _sqlClient.unsafe(`CREATE TABLE IF NOT EXISTS "vgauth_sessions" (
+        "id" serial PRIMARY KEY,
+        "appId" integer NOT NULL REFERENCES "vgauth_apps"("id"),
+        "token" varchar(128) NOT NULL UNIQUE,
+        "encKey" varchar(128),
+        "userId" integer,
+        "username" varchar(128),
+        "hwidMb" varchar(255),
+        "hwidCpu" varchar(255),
+        "ip" varchar(64),
+        "expiresAt" timestamp NOT NULL,
+        "createdAt" timestamp DEFAULT now() NOT NULL
+      )`);
+      await _sqlClient.unsafe(`CREATE TABLE IF NOT EXISTS "vgauth_logs" (
+        "id" serial PRIMARY KEY,
+        "appId" integer REFERENCES "vgauth_apps"("id"),
+        "action" varchar(64) NOT NULL,
+        "detail" text,
+        "ip" varchar(64),
+        "createdAt" timestamp DEFAULT now() NOT NULL
+      )`);
+    })().then(() => void 0).catch((error) => {
+      _vgauthSchemaReady = null;
+      console.error("[Database] Failed to ensure vgauth schema:", error);
+      throw new Error("N\xE3o foi poss\xEDvel preparar o banco para VG Auth");
+    });
+  }
+  return _vgauthSchemaReady;
+}
+async function getAllVgauthApps() {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(vgauthApps).orderBy(desc(vgauthApps.createdAt));
+}
+async function getVgauthAppById(id) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db.select().from(vgauthApps).where(eq(vgauthApps.id, id));
+  return row ?? null;
+}
+async function getVgauthAppByOwnerId(ownerId) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db.select().from(vgauthApps).where(eq(vgauthApps.ownerId, ownerId));
+  return row ?? null;
+}
+async function createVgauthApp(data) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.insert(vgauthApps).values(data).returning();
+  return row;
+}
+async function updateVgauthApp(id, data) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.update(vgauthApps).set({ ...data, updatedAt: /* @__PURE__ */ new Date() }).where(eq(vgauthApps.id, id)).returning();
+  return row;
+}
+async function deleteVgauthApp(id) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.delete(vgauthLogs).where(eq(vgauthLogs.appId, id));
+  await db.delete(vgauthSessions).where(eq(vgauthSessions.appId, id));
+  await db.delete(vgauthBans).where(eq(vgauthBans.appId, id));
+  await db.delete(vgauthUsers).where(eq(vgauthUsers.appId, id));
+  await db.delete(vgauthLicenses).where(eq(vgauthLicenses.appId, id));
+  await db.delete(vgauthApps).where(eq(vgauthApps.id, id));
+}
+async function getVgauthLicensesByApp(appId) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(vgauthLicenses).where(eq(vgauthLicenses.appId, appId)).orderBy(desc(vgauthLicenses.createdAt));
+}
+async function getVgauthLicenseByKey(appId, keyValue) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db.select().from(vgauthLicenses).where(and(eq(vgauthLicenses.appId, appId), eq(vgauthLicenses.keyValue, keyValue)));
+  return row ?? null;
+}
+async function getVgauthLicenseById(id) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db.select().from(vgauthLicenses).where(eq(vgauthLicenses.id, id));
+  return row ?? null;
+}
+async function createVgauthLicense(data) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.insert(vgauthLicenses).values(data).returning();
+  return row;
+}
+async function updateVgauthLicense(id, data) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.update(vgauthLicenses).set(data).where(eq(vgauthLicenses.id, id)).returning();
+  return row;
+}
+async function deleteVgauthLicense(id) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.delete(vgauthLicenses).where(eq(vgauthLicenses.id, id));
+}
+async function pauseAllVgauthLicenses(appId) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return 0;
+  const now = /* @__PURE__ */ new Date();
+  const rows = await db.select().from(vgauthLicenses).where(and(eq(vgauthLicenses.appId, appId), eq(vgauthLicenses.paused, false)));
+  let count = 0;
+  for (const lic of rows) {
+    const remaining = lic.expiresAt ? Math.max(0, Math.floor((lic.expiresAt.getTime() - now.getTime()) / 1e3)) : null;
+    await db.update(vgauthLicenses).set({ paused: true, pausedRemainingSec: remaining, expiresAt: null }).where(eq(vgauthLicenses.id, lic.id));
+    count++;
+  }
+  return count;
+}
+async function resumeAllVgauthLicenses(appId) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return 0;
+  const now = Date.now();
+  const rows = await db.select().from(vgauthLicenses).where(and(eq(vgauthLicenses.appId, appId), eq(vgauthLicenses.paused, true)));
+  let count = 0;
+  for (const lic of rows) {
+    const expiresAt = lic.pausedRemainingSec != null ? new Date(now + lic.pausedRemainingSec * 1e3) : null;
+    await db.update(vgauthLicenses).set({ paused: false, pausedRemainingSec: null, expiresAt }).where(eq(vgauthLicenses.id, lic.id));
+    count++;
+  }
+  return count;
+}
+async function addDaysAllVgauthLicenses(appId, days) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return 0;
+  const addSec = days * 86400;
+  const now = Date.now();
+  const rows = await db.select().from(vgauthLicenses).where(eq(vgauthLicenses.appId, appId));
+  let count = 0;
+  for (const lic of rows) {
+    if (lic.paused) {
+      const remaining = (lic.pausedRemainingSec ?? 0) + addSec;
+      await db.update(vgauthLicenses).set({ pausedRemainingSec: remaining }).where(eq(vgauthLicenses.id, lic.id));
+    } else {
+      if (!lic.activatedAt && !lic.expiresAt) continue;
+      const base = lic.expiresAt && lic.expiresAt.getTime() > now ? lic.expiresAt.getTime() : now;
+      await db.update(vgauthLicenses).set({ expiresAt: new Date(base + addSec * 1e3) }).where(eq(vgauthLicenses.id, lic.id));
+    }
+    count++;
+  }
+  return count;
+}
+async function getVgauthUsersByApp(appId) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(vgauthUsers).where(eq(vgauthUsers.appId, appId)).orderBy(desc(vgauthUsers.createdAt));
+}
+async function getVgauthUserByUsername(appId, username) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db.select().from(vgauthUsers).where(and(eq(vgauthUsers.appId, appId), eq(vgauthUsers.username, username)));
+  return row ?? null;
+}
+async function createVgauthUser(data) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.insert(vgauthUsers).values(data).returning();
+  return row;
+}
+async function updateVgauthUser(id, data) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.update(vgauthUsers).set(data).where(eq(vgauthUsers.id, id)).returning();
+  return row;
+}
+async function deleteVgauthUser(id) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.delete(vgauthUsers).where(eq(vgauthUsers.id, id));
+}
+async function getVgauthBans(appId) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return [];
+  if (appId) {
+    return db.select().from(vgauthBans).where(eq(vgauthBans.appId, appId)).orderBy(desc(vgauthBans.createdAt));
+  }
+  return db.select().from(vgauthBans).orderBy(desc(vgauthBans.createdAt));
+}
+async function findVgauthBan(identifiers) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return null;
+  const conds = [];
+  if (identifiers.ip) conds.push(eq(vgauthBans.ip, identifiers.ip));
+  if (identifiers.hwidMb) conds.push(eq(vgauthBans.hwidMb, identifiers.hwidMb));
+  if (identifiers.hwidCpu) conds.push(eq(vgauthBans.hwidCpu, identifiers.hwidCpu));
+  if (conds.length === 0) return null;
+  const [row] = await db.select().from(vgauthBans).where(or(...conds)).limit(1);
+  return row ?? null;
+}
+async function createVgauthBan(data) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.insert(vgauthBans).values(data).returning();
+  return row;
+}
+async function deleteVgauthBan(id) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.delete(vgauthBans).where(eq(vgauthBans.id, id));
+}
+async function createVgauthSession(data) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.insert(vgauthSessions).values(data).returning();
+  return row;
+}
+async function getVgauthSessionByToken(token) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db.select().from(vgauthSessions).where(eq(vgauthSessions.token, token));
+  return row ?? null;
+}
+async function updateVgauthSession(id, data) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(vgauthSessions).set(data).where(eq(vgauthSessions.id, id));
+}
+async function createVgauthLog(data) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return;
+  try {
+    await db.insert(vgauthLogs).values(data);
+  } catch {
+  }
+}
+async function getVgauthLogs(appId, limit = 200) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(vgauthLogs).where(eq(vgauthLogs.appId, appId)).orderBy(desc(vgauthLogs.createdAt)).limit(limit);
+}
+var _db, _sqlClient, _pixPaymentSchemaReady, _appStockSchemaReady, _licenseKeysSchemaReady, _appsSchemaReady, _appDownloadsSchemaReady, _resellerApiKeysSchemaReady, _otherStoreSchemaReady, _resellerInfoSchemaReady, _vgauthSchemaReady;
 var init_db = __esm({
   "server/db.ts"() {
     "use strict";
@@ -1701,6 +2142,7 @@ var init_db = __esm({
     _resellerApiKeysSchemaReady = null;
     _otherStoreSchemaReady = null;
     _resellerInfoSchemaReady = null;
+    _vgauthSchemaReady = null;
   }
 });
 
@@ -2769,8 +3211,8 @@ function registerResellerApi(app2) {
     res.json({ keys, cost: totalCost.toFixed(2), balanceAfter: newCredits.toFixed(2), plan: { id: plan.id, name: plan.name, durationDays: plan.durationDays } });
   });
   app2.post("/api/reseller/v1/other-store/hwid", async (_req, res) => {
-    const crypto3 = await import("crypto");
-    const hwid = "oshw_" + crypto3.randomUUID().replace(/-/g, "");
+    const crypto4 = await import("crypto");
+    const hwid = "oshw_" + crypto4.randomUUID().replace(/-/g, "");
     res.json({ hwid });
   });
   app2.post("/api/reseller/v1/other-store/charge", async (req, res) => {
@@ -2830,6 +3272,356 @@ function registerResellerApi(app2) {
   registerAppResellerApi(app2, "/api/stock/v1", ["STOCK", "Stock", "stock"]);
 }
 
+// server/vgauthApi.ts
+init_db();
+import crypto2 from "crypto";
+import bcrypt from "bcryptjs";
+function getClientIp(req) {
+  const h = req.headers;
+  const candidates = [
+    h["cf-connecting-ip"] || "",
+    h["true-client-ip"] || "",
+    h["x-real-ip"] || "",
+    (h["x-forwarded-for"] || "").split(",")[0].trim(),
+    req.socket?.remoteAddress || ""
+  ];
+  let ip = (candidates.find((c) => c && c.length > 0) || "").trim();
+  const mapped = ip.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
+  if (mapped) ip = mapped[1];
+  return ip || "unknown";
+}
+function randToken(bytes = 32) {
+  return crypto2.randomBytes(bytes).toString("hex");
+}
+function sign(secret, success, message, sessionid, ts) {
+  const payload = `${success ? "1" : "0"}|${message}|${sessionid}|${ts}`;
+  return crypto2.createHmac("sha256", secret).update(payload).digest("hex");
+}
+function respond(res, secret, payload) {
+  const ts = Math.floor(Date.now() / 1e3);
+  const body = { ts, ...payload };
+  if (secret) {
+    body.signature = sign(secret, !!payload.success, String(payload.message ?? ""), String(payload.sessionid ?? ""), ts);
+  }
+  return res.json(body);
+}
+function durationToMs(value, unit) {
+  const v = Math.max(0, value);
+  switch (unit) {
+    case "minutes":
+      return v * 6e4;
+    case "hours":
+      return v * 36e5;
+    case "days":
+      return v * 864e5;
+    case "weeks":
+      return v * 6048e5;
+    case "months":
+      return v * 2592e6;
+    case "years":
+      return v * 31536e6;
+    case "lifetime":
+      return null;
+    default:
+      return v * 864e5;
+  }
+}
+var rateBuckets = /* @__PURE__ */ new Map();
+function rateLimit(key, max, windowMs) {
+  const now = Date.now();
+  const b = rateBuckets.get(key);
+  if (!b || b.resetAt < now) {
+    rateBuckets.set(key, { count: 1, resetAt: now + windowMs });
+    return true;
+  }
+  b.count++;
+  return b.count <= max;
+}
+setInterval(() => {
+  const now = Date.now();
+  rateBuckets.forEach((b, k) => {
+    if (b.resetAt < now) rateBuckets.delete(k);
+  });
+}, 6e4).unref();
+var MAX_HWID_VIOLATIONS = 3;
+function registerVgAuthApi(app2) {
+  app2.post("/api/vgauth/v1", async (req, res) => {
+    const ip = getClientIp(req);
+    const body = req.body || {};
+    const type = String(body.type || req.query.type || "").toLowerCase();
+    if (!rateLimit(`vga:${ip}`, 60, 6e4)) {
+      return respond(res, null, { success: false, message: "rate_limited" });
+    }
+    try {
+      if (type === "init") {
+        const { name, ownerid, secret: secret2, ver } = body;
+        if (!name || !ownerid || !secret2) {
+          return respond(res, null, { success: false, message: "missing_params" });
+        }
+        const appRow = await getVgauthAppByOwnerId(String(ownerid));
+        if (!appRow || appRow.name !== String(name) || appRow.secret !== String(secret2)) {
+          return respond(res, null, { success: false, message: "invalid_app_credentials" });
+        }
+        if (appRow.status !== "active") {
+          return respond(res, appRow.secret, { success: false, message: "app_disabled" });
+        }
+        const sessionid2 = randToken(24);
+        const encKey = randToken(16);
+        await createVgauthSession({
+          appId: appRow.id,
+          token: sessionid2,
+          encKey,
+          ip,
+          expiresAt: new Date(Date.now() + 24 * 36e5)
+        });
+        await createVgauthLog({ appId: appRow.id, action: "session.init", detail: `ver=${ver || "?"}`, ip });
+        return respond(res, appRow.secret, {
+          success: true,
+          message: "initialized",
+          sessionid: sessionid2,
+          enckey: encKey,
+          appinfo: { name: appRow.name, version: appRow.version },
+          versionMismatch: ver && ver !== appRow.version ? true : void 0
+        });
+      }
+      const sessionid = String(body.sessionid || "");
+      if (!sessionid) return respond(res, null, { success: false, message: "missing_session" });
+      const session = await getVgauthSessionByToken(sessionid);
+      if (!session || session.expiresAt.getTime() < Date.now()) {
+        return respond(res, null, { success: false, message: "invalid_session" });
+      }
+      const appRec = await getVgauthAppById(session.appId);
+      if (!appRec || appRec.status !== "active") {
+        return respond(res, null, { success: false, message: "app_disabled" });
+      }
+      const secret = appRec.secret;
+      if (["register", "login", "license"].includes(type) && !rateLimit(`vga:${ip}:${type}`, 12, 6e4)) {
+        return respond(res, secret, { success: false, message: "rate_limited", sessionid });
+      }
+      const hwidMb = String(body.hwid_mb || body.hwid || "").trim() || null;
+      const hwidCpu = String(body.hwid_cpu || "").trim() || null;
+      const banHit = await findVgauthBan({ ip, hwidMb, hwidCpu });
+      if (banHit && ["register", "login", "license"].includes(type)) {
+        await createVgauthLog({ appId: appRec.id, action: "auth.banned_attempt", detail: `type=${type} banId=${banHit.id}`, ip });
+        return respond(res, secret, { success: false, message: "banned", sessionid });
+      }
+      if (type === "register") {
+        const { username, pass, key, email } = body;
+        if (!username || !pass || !key) {
+          return respond(res, secret, { success: false, message: "missing_params", sessionid });
+        }
+        const uname = String(username).trim();
+        if (uname.length < 3 || uname.length > 32) {
+          return respond(res, secret, { success: false, message: "invalid_username", sessionid });
+        }
+        const existing = await getVgauthUserByUsername(appRec.id, uname);
+        if (existing) {
+          return respond(res, secret, { success: false, message: "username_taken", sessionid });
+        }
+        const lic = await getVgauthLicenseByKey(appRec.id, String(key).trim());
+        if (!lic || lic.status !== "active") {
+          return respond(res, secret, { success: false, message: "invalid_key", sessionid });
+        }
+        if (lic.usedBy) {
+          return respond(res, secret, { success: false, message: "key_already_used", sessionid });
+        }
+        if (lic.paused) {
+          return respond(res, secret, { success: false, message: "key_paused", sessionid });
+        }
+        const passwordHash = await bcrypt.hash(String(pass), 10);
+        const durMs = durationToMs(lic.durationValue, lic.durationUnit);
+        const expiresAt = durMs === null ? null : new Date(Date.now() + durMs);
+        const user = await createVgauthUser({
+          appId: appRec.id,
+          username: uname,
+          passwordHash,
+          email: email ? String(email) : null,
+          licenseId: lic.id,
+          subLevel: lic.subLevel,
+          hwidMb,
+          hwidCpu,
+          ip,
+          expiresAt,
+          lastLogin: /* @__PURE__ */ new Date()
+        });
+        await updateVgauthLicense(lic.id, {
+          usedBy: uname,
+          hwidMb,
+          hwidCpu,
+          ip,
+          activatedAt: /* @__PURE__ */ new Date(),
+          expiresAt
+        });
+        await updateVgauthSession(session.id, { userId: user.id, username: uname, hwidMb, hwidCpu });
+        await createVgauthLog({ appId: appRec.id, action: "user.register", detail: `${uname} key=${String(key).slice(0, 8)}\u2026`, ip });
+        return respond(res, secret, {
+          success: true,
+          message: "registered",
+          sessionid,
+          info: { username: uname, subLevel: lic.subLevel, expiresAt: expiresAt?.toISOString() ?? "lifetime" }
+        });
+      }
+      if (type === "login") {
+        const { username, pass } = body;
+        if (!username || !pass) {
+          return respond(res, secret, { success: false, message: "missing_params", sessionid });
+        }
+        const user = await getVgauthUserByUsername(appRec.id, String(username).trim());
+        if (!user || !await bcrypt.compare(String(pass), user.passwordHash)) {
+          await createVgauthLog({ appId: appRec.id, action: "auth.failed_login", detail: String(username).slice(0, 32), ip });
+          return respond(res, secret, { success: false, message: "invalid_credentials", sessionid });
+        }
+        if (user.status === "banned") {
+          return respond(res, secret, { success: false, message: "banned", sessionid });
+        }
+        const license = user.licenseId ? await getVgauthLicenseById(user.licenseId) : null;
+        if (license) {
+          if (license.status !== "active") {
+            return respond(res, secret, { success: false, message: `key_${license.status}`, sessionid });
+          }
+          if (license.paused) {
+            return respond(res, secret, { success: false, message: "key_paused", sessionid });
+          }
+          if (license.expiresAt && license.expiresAt.getTime() < Date.now()) {
+            return respond(res, secret, { success: false, message: "subscription_expired", sessionid });
+          }
+        }
+        const hwidMismatch = user.hwidMb && hwidMb && user.hwidMb !== hwidMb || user.hwidCpu && hwidCpu && user.hwidCpu !== hwidCpu || user.hwidMb && !hwidMb || user.hwidCpu && !hwidCpu;
+        if (hwidMismatch) {
+          if (license) {
+            const violations = (license.hwidViolations ?? 0) + 1;
+            await updateVgauthLicense(license.id, { hwidViolations: violations });
+            if (violations >= MAX_HWID_VIOLATIONS) {
+              await updateVgauthLicense(license.id, { status: "banned" });
+              await updateVgauthUser(user.id, { status: "banned" });
+              await createVgauthBan({
+                appId: appRec.id,
+                username: user.username,
+                ip,
+                hwidMb,
+                hwidCpu,
+                reason: "auto: hwid mismatch x" + violations,
+                createdBy: "system"
+              });
+              await createVgauthLog({ appId: appRec.id, action: "auth.auto_ban", detail: `${user.username} hwid mismatch`, ip });
+              return respond(res, secret, { success: false, message: "banned", sessionid });
+            }
+          }
+          await createVgauthLog({ appId: appRec.id, action: "auth.hwid_mismatch", detail: user.username, ip });
+          return respond(res, secret, { success: false, message: "hwid_mismatch", sessionid });
+        }
+        await updateVgauthUser(user.id, { lastLogin: /* @__PURE__ */ new Date(), ip });
+        await updateVgauthSession(session.id, { userId: user.id, username: user.username, hwidMb, hwidCpu });
+        return respond(res, secret, {
+          success: true,
+          message: "logged_in",
+          sessionid,
+          info: {
+            username: user.username,
+            email: user.email,
+            subLevel: user.subLevel,
+            expiresAt: user.expiresAt ? user.expiresAt.toISOString() : "lifetime",
+            createdAt: user.createdAt.toISOString()
+          }
+        });
+      }
+      if (type === "license") {
+        const key = String(body.key || "").trim();
+        if (!key) return respond(res, secret, { success: false, message: "missing_params", sessionid });
+        const lic = await getVgauthLicenseByKey(appRec.id, key);
+        if (!lic || lic.status !== "active") {
+          return respond(res, secret, { success: false, message: "invalid_key", sessionid });
+        }
+        if (lic.paused) {
+          return respond(res, secret, { success: false, message: "key_paused", sessionid });
+        }
+        if (lic.expiresAt && lic.expiresAt.getTime() < Date.now()) {
+          return respond(res, secret, { success: false, message: "subscription_expired", sessionid });
+        }
+        if (!lic.usedBy) {
+          const durMs = durationToMs(lic.durationValue, lic.durationUnit);
+          const expiresAt = durMs === null ? null : new Date(Date.now() + durMs);
+          await updateVgauthLicense(lic.id, {
+            usedBy: `key:${key.slice(0, 12)}`,
+            hwidMb,
+            hwidCpu,
+            ip,
+            activatedAt: /* @__PURE__ */ new Date(),
+            expiresAt
+          });
+          await updateVgauthSession(session.id, { username: `key:${key.slice(0, 12)}`, hwidMb, hwidCpu });
+          await createVgauthLog({ appId: appRec.id, action: "license.activated", detail: key.slice(0, 12), ip });
+          return respond(res, secret, {
+            success: true,
+            message: "activated",
+            sessionid,
+            info: { username: `key:${key.slice(0, 12)}`, subLevel: lic.subLevel, expiresAt: expiresAt?.toISOString() ?? "lifetime" }
+          });
+        }
+        const mismatch = lic.hwidMb && hwidMb && lic.hwidMb !== hwidMb || lic.hwidCpu && hwidCpu && lic.hwidCpu !== hwidCpu || lic.hwidMb && !hwidMb || lic.hwidCpu && !hwidCpu;
+        if (mismatch) {
+          const violations = (lic.hwidViolations ?? 0) + 1;
+          await updateVgauthLicense(lic.id, { hwidViolations: violations });
+          if (violations >= MAX_HWID_VIOLATIONS) {
+            await updateVgauthLicense(lic.id, { status: "banned" });
+            await createVgauthBan({
+              appId: appRec.id,
+              username: lic.usedBy,
+              ip,
+              hwidMb,
+              hwidCpu,
+              reason: "auto: hwid mismatch x" + violations,
+              createdBy: "system"
+            });
+            await createVgauthLog({ appId: appRec.id, action: "auth.auto_ban", detail: `license ${key.slice(0, 12)}`, ip });
+            return respond(res, secret, { success: false, message: "banned", sessionid });
+          }
+          await createVgauthLog({ appId: appRec.id, action: "auth.hwid_mismatch", detail: `license ${key.slice(0, 12)}`, ip });
+          return respond(res, secret, { success: false, message: "hwid_mismatch", sessionid });
+        }
+        await updateVgauthSession(session.id, { username: lic.usedBy, hwidMb, hwidCpu });
+        return respond(res, secret, {
+          success: true,
+          message: "authenticated",
+          sessionid,
+          info: { username: lic.usedBy, subLevel: lic.subLevel, expiresAt: lic.expiresAt ? lic.expiresAt.toISOString() : "lifetime" }
+        });
+      }
+      if (type === "check") {
+        if (session.userId) {
+          const user = await getVgauthUserByUsername(appRec.id, session.username || "");
+          if (!user || user.status === "banned") {
+            return respond(res, secret, { success: false, message: "banned", sessionid });
+          }
+          if (user.licenseId) {
+            const lic = await getVgauthLicenseById(user.licenseId);
+            if (lic && (lic.status !== "active" || lic.paused || lic.expiresAt && lic.expiresAt.getTime() < Date.now())) {
+              return respond(res, secret, { success: false, message: "subscription_invalid", sessionid });
+            }
+          }
+        }
+        return respond(res, secret, {
+          success: true,
+          message: "session_valid",
+          sessionid,
+          sessionExpiresAt: session.expiresAt.toISOString()
+        });
+      }
+      if (type === "log") {
+        await createVgauthLog({ appId: appRec.id, action: "client.log", detail: String(body.message || "").slice(0, 500), ip });
+        return respond(res, secret, { success: true, message: "logged", sessionid });
+      }
+      return respond(res, secret, { success: false, message: "unknown_type", sessionid });
+    } catch (err) {
+      console.error("[VGAuth] error:", err);
+      return respond(res, null, { success: false, message: "server_error" });
+    }
+  });
+  app2.get("/api/vgauth/v1", (_req, res) => {
+    res.json({ name: "VG Auth", version: "1.0", usage: "POST { type, name, ownerid, secret, ... }" });
+  });
+}
+
 // server/_core/storageProxy.ts
 init_env();
 function registerStorageProxy(app2) {
@@ -2875,7 +3667,7 @@ function registerStorageProxy(app2) {
 // server/routers.ts
 import { z as z2 } from "zod";
 import { TRPCError as TRPCError3 } from "@trpc/server";
-import bcrypt from "bcryptjs";
+import bcrypt2 from "bcryptjs";
 import { SignJWT as SignJWT2, jwtVerify as jwtVerify2 } from "jose";
 
 // server/_core/systemRouter.ts
@@ -3027,17 +3819,17 @@ init_env();
 
 // server/purinCashWebhook.ts
 init_db();
-import crypto2 from "crypto";
+import crypto3 from "crypto";
 var FINAL_PAYMENT_STATUSES = /* @__PURE__ */ new Set(["expired", "cancelled", "refunded"]);
 var PURIN_API_KEY = process.env.PURIN_CASH_API_KEY;
 var PURIN_WEBHOOK_SECRET = process.env.PURINCASH_WEBHOOK_SECRET;
 function isValidHmac(rawBody, signature, secret) {
   if (!signature || !secret) return false;
   const sig = Array.isArray(signature) ? signature[0] : signature;
-  const expected = crypto2.createHmac("sha256", secret).update(rawBody).digest("hex");
+  const expected = crypto3.createHmac("sha256", secret).update(rawBody).digest("hex");
   if (sig.length !== expected.length) return false;
   try {
-    return crypto2.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
+    return crypto3.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
   } catch {
     return false;
   }
@@ -3319,7 +4111,7 @@ function extractPixData(data) {
     qrCodeImage: data?.pix?.qrCodeImage || data?.pix?.qrCodeBase64 || data?.pix?.qr_code || data?.qrCodeImage || data?.qrCodeBase64 || data?.qrCode || data?.qr_code || null
   };
 }
-function getClientIp(req) {
+function getClientIp2(req) {
   const h = req.headers;
   const candidates = [
     h["cf-connecting-ip"] || "",
@@ -3465,7 +4257,7 @@ function checkLoginRateLimit(ip) {
 var authRouter = router({
   me: publicProcedure.query((opts) => opts.ctx.user),
   adminLogin: publicProcedure.input(z2.object({ username: z2.string(), password: z2.string() })).mutation(async ({ input, ctx }) => {
-    const clientIp = getClientIp(ctx.req);
+    const clientIp = getClientIp2(ctx.req);
     if (!checkLoginRateLimit(clientIp)) {
       throw new TRPCError3({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Tente novamente em 15 minutos." });
     }
@@ -3473,7 +4265,7 @@ var authRouter = router({
     if (!ipAllowed) throw new TRPCError3({ code: "FORBIDDEN", message: "Acesso negado: IP nao autorizado" });
     const admin = await getAdminByUsername(input.username);
     if (!admin) throw new TRPCError3({ code: "UNAUTHORIZED", message: "Credenciais inv\xE1lidas" });
-    const valid = await bcrypt.compare(input.password, admin.passwordHash);
+    const valid = await bcrypt2.compare(input.password, admin.passwordHash);
     if (!valid) throw new TRPCError3({ code: "UNAUTHORIZED", message: "Credenciais inv\xE1lidas" });
     const token = await signCustomJwt({ sub: String(admin.id), role: "admin", username: admin.username });
     ctx.res.cookie(CUSTOM_COOKIE, token, { ...getSessionCookieOptions(ctx.req), maxAge: 7 * 24 * 3600 * 1e3 });
@@ -3484,15 +4276,15 @@ var authRouter = router({
     password: z2.string(),
     remember: z2.boolean().default(false)
   })).mutation(async ({ input, ctx }) => {
-    const clientIp = getClientIp(ctx.req);
+    const clientIp = getClientIp2(ctx.req);
     if (!checkLoginRateLimit(clientIp)) {
       throw new TRPCError3({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Tente novamente em 15 minutos." });
     }
     const admin = await getAdminByUsername(input.username);
     if (admin) {
-      const validAdmin = await bcrypt.compare(input.password, admin.passwordHash);
+      const validAdmin = await bcrypt2.compare(input.password, admin.passwordHash);
       if (validAdmin) {
-        const clientIp2 = getClientIp(ctx.req);
+        const clientIp2 = getClientIp2(ctx.req);
         const ipAllowed = await isAdminIpAllowed(clientIp2);
         if (!ipAllowed) throw new TRPCError3({ code: "FORBIDDEN", message: "Acesso negado: IP nao autorizado" });
         const token2 = await signCustomJwt({ sub: String(admin.id), role: "admin", username: admin.username });
@@ -3504,7 +4296,7 @@ var authRouter = router({
     const reseller = await getResellerByUsername(input.username);
     if (!reseller) throw new TRPCError3({ code: "UNAUTHORIZED", message: "Credenciais inv\xE1lidas" });
     if (reseller.status !== "active") throw new TRPCError3({ code: "FORBIDDEN", message: "Conta desativada" });
-    const valid = await bcrypt.compare(input.password, reseller.passwordHash);
+    const valid = await bcrypt2.compare(input.password, reseller.passwordHash);
     if (!valid) throw new TRPCError3({ code: "UNAUTHORIZED", message: "Credenciais inv\xE1lidas" });
     await updateReseller(reseller.id, { lastLoginAt: /* @__PURE__ */ new Date() });
     const otherStoreOwnerId = reseller.parentResellerId ?? reseller.id;
@@ -3564,7 +4356,7 @@ var authRouter = router({
     }
     const existing = await getAdminByUsername(input.username);
     if (existing) throw new TRPCError3({ code: "CONFLICT", message: "Admin j\xE1 existe" });
-    const passwordHash = await bcrypt.hash(input.password, 10);
+    const passwordHash = await bcrypt2.hash(input.password, 10);
     await createAdmin({ username: input.username, passwordHash });
     return { success: true };
   }),
@@ -3576,7 +4368,7 @@ var authRouter = router({
     product: z2.string().min(1),
     reason: z2.string().min(1)
   })).mutation(async ({ input, ctx }) => {
-    const ip = getClientIp(ctx.req);
+    const ip = getClientIp2(ctx.req);
     const existing = await getResellerApplicationByEmail(input.email);
     if (existing && ["pending", "pre_approved"].includes(existing.status)) {
       throw new TRPCError3({ code: "CONFLICT", message: "Voc\xEA j\xE1 possui uma aplica\xE7\xE3o em andamento" });
@@ -3618,7 +4410,7 @@ var authRouter = router({
     subject: z2.string().min(1).max(256),
     question: z2.string().min(1)
   })).mutation(async ({ input, ctx }) => {
-    const ip = getClientIp(ctx.req);
+    const ip = getClientIp2(ctx.req);
     const row = await createSupportTicket({ ...input, status: "open", ip });
     await createSupportMessage({
       ticketId: row.id,
@@ -3717,7 +4509,7 @@ var adminRouter = router({
   })).mutation(async ({ input }) => {
     const existing = await getResellerByUsername(input.username);
     if (existing) throw new TRPCError3({ code: "CONFLICT", message: "Username j\xE1 existe" });
-    const passwordHash = await bcrypt.hash(input.password, 10);
+    const passwordHash = await bcrypt2.hash(input.password, 10);
     await createReseller({
       username: input.username,
       passwordHash,
@@ -3740,7 +4532,7 @@ var adminRouter = router({
   })).mutation(async ({ input }) => {
     const { id, password, discountPercent, ...rest } = input;
     const data = { ...rest };
-    if (password) data.passwordHash = await bcrypt.hash(password, 10);
+    if (password) data.passwordHash = await bcrypt2.hash(password, 10);
     if (discountPercent !== void 0) data.discountPercent = discountPercent.toFixed(2);
     await updateReseller(id, data);
     return { success: true };
@@ -4025,9 +4817,9 @@ var adminRouter = router({
   })).mutation(async ({ input, ctx }) => {
     const admin = await getAdminById(ctx.adminId);
     if (!admin) throw new TRPCError3({ code: "NOT_FOUND" });
-    const valid = await bcrypt.compare(input.currentPassword, admin.passwordHash);
+    const valid = await bcrypt2.compare(input.currentPassword, admin.passwordHash);
     if (!valid) throw new TRPCError3({ code: "UNAUTHORIZED", message: "Senha atual incorreta" });
-    const newHash = await bcrypt.hash(input.newPassword, 10);
+    const newHash = await bcrypt2.hash(input.newPassword, 10);
     await updateAdminPassword(admin.id, newHash);
     return { success: true };
   }),
@@ -4037,7 +4829,7 @@ var adminRouter = router({
   })).mutation(async ({ input }) => {
     const reseller = await getResellerById(input.resellerId);
     if (!reseller) throw new TRPCError3({ code: "NOT_FOUND", message: "Reseller n\xE3o encontrado" });
-    const newHash = await bcrypt.hash(input.newPassword, 10);
+    const newHash = await bcrypt2.hash(input.newPassword, 10);
     await updateResellerPassword(input.resellerId, newHash);
     return { success: true };
   }),
@@ -5015,7 +5807,7 @@ var resellerRouter = router({
     if (!ctx.reseller.canCreateSubResellers) throw new TRPCError3({ code: "FORBIDDEN", message: "Sem permissao para criar resellers" });
     const existing = await getResellerByUsername(input.username);
     if (existing) throw new TRPCError3({ code: "CONFLICT", message: "Username ja existe" });
-    const passwordHash = await bcrypt.hash(input.password, 10);
+    const passwordHash = await bcrypt2.hash(input.password, 10);
     await createReseller({
       username: input.username,
       passwordHash,
@@ -5036,11 +5828,169 @@ var resellerRouter = router({
     return { success: true };
   })
 });
+var vgauthRouter = router({
+  listApps: adminProcedure2.query(async () => {
+    return getAllVgauthApps();
+  }),
+  createApp: adminProcedure2.input(z2.object({ name: z2.string().min(2).max(128) })).mutation(async ({ input }) => {
+    const { randomBytes, createHash } = await import("crypto");
+    const ownerId = createHash("sha256").update(randomBytes(32)).digest("hex").slice(0, 32);
+    const secret = randomBytes(32).toString("hex");
+    const app2 = await createVgauthApp({ name: input.name, ownerId, secret });
+    await createVgauthLog({ appId: app2.id, action: "app.created", detail: input.name });
+    return app2;
+  }),
+  updateApp: adminProcedure2.input(z2.object({
+    id: z2.number(),
+    name: z2.string().min(2).max(128).optional(),
+    version: z2.string().max(32).optional(),
+    status: z2.enum(["active", "disabled"]).optional()
+  })).mutation(async ({ input }) => {
+    const { id, ...data } = input;
+    return updateVgauthApp(id, data);
+  }),
+  regenerateSecret: adminProcedure2.input(z2.object({ id: z2.number() })).mutation(async ({ input }) => {
+    const { randomBytes } = await import("crypto");
+    const app2 = await updateVgauthApp(input.id, { secret: randomBytes(32).toString("hex") });
+    await createVgauthLog({ appId: input.id, action: "app.secret_regenerated" });
+    return app2;
+  }),
+  deleteApp: adminProcedure2.input(z2.object({ id: z2.number() })).mutation(async ({ input }) => {
+    await deleteVgauthApp(input.id);
+    return { success: true };
+  }),
+  getAppDetail: adminProcedure2.input(z2.object({ id: z2.number() })).query(async ({ input }) => {
+    const app2 = await getVgauthAppById(input.id);
+    if (!app2) throw new TRPCError3({ code: "NOT_FOUND" });
+    const [licenses, users2, bans, logs] = await Promise.all([
+      getVgauthLicensesByApp(input.id),
+      getVgauthUsersByApp(input.id),
+      getVgauthBans(),
+      // bans são globais — exibe todos
+      getVgauthLogs(input.id, 300)
+    ]);
+    return { app: app2, licenses, users: users2, bans, logs };
+  }),
+  generateKeys: adminProcedure2.input(z2.object({
+    appId: z2.number(),
+    amount: z2.number().min(1).max(500),
+    mask: z2.string().max(128).default("VG-******-******-******"),
+    subLevel: z2.string().max(64).default("default"),
+    durationValue: z2.number().min(0).default(30),
+    durationUnit: z2.enum(["minutes", "hours", "days", "weeks", "months", "years", "lifetime"]).default("days"),
+    uppercase: z2.boolean().default(true),
+    note: z2.string().max(255).optional()
+  })).mutation(async ({ input }) => {
+    const app2 = await getVgauthAppById(input.appId);
+    if (!app2) throw new TRPCError3({ code: "NOT_FOUND" });
+    const charset = input.uppercase ? "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" : "abcdefghijklmnopqrstuvwxyz0123456789";
+    const keys = [];
+    for (let i = 0; i < input.amount; i++) {
+      const keyValue = input.mask.replace(/\*/g, () => charset[Math.floor(Math.random() * charset.length)]);
+      await createVgauthLicense({
+        appId: input.appId,
+        keyValue,
+        note: input.note,
+        subLevel: input.subLevel,
+        durationValue: input.durationValue,
+        durationUnit: input.durationUnit
+      });
+      keys.push(keyValue);
+    }
+    await createVgauthLog({ appId: input.appId, action: "keys.generated", detail: `${input.amount}x ${input.durationValue} ${input.durationUnit}` });
+    return { keys };
+  }),
+  setLicenseStatus: adminProcedure2.input(z2.object({ id: z2.number(), status: z2.enum(["active", "banned", "revoked"]) })).mutation(async ({ input }) => {
+    return updateVgauthLicense(input.id, { status: input.status });
+  }),
+  resetLicenseHwid: adminProcedure2.input(z2.object({ id: z2.number() })).mutation(async ({ input }) => {
+    const lic = await updateVgauthLicense(input.id, {
+      hwidMb: null,
+      hwidCpu: null,
+      ip: null,
+      hwidViolations: 0
+    });
+    if (lic) await createVgauthLog({ appId: lic.appId, action: "license.hwid_reset", detail: lic.keyValue.slice(0, 12) });
+    return lic;
+  }),
+  deleteLicense: adminProcedure2.input(z2.object({ id: z2.number() })).mutation(async ({ input }) => {
+    await deleteVgauthLicense(input.id);
+    return { success: true };
+  }),
+  banUser: adminProcedure2.input(z2.object({ userId: z2.number(), appId: z2.number(), reason: z2.string().max(255).optional() })).mutation(async ({ input }) => {
+    const users2 = await getVgauthUsersByApp(input.appId);
+    const user = users2.find((u) => u.id === input.userId);
+    if (!user) throw new TRPCError3({ code: "NOT_FOUND" });
+    await updateVgauthUser(user.id, { status: "banned" });
+    await createVgauthBan({
+      appId: input.appId,
+      username: user.username,
+      ip: user.ip,
+      hwidMb: user.hwidMb,
+      hwidCpu: user.hwidCpu,
+      reason: input.reason || "Banido pelo admin"
+    });
+    await createVgauthLog({ appId: input.appId, action: "user.banned", detail: user.username });
+    return { success: true };
+  }),
+  unbanUser: adminProcedure2.input(z2.object({ userId: z2.number(), appId: z2.number() })).mutation(async ({ input }) => {
+    const users2 = await getVgauthUsersByApp(input.appId);
+    const user = users2.find((u) => u.id === input.userId);
+    if (!user) throw new TRPCError3({ code: "NOT_FOUND" });
+    await updateVgauthUser(user.id, { status: "active" });
+    await createVgauthLog({ appId: input.appId, action: "user.unbanned", detail: user.username });
+    return { success: true };
+  }),
+  deleteUser: adminProcedure2.input(z2.object({ userId: z2.number() })).mutation(async ({ input }) => {
+    await deleteVgauthUser(input.userId);
+    return { success: true };
+  }),
+  pauseAllKeys: adminProcedure2.input(z2.object({ appId: z2.number() })).mutation(async ({ input }) => {
+    const count = await pauseAllVgauthLicenses(input.appId);
+    await createVgauthLog({ appId: input.appId, action: "keys.paused_all", detail: `${count} keys` });
+    return { count };
+  }),
+  resumeAllKeys: adminProcedure2.input(z2.object({ appId: z2.number() })).mutation(async ({ input }) => {
+    const count = await resumeAllVgauthLicenses(input.appId);
+    await createVgauthLog({ appId: input.appId, action: "keys.resumed_all", detail: `${count} keys` });
+    return { count };
+  }),
+  addDaysAllKeys: adminProcedure2.input(z2.object({ appId: z2.number(), days: z2.number().min(1).max(3650) })).mutation(async ({ input }) => {
+    const count = await addDaysAllVgauthLicenses(input.appId, input.days);
+    await createVgauthLog({ appId: input.appId, action: "keys.days_added", detail: `+${input.days}d em ${count} keys` });
+    return { count };
+  }),
+  createBan: adminProcedure2.input(z2.object({
+    appId: z2.number(),
+    ip: z2.string().max(64).optional(),
+    hwidMb: z2.string().max(255).optional(),
+    hwidCpu: z2.string().max(255).optional(),
+    reason: z2.string().max(255).optional()
+  })).mutation(async ({ input }) => {
+    if (!input.ip && !input.hwidMb && !input.hwidCpu) {
+      throw new TRPCError3({ code: "BAD_REQUEST", message: "Informe ao menos um identificador" });
+    }
+    const ban = await createVgauthBan({
+      appId: input.appId,
+      ip: input.ip,
+      hwidMb: input.hwidMb,
+      hwidCpu: input.hwidCpu,
+      reason: input.reason || "Ban manual"
+    });
+    await createVgauthLog({ appId: input.appId, action: "ban.created", detail: input.ip || input.hwidMb || input.hwidCpu });
+    return ban;
+  }),
+  deleteBan: adminProcedure2.input(z2.object({ id: z2.number() })).mutation(async ({ input }) => {
+    await deleteVgauthBan(input.id);
+    return { success: true };
+  })
+});
 var appRouter = router({
   system: systemRouter,
   auth: authRouter,
   admin: adminRouter,
-  reseller: resellerRouter
+  reseller: resellerRouter,
+  vgauth: vgauthRouter
 });
 
 // server/_core/context.ts
@@ -5093,6 +6043,7 @@ app.use(express.urlencoded({ limit: "50mb", extended: true }));
 registerStorageProxy(app);
 registerOAuthRoutes(app);
 registerResellerApi(app);
+registerVgAuthApi(app);
 app.get("/api/my-ip", (req, res) => {
   const h = req.headers;
   const candidates = [

@@ -1,8 +1,8 @@
 import { eq, and, asc, desc, sql, inArray, or, aliasedTable, ilike, lower } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { InsertUser, users, admins, resellers, resellerApiKeys, categories, apps, subscriptionPlans, resellerApps, licenseKeys, appStock, appDownloads, creditTransactions, ipWhitelist, pixPayments, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages, otherStoreResellers, otherStoreHwids, resellerInfoProducts } from "../drizzle/schema";
-import type { InsertAdmin, InsertReseller, InsertResellerApiKey, InsertCategory, InsertApp, InsertSubscriptionPlan, InsertResellerApp, InsertLicenseKey, InsertAppStock, InsertAppDownload, InsertCreditTransaction, InsertPixPayment, InsertTicket, InsertTicketMessage, InsertResellerApplication, InsertApplicationMessage, InsertSupportTicket, InsertSupportMessage, InsertOtherStoreReseller, InsertOtherStoreHwid, InsertResellerInfoProduct } from "../drizzle/schema";
+import { InsertUser, users, admins, resellers, resellerApiKeys, categories, apps, subscriptionPlans, resellerApps, licenseKeys, appStock, appDownloads, creditTransactions, ipWhitelist, pixPayments, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages, otherStoreResellers, otherStoreHwids, resellerInfoProducts, vgauthApps, vgauthLicenses, vgauthUsers, vgauthBans, vgauthSessions, vgauthLogs } from "../drizzle/schema";
+import type { InsertAdmin, InsertReseller, InsertResellerApiKey, InsertCategory, InsertApp, InsertSubscriptionPlan, InsertResellerApp, InsertLicenseKey, InsertAppStock, InsertAppDownload, InsertCreditTransaction, InsertPixPayment, InsertTicket, InsertTicketMessage, InsertResellerApplication, InsertApplicationMessage, InsertSupportTicket, InsertSupportMessage, InsertOtherStoreReseller, InsertOtherStoreHwid, InsertResellerInfoProduct, InsertVgauthApp, InsertVgauthLicense, InsertVgauthUser, InsertVgauthBan, InsertVgauthSession, InsertVgauthLog } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import { randomUUID } from "crypto";
 
@@ -1525,4 +1525,389 @@ export async function deleteResellerInfoProduct(id: number) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   await db.delete(resellerInfoProducts).where(eq(resellerInfoProducts.id, id));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VG AUTH — sistema de autenticação (apps, licenses, users, bans, sessions, logs)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+let _vgauthSchemaReady: Promise<void> | null = null;
+
+export async function ensureVgAuthSchema(): Promise<void> {
+  await getDb();
+  if (!_sqlClient) throw new Error("DB not available");
+
+  if (!_vgauthSchemaReady) {
+    _vgauthSchemaReady = (async () => {
+      await _sqlClient!.unsafe(`CREATE TABLE IF NOT EXISTS "vgauth_apps" (
+        "id" serial PRIMARY KEY,
+        "name" varchar(128) NOT NULL,
+        "ownerId" varchar(64) NOT NULL UNIQUE,
+        "secret" varchar(128) NOT NULL UNIQUE,
+        "version" varchar(32) DEFAULT '1.0' NOT NULL,
+        "status" varchar(16) DEFAULT 'active' NOT NULL,
+        "createdAt" timestamp DEFAULT now() NOT NULL,
+        "updatedAt" timestamp DEFAULT now() NOT NULL
+      )`);
+      await _sqlClient!.unsafe(`CREATE TABLE IF NOT EXISTS "vgauth_licenses" (
+        "id" serial PRIMARY KEY,
+        "appId" integer NOT NULL REFERENCES "vgauth_apps"("id"),
+        "keyValue" varchar(128) NOT NULL UNIQUE,
+        "note" varchar(255),
+        "subLevel" varchar(64) DEFAULT 'default' NOT NULL,
+        "durationValue" integer NOT NULL,
+        "durationUnit" varchar(16) DEFAULT 'days' NOT NULL,
+        "status" varchar(16) DEFAULT 'active' NOT NULL,
+        "usedBy" varchar(128),
+        "hwidMb" varchar(255),
+        "hwidCpu" varchar(255),
+        "ip" varchar(64),
+        "hwidViolations" integer DEFAULT 0 NOT NULL,
+        "activatedAt" timestamp,
+        "expiresAt" timestamp,
+        "paused" boolean DEFAULT false NOT NULL,
+        "pausedRemainingSec" integer,
+        "createdAt" timestamp DEFAULT now() NOT NULL
+      )`);
+      await _sqlClient!.unsafe(`CREATE TABLE IF NOT EXISTS "vgauth_users" (
+        "id" serial PRIMARY KEY,
+        "appId" integer NOT NULL REFERENCES "vgauth_apps"("id"),
+        "username" varchar(128) NOT NULL,
+        "passwordHash" varchar(255) NOT NULL,
+        "email" varchar(320),
+        "licenseId" integer REFERENCES "vgauth_licenses"("id"),
+        "subLevel" varchar(64) DEFAULT 'default' NOT NULL,
+        "hwidMb" varchar(255),
+        "hwidCpu" varchar(255),
+        "ip" varchar(64),
+        "status" varchar(16) DEFAULT 'active' NOT NULL,
+        "expiresAt" timestamp,
+        "lastLogin" timestamp,
+        "createdAt" timestamp DEFAULT now() NOT NULL
+      )`);
+      await _sqlClient!.unsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "vgauth_users_app_username" ON "vgauth_users" ("appId", "username")`);
+      await _sqlClient!.unsafe(`CREATE TABLE IF NOT EXISTS "vgauth_bans" (
+        "id" serial PRIMARY KEY,
+        "appId" integer REFERENCES "vgauth_apps"("id"),
+        "username" varchar(128),
+        "ip" varchar(64),
+        "hwidMb" varchar(255),
+        "hwidCpu" varchar(255),
+        "reason" varchar(255),
+        "createdBy" varchar(64) DEFAULT 'admin' NOT NULL,
+        "createdAt" timestamp DEFAULT now() NOT NULL
+      )`);
+      await _sqlClient!.unsafe(`CREATE TABLE IF NOT EXISTS "vgauth_sessions" (
+        "id" serial PRIMARY KEY,
+        "appId" integer NOT NULL REFERENCES "vgauth_apps"("id"),
+        "token" varchar(128) NOT NULL UNIQUE,
+        "encKey" varchar(128),
+        "userId" integer,
+        "username" varchar(128),
+        "hwidMb" varchar(255),
+        "hwidCpu" varchar(255),
+        "ip" varchar(64),
+        "expiresAt" timestamp NOT NULL,
+        "createdAt" timestamp DEFAULT now() NOT NULL
+      )`);
+      await _sqlClient!.unsafe(`CREATE TABLE IF NOT EXISTS "vgauth_logs" (
+        "id" serial PRIMARY KEY,
+        "appId" integer REFERENCES "vgauth_apps"("id"),
+        "action" varchar(64) NOT NULL,
+        "detail" text,
+        "ip" varchar(64),
+        "createdAt" timestamp DEFAULT now() NOT NULL
+      )`);
+    })().then(() => undefined).catch(error => {
+      _vgauthSchemaReady = null;
+      console.error("[Database] Failed to ensure vgauth schema:", error);
+      throw new Error("Não foi possível preparar o banco para VG Auth");
+    });
+  }
+
+  return _vgauthSchemaReady;
+}
+
+// ─── Apps ─────────────────────────────────────────────────────────────────────
+export async function getAllVgauthApps() {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(vgauthApps).orderBy(desc(vgauthApps.createdAt));
+}
+
+export async function getVgauthAppById(id: number) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db.select().from(vgauthApps).where(eq(vgauthApps.id, id));
+  return row ?? null;
+}
+
+export async function getVgauthAppByOwnerId(ownerId: string) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db.select().from(vgauthApps).where(eq(vgauthApps.ownerId, ownerId));
+  return row ?? null;
+}
+
+export async function createVgauthApp(data: InsertVgauthApp) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.insert(vgauthApps).values(data).returning();
+  return row;
+}
+
+export async function updateVgauthApp(id: number, data: Partial<InsertVgauthApp>) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.update(vgauthApps).set({ ...data, updatedAt: new Date() }).where(eq(vgauthApps.id, id)).returning();
+  return row;
+}
+
+export async function deleteVgauthApp(id: number) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.delete(vgauthLogs).where(eq(vgauthLogs.appId, id));
+  await db.delete(vgauthSessions).where(eq(vgauthSessions.appId, id));
+  await db.delete(vgauthBans).where(eq(vgauthBans.appId, id));
+  await db.delete(vgauthUsers).where(eq(vgauthUsers.appId, id));
+  await db.delete(vgauthLicenses).where(eq(vgauthLicenses.appId, id));
+  await db.delete(vgauthApps).where(eq(vgauthApps.id, id));
+}
+
+// ─── Licenses ─────────────────────────────────────────────────────────────────
+export async function getVgauthLicensesByApp(appId: number) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(vgauthLicenses).where(eq(vgauthLicenses.appId, appId)).orderBy(desc(vgauthLicenses.createdAt));
+}
+
+export async function getVgauthLicenseByKey(appId: number, keyValue: string) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db.select().from(vgauthLicenses)
+    .where(and(eq(vgauthLicenses.appId, appId), eq(vgauthLicenses.keyValue, keyValue)));
+  return row ?? null;
+}
+
+export async function getVgauthLicenseById(id: number) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db.select().from(vgauthLicenses).where(eq(vgauthLicenses.id, id));
+  return row ?? null;
+}
+
+export async function createVgauthLicense(data: InsertVgauthLicense) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.insert(vgauthLicenses).values(data).returning();
+  return row;
+}
+
+export async function updateVgauthLicense(id: number, data: Partial<InsertVgauthLicense>) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.update(vgauthLicenses).set(data).where(eq(vgauthLicenses.id, id)).returning();
+  return row;
+}
+
+export async function deleteVgauthLicense(id: number) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.delete(vgauthLicenses).where(eq(vgauthLicenses.id, id));
+}
+
+/** Pausa todas as keys do app: congela o tempo restante */
+export async function pauseAllVgauthLicenses(appId: number) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return 0;
+  const now = new Date();
+  const rows = await db.select().from(vgauthLicenses)
+    .where(and(eq(vgauthLicenses.appId, appId), eq(vgauthLicenses.paused, false)));
+  let count = 0;
+  for (const lic of rows) {
+    const remaining = lic.expiresAt ? Math.max(0, Math.floor((lic.expiresAt.getTime() - now.getTime()) / 1000)) : null;
+    await db.update(vgauthLicenses)
+      .set({ paused: true, pausedRemainingSec: remaining, expiresAt: null })
+      .where(eq(vgauthLicenses.id, lic.id));
+    count++;
+  }
+  return count;
+}
+
+/** Retoma todas as keys pausadas do app */
+export async function resumeAllVgauthLicenses(appId: number) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return 0;
+  const now = Date.now();
+  const rows = await db.select().from(vgauthLicenses)
+    .where(and(eq(vgauthLicenses.appId, appId), eq(vgauthLicenses.paused, true)));
+  let count = 0;
+  for (const lic of rows) {
+    const expiresAt = lic.pausedRemainingSec != null ? new Date(now + lic.pausedRemainingSec * 1000) : null;
+    await db.update(vgauthLicenses)
+      .set({ paused: false, pausedRemainingSec: null, expiresAt })
+      .where(eq(vgauthLicenses.id, lic.id));
+    count++;
+  }
+  return count;
+}
+
+/** Adiciona dias em todas as keys do app (pausadas somam no tempo restante) */
+export async function addDaysAllVgauthLicenses(appId: number, days: number) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return 0;
+  const addSec = days * 86400;
+  const now = Date.now();
+  const rows = await db.select().from(vgauthLicenses).where(eq(vgauthLicenses.appId, appId));
+  let count = 0;
+  for (const lic of rows) {
+    if (lic.paused) {
+      const remaining = (lic.pausedRemainingSec ?? 0) + addSec;
+      await db.update(vgauthLicenses).set({ pausedRemainingSec: remaining }).where(eq(vgauthLicenses.id, lic.id));
+    } else {
+      // Keys nunca ativadas não têm relógio rodando — pular para não
+      // começar a contagem antes do primeiro uso
+      if (!lic.activatedAt && !lic.expiresAt) continue;
+      const base = lic.expiresAt && lic.expiresAt.getTime() > now ? lic.expiresAt.getTime() : now;
+      await db.update(vgauthLicenses).set({ expiresAt: new Date(base + addSec * 1000) }).where(eq(vgauthLicenses.id, lic.id));
+    }
+    count++;
+  }
+  return count;
+}
+
+// ─── Users ────────────────────────────────────────────────────────────────────
+export async function getVgauthUsersByApp(appId: number) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(vgauthUsers).where(eq(vgauthUsers.appId, appId)).orderBy(desc(vgauthUsers.createdAt));
+}
+
+export async function getVgauthUserByUsername(appId: number, username: string) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db.select().from(vgauthUsers)
+    .where(and(eq(vgauthUsers.appId, appId), eq(vgauthUsers.username, username)));
+  return row ?? null;
+}
+
+export async function createVgauthUser(data: InsertVgauthUser) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.insert(vgauthUsers).values(data).returning();
+  return row;
+}
+
+export async function updateVgauthUser(id: number, data: Partial<InsertVgauthUser>) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.update(vgauthUsers).set(data).where(eq(vgauthUsers.id, id)).returning();
+  return row;
+}
+
+export async function deleteVgauthUser(id: number) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.delete(vgauthUsers).where(eq(vgauthUsers.id, id));
+}
+
+// ─── Bans (globais — valem para todos os apps da auth) ─────────────────────────
+export async function getVgauthBans(appId?: number) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return [];
+  if (appId) {
+    return db.select().from(vgauthBans).where(eq(vgauthBans.appId, appId)).orderBy(desc(vgauthBans.createdAt));
+  }
+  return db.select().from(vgauthBans).orderBy(desc(vgauthBans.createdAt));
+}
+
+/** Retorna o ban que casa com qualquer um dos identificadores (IP, HWID MB, HWID CPU) */
+export async function findVgauthBan(identifiers: { ip?: string | null; hwidMb?: string | null; hwidCpu?: string | null }) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return null;
+  const conds = [];
+  if (identifiers.ip) conds.push(eq(vgauthBans.ip, identifiers.ip));
+  if (identifiers.hwidMb) conds.push(eq(vgauthBans.hwidMb, identifiers.hwidMb));
+  if (identifiers.hwidCpu) conds.push(eq(vgauthBans.hwidCpu, identifiers.hwidCpu));
+  if (conds.length === 0) return null;
+  const [row] = await db.select().from(vgauthBans).where(or(...conds)).limit(1);
+  return row ?? null;
+}
+
+export async function createVgauthBan(data: InsertVgauthBan) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.insert(vgauthBans).values(data).returning();
+  return row;
+}
+
+export async function deleteVgauthBan(id: number) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.delete(vgauthBans).where(eq(vgauthBans.id, id));
+}
+
+// ─── Sessions ─────────────────────────────────────────────────────────────────
+export async function createVgauthSession(data: InsertVgauthSession) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.insert(vgauthSessions).values(data).returning();
+  return row;
+}
+
+export async function getVgauthSessionByToken(token: string) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db.select().from(vgauthSessions).where(eq(vgauthSessions.token, token));
+  return row ?? null;
+}
+
+export async function updateVgauthSession(id: number, data: Partial<InsertVgauthSession>) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(vgauthSessions).set(data).where(eq(vgauthSessions.id, id));
+}
+
+// ─── Logs ─────────────────────────────────────────────────────────────────────
+export async function createVgauthLog(data: InsertVgauthLog) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return;
+  try {
+    await db.insert(vgauthLogs).values(data);
+  } catch { /* logging must never break auth */ }
+}
+
+export async function getVgauthLogs(appId: number, limit = 200) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(vgauthLogs).where(eq(vgauthLogs.appId, appId)).orderBy(desc(vgauthLogs.createdAt)).limit(limit);
 }

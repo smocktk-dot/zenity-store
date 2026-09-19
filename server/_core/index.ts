@@ -5,6 +5,7 @@ import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { registerResellerApi } from "../resellerApi";
+import { registerVgAuthApi } from "../vgauthApi";
 import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
@@ -41,6 +42,7 @@ async function startServer() {
   registerStorageProxy(app);
   registerOAuthRoutes(app);
   registerResellerApi(app);
+  registerVgAuthApi(app);
   // Endpoint that returns the real IP seen by the server (used by admin whitelist UI)
   app.get("/api/my-ip", (req, res) => {
     const h = req.headers;

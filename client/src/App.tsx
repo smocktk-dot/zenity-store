@@ -27,6 +27,8 @@ import AdminManualDelivery from "./pages/admin/AdminManualDelivery";
 import AdminDownloads from "./pages/admin/AdminDownloads";
 import AdminResellerInfo from "./pages/admin/AdminResellerInfo";
 import AdminTransferKeys from "./pages/admin/AdminTransferKeys";
+import AdminVgAuth from "./pages/admin/AdminVgAuth";
+import AdminVgAuthApp from "./pages/admin/AdminVgAuthApp";
 import ResellerLayout from "./pages/reseller/ResellerLayout";
 import ResellerProfile from "./pages/reseller/ResellerProfile";
 import ResellerApps from "./pages/reseller/ResellerApps";
@@ -176,6 +178,20 @@ function Router() {
         {() => (
           <AdminLayout>
             <AdminResellerInfo />
+          </AdminLayout>
+        )}
+      </Route>
+      <Route path="/admin/vg-auth">
+        {() => (
+          <AdminLayout>
+            <AdminVgAuth />
+          </AdminLayout>
+        )}
+      </Route>
+      <Route path="/admin/vg-auth/:id">
+        {(params) => (
+          <AdminLayout>
+            <AdminVgAuthApp id={parseInt(params.id)} />
           </AdminLayout>
         )}
       </Route>

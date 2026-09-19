@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>VG Auth — Exemplo Web</title>
+  <style>
+    body { background:#0a0a12; color:#e5e7eb; font-family:system-ui; display:flex; justify-content:center; padding:40px; }
+    .card { background:#12121c; border:1px solid #26263a; border-radius:16px; padding:28px; width:360px; }
+    input { width:100%; margin:6px 0; padding:10px; border-radius:8px; border:1px solid #2e2e46; background:#0a0a14; color:#fff; box-sizing:border-box; }
+    button { width:100%; padding:10px; margin-top:10px; border:0; border-radius:8px; background:#059669; color:#fff; font-weight:600; cursor:pointer; }
+    button.alt { background:#1f2937; }
+    #msg { margin-top:12px; font-size:13px; color:#f87171; }
+    #msg.ok { color:#34d399; }
+    h1 { font-size:18px; margin-bottom:14px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>VG Auth — Login</h1>
+    <input id="user" placeholder="Usuário">
+    <input id="pass" type="password" placeholder="Senha">
+    <input id="key" placeholder="Key (registro ou login direto)">
+    <input id="mail" placeholder="Email (só no registro)">
+    <button onclick="doLogin()">Login</button>
+    <button class="alt" onclick="doRegister()">Registrar (consome a key)</button>
+    <button class="alt" onclick="doLicense()">Entrar só com a key</button>
+    <p id="msg"></p>
+  </div>
+
+  <script src="vgauth.js"></script>
+  <script>
+    // Credenciais do app — crie no painel admin → VG Auth
+    const auth = new VgAuth("MeuSite", "OWNER_ID_AQUI", "SECRET_AQUI", "1.0");
+    const msg = t => { const el = document.getElementById("msg"); el.textContent = t; el.className = t.includes("!") ? "ok" : ""; };
+
+    async function ensureInit() {
+      if (!auth.sessionid) {
+        const ok = await auth.init();
+        if (!ok) throw new Error("init falhou: " + auth.message);
+      }
+    }
+    async function doRegister() {
+      try {
+        await ensureInit();
+        const ok = await auth.register(user.value, pass.value, key.value, mail.value);
+        msg(ok ? "Registrado!" : "Erro: " + auth.message);
+      } catch (e) { msg(e.message); }
+    }
+    async function doLogin() {
+      try {
+        await ensureInit();
+        const ok = await auth.login(user.value, pass.value);
+        msg(ok ? "Logado! Sub: " + auth.user.subLevel : "Erro: " + auth.message);
+      } catch (e) { msg(e.message); }
+    }
+    async function doLicense() {
+      try {
+        await ensureInit();
+        const ok = await auth.license(key.value);
+        msg(ok ? "Autenticado! Expira: " + auth.user.expiresAt : "Erro: " + auth.message);
+      } catch (e) { msg(e.message); }
+    }
+  </script>
+</body>
+</html>

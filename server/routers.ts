@@ -45,6 +45,12 @@ import {
   getOtherStoreResellerById, getOtherStoreResellerByResellerId, getOtherStoreResellerByOwnerResellerId, getOtherStoreHwidsByResellerId,
   createOtherStoreHwid, deleteOtherStoreHwid,
   getAllResellerInfoProducts, getActiveResellerInfoProducts, createResellerInfoProduct, updateResellerInfoProduct, deleteResellerInfoProduct,
+  getAllVgauthApps, getVgauthAppById, createVgauthApp, updateVgauthApp, deleteVgauthApp,
+  getVgauthLicensesByApp, getVgauthLicenseById, createVgauthLicense, updateVgauthLicense, deleteVgauthLicense,
+  pauseAllVgauthLicenses, resumeAllVgauthLicenses, addDaysAllVgauthLicenses,
+  getVgauthUsersByApp, getVgauthUserByUsername, updateVgauthUser, deleteVgauthUser,
+  getVgauthBans, createVgauthBan, deleteVgauthBan,
+  getVgauthLogs, createVgauthLog,
 } from "./db";
 
 function getJwtSecret() {
@@ -2180,12 +2186,217 @@ const resellerRouter = router({
     }),
 });
 
+// ─── VG Auth Admin Router ─────────────────────────────────────────────────────
+const vgauthRouter = router({
+  listApps: adminProcedure.query(async () => {
+    return getAllVgauthApps();
+  }),
+
+  createApp: adminProcedure
+    .input(z.object({ name: z.string().min(2).max(128) }))
+    .mutation(async ({ input }) => {
+      const { randomBytes, createHash } = await import("crypto");
+      const ownerId = createHash("sha256").update(randomBytes(32)).digest("hex").slice(0, 32);
+      const secret = randomBytes(32).toString("hex");
+      const app = await createVgauthApp({ name: input.name, ownerId, secret });
+      await createVgauthLog({ appId: app.id, action: "app.created", detail: input.name });
+      return app;
+    }),
+
+  updateApp: adminProcedure
+    .input(z.object({
+      id: z.number(),
+      name: z.string().min(2).max(128).optional(),
+      version: z.string().max(32).optional(),
+      status: z.enum(["active", "disabled"]).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { id, ...data } = input;
+      return updateVgauthApp(id, data);
+    }),
+
+  regenerateSecret: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const { randomBytes } = await import("crypto");
+      const app = await updateVgauthApp(input.id, { secret: randomBytes(32).toString("hex") });
+      await createVgauthLog({ appId: input.id, action: "app.secret_regenerated" });
+      return app;
+    }),
+
+  deleteApp: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      await deleteVgauthApp(input.id);
+      return { success: true };
+    }),
+
+  getAppDetail: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ input }) => {
+      const app = await getVgauthAppById(input.id);
+      if (!app) throw new TRPCError({ code: "NOT_FOUND" });
+      const [licenses, users, bans, logs] = await Promise.all([
+        getVgauthLicensesByApp(input.id),
+        getVgauthUsersByApp(input.id),
+        getVgauthBans(), // bans são globais — exibe todos
+        getVgauthLogs(input.id, 300),
+      ]);
+      return { app, licenses, users, bans, logs };
+    }),
+
+  generateKeys: adminProcedure
+    .input(z.object({
+      appId: z.number(),
+      amount: z.number().min(1).max(500),
+      mask: z.string().max(128).default("VG-******-******-******"),
+      subLevel: z.string().max(64).default("default"),
+      durationValue: z.number().min(0).default(30),
+      durationUnit: z.enum(["minutes", "hours", "days", "weeks", "months", "years", "lifetime"]).default("days"),
+      uppercase: z.boolean().default(true),
+      note: z.string().max(255).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const app = await getVgauthAppById(input.appId);
+      if (!app) throw new TRPCError({ code: "NOT_FOUND" });
+      const charset = input.uppercase
+        ? "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+        : "abcdefghijklmnopqrstuvwxyz0123456789";
+      const keys: string[] = [];
+      for (let i = 0; i < input.amount; i++) {
+        const keyValue = input.mask.replace(/\*/g, () => charset[Math.floor(Math.random() * charset.length)]);
+        await createVgauthLicense({
+          appId: input.appId,
+          keyValue,
+          note: input.note,
+          subLevel: input.subLevel,
+          durationValue: input.durationValue,
+          durationUnit: input.durationUnit,
+        });
+        keys.push(keyValue);
+      }
+      await createVgauthLog({ appId: input.appId, action: "keys.generated", detail: `${input.amount}x ${input.durationValue} ${input.durationUnit}` });
+      return { keys };
+    }),
+
+  setLicenseStatus: adminProcedure
+    .input(z.object({ id: z.number(), status: z.enum(["active", "banned", "revoked"]) }))
+    .mutation(async ({ input }) => {
+      return updateVgauthLicense(input.id, { status: input.status });
+    }),
+
+  resetLicenseHwid: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const lic = await updateVgauthLicense(input.id, {
+        hwidMb: null, hwidCpu: null, ip: null, hwidViolations: 0,
+      });
+      if (lic) await createVgauthLog({ appId: lic.appId, action: "license.hwid_reset", detail: lic.keyValue.slice(0, 12) });
+      return lic;
+    }),
+
+  deleteLicense: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      await deleteVgauthLicense(input.id);
+      return { success: true };
+    }),
+
+  banUser: adminProcedure
+    .input(z.object({ userId: z.number(), appId: z.number(), reason: z.string().max(255).optional() }))
+    .mutation(async ({ input }) => {
+      const users = await getVgauthUsersByApp(input.appId);
+      const user = users.find(u => u.id === input.userId);
+      if (!user) throw new TRPCError({ code: "NOT_FOUND" });
+      await updateVgauthUser(user.id, { status: "banned" });
+      // Ban global por IP + HWID placa-mãe + HWID CPU — bloqueia em TODOS os apps da auth
+      await createVgauthBan({
+        appId: input.appId,
+        username: user.username,
+        ip: user.ip, hwidMb: user.hwidMb, hwidCpu: user.hwidCpu,
+        reason: input.reason || "Banido pelo admin",
+      });
+      await createVgauthLog({ appId: input.appId, action: "user.banned", detail: user.username });
+      return { success: true };
+    }),
+
+  unbanUser: adminProcedure
+    .input(z.object({ userId: z.number(), appId: z.number() }))
+    .mutation(async ({ input }) => {
+      const users = await getVgauthUsersByApp(input.appId);
+      const user = users.find(u => u.id === input.userId);
+      if (!user) throw new TRPCError({ code: "NOT_FOUND" });
+      await updateVgauthUser(user.id, { status: "active" });
+      await createVgauthLog({ appId: input.appId, action: "user.unbanned", detail: user.username });
+      return { success: true };
+    }),
+
+  deleteUser: adminProcedure
+    .input(z.object({ userId: z.number() }))
+    .mutation(async ({ input }) => {
+      await deleteVgauthUser(input.userId);
+      return { success: true };
+    }),
+
+  pauseAllKeys: adminProcedure
+    .input(z.object({ appId: z.number() }))
+    .mutation(async ({ input }) => {
+      const count = await pauseAllVgauthLicenses(input.appId);
+      await createVgauthLog({ appId: input.appId, action: "keys.paused_all", detail: `${count} keys` });
+      return { count };
+    }),
+
+  resumeAllKeys: adminProcedure
+    .input(z.object({ appId: z.number() }))
+    .mutation(async ({ input }) => {
+      const count = await resumeAllVgauthLicenses(input.appId);
+      await createVgauthLog({ appId: input.appId, action: "keys.resumed_all", detail: `${count} keys` });
+      return { count };
+    }),
+
+  addDaysAllKeys: adminProcedure
+    .input(z.object({ appId: z.number(), days: z.number().min(1).max(3650) }))
+    .mutation(async ({ input }) => {
+      const count = await addDaysAllVgauthLicenses(input.appId, input.days);
+      await createVgauthLog({ appId: input.appId, action: "keys.days_added", detail: `+${input.days}d em ${count} keys` });
+      return { count };
+    }),
+
+  createBan: adminProcedure
+    .input(z.object({
+      appId: z.number(),
+      ip: z.string().max(64).optional(),
+      hwidMb: z.string().max(255).optional(),
+      hwidCpu: z.string().max(255).optional(),
+      reason: z.string().max(255).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      if (!input.ip && !input.hwidMb && !input.hwidCpu) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Informe ao menos um identificador" });
+      }
+      const ban = await createVgauthBan({
+        appId: input.appId, ip: input.ip, hwidMb: input.hwidMb, hwidCpu: input.hwidCpu,
+        reason: input.reason || "Ban manual",
+      });
+      await createVgauthLog({ appId: input.appId, action: "ban.created", detail: input.ip || input.hwidMb || input.hwidCpu });
+      return ban;
+    }),
+
+  deleteBan: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      await deleteVgauthBan(input.id);
+      return { success: true };
+    }),
+});
+
 // ─── App Router ───────────────────────────────────────────────────────────────
 export const appRouter = router({
   system: systemRouter,
   auth: authRouter,
   admin: adminRouter,
   reseller: resellerRouter,
+  vgauth: vgauthRouter,
 });
 
 export type AppRouter = typeof appRouter;

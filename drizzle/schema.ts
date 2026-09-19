@@ -391,3 +391,106 @@ export const resellerInfoProducts = pgTable("reseller_info_products", {
 
 export type ResellerInfoProduct = typeof resellerInfoProducts.$inferSelect;
 export type InsertResellerInfoProduct = typeof resellerInfoProducts.$inferInsert;
+
+// ─── VG Auth (sistema de autenticação estilo KeyAuth) ──────────────────────────
+export const vgauthApps = pgTable("vgauth_apps", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 128 }).notNull(),
+  ownerId: varchar("ownerId", { length: 64 }).notNull().unique(),
+  secret: varchar("secret", { length: 128 }).notNull().unique(),
+  version: varchar("version", { length: 32 }).default("1.0").notNull(),
+  status: varchar("status", { length: 16 }).default("active").notNull(), // active | disabled
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
+export type VgauthApp = typeof vgauthApps.$inferSelect;
+export type InsertVgauthApp = typeof vgauthApps.$inferInsert;
+
+export const vgauthLicenses = pgTable("vgauth_licenses", {
+  id: serial("id").primaryKey(),
+  appId: integer("appId").notNull().references(() => vgauthApps.id),
+  keyValue: varchar("keyValue", { length: 128 }).notNull().unique(),
+  note: varchar("note", { length: 255 }),
+  subLevel: varchar("subLevel", { length: 64 }).default("default").notNull(),
+  durationValue: integer("durationValue").notNull(),
+  durationUnit: varchar("durationUnit", { length: 16 }).default("days").notNull(), // days|weeks|months|years|lifetime
+  status: varchar("status", { length: 16 }).default("active").notNull(), // active | banned | revoked
+  usedBy: varchar("usedBy", { length: 128 }),
+  hwidMb: varchar("hwidMb", { length: 255 }),
+  hwidCpu: varchar("hwidCpu", { length: 255 }),
+  ip: varchar("ip", { length: 64 }),
+  hwidViolations: integer("hwidViolations").default(0).notNull(),
+  activatedAt: timestamp("activatedAt"),
+  expiresAt: timestamp("expiresAt"),
+  paused: boolean("paused").default(false).notNull(),
+  pausedRemainingSec: integer("pausedRemainingSec"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type VgauthLicense = typeof vgauthLicenses.$inferSelect;
+export type InsertVgauthLicense = typeof vgauthLicenses.$inferInsert;
+
+export const vgauthUsers = pgTable("vgauth_users", {
+  id: serial("id").primaryKey(),
+  appId: integer("appId").notNull().references(() => vgauthApps.id),
+  username: varchar("username", { length: 128 }).notNull(),
+  passwordHash: varchar("passwordHash", { length: 255 }).notNull(),
+  email: varchar("email", { length: 320 }),
+  licenseId: integer("licenseId").references(() => vgauthLicenses.id),
+  subLevel: varchar("subLevel", { length: 64 }).default("default").notNull(),
+  hwidMb: varchar("hwidMb", { length: 255 }),
+  hwidCpu: varchar("hwidCpu", { length: 255 }),
+  ip: varchar("ip", { length: 64 }),
+  status: varchar("status", { length: 16 }).default("active").notNull(), // active | banned
+  expiresAt: timestamp("expiresAt"),
+  lastLogin: timestamp("lastLogin"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type VgauthUser = typeof vgauthUsers.$inferSelect;
+export type InsertVgauthUser = typeof vgauthUsers.$inferInsert;
+
+export const vgauthBans = pgTable("vgauth_bans", {
+  id: serial("id").primaryKey(),
+  appId: integer("appId").references(() => vgauthApps.id), // app de origem (o ban é global)
+  username: varchar("username", { length: 128 }),
+  ip: varchar("ip", { length: 64 }),
+  hwidMb: varchar("hwidMb", { length: 255 }),
+  hwidCpu: varchar("hwidCpu", { length: 255 }),
+  reason: varchar("reason", { length: 255 }),
+  createdBy: varchar("createdBy", { length: 64 }).default("admin").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type VgauthBan = typeof vgauthBans.$inferSelect;
+export type InsertVgauthBan = typeof vgauthBans.$inferInsert;
+
+export const vgauthSessions = pgTable("vgauth_sessions", {
+  id: serial("id").primaryKey(),
+  appId: integer("appId").notNull().references(() => vgauthApps.id),
+  token: varchar("token", { length: 128 }).notNull().unique(),
+  encKey: varchar("encKey", { length: 128 }),
+  userId: integer("userId"),
+  username: varchar("username", { length: 128 }),
+  hwidMb: varchar("hwidMb", { length: 255 }),
+  hwidCpu: varchar("hwidCpu", { length: 255 }),
+  ip: varchar("ip", { length: 64 }),
+  expiresAt: timestamp("expiresAt").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type VgauthSession = typeof vgauthSessions.$inferSelect;
+export type InsertVgauthSession = typeof vgauthSessions.$inferInsert;
+
+export const vgauthLogs = pgTable("vgauth_logs", {
+  id: serial("id").primaryKey(),
+  appId: integer("appId").references(() => vgauthApps.id),
+  action: varchar("action", { length: 64 }).notNull(),
+  detail: text("detail"),
+  ip: varchar("ip", { length: 64 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type VgauthLog = typeof vgauthLogs.$inferSelect;
+export type InsertVgauthLog = typeof vgauthLogs.$inferInsert;

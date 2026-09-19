@@ -3,6 +3,7 @@ import express from "express";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { registerResellerApi } from "../resellerApi";
+import { registerVgAuthApi } from "../vgauthApi";
 import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
@@ -24,6 +25,7 @@ app.use(express.urlencoded({ limit: "50mb", extended: true }));
 registerStorageProxy(app);
 registerOAuthRoutes(app);
 registerResellerApi(app);
+registerVgAuthApi(app);
 
 // Endpoint that returns the real IP seen by the server
 app.get("/api/my-ip", (req, res) => {
