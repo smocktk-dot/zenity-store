@@ -9,6 +9,7 @@ export default function AdminVgAuth() {
   const { data: apps = [], refetch, isLoading } = trpc.vgauth.listApps.useQuery();
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
+  const [appType, setAppType] = useState<"auth" | "loader">("auth");
   const [copied, setCopied] = useState<string | null>(null);
   const [showSecret, setShowSecret] = useState<Record<number, boolean>>({});
 
@@ -55,15 +56,31 @@ export default function AdminVgAuth() {
             <h3 className="text-white font-semibold">Criar aplicação</h3>
             <button onClick={() => setCreating(false)} className="text-gray-500 hover:text-white"><X className="w-4 h-4" /></button>
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => setAppType("auth")}
+              className={`rounded-2xl border p-4 text-left transition-all ${appType === "auth" ? "border-emerald-500/40 bg-emerald-500/10" : "border-white/[0.08] bg-white/[0.02] hover:border-white/[0.15]"}`}
+            >
+              <p className={`text-sm font-semibold ${appType === "auth" ? "text-emerald-400" : "text-gray-300"}`}>Auth Completo</p>
+              <p className="text-gray-500 text-xs mt-1">Sistema de keys, licenças, HWID, sub-levels e duração — estilo KeyAuth</p>
+            </button>
+            <button
+              onClick={() => setAppType("loader")}
+              className={`rounded-2xl border p-4 text-left transition-all ${appType === "loader" ? "border-violet-500/40 bg-violet-500/10" : "border-white/[0.08] bg-white/[0.02] hover:border-white/[0.15]"}`}
+            >
+              <p className={`text-sm font-semibold ${appType === "loader" ? "text-violet-400" : "text-gray-300"}`}>Multi Loader</p>
+              <p className="text-gray-500 text-xs mt-1">Sem keys — só contas. Armazena usuário, email e senha; ban e troca de senha</p>
+            </button>
+          </div>
           <div className="flex gap-3">
             <Input
               value={name}
               onChange={e => setName(e.target.value)}
-              placeholder="Nome da aplicação (ex: Meu Cheat, Meu Site)"
+              placeholder={appType === "loader" ? "Nome (ex: MULTI LOADER)" : "Nome da aplicação (ex: Meu Cheat, Meu Site)"}
               className="bg-white/[0.03] border-white/[0.08] text-white placeholder:text-gray-600"
             />
             <button
-              onClick={() => createApp.mutate({ name })}
+              onClick={() => createApp.mutate({ name, type: appType })}
               disabled={name.trim().length < 2 || createApp.isPending}
               className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-sm font-semibold whitespace-nowrap transition-all"
             >
@@ -95,6 +112,9 @@ export default function AdminVgAuth() {
                       </Link>
                       <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold uppercase ${a.status === "active" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/25" : "bg-red-500/10 text-red-400 border-red-500/25"}`}>
                         {a.status}
+                      </span>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold uppercase ${a.type === "loader" ? "bg-violet-500/10 text-violet-400 border-violet-500/25" : "bg-blue-500/10 text-blue-400 border-blue-500/25"}`}>
+                        {a.type === "loader" ? "LOADER" : "AUTH"}
                       </span>
                       <span className="text-[10px] px-2 py-0.5 rounded-full border font-semibold bg-white/[0.04] text-gray-400 border-white/[0.08]">v{a.version}</span>
                     </div>
@@ -151,11 +171,14 @@ export default function AdminVgAuth() {
         <p className="text-gray-500 text-sm mb-4">Integre a auth no seu código C++ ou site com os clientes prontos (com proteções anti-bypass incluídas).</p>
         <div className="flex flex-wrap gap-3">
           {[
-            { file: "VgAuth.hpp", label: "Cliente C++ (.hpp)" },
-            { file: "example.cpp", label: "Exemplo C++" },
+            { file: "VgAuth.hpp", label: "Auth C++ (.hpp)" },
+            { file: "example.cpp", label: "Exemplo Auth C++" },
             { file: "vgauth.js", label: "Cliente Web (.js)" },
             { file: "example.html", label: "Exemplo Web" },
-            { file: "README.md", label: "Documentação" },
+            { file: "VgAuthLoader.hpp", label: "Loader C++ (.hpp)" },
+            { file: "example_loader.cpp", label: "Exemplo Loader" },
+            { file: "README.md", label: "Docs Auth" },
+            { file: "README_LOADER.md", label: "Docs Multi Loader" },
           ].map(f => (
             <a key={f.file} href={`/vgauth/${f.file}`} download
               className="px-4 py-2 rounded-xl text-xs font-semibold bg-white/[0.04] text-gray-300 border border-white/[0.08] hover:border-emerald-500/30 hover:text-emerald-400 transition-all">

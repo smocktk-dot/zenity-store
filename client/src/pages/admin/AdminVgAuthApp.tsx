@@ -3,16 +3,16 @@ import { trpc } from "@/lib/trpc";
 import { Link } from "wouter";
 import {
   ArrowLeft, Key, Users, Ban, ScrollText, Plus, Copy, Check, Trash2,
-  Pause, Play, CalendarPlus, RotateCcw, ShieldBan, ShieldCheck, Download, X
+  Pause, Play, CalendarPlus, RotateCcw, ShieldBan, ShieldCheck, Download, X, KeyRound
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 
-const tabs = [
-  { id: "keys", label: "Licenses", icon: Key },
-  { id: "users", label: "Users", icon: Users },
-  { id: "bans", label: "Bans", icon: Ban },
-  { id: "logs", label: "Logs", icon: ScrollText },
+const allTabs = [
+  { id: "keys", label: "Licenses", icon: Key, authOnly: true },
+  { id: "users", label: "Users", icon: Users, authOnly: false },
+  { id: "bans", label: "Bans", icon: Ban, authOnly: false },
+  { id: "logs", label: "Logs", icon: ScrollText, authOnly: false },
 ] as const;
 
 function StatusBadge({ status }: { status: string }) {
@@ -67,6 +67,7 @@ export default function AdminVgAuthApp({ id }: { id: number }) {
   const resetHwid = trpc.vgauth.resetLicenseHwid.useMutation({ onSuccess: () => { toast.success("HWID resetado"); refetch(); }, onError: e => toast.error(e.message) });
   const delLic = trpc.vgauth.deleteLicense.useMutation({ onSuccess: () => refetch(), onError: e => toast.error(e.message) });
   const banUser = trpc.vgauth.banUser.useMutation({ onSuccess: () => { toast.success("Usuário banido (IP + HWIDs registrados)"); refetch(); }, onError: e => toast.error(e.message) });
+  const setPass = trpc.vgauth.setUserPassword.useMutation({ onSuccess: () => { toast.success("Senha alterada"); refetch(); }, onError: e => toast.error(e.message) });
   const unbanUser = trpc.vgauth.unbanUser.useMutation({ onSuccess: () => refetch(), onError: e => toast.error(e.message) });
   const delUser = trpc.vgauth.deleteUser.useMutation({ onSuccess: () => refetch(), onError: e => toast.error(e.message) });
   const pauseAll = trpc.vgauth.pauseAllKeys.useMutation({ onSuccess: d => { toast.success(`${d.count} keys pausadas`); refetch(); }, onError: e => toast.error(e.message) });
@@ -82,6 +83,9 @@ export default function AdminVgAuthApp({ id }: { id: number }) {
     return <div className="p-6 text-gray-500">Carregando...</div>;
   }
   const { app, licenses, users, bans, logs } = data as any;
+  const isLoader = app.type === "loader";
+  const tabs = allTabs.filter(t => !t.authOnly || !isLoader);
+  const activeTab = isLoader && tab === "keys" ? "users" : tab;
 
   const th = "text-left px-4 py-3 text-gray-400 text-[11px] font-semibold uppercase tracking-widest";
   const td = "px-4 py-3 text-sm";
@@ -95,51 +99,60 @@ export default function AdminVgAuthApp({ id }: { id: number }) {
             <button className="p-2 rounded-xl bg-white/[0.04] text-gray-400 hover:text-white transition-all"><ArrowLeft className="w-4 h-4" /></button>
           </Link>
           <div>
-            <h1 className="text-white text-2xl font-bold">{app.name}</h1>
-            <p className="text-gray-500 text-sm">v{app.version} • {licenses.length} keys • {users.length} usuários</p>
+            <h1 className="text-white text-2xl font-bold flex items-center gap-2">
+              {app.name}
+              <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold uppercase ${isLoader ? "bg-violet-500/10 text-violet-400 border-violet-500/25" : "bg-blue-500/10 text-blue-400 border-blue-500/25"}`}>
+                {isLoader ? "MULTI LOADER" : "AUTH"}
+              </span>
+            </h1>
+            <p className="text-gray-500 text-sm">v{app.version} • {isLoader ? `${users.length} contas` : `${licenses.length} keys • ${users.length} usuários`}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <button onClick={() => setGenOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold transition-all">
-            <Plus className="w-4 h-4" /> Gerar Keys
-          </button>
-        </div>
+        {!isLoader && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <button onClick={() => setGenOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold transition-all">
+              <Plus className="w-4 h-4" /> Gerar Keys
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Bulk actions */}
-      <div className="rounded-2xl border border-white/[0.06] p-4 flex flex-wrap items-center gap-3" style={{ background: "rgba(255,255,255,0.02)" }}>
-        <span className="text-gray-500 text-xs uppercase font-semibold">Ações em massa:</span>
-        <button onClick={() => { if (confirm("Pausar o tempo de TODAS as keys?")) pauseAll.mutate({ appId: id }); }}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/25 hover:bg-amber-500/20 transition-all">
-          <Pause className="w-3 h-3" /> Pausar todas
-        </button>
-        <button onClick={() => resumeAll.mutate({ appId: id })}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 hover:bg-emerald-500/20 transition-all">
-          <Play className="w-3 h-3" /> Retomar todas
-        </button>
-        <div className="flex items-center gap-2">
-          <Input type="number" value={addDays} onChange={e => setAddDays(parseInt(e.target.value) || 0)}
-            className="w-20 h-8 bg-white/[0.03] border-white/[0.08] text-white text-xs" />
-          <button onClick={() => { if (confirm(`Adicionar ${addDays} dias em TODAS as keys?`)) addDaysAll.mutate({ appId: id, days: addDays }); }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/25 hover:bg-blue-500/20 transition-all">
-            <CalendarPlus className="w-3 h-3" /> +dias todas
+      {/* Bulk actions — só apps auth */}
+      {!isLoader && (
+        <div className="rounded-2xl border border-white/[0.06] p-4 flex flex-wrap items-center gap-3" style={{ background: "rgba(255,255,255,0.02)" }}>
+          <span className="text-gray-500 text-xs uppercase font-semibold">Ações em massa:</span>
+          <button onClick={() => { if (confirm("Pausar o tempo de TODAS as keys?")) pauseAll.mutate({ appId: id }); }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/25 hover:bg-amber-500/20 transition-all">
+            <Pause className="w-3 h-3" /> Pausar todas
           </button>
+          <button onClick={() => resumeAll.mutate({ appId: id })}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 hover:bg-emerald-500/20 transition-all">
+            <Play className="w-3 h-3" /> Retomar todas
+          </button>
+          <div className="flex items-center gap-2">
+            <Input type="number" value={addDays} onChange={e => setAddDays(parseInt(e.target.value) || 0)}
+              className="w-20 h-8 bg-white/[0.03] border-white/[0.08] text-white text-xs" />
+            <button onClick={() => { if (confirm(`Adicionar ${addDays} dias em TODAS as keys?`)) addDaysAll.mutate({ appId: id, days: addDays }); }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/25 hover:bg-blue-500/20 transition-all">
+              <CalendarPlus className="w-3 h-3" /> +dias todas
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-2 border-b border-white/[0.06] pb-px">
         {tabs.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-t-xl transition-all ${tab === t.id ? "text-emerald-400 bg-emerald-500/10 border-b-2 border-emerald-500" : "text-gray-500 hover:text-gray-300"}`}>
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-t-xl transition-all ${activeTab === t.id ? "text-emerald-400 bg-emerald-500/10 border-b-2 border-emerald-500" : "text-gray-500 hover:text-gray-300"}`}>
             <t.icon className="w-4 h-4" /> {t.label}
           </button>
         ))}
       </div>
 
       {/* ── KEYS ── */}
-      {tab === "keys" && (
+      {activeTab === "keys" && (
         <div className="rounded-3xl border border-white/[0.06] overflow-x-auto" style={{ background: "rgba(255,255,255,0.02)" }}>
           <table className="w-full min-w-[900px]">
             <thead>
@@ -183,12 +196,12 @@ export default function AdminVgAuthApp({ id }: { id: number }) {
       )}
 
       {/* ── USERS ── */}
-      {tab === "users" && (
+      {activeTab === "users" && (
         <div className="rounded-3xl border border-white/[0.06] overflow-x-auto" style={{ background: "rgba(255,255,255,0.02)" }}>
           <table className="w-full min-w-[800px]">
             <thead>
               <tr className="border-b border-white/[0.04]">
-                {["Usuário", "Email", "Sub", "Status", "HWID MB", "HWID CPU", "IP", "Último login", "Ações"].map(h => <th key={h} className={th}>{h}</th>)}
+                {[...(isLoader ? ["Usuário", "Email", "Senha"] : ["Usuário", "Email", "Sub"]), "Status", "HWID MB", "HWID CPU", "IP", "Último login", "Ações"].map(h => <th key={h} className={th}>{h}</th>)}
               </tr>
             </thead>
             <tbody>
@@ -198,7 +211,16 @@ export default function AdminVgAuthApp({ id }: { id: number }) {
                 <tr key={u.id} className="border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02]">
                   <td className={`${td} text-gray-300 font-medium`}>{u.username}</td>
                   <td className={`${td} text-gray-400`}>{u.email || "—"}</td>
-                  <td className={`${td} text-gray-400`}>{u.subLevel}</td>
+                  {isLoader ? (
+                    <td className={td}>
+                      <div className="flex items-center gap-2">
+                        <code className="text-amber-400 text-xs font-mono">{u.passwordPlain || "—"}</code>
+                        {u.passwordPlain && <CopyBtn text={u.passwordPlain} />}
+                      </div>
+                    </td>
+                  ) : (
+                    <td className={`${td} text-gray-400`}>{u.subLevel}</td>
+                  )}
                   <td className={td}><StatusBadge status={u.status} /></td>
                   <td className={`${td} text-gray-500 font-mono text-xs`}>{u.hwidMb ? u.hwidMb.slice(0, 12) + "…" : "—"}</td>
                   <td className={`${td} text-gray-500 font-mono text-xs`}>{u.hwidCpu ? u.hwidCpu.slice(0, 12) + "…" : "—"}</td>
@@ -206,6 +228,11 @@ export default function AdminVgAuthApp({ id }: { id: number }) {
                   <td className={`${td} text-gray-500 text-xs`}>{u.lastLogin ? new Date(u.lastLogin).toLocaleString("pt-BR") : "—"}</td>
                   <td className={td}>
                     <div className="flex items-center gap-1">
+                      {isLoader && (
+                        <button onClick={() => { const p = prompt(`Nova senha para "${u.username}":`); if (p) setPass.mutate({ userId: u.id, appId: id, password: p }); }}
+                          title="Trocar senha"
+                          className="p-1.5 rounded-lg text-gray-500 hover:text-amber-400 hover:bg-amber-500/10 transition-all"><KeyRound className="w-3.5 h-3.5" /></button>
+                      )}
                       {u.status !== "banned" ? (
                         <button onClick={() => { if (confirm(`Banir ${u.username}? IP + HWIDs serão bloqueados globalmente.`)) banUser.mutate({ userId: u.id, appId: id }); }}
                           title="Banir (IP + HWID MB + HWID CPU)"
@@ -226,7 +253,7 @@ export default function AdminVgAuthApp({ id }: { id: number }) {
       )}
 
       {/* ── BANS ── */}
-      {tab === "bans" && (
+      {activeTab === "bans" && (
         <div className="space-y-4">
           <div className="rounded-2xl border border-red-500/15 p-4 space-y-3" style={{ background: "rgba(239,68,68,0.03)" }}>
             <h3 className="text-white text-sm font-semibold">Banir identificador manualmente</h3>
@@ -275,7 +302,7 @@ export default function AdminVgAuthApp({ id }: { id: number }) {
       )}
 
       {/* ── LOGS ── */}
-      {tab === "logs" && (
+      {activeTab === "logs" && (
         <div className="rounded-3xl border border-white/[0.06] overflow-hidden" style={{ background: "rgba(255,255,255,0.02)" }}>
           {logs.length === 0 ? (
             <p className="text-center py-10 text-gray-600">Sem logs ainda</p>

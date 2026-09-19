@@ -167,7 +167,8 @@ export function registerVgAuthApi(app: Express) {
       // ── REGISTER ──────────────────────────────────────────────────────────
       if (type === "register") {
         const { username, pass, key, email } = body;
-        if (!username || !pass || !key) {
+        const isLoader = appRec.type === "loader";
+        if (!username || !pass || (!isLoader && !key)) {
           return respond(res, secret, { success: false, message: "missing_params", sessionid });
         }
         const uname = String(username).trim();
@@ -178,6 +179,29 @@ export function registerVgAuthApi(app: Express) {
         if (existing) {
           return respond(res, secret, { success: false, message: "username_taken", sessionid });
         }
+
+        if (isLoader) {
+          // MULTI LOADER: sem key — cria a conta direto e guarda as credenciais
+          const passwordHash = await bcrypt.hash(String(pass), 10);
+          const user = await createVgauthUser({
+            appId: appRec.id,
+            username: uname,
+            passwordHash,
+            passwordPlain: String(pass),
+            email: email ? String(email) : null,
+            hwidMb, hwidCpu, ip,
+            lastLogin: new Date(),
+          });
+          await updateVgauthSession(session.id, { userId: user.id, username: uname, hwidMb, hwidCpu });
+          await createVgauthLog({ appId: appRec.id, action: "loader.register", detail: `${uname} <${email || "sem-email"}>`, ip });
+          return respond(res, secret, {
+            success: true,
+            message: "registered",
+            sessionid,
+            info: { username: uname, subLevel: "loader", expiresAt: "lifetime" },
+          });
+        }
+
         const lic = await getVgauthLicenseByKey(appRec.id, String(key).trim());
         if (!lic) {
           return respond(res, secret, { success: false, message: "invalid_key", sessionid });
@@ -299,6 +323,9 @@ export function registerVgAuthApi(app: Express) {
 
       // ── LICENSE (login direto por key, sem conta) ─────────────────────────
       if (type === "license") {
+        if (appRec.type === "loader") {
+          return respond(res, secret, { success: false, message: "not_supported", sessionid });
+        }
         const key = String(body.key || "").trim();
         if (!key) return respond(res, secret, { success: false, message: "missing_params", sessionid });
         const lic = await getVgauthLicenseByKey(appRec.id, key);

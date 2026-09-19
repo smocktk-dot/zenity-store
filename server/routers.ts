@@ -2193,13 +2193,16 @@ const vgauthRouter = router({
   }),
 
   createApp: adminProcedure
-    .input(z.object({ name: z.string().min(2).max(128) }))
+    .input(z.object({
+      name: z.string().min(2).max(128),
+      type: z.enum(["auth", "loader"]).default("auth"),
+    }))
     .mutation(async ({ input }) => {
       const { randomBytes, createHash } = await import("crypto");
       const ownerId = createHash("sha256").update(randomBytes(32)).digest("hex").slice(0, 32);
       const secret = randomBytes(32).toString("hex");
-      const app = await createVgauthApp({ name: input.name, ownerId, secret });
-      await createVgauthLog({ appId: app.id, action: "app.created", detail: input.name });
+      const app = await createVgauthApp({ name: input.name, type: input.type, ownerId, secret });
+      await createVgauthLog({ appId: app.id, action: "app.created", detail: `${input.name} (${input.type})` });
       return app;
     }),
 
@@ -2259,6 +2262,7 @@ const vgauthRouter = router({
     .mutation(async ({ input }) => {
       const app = await getVgauthAppById(input.appId);
       if (!app) throw new TRPCError({ code: "NOT_FOUND" });
+      if (app.type === "loader") throw new TRPCError({ code: "BAD_REQUEST", message: "Multi Loader não usa keys" });
       const charset = input.uppercase
         ? "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
         : "abcdefghijklmnopqrstuvwxyz0123456789";
@@ -2328,6 +2332,18 @@ const vgauthRouter = router({
       if (!user) throw new TRPCError({ code: "NOT_FOUND" });
       await updateVgauthUser(user.id, { status: "active" });
       await createVgauthLog({ appId: input.appId, action: "user.unbanned", detail: user.username });
+      return { success: true };
+    }),
+
+  setUserPassword: adminProcedure
+    .input(z.object({ userId: z.number(), appId: z.number(), password: z.string().min(4).max(128) }))
+    .mutation(async ({ input }) => {
+      const users = await getVgauthUsersByApp(input.appId);
+      const user = users.find(u => u.id === input.userId);
+      if (!user) throw new TRPCError({ code: "NOT_FOUND" });
+      const passwordHash = await bcrypt.hash(input.password, 10);
+      await updateVgauthUser(user.id, { passwordHash, passwordPlain: input.password });
+      await createVgauthLog({ appId: input.appId, action: "user.password_changed", detail: user.username });
       return { success: true };
     }),
 

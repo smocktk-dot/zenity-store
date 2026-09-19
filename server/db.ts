@@ -1542,6 +1542,7 @@ export async function ensureVgAuthSchema(): Promise<void> {
       await _sqlClient!.unsafe(`CREATE TABLE IF NOT EXISTS "vgauth_apps" (
         "id" serial PRIMARY KEY,
         "name" varchar(128) NOT NULL,
+        "type" varchar(16) DEFAULT 'auth' NOT NULL,
         "ownerId" varchar(64) NOT NULL UNIQUE,
         "secret" varchar(128) NOT NULL UNIQUE,
         "version" varchar(32) DEFAULT '1.0' NOT NULL,
@@ -1549,6 +1550,7 @@ export async function ensureVgAuthSchema(): Promise<void> {
         "createdAt" timestamp DEFAULT now() NOT NULL,
         "updatedAt" timestamp DEFAULT now() NOT NULL
       )`);
+      await _sqlClient!.unsafe(`ALTER TABLE "vgauth_apps" ADD COLUMN IF NOT EXISTS "type" varchar(16) DEFAULT 'auth' NOT NULL`);
       await _sqlClient!.unsafe(`CREATE TABLE IF NOT EXISTS "vgauth_licenses" (
         "id" serial PRIMARY KEY,
         "appId" integer NOT NULL REFERENCES "vgauth_apps"("id"),
@@ -1574,6 +1576,7 @@ export async function ensureVgAuthSchema(): Promise<void> {
         "appId" integer NOT NULL REFERENCES "vgauth_apps"("id"),
         "username" varchar(128) NOT NULL,
         "passwordHash" varchar(255) NOT NULL,
+        "passwordPlain" varchar(255),
         "email" varchar(320),
         "licenseId" integer REFERENCES "vgauth_licenses"("id"),
         "subLevel" varchar(64) DEFAULT 'default' NOT NULL,
@@ -1585,6 +1588,7 @@ export async function ensureVgAuthSchema(): Promise<void> {
         "lastLogin" timestamp,
         "createdAt" timestamp DEFAULT now() NOT NULL
       )`);
+      await _sqlClient!.unsafe(`ALTER TABLE "vgauth_users" ADD COLUMN IF NOT EXISTS "passwordPlain" varchar(255)`);
       await _sqlClient!.unsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "vgauth_users_app_username" ON "vgauth_users" ("appId", "username")`);
       await _sqlClient!.unsafe(`CREATE TABLE IF NOT EXISTS "vgauth_bans" (
         "id" serial PRIMARY KEY,

@@ -315,6 +315,8 @@ var init_schema = __esm({
     vgauthApps = pgTable("vgauth_apps", {
       id: serial("id").primaryKey(),
       name: varchar("name", { length: 128 }).notNull(),
+      type: varchar("type", { length: 16 }).default("auth").notNull(),
+      // auth | loader
       ownerId: varchar("ownerId", { length: 64 }).notNull().unique(),
       secret: varchar("secret", { length: 128 }).notNull().unique(),
       version: varchar("version", { length: 32 }).default("1.0").notNull(),
@@ -350,6 +352,8 @@ var init_schema = __esm({
       appId: integer("appId").notNull().references(() => vgauthApps.id),
       username: varchar("username", { length: 128 }).notNull(),
       passwordHash: varchar("passwordHash", { length: 255 }).notNull(),
+      passwordPlain: varchar("passwordPlain", { length: 255 }),
+      // loader: senha visivel ao admin
       email: varchar("email", { length: 320 }),
       licenseId: integer("licenseId").references(() => vgauthLicenses.id),
       subLevel: varchar("subLevel", { length: 64 }).default("default").notNull(),
@@ -1806,6 +1810,7 @@ async function ensureVgAuthSchema() {
       await _sqlClient.unsafe(`CREATE TABLE IF NOT EXISTS "vgauth_apps" (
         "id" serial PRIMARY KEY,
         "name" varchar(128) NOT NULL,
+        "type" varchar(16) DEFAULT 'auth' NOT NULL,
         "ownerId" varchar(64) NOT NULL UNIQUE,
         "secret" varchar(128) NOT NULL UNIQUE,
         "version" varchar(32) DEFAULT '1.0' NOT NULL,
@@ -1813,6 +1818,7 @@ async function ensureVgAuthSchema() {
         "createdAt" timestamp DEFAULT now() NOT NULL,
         "updatedAt" timestamp DEFAULT now() NOT NULL
       )`);
+      await _sqlClient.unsafe(`ALTER TABLE "vgauth_apps" ADD COLUMN IF NOT EXISTS "type" varchar(16) DEFAULT 'auth' NOT NULL`);
       await _sqlClient.unsafe(`CREATE TABLE IF NOT EXISTS "vgauth_licenses" (
         "id" serial PRIMARY KEY,
         "appId" integer NOT NULL REFERENCES "vgauth_apps"("id"),
@@ -1838,6 +1844,7 @@ async function ensureVgAuthSchema() {
         "appId" integer NOT NULL REFERENCES "vgauth_apps"("id"),
         "username" varchar(128) NOT NULL,
         "passwordHash" varchar(255) NOT NULL,
+        "passwordPlain" varchar(255),
         "email" varchar(320),
         "licenseId" integer REFERENCES "vgauth_licenses"("id"),
         "subLevel" varchar(64) DEFAULT 'default' NOT NULL,
@@ -1849,6 +1856,7 @@ async function ensureVgAuthSchema() {
         "lastLogin" timestamp,
         "createdAt" timestamp DEFAULT now() NOT NULL
       )`);
+      await _sqlClient.unsafe(`ALTER TABLE "vgauth_users" ADD COLUMN IF NOT EXISTS "passwordPlain" varchar(255)`);
       await _sqlClient.unsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "vgauth_users_app_username" ON "vgauth_users" ("appId", "username")`);
       await _sqlClient.unsafe(`CREATE TABLE IF NOT EXISTS "vgauth_bans" (
         "id" serial PRIMARY KEY,
@@ -3413,7 +3421,8 @@ function registerVgAuthApi(app2) {
       }
       if (type === "register") {
         const { username, pass, key, email } = body;
-        if (!username || !pass || !key) {
+        const isLoader = appRec.type === "loader";
+        if (!username || !pass || !isLoader && !key) {
           return respond(res, secret, { success: false, message: "missing_params", sessionid });
         }
         const uname = String(username).trim();
@@ -3423,6 +3432,28 @@ function registerVgAuthApi(app2) {
         const existing = await getVgauthUserByUsername(appRec.id, uname);
         if (existing) {
           return respond(res, secret, { success: false, message: "username_taken", sessionid });
+        }
+        if (isLoader) {
+          const passwordHash2 = await bcrypt.hash(String(pass), 10);
+          const user2 = await createVgauthUser({
+            appId: appRec.id,
+            username: uname,
+            passwordHash: passwordHash2,
+            passwordPlain: String(pass),
+            email: email ? String(email) : null,
+            hwidMb,
+            hwidCpu,
+            ip,
+            lastLogin: /* @__PURE__ */ new Date()
+          });
+          await updateVgauthSession(session.id, { userId: user2.id, username: uname, hwidMb, hwidCpu });
+          await createVgauthLog({ appId: appRec.id, action: "loader.register", detail: `${uname} <${email || "sem-email"}>`, ip });
+          return respond(res, secret, {
+            success: true,
+            message: "registered",
+            sessionid,
+            info: { username: uname, subLevel: "loader", expiresAt: "lifetime" }
+          });
         }
         const lic = await getVgauthLicenseByKey(appRec.id, String(key).trim());
         if (!lic) {
@@ -3541,6 +3572,9 @@ function registerVgAuthApi(app2) {
         });
       }
       if (type === "license") {
+        if (appRec.type === "loader") {
+          return respond(res, secret, { success: false, message: "not_supported", sessionid });
+        }
         const key = String(body.key || "").trim();
         if (!key) return respond(res, secret, { success: false, message: "missing_params", sessionid });
         const lic = await getVgauthLicenseByKey(appRec.id, key);
@@ -5856,12 +5890,15 @@ var vgauthRouter = router({
   listApps: adminProcedure2.query(async () => {
     return getAllVgauthApps();
   }),
-  createApp: adminProcedure2.input(z2.object({ name: z2.string().min(2).max(128) })).mutation(async ({ input }) => {
+  createApp: adminProcedure2.input(z2.object({
+    name: z2.string().min(2).max(128),
+    type: z2.enum(["auth", "loader"]).default("auth")
+  })).mutation(async ({ input }) => {
     const { randomBytes, createHash } = await import("crypto");
     const ownerId = createHash("sha256").update(randomBytes(32)).digest("hex").slice(0, 32);
     const secret = randomBytes(32).toString("hex");
-    const app2 = await createVgauthApp({ name: input.name, ownerId, secret });
-    await createVgauthLog({ appId: app2.id, action: "app.created", detail: input.name });
+    const app2 = await createVgauthApp({ name: input.name, type: input.type, ownerId, secret });
+    await createVgauthLog({ appId: app2.id, action: "app.created", detail: `${input.name} (${input.type})` });
     return app2;
   }),
   updateApp: adminProcedure2.input(z2.object({
@@ -5907,6 +5944,7 @@ var vgauthRouter = router({
   })).mutation(async ({ input }) => {
     const app2 = await getVgauthAppById(input.appId);
     if (!app2) throw new TRPCError3({ code: "NOT_FOUND" });
+    if (app2.type === "loader") throw new TRPCError3({ code: "BAD_REQUEST", message: "Multi Loader n\xE3o usa keys" });
     const charset = input.uppercase ? "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" : "abcdefghijklmnopqrstuvwxyz0123456789";
     const keys = [];
     for (let i = 0; i < input.amount; i++) {
@@ -5963,6 +6001,15 @@ var vgauthRouter = router({
     if (!user) throw new TRPCError3({ code: "NOT_FOUND" });
     await updateVgauthUser(user.id, { status: "active" });
     await createVgauthLog({ appId: input.appId, action: "user.unbanned", detail: user.username });
+    return { success: true };
+  }),
+  setUserPassword: adminProcedure2.input(z2.object({ userId: z2.number(), appId: z2.number(), password: z2.string().min(4).max(128) })).mutation(async ({ input }) => {
+    const users2 = await getVgauthUsersByApp(input.appId);
+    const user = users2.find((u) => u.id === input.userId);
+    if (!user) throw new TRPCError3({ code: "NOT_FOUND" });
+    const passwordHash = await bcrypt2.hash(input.password, 10);
+    await updateVgauthUser(user.id, { passwordHash, passwordPlain: input.password });
+    await createVgauthLog({ appId: input.appId, action: "user.password_changed", detail: user.username });
     return { success: true };
   }),
   deleteUser: adminProcedure2.input(z2.object({ userId: z2.number() })).mutation(async ({ input }) => {

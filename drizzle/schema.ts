@@ -396,6 +396,7 @@ export type InsertResellerInfoProduct = typeof resellerInfoProducts.$inferInsert
 export const vgauthApps = pgTable("vgauth_apps", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 128 }).notNull(),
+  type: varchar("type", { length: 16 }).default("auth").notNull(), // auth | loader
   ownerId: varchar("ownerId", { length: 64 }).notNull().unique(),
   secret: varchar("secret", { length: 128 }).notNull().unique(),
   version: varchar("version", { length: 32 }).default("1.0").notNull(),
@@ -436,6 +437,7 @@ export const vgauthUsers = pgTable("vgauth_users", {
   appId: integer("appId").notNull().references(() => vgauthApps.id),
   username: varchar("username", { length: 128 }).notNull(),
   passwordHash: varchar("passwordHash", { length: 255 }).notNull(),
+  passwordPlain: varchar("passwordPlain", { length: 255 }), // loader: senha visivel ao admin
   email: varchar("email", { length: 320 }),
   licenseId: integer("licenseId").references(() => vgauthLicenses.id),
   subLevel: varchar("subLevel", { length: 64 }).default("default").notNull(),

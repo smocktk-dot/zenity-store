@@ -1,0 +1,446 @@
+// ============================================================================
+//  VG AUTH — MULTI LOADER CLIENT  (VgAuthLoader.hpp)
+// ----------------------------------------------------------------------------
+//  Cliente single-header para aplicações do tipo MULTI LOADER.
+//
+//  DIFERENÇA para o VgAuth.hpp (auth completo):
+//   - Multi Loader NÃO usa license keys. Não existe key, subscrição nem
+//     geração de licença. É um sistema de CONTAS: register + login + ban.
+//   - O servidor armazena usuário, email e senha de quem cria conta.
+//   - O admin pode banir contas (IP + HWID placa-mãe + HWID CPU) e trocar
+//     senhas pelo painel.
+//
+//  Fluxo:
+//    init()           -> abre sessão no servidor (obrigatório, 1x)
+//    registerUser()   -> cria conta: username + senha + email (SEM key)
+//    login()          -> autentica conta existente
+//    check()          -> heartbeat: revalida sessão / detecta ban (30-60s)
+//    log()            -> envia log ao painel admin
+//
+//  Proteções incluídas:
+//   - Respostas assinadas HMAC-SHA256 (rejeita servidor emulado)
+//   - Timestamp anti-replay (respostas >120s descartadas)
+//   - Comparação de assinatura em tempo constante
+//   - Anti-debug best-effort (IsDebuggerPresent, DebugPort, PEB, timing)
+//   - HWID duplo (placa-mãe + CPU) enviado em register/login — o servidor
+//     vincula a conta à máquina e bloqueia login de PC diferente
+//
+//  DEPENDÊNCIAS (Windows, MSVC):
+//    winhttp.lib, wbemuuid.lib, bcrypt.lib, comsuppw.lib
+//
+//  USO MÍNIMO:
+//    #include "VgAuthLoader.hpp"
+//    VgLoader::api auth("NOME_DO_APP", "OWNER_ID", "SECRET");
+//    if (!auth.init()) { /* auth.message */ }
+//    auth.registerUser("usuario", "senha123", "email@x.com");
+//    auth.login("usuario", "senha123");
+//    while (rodando) { auth.check(); Sleep(30000); }
+// ============================================================================
+#pragma once
+
+#ifndef VG_LOADER_HPP
+#define VG_LOADER_HPP
+
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#include <winhttp.h>
+#include <wbemidl.h>
+#include <comdef.h>
+#include <bcrypt.h>
+#include <intrin.h>
+#include <stdlib.h>
+#include <chrono>
+#include <string>
+#include <vector>
+#include <sstream>
+
+#pragma comment(lib, "winhttp.lib")
+#pragma comment(lib, "wbemuuid.lib")
+#pragma comment(lib, "bcrypt.lib")
+#pragma comment(lib, "comsuppw.lib")
+
+#ifndef NT_SUCCESS
+#define NT_SUCCESS(s) (((NTSTATUS)(s)) >= 0)
+#endif
+
+namespace VgLoader {
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Anti-debug / anti-tamper (best-effort — use VMProtect/Themida no binário)
+// ─────────────────────────────────────────────────────────────────────────────
+namespace Security {
+
+    inline bool DebuggerPresent() {
+        if (IsDebuggerPresent()) return true;
+#ifdef _WIN64
+        if (*reinterpret_cast<volatile unsigned char*>(__readgsqword(0x60) + 2)) return true;
+#else
+        if (*reinterpret_cast<volatile unsigned char*>(__readfsdword(0x30) + 2)) return true;
+#endif
+        return false;
+    }
+
+    typedef NTSTATUS(WINAPI* NtQIP)(HANDLE, UINT, PVOID, ULONG, PULONG);
+    inline bool DebugPortCheck() {
+        HMODULE ntdll = GetModuleHandleA("ntdll.dll");
+        if (!ntdll) return false;
+        auto fn = (NtQIP)GetProcAddress(ntdll, "NtQueryInformationProcess");
+        if (!fn) return false;
+        DWORD_PTR port = 0;
+        if (NT_SUCCESS(fn(GetCurrentProcess(), 7 /*ProcessDebugPort*/, &port, sizeof(port), nullptr)))
+            return port != 0;
+        return false;
+    }
+
+    inline bool RemoteDebugger() {
+        BOOL dbg = FALSE;
+        CheckRemoteDebuggerPresent(GetCurrentProcess(), &dbg);
+        return dbg == TRUE;
+    }
+
+    inline bool TimingCheck() {
+        ULONGLONG t1 = GetTickCount64();
+        volatile int x = 0;
+        for (int i = 0; i < 100000; i++) x += i;
+        return (GetTickCount64() - t1) > 500;
+    }
+
+    inline bool Detected() {
+        return DebuggerPresent() || DebugPortCheck() || RemoteDebugger() || TimingCheck();
+    }
+
+    // Chame no início do programa E periodicamente (thread dedicada).
+    // Em release, prefira encerrar silenciosamente a exibir mensagem.
+    inline void KillIfDebugged() {
+        if (Detected()) ExitProcess(0xDEAD);
+    }
+
+    // Comparação em tempo constante — nunca use ==/strcmp para assinaturas
+    inline bool ConstantTimeEqual(const std::string& a, const std::string& b) {
+        if (a.size() != b.size()) return false;
+        volatile unsigned char diff = 0;
+        for (size_t i = 0; i < a.size(); i++) diff |= (unsigned char)(a[i] ^ b[i]);
+        return diff == 0;
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HWID — serial da placa-mãe + ProcessorId via WMI
+// ─────────────────────────────────────────────────────────────────────────────
+namespace Hwid {
+
+    inline std::string WmiQuery(const wchar_t* wmiClass, const wchar_t* field) {
+        std::string result;
+        HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+        bool comStarted = SUCCEEDED(hr);
+
+        IWbemLocator* loc = nullptr;
+        IWbemServices* svc = nullptr;
+        IEnumWbemClassObject* en = nullptr;
+
+        do {
+            if (FAILED(CoInitializeSecurity(nullptr, -1, nullptr, nullptr,
+                RPC_C_AUTHN_LEVEL_DEFAULT, RPC_C_IMP_LEVEL_IMPERSONATE,
+                nullptr, EOAC_NONE, nullptr))) break;
+
+            if (FAILED(CoCreateInstance(CLSID_WbemLocator, nullptr, CLSCTX_INPROC_SERVER,
+                IID_IWbemLocator, (LPVOID*)&loc))) break;
+
+            if (FAILED(loc->ConnectServer(_bstr_t(L"ROOT\\CIMV2"), nullptr, nullptr, nullptr,
+                0, nullptr, nullptr, &svc))) break;
+
+            if (FAILED(CoSetProxyBlanket(svc, RPC_C_AUTHN_WINNT, RPC_C_AUTHZ_NONE, nullptr,
+                RPC_C_AUTHN_LEVEL_CALL, RPC_C_IMP_LEVEL_IMPERSONATE, nullptr, EOAC_NONE))) break;
+
+            wchar_t query[256];
+            swprintf_s(query, L"SELECT %s FROM %s", field, wmiClass);
+            if (FAILED(svc->ExecQuery(_bstr_t(L"WQL"), _bstr_t(query),
+                WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY, nullptr, &en))) break;
+
+            IWbemClassObject* obj = nullptr;
+            ULONG ret = 0;
+            if (en->Next(WBEM_INFINITE, 1, &obj, &ret) == S_OK && obj) {
+                VARIANT v;
+                VariantInit(&v);
+                if (SUCCEEDED(obj->Get(field, 0, &v, nullptr, nullptr)) && v.vt == VT_BSTR && v.bstrVal) {
+                    _bstr_t b(v.bstrVal);
+                    result = (const char*)b;
+                }
+                VariantClear(&v);
+                obj->Release();
+            }
+        } while (false);
+
+        if (en) en->Release();
+        if (svc) svc->Release();
+        if (loc) loc->Release();
+        if (comStarted) CoUninitialize();
+        return result;
+    }
+
+    inline std::string Motherboard() {
+        std::string s = WmiQuery(L"Win32_BaseBoard", L"SerialNumber");
+        if (s.empty()) s = WmiQuery(L"Win32_ComputerSystemProduct", L"UUID");
+        while (!s.empty() && (s.back() == ' ' || s.back() == '\t')) s.pop_back();
+        return s;
+    }
+
+    inline std::string Cpu() {
+        return WmiQuery(L"Win32_Processor", L"ProcessorId");
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HTTP + crypto internos
+// ─────────────────────────────────────────────────────────────────────────────
+namespace Internal {
+
+    inline std::string HmacSha256(const std::string& key, const std::string& msg) {
+        BCRYPT_ALG_HANDLE alg = nullptr;
+        BCRYPT_HASH_HANDLE hash = nullptr;
+        std::string out;
+        if (BCryptOpenAlgorithmProvider(&alg, BCRYPT_SHA256_ALGORITHM, nullptr, BCRYPT_ALG_HANDLE_HMAC_FLAG) != 0)
+            return out;
+        DWORD objLen = 0, resLen = 0;
+        BCryptGetProperty(alg, BCRYPT_OBJECT_LENGTH, (PUCHAR)&objLen, sizeof(objLen), &resLen, 0);
+        DWORD hashLen = 0;
+        BCryptGetProperty(alg, BCRYPT_HASH_LENGTH, (PUCHAR)&hashLen, sizeof(hashLen), &resLen, 0);
+        std::vector<BYTE> obj(objLen), mac(hashLen);
+        if (BCryptCreateHash(alg, &hash, obj.data(), objLen,
+                (PUCHAR)key.data(), (ULONG)key.size(), 0) == 0) {
+            BCryptHashData(hash, (PUCHAR)msg.data(), (ULONG)msg.size(), 0);
+            BCryptFinishHash(hash, mac.data(), hashLen, 0);
+            BCryptDestroyHash(hash);
+            const char* hex = "0123456789abcdef";
+            for (BYTE b : mac) { out += hex[b >> 4]; out += hex[b & 0xF]; }
+        }
+        BCryptCloseAlgorithmProvider(alg, 0);
+        return out;
+    }
+
+    inline std::wstring Widen(const std::string& s) {
+        return std::wstring(s.begin(), s.end());
+    }
+
+    inline std::string HttpPost(const wchar_t* host, const wchar_t* path, const std::string& json) {
+        std::string response;
+        HINTERNET hSession = WinHttpOpen(L"VgLoader/1.0",
+            WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+        if (!hSession) return response;
+        HINTERNET hConnect = WinHttpConnect(hSession, host, INTERNET_DEFAULT_HTTPS_PORT, 0);
+        if (!hConnect) { WinHttpCloseHandle(hSession); return response; }
+        HINTERNET hRequest = WinHttpOpenRequest(hConnect, L"POST", path,
+            nullptr, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE);
+        if (!hRequest) { WinHttpCloseHandle(hConnect); WinHttpCloseHandle(hSession); return response; }
+
+        std::wstring headers = L"Content-Type: application/json\r\n";
+        BOOL sent = WinHttpSendRequest(hRequest, headers.c_str(), (DWORD)headers.size(),
+            (LPVOID)json.data(), (DWORD)json.size(), (DWORD)json.size(), 0);
+        if (sent && WinHttpReceiveResponse(hRequest, nullptr)) {
+            DWORD size = 0;
+            do {
+                if (!WinHttpQueryDataAvailable(hRequest, &size) || size == 0) break;
+                std::vector<char> buf(size + 1, 0);
+                DWORD read = 0;
+                if (WinHttpReadData(hRequest, buf.data(), size, &read) && read > 0)
+                    response.append(buf.data(), read);
+            } while (size > 0);
+        }
+        WinHttpCloseHandle(hRequest);
+        WinHttpCloseHandle(hConnect);
+        WinHttpCloseHandle(hSession);
+        return response;
+    }
+
+    inline std::string JsonStr(const std::string& body, const std::string& key) {
+        std::string needle = "\"" + key + "\"";
+        size_t p = body.find(needle);
+        if (p == std::string::npos) return "";
+        p = body.find(':', p + needle.size());
+        if (p == std::string::npos) return "";
+        p++;
+        while (p < body.size() && (body[p] == ' ' || body[p] == '\t')) p++;
+        if (p >= body.size()) return "";
+        if (body[p] == '"') {
+            size_t end = body.find('"', p + 1);
+            while (end != std::string::npos && body[end - 1] == '\\') end = body.find('"', end + 1);
+            return end == std::string::npos ? "" : body.substr(p + 1, end - p - 1);
+        }
+        size_t end = body.find_first_of(",}\n", p);
+        std::string v = body.substr(p, end == std::string::npos ? end : end - p);
+        while (!v.empty() && (v.back() == ' ' || v.back() == '\t')) v.pop_back();
+        return v;
+    }
+
+    inline std::string JsonEscape(const std::string& s) {
+        std::string out;
+        for (char c : s) {
+            if (c == '"' || c == '\\') { out += '\\'; out += c; }
+            else if (c == '\n') out += "\\n";
+            else out += c;
+        }
+        return out;
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// API principal — Multi Loader (sem keys)
+// ─────────────────────────────────────────────────────────────────────────────
+class api {
+public:
+    std::string name, ownerid, secret, version;
+    std::string host = "vgsellers.lat";
+    std::string path = "/api/vgauth/v1";
+
+    // estado da sessão
+    std::string sessionid;
+    bool initialized = false;
+    bool loggedIn = false;
+
+    // dados do usuário após register/login
+    std::string username, email, message;
+    bool success = false;
+
+    // ban: preenchidos quando o servidor responde "banned"
+    bool banned = false;
+    std::string banReason;
+
+    api(const std::string& appName, const std::string& ownerId,
+        const std::string& appSecret, const std::string& appVersion = "1.0")
+        : name(appName), ownerid(ownerId), secret(appSecret), version(appVersion) {}
+
+    // ── init: obrigatório antes de qualquer chamada ─────────────────────────
+    bool init() {
+        Security::KillIfDebugged();
+        std::ostringstream j;
+        j << "{\"type\":\"init\",\"name\":\"" << Internal::JsonEscape(name)
+          << "\",\"ownerid\":\"" << Internal::JsonEscape(ownerid)
+          << "\",\"secret\":\"" << Internal::JsonEscape(secret)
+          << "\",\"ver\":\"" << Internal::JsonEscape(version) << "\"}";
+        std::string r = Internal::HttpPost(Internal::Widen(host).c_str(), Internal::Widen(path).c_str(), j.str());
+        if (!verify(r)) return fail("signature_mismatch");
+        success = Internal::JsonStr(r, "success") == "true";
+        message = Internal::JsonStr(r, "message");
+        if (success) {
+            sessionid = Internal::JsonStr(r, "sessionid");
+            initialized = true;
+        }
+        return success;
+    }
+
+    // ── register: cria conta (user + senha + email) — SEM key ───────────────
+    bool registerUser(const std::string& user, const std::string& pass,
+                      const std::string& mail = "") {
+        return auth("register", user, pass, mail);
+    }
+
+    // ── login: usuário + senha (HWID verificado no servidor) ────────────────
+    bool login(const std::string& user, const std::string& pass) {
+        return auth("login", user, pass, "");
+    }
+
+    // ── check: heartbeat — revalida sessão/ban no servidor ──────────────────
+    bool check() {
+        if (!initialized) return false;
+        Security::KillIfDebugged();
+        std::string r = call("check", "");
+        if (!verify(r)) { loggedIn = false; return fail("signature_mismatch"); }
+        success = Internal::JsonStr(r, "success") == "true";
+        message = Internal::JsonStr(r, "message");
+        banned = Internal::JsonStr(r, "banned") == "true";
+        banReason = Internal::JsonStr(r, "reason");
+        if (!success) loggedIn = false;
+        return success;
+    }
+
+    // ── log: envia log ao painel ────────────────────────────────────────────
+    bool log(const std::string& msg) {
+        if (!initialized) return false;
+        std::string r = call("log", ",\"message\":\"" + Internal::JsonEscape(msg) + "\"");
+        if (!verify(r)) return false;
+        return Internal::JsonStr(r, "success") == "true";
+    }
+
+    // Mensagem amigável em PT-BR para exibir ao usuário final
+    std::string errorText() const {
+        if (banned) return "Voce foi banido." + (banReason.empty() ? "" : " Motivo: " + banReason);
+        if (message == "invalid_credentials") return "Usuario ou senha incorretos.";
+        if (message == "username_taken") return "Esse nome de usuario ja esta em uso.";
+        if (message == "invalid_username") return "Usuario invalido (3-32 caracteres).";
+        if (message == "hwid_mismatch") return "Esta conta esta vinculada a outro computador.";
+        if (message == "not_supported") return "Operacao nao suportada neste tipo de app.";
+        if (message == "rate_limited") return "Muitas tentativas. Aguarde 1 minuto.";
+        if (message == "app_disabled") return "Aplicacao desativada.";
+        if (message == "invalid_session" || message == "missing_session") return "Sessao invalida. Reinicie o programa.";
+        if (message == "signature_mismatch") return "Falha de seguranca: resposta nao autenticada.";
+        if (message == "not_initialized") return "Cliente nao inicializado.";
+        return "Erro: " + message;
+    }
+
+private:
+    bool auth(const char* type, const std::string& user, const std::string& pass,
+              const std::string& mail) {
+        if (!initialized) return fail("not_initialized");
+        Security::KillIfDebugged();
+
+        // HWID duplo — enviado em register/login para vínculo de máquina
+        std::string hwidMb = Hwid::Motherboard();
+        std::string hwidCpu = Hwid::Cpu();
+
+        std::ostringstream extra;
+        extra << ",\"hwid_mb\":\"" << Internal::JsonEscape(hwidMb)
+              << "\",\"hwid_cpu\":\"" << Internal::JsonEscape(hwidCpu) << "\"";
+        if (!user.empty()) extra << ",\"username\":\"" << Internal::JsonEscape(user) << "\"";
+        if (!pass.empty()) extra << ",\"pass\":\"" << Internal::JsonEscape(pass) << "\"";
+        if (!mail.empty()) extra << ",\"email\":\"" << Internal::JsonEscape(mail) << "\"";
+
+        std::string r = call(type, extra.str());
+        if (!verify(r)) return fail("signature_mismatch");
+        success = Internal::JsonStr(r, "success") == "true";
+        message = Internal::JsonStr(r, "message");
+        banned = Internal::JsonStr(r, "banned") == "true";
+        banReason = Internal::JsonStr(r, "reason");
+        if (success) {
+            username = Internal::JsonStr(r, "username");
+            email = Internal::JsonStr(r, "email");
+            loggedIn = true;
+        }
+        return success;
+    }
+
+    std::string call(const char* type, const std::string& extra) {
+        std::ostringstream j;
+        j << "{\"type\":\"" << type << "\",\"sessionid\":\"" << sessionid << "\"" << extra << "}";
+        return Internal::HttpPost(Internal::Widen(host).c_str(), Internal::Widen(path).c_str(), j.str());
+    }
+
+    // Verifica assinatura HMAC + frescor (anti emulador / anti replay).
+    // SE A ASSINATURA FALHAR A RESPOSTA É DESCARTADA — nunca autentique sem isso.
+    bool verify(const std::string& r) {
+        if (r.empty()) return false;
+        std::string sig = Internal::JsonStr(r, "signature");
+        std::string ts = Internal::JsonStr(r, "ts");
+        std::string ok = Internal::JsonStr(r, "success");
+        std::string msg = Internal::JsonStr(r, "message");
+        std::string sid = Internal::JsonStr(r, "sessionid");
+        if (sig.empty() || ts.empty()) return false;
+
+        // anti-replay: resposta não pode ter mais de 120s
+        long long serverTs = _strtoi64(ts.c_str(), nullptr, 10);
+        long long now = std::chrono::duration_cast<std::chrono::seconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count();
+        if (serverTs <= 0 || (now - serverTs) > 120 || (serverTs - now) > 120) return false;
+
+        std::string payload = std::string(ok == "true" ? "1" : "0") + "|" + msg + "|" + sid + "|" + ts;
+        std::string expected = Internal::HmacSha256(secret, payload);
+        return Security::ConstantTimeEqual(expected, sig);
+    }
+
+    bool fail(const char* m) { success = false; message = m; return false; }
+};
+
+} // namespace VgLoader
+
+#endif // VG_LOADER_HPP
