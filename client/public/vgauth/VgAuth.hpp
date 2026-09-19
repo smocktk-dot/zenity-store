@@ -347,6 +347,8 @@ public:
         if (!verify(r)) { loggedIn = false; return fail("signature_mismatch"); }
         success = Internal::JsonStr(r, "success") == "true";
         message = Internal::JsonStr(r, "message");
+        banned = Internal::JsonStr(r, "banned") == "true";
+        banReason = Internal::JsonStr(r, "reason");
         if (!success) loggedIn = false;
         return success;
     }
@@ -399,6 +401,8 @@ private:
         if (message == "invalid_credentials") return "Usuario ou senha incorretos.";
         if (message == "invalid_key") return "Key invalida ou inexistente.";
         if (message == "key_already_used") return "Essa key ja foi utilizada.";
+        if (message == "key_banned") return "Essa key foi banida.";
+        if (message == "key_revoked") return "Essa key foi revogada.";
         if (message == "key_paused") return "Essa key esta pausada.";
         if (message == "subscription_expired") return "Sua assinatura expirou.";
         if (message == "subscription_invalid") return "Sua assinatura nao e mais valida.";

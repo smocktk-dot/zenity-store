@@ -179,8 +179,14 @@ export function registerVgAuthApi(app: Express) {
           return respond(res, secret, { success: false, message: "username_taken", sessionid });
         }
         const lic = await getVgauthLicenseByKey(appRec.id, String(key).trim());
-        if (!lic || lic.status !== "active") {
+        if (!lic) {
           return respond(res, secret, { success: false, message: "invalid_key", sessionid });
+        }
+        if (lic.status === "banned") {
+          return respond(res, secret, { success: false, message: "banned", banned: true, reason: "Key banida", sessionid });
+        }
+        if (lic.status !== "active") {
+          return respond(res, secret, { success: false, message: `key_${lic.status}`, sessionid });
         }
         if (lic.usedBy) {
           return respond(res, secret, { success: false, message: "key_already_used", sessionid });
@@ -235,6 +241,9 @@ export function registerVgAuthApi(app: Express) {
         }
         const license = user.licenseId ? await getVgauthLicenseById(user.licenseId) : null;
         if (license) {
+          if (license.status === "banned") {
+            return respond(res, secret, { success: false, message: "banned", banned: true, reason: "Key banida", sessionid });
+          }
           if (license.status !== "active") {
             return respond(res, secret, { success: false, message: `key_${license.status}`, sessionid });
           }
@@ -293,8 +302,14 @@ export function registerVgAuthApi(app: Express) {
         const key = String(body.key || "").trim();
         if (!key) return respond(res, secret, { success: false, message: "missing_params", sessionid });
         const lic = await getVgauthLicenseByKey(appRec.id, key);
-        if (!lic || lic.status !== "active") {
+        if (!lic) {
           return respond(res, secret, { success: false, message: "invalid_key", sessionid });
+        }
+        if (lic.status === "banned") {
+          return respond(res, secret, { success: false, message: "banned", banned: true, reason: "Key banida", sessionid });
+        }
+        if (lic.status !== "active") {
+          return respond(res, secret, { success: false, message: `key_${lic.status}`, sessionid });
         }
         if (lic.paused) {
           return respond(res, secret, { success: false, message: "key_paused", sessionid });
@@ -360,6 +375,9 @@ export function registerVgAuthApi(app: Express) {
           }
           if (user.licenseId) {
             const lic = await getVgauthLicenseById(user.licenseId);
+            if (lic && lic.status === "banned") {
+              return respond(res, secret, { success: false, message: "banned", banned: true, reason: "Key banida", sessionid });
+            }
             if (lic && (lic.status !== "active" || lic.paused ||
               (lic.expiresAt && lic.expiresAt.getTime() < Date.now()))) {
               return respond(res, secret, { success: false, message: "subscription_invalid", sessionid });

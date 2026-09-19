@@ -73,8 +73,10 @@ class VgAuth {
   async check() {
     const r = await this._post({ type: "check", sessionid: this.sessionid });
     if (!(await this._verify(r))) { this.loggedIn = false; return this._fail("signature_mismatch"); }
-    if (!r.success) this.loggedIn = false;
     this.message = r.message;
+    this.banned = r.banned === true;
+    this.banReason = r.reason || "";
+    if (!r.success) this.loggedIn = false;
     return !!r.success;
   }
 
@@ -111,6 +113,8 @@ class VgAuth {
       invalid_credentials: "Usuário ou senha incorretos.",
       invalid_key: "Key inválida ou inexistente.",
       key_already_used: "Essa key já foi utilizada.",
+      key_banned: "Essa key foi banida.",
+      key_revoked: "Essa key foi revogada.",
       key_paused: "Essa key está pausada.",
       subscription_expired: "Sua assinatura expirou.",
       subscription_invalid: "Sua assinatura não é mais válida.",
