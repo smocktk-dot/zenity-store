@@ -32,7 +32,8 @@ int main() {
         std::cout << "Email: ";   std::cin >> mail;
         std::cout << "Key: ";     std::cin >> key;
         if (!auth.registerUser(user, pass, key, mail)) {
-            std::cerr << "Registro falhou: " << auth.message << "\n";
+            // banned=true quando o IP/HWID esta na lista global de bans
+            std::cerr << "Registro falhou: " << auth.errorText() << "\n";
             return 1;
         }
     } else if (op == 2) {
@@ -40,14 +41,19 @@ int main() {
         std::cout << "Usuario: "; std::cin >> user;
         std::cout << "Senha: ";   std::cin >> pass;
         if (!auth.login(user, pass)) {
-            std::cerr << "Login falhou: " << auth.message << "\n";
+            if (auth.banned) {
+                // Mostra mensagem de ban para o usuario
+                std::cerr << auth.errorText() << "\n";
+            } else {
+                std::cerr << "Login falhou: " << auth.errorText() << "\n";
+            }
             return 1;
         }
     } else {
         std::string key;
         std::cout << "Key: "; std::cin >> key;
         if (!auth.license(key)) {
-            std::cerr << "Key invalida: " << auth.message << "\n";
+            std::cerr << auth.errorText() << "\n";
             return 1;
         }
     }
@@ -60,7 +66,7 @@ int main() {
     while (true) {
         VgAuth::Security::KillIfDebugged();
         if (!auth.check()) {
-            std::cerr << "Sessao invalidada: " << auth.message << "\n";
+            std::cerr << "Sessao invalidada: " << auth.errorText() << "\n";
             return 1;
         }
         Sleep(30000); // 30s

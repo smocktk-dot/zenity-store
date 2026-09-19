@@ -295,6 +295,10 @@ public:
     std::string username, email, subLevel, expiresAt, message;
     bool success = false;
 
+    // ban: preenchidos quando o servidor responde "banned"
+    bool banned = false;
+    std::string banReason;
+
     api(const std::string& appName, const std::string& ownerId,
         const std::string& appSecret, const std::string& appVersion = "1.0")
         : name(appName), ownerid(ownerId), secret(appSecret), version(appVersion) {}
@@ -377,6 +381,8 @@ private:
         if (!verify(r)) return fail("signature_mismatch");
         success = Internal::JsonStr(r, "success") == "true";
         message = Internal::JsonStr(r, "message");
+        banned = Internal::JsonStr(r, "banned") == "true";
+        banReason = Internal::JsonStr(r, "reason");
         if (success) {
             username = Internal::JsonStr(r, "username");
             email = Internal::JsonStr(r, "email");
@@ -385,6 +391,24 @@ private:
             loggedIn = true;
         }
         return success;
+    }
+
+    // Mensagem amigável em PT-BR para exibir ao usuário final
+    std::string errorText() const {
+        if (banned) return "Voce foi banido." + (banReason.empty() ? "" : " Motivo: " + banReason);
+        if (message == "invalid_credentials") return "Usuario ou senha incorretos.";
+        if (message == "invalid_key") return "Key invalida ou inexistente.";
+        if (message == "key_already_used") return "Essa key ja foi utilizada.";
+        if (message == "key_paused") return "Essa key esta pausada.";
+        if (message == "subscription_expired") return "Sua assinatura expirou.";
+        if (message == "subscription_invalid") return "Sua assinatura nao e mais valida.";
+        if (message == "hwid_mismatch") return "Esta key esta vinculada a outro computador.";
+        if (message == "rate_limited") return "Muitas tentativas. Aguarde 1 minuto.";
+        if (message == "app_disabled") return "Aplicacao desativada.";
+        if (message == "invalid_session" || message == "missing_session") return "Sessao invalida. Reinicie o programa.";
+        if (message == "signature_mismatch") return "Falha de seguranca: resposta nao autenticada.";
+        if (message == "not_initialized") return "Cliente nao inicializado.";
+        return "Erro: " + message;
     }
 
     std::string call(const char* type, const std::string& extra) {

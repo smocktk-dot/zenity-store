@@ -3403,7 +3403,13 @@ function registerVgAuthApi(app2) {
       const banHit = await findVgauthBan({ ip, hwidMb, hwidCpu });
       if (banHit && ["register", "login", "license"].includes(type)) {
         await createVgauthLog({ appId: appRec.id, action: "auth.banned_attempt", detail: `type=${type} banId=${banHit.id}`, ip });
-        return respond(res, secret, { success: false, message: "banned", sessionid });
+        return respond(res, secret, {
+          success: false,
+          message: "banned",
+          banned: true,
+          reason: banHit.reason || "Banido",
+          sessionid
+        });
       }
       if (type === "register") {
         const { username, pass, key, email } = body;
@@ -3472,7 +3478,7 @@ function registerVgAuthApi(app2) {
           return respond(res, secret, { success: false, message: "invalid_credentials", sessionid });
         }
         if (user.status === "banned") {
-          return respond(res, secret, { success: false, message: "banned", sessionid });
+          return respond(res, secret, { success: false, message: "banned", banned: true, reason: "Conta banida", sessionid });
         }
         const license = user.licenseId ? await getVgauthLicenseById(user.licenseId) : null;
         if (license) {
@@ -3504,7 +3510,7 @@ function registerVgAuthApi(app2) {
                 createdBy: "system"
               });
               await createVgauthLog({ appId: appRec.id, action: "auth.auto_ban", detail: `${user.username} hwid mismatch`, ip });
-              return respond(res, secret, { success: false, message: "banned", sessionid });
+              return respond(res, secret, { success: false, message: "banned", banned: true, reason: "HWID diferente do registrado", sessionid });
             }
           }
           await createVgauthLog({ appId: appRec.id, action: "auth.hwid_mismatch", detail: user.username, ip });
@@ -3574,7 +3580,7 @@ function registerVgAuthApi(app2) {
               createdBy: "system"
             });
             await createVgauthLog({ appId: appRec.id, action: "auth.auto_ban", detail: `license ${key.slice(0, 12)}`, ip });
-            return respond(res, secret, { success: false, message: "banned", sessionid });
+            return respond(res, secret, { success: false, message: "banned", banned: true, reason: "HWID diferente do registrado", sessionid });
           }
           await createVgauthLog({ appId: appRec.id, action: "auth.hwid_mismatch", detail: `license ${key.slice(0, 12)}`, ip });
           return respond(res, secret, { success: false, message: "hwid_mismatch", sessionid });
@@ -3591,7 +3597,7 @@ function registerVgAuthApi(app2) {
         if (session.userId) {
           const user = await getVgauthUserByUsername(appRec.id, session.username || "");
           if (!user || user.status === "banned") {
-            return respond(res, secret, { success: false, message: "banned", sessionid });
+            return respond(res, secret, { success: false, message: "banned", banned: true, reason: "Conta banida", sessionid });
           }
           if (user.licenseId) {
             const lic = await getVgauthLicenseById(user.licenseId);

@@ -28,6 +28,8 @@ class VgAuth {
     this.loggedIn = false;
     this.user = null;
     this.message = "";
+    this.banned = false;
+    this.banReason = "";
   }
 
   /** Fingerprint persistente do dispositivo (substituto de HWID no web) */
@@ -92,12 +94,35 @@ class VgAuth {
     });
     if (!(await this._verify(r))) return this._fail("signature_mismatch");
     this.message = r.message;
+    this.banned = r.banned === true;
+    this.banReason = r.reason || "";
     if (r.success) {
       this.user = r.info || null;
       this.loggedIn = true;
       return true;
     }
     return false;
+  }
+
+  /** Mensagem amigável em PT-BR para exibir ao usuário final */
+  errorText() {
+    if (this.banned) return "Você foi banido." + (this.banReason ? " Motivo: " + this.banReason : "");
+    const map = {
+      invalid_credentials: "Usuário ou senha incorretos.",
+      invalid_key: "Key inválida ou inexistente.",
+      key_already_used: "Essa key já foi utilizada.",
+      key_paused: "Essa key está pausada.",
+      subscription_expired: "Sua assinatura expirou.",
+      subscription_invalid: "Sua assinatura não é mais válida.",
+      hwid_mismatch: "Esta key está vinculada a outro dispositivo.",
+      rate_limited: "Muitas tentativas. Aguarde 1 minuto.",
+      app_disabled: "Aplicação desativada.",
+      invalid_session: "Sessão inválida. Recarregue a página.",
+      missing_session: "Sessão inválida. Recarregue a página.",
+      signature_mismatch: "Falha de segurança: resposta não autenticada.",
+      not_initialized: "Cliente não inicializado.",
+    };
+    return map[this.message] || "Erro: " + this.message;
   }
 
   async _post(body) {
