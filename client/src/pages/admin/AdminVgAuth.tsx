@@ -169,21 +169,46 @@ export default function AdminVgAuth() {
       <div className="rounded-3xl border border-white/[0.06] p-5" style={{ background: "rgba(255,255,255,0.02)" }}>
         <h3 className="text-white font-semibold mb-2">SDK para download</h3>
         <p className="text-gray-500 text-sm mb-4">Integre a auth no seu código C++ ou site com os clientes prontos (com proteções anti-bypass incluídas).</p>
-        <div className="flex flex-wrap gap-3">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {[
-            { file: "VgAuth.hpp", label: "Auth C++ (.hpp)" },
-            { file: "example.cpp", label: "Exemplo Auth C++" },
-            { file: "vgauth.js", label: "Cliente Web (.js)" },
-            { file: "example.html", label: "Exemplo Web" },
-            { file: "VgAuthLoader.hpp", label: "Loader C++ (.hpp)" },
-            { file: "example_loader.cpp", label: "Exemplo Loader" },
-            { file: "README.md", label: "Docs Auth" },
-            { file: "README_LOADER.md", label: "Docs Multi Loader" },
-          ].map(f => (
-            <a key={f.file} href={`/vgauth/${f.file}`} download
-              className="px-4 py-2 rounded-xl text-xs font-semibold bg-white/[0.04] text-gray-300 border border-white/[0.08] hover:border-emerald-500/30 hover:text-emerald-400 transition-all">
-              {f.label}
-            </a>
+            {
+              title: "Auth Completo",
+              desc: "Keys, licenças, HWID e duração — estilo KeyAuth",
+              accent: "blue",
+              files: [
+                { file: "auth/VgAuth.hpp", label: "Auth C++ (.hpp)" },
+                { file: "auth/example.cpp", label: "Exemplo C++" },
+                { file: "auth/vgauth.js", label: "Cliente Web (.js)" },
+                { file: "auth/example.html", label: "Exemplo Web" },
+                { file: "auth/README.md", label: "Documentação" },
+              ],
+            },
+            {
+              title: "Multi Loader",
+              desc: "Só contas — sem keys. Registro, login, ban e senha",
+              accent: "violet",
+              files: [
+                { file: "loader/VgAuthLoader.hpp", label: "Loader C++ (.hpp)" },
+                { file: "loader/example_loader.cpp", label: "Exemplo C++" },
+                { file: "loader/README_LOADER.md", label: "Documentação" },
+              ],
+            },
+          ].map(g => (
+            <div key={g.title} className={`rounded-2xl border p-4 ${g.accent === "violet" ? "border-violet-500/15" : "border-blue-500/15"}`}
+              style={{ background: g.accent === "violet" ? "rgba(139,92,246,0.03)" : "rgba(59,130,246,0.03)" }}>
+              <div className="mb-3">
+                <p className={`text-sm font-semibold ${g.accent === "violet" ? "text-violet-400" : "text-blue-400"}`}>{g.title}</p>
+                <p className="text-gray-500 text-xs mt-0.5">{g.desc}</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {g.files.map(f => (
+                  <a key={f.file} href={`/vgauth/${f.file}`} download
+                    className={`px-3.5 py-2 rounded-xl text-xs font-semibold bg-white/[0.04] text-gray-300 border border-white/[0.08] transition-all ${g.accent === "violet" ? "hover:border-violet-500/30 hover:text-violet-400" : "hover:border-blue-500/30 hover:text-blue-400"}`}>
+                    {f.label}
+                  </a>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       </div>
