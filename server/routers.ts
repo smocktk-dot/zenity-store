@@ -14,7 +14,7 @@ import { checkPurinPaymentStatus, processPurinPaymentUpdate } from "./purinCashW
 import { storagePut } from "./storage";
 import {
   getAdminByUsername, getAdminById, createAdmin,
-  getResellerByUsername, getResellerById, getAllResellers, createReseller, updateReseller, updateResellerCredits, deleteResellerById, getResellersByParentId,
+  getResellerByUsername, getResellerById, getAllResellers, createReseller, updateReseller, updateResellerCredits, deleteResellerById, getResellersByParentId, purgeResellerPurchases,
   getSubResellerKeyStats, getSubResellerKeyLogs, getResellerKeyStatsByType,
   getAllCategories, createCategory, updateCategory, deleteCategory,
   getAllApps, getAppById, getAppByName, getAppByNameLike, createApp, updateApp, deleteApp,
@@ -633,6 +633,18 @@ const adminRouter = router({
         description: input.description || "Créditos adicionados pelo admin",
       });
       return { success: true, newBalance: after };
+    }),
+
+  // Apaga todas as keys do reseller + logs de compra e recalcula o faturamento
+  purgeResellerPurchases: adminProcedure
+    .input(z.object({ resellerId: z.number(), confirmUsername: z.string() }))
+    .mutation(async ({ input }) => {
+      const reseller = await getResellerById(input.resellerId);
+      if (!reseller) throw new TRPCError({ code: "NOT_FOUND" });
+      if (input.confirmUsername !== reseller.username) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Confirmação incorreta — digite o username exato" });
+      }
+      return purgeResellerPurchases(input.resellerId);
     }),
 
   // Categories

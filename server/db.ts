@@ -1098,6 +1098,41 @@ export async function deleteResellerById(id: number) {
   });
 }
 
+/**
+ * Apaga todas as keys compradas por um reseller + os logs dessas compras
+ * (transações 'purchase' e pix payments 'key') e recalcula totalPurchases.
+ * O faturamento do dashboard sai de license_keys.creditsSpent — remover as
+ * keys já corrige o total automaticamente.
+ */
+export async function purgeResellerPurchases(resellerId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  return db.transaction(async (tx) => {
+    const deletedKeys = await tx
+      .delete(licenseKeys)
+      .where(eq(licenseKeys.resellerId, resellerId))
+      .returning({ id: licenseKeys.id });
+
+    const deletedTx = await tx
+      .delete(creditTransactions)
+      .where(and(eq(creditTransactions.resellerId, resellerId), eq(creditTransactions.type, "purchase")))
+      .returning({ id: creditTransactions.id });
+
+    const deletedPix = await tx
+      .delete(pixPayments)
+      .where(and(eq(pixPayments.resellerId, resellerId), eq(pixPayments.paymentType, "key")))
+      .returning({ id: pixPayments.id });
+
+    const [{ c }] = await tx
+      .select({ c: sql<number>`count(*)::int` })
+      .from(licenseKeys)
+      .where(eq(licenseKeys.resellerId, resellerId));
+    await tx.update(resellers).set({ totalPurchases: c ?? 0 }).where(eq(resellers.id, resellerId));
+
+    return { keysDeleted: deletedKeys.length, transactionsDeleted: deletedTx.length, pixDeleted: deletedPix.length };
+  });
+}
+
 // ─── Tickets ──────────────────────────────────────────────────────────────────
 export async function getTicketsByResellerId(resellerId: number) {
   const db = await getDb();

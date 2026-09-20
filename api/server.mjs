@@ -566,6 +566,7 @@ __export(db_exports, {
   listResellerApiKeys: () => listResellerApiKeys,
   normalizeIp: () => normalizeIp,
   pauseAllVgauthLicenses: () => pauseAllVgauthLicenses,
+  purgeResellerPurchases: () => purgeResellerPurchases,
   releaseStockReservation: () => releaseStockReservation,
   removeAppFromReseller: () => removeAppFromReseller,
   removeIpFromWhitelist: () => removeIpFromWhitelist,
@@ -1447,6 +1448,18 @@ async function deleteResellerById(id) {
     await tx.update(resellers).set({ parentResellerId: target[0]?.parentResellerId ?? null }).where(eq(resellers.parentResellerId, id));
     await tx.delete(ipWhitelist).where(and(eq(ipWhitelist.userType, "reseller"), eq(ipWhitelist.userId, id)));
     await tx.delete(resellers).where(eq(resellers.id, id));
+  });
+}
+async function purgeResellerPurchases(resellerId) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  return db.transaction(async (tx) => {
+    const deletedKeys = await tx.delete(licenseKeys).where(eq(licenseKeys.resellerId, resellerId)).returning({ id: licenseKeys.id });
+    const deletedTx = await tx.delete(creditTransactions).where(and(eq(creditTransactions.resellerId, resellerId), eq(creditTransactions.type, "purchase"))).returning({ id: creditTransactions.id });
+    const deletedPix = await tx.delete(pixPayments).where(and(eq(pixPayments.resellerId, resellerId), eq(pixPayments.paymentType, "key"))).returning({ id: pixPayments.id });
+    const [{ c }] = await tx.select({ c: sql`count(*)::int` }).from(licenseKeys).where(eq(licenseKeys.resellerId, resellerId));
+    await tx.update(resellers).set({ totalPurchases: c ?? 0 }).where(eq(resellers.id, resellerId));
+    return { keysDeleted: deletedKeys.length, transactionsDeleted: deletedTx.length, pixDeleted: deletedPix.length };
   });
 }
 async function getTicketsByResellerId(resellerId) {
@@ -4678,6 +4691,15 @@ var adminRouter = router({
       description: input.description || "Cr\xE9ditos adicionados pelo admin"
     });
     return { success: true, newBalance: after };
+  }),
+  // Apaga todas as keys do reseller + logs de compra e recalcula o faturamento
+  purgeResellerPurchases: adminProcedure2.input(z2.object({ resellerId: z2.number(), confirmUsername: z2.string() })).mutation(async ({ input }) => {
+    const reseller = await getResellerById(input.resellerId);
+    if (!reseller) throw new TRPCError3({ code: "NOT_FOUND" });
+    if (input.confirmUsername !== reseller.username) {
+      throw new TRPCError3({ code: "BAD_REQUEST", message: "Confirma\xE7\xE3o incorreta \u2014 digite o username exato" });
+    }
+    return purgeResellerPurchases(input.resellerId);
   }),
   // Categories
   listCategories: adminProcedure2.query(() => getAllCategories()),

@@ -3,7 +3,7 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
   Plus, Search, Edit2, UserCheck, UserX, PlusCircle, Package,
-  CreditCard, Percent, Eye, Users, Store, Check, Key
+  CreditCard, Percent, Eye, Users, Store, Check, Key, Eraser
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -80,6 +80,15 @@ export default function AdminResellers() {
   });
   const addCredits = trpc.admin.addCredits.useMutation({
     onSuccess: () => { toast.success("Créditos adicionados!"); utils.admin.listResellers.invalidate(); setCreditReseller(null); setCreditAmount(""); },
+    onError: e => toast.error(e.message),
+  });
+  const purge = trpc.admin.purgeResellerPurchases.useMutation({
+    onSuccess: d => {
+      toast.success(`${d.keysDeleted} keys apagadas, ${d.transactionsDeleted} logs removidos — faturamento recalculado`);
+      utils.admin.listResellers.invalidate();
+      utils.admin.listAllKeys.invalidate();
+      utils.admin.dashboardStats.invalidate();
+    },
     onError: e => toast.error(e.message),
   });
 
@@ -183,6 +192,16 @@ export default function AdminResellers() {
                       title={r.status === "active" ? "Desativar" : "Ativar"}
                     >
                       {r.status === "active" ? <UserX className="w-3.5 h-3.5" /> : <UserCheck className="w-3.5 h-3.5" />}
+                    </button>
+                    <button
+                      onClick={() => {
+                        const c = prompt(`Apagar TODAS as keys de "${r.username}"?\nIsso remove as keys, os logs de compra e corrige o faturamento.\n\nDigite o username para confirmar:`);
+                        if (c) purge.mutate({ resellerId: r.id, confirmUsername: c });
+                      }}
+                      className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 transition-all"
+                      title="Apagar todas as keys + logs de compra"
+                    >
+                      <Eraser className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </td>
