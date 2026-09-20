@@ -29,6 +29,8 @@ const navItems = [
   { href: "/admin/security", icon: Lock, label: "Segurança" },
 ];
 
+const SUPPORT_HREFS = new Set(["/admin/keys", "/admin/manual-delivery", "/admin/tickets", "/admin/support"]);
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [location, navigate] = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -37,9 +39,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     onSuccess: () => { toast.success("Logout realizado"); navigate("/"); },
   });
 
+  const isSupport = (session as any)?.adminRole === "support";
+  const visibleItems = isSupport ? navItems.filter(i => SUPPORT_HREFS.has(i.href)) : navItems;
+
   useEffect(() => {
     if (!isLoading && (!session || session.role !== "admin")) navigate("/");
-  }, [session, isLoading]);
+    else if (!isLoading && isSupport && !SUPPORT_HREFS.has(location)) navigate("/admin/tickets");
+  }, [session, isLoading, location]);
 
   if (isLoading) {
     return (
@@ -131,7 +137,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
 
         <nav className="flex-1 px-3 py-5 space-y-1 overflow-y-auto h-[calc(100%-200px)]">
-          {navItems.map(({ href, icon: Icon, label }) => {
+          {visibleItems.map(({ href, icon: Icon, label }) => {
             const active = location === href || (href !== "/admin" && location.startsWith(href));
             return (
               <Link key={href} href={href}>
@@ -171,7 +177,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-white text-sm font-medium truncate">{session?.username}</p>
-                <p className="text-[10px]" style={{ color: "#059669" }}>Administrator</p>
+                <p className="text-[10px]" style={{ color: isSupport ? "#38bdf8" : "#059669" }}>{isSupport ? "Suporte" : "Administrator"}</p>
               </div>
             </div>
           </div>

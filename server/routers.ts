@@ -293,9 +293,9 @@ const authRouter = router({
       if (!admin) throw new TRPCError({ code: "UNAUTHORIZED", message: "Credenciais inválidas" });
       const valid = await bcrypt.compare(input.password, admin.passwordHash);
       if (!valid) throw new TRPCError({ code: "UNAUTHORIZED", message: "Credenciais inválidas" });
-      const token = await signCustomJwt({ sub: String(admin.id), role: "admin", username: admin.username });
+      const token = await signCustomJwt({ sub: String(admin.id), role: "admin", adminRole: admin.role || "full", username: admin.username });
       ctx.res.cookie(CUSTOM_COOKIE, token, { ...getSessionCookieOptions(ctx.req), maxAge: 7 * 24 * 3600 * 1000 });
-      return { success: true, role: "admin" as const, username: admin.username };
+      return { success: true, role: "admin" as const, adminRole: admin.role || "full", username: admin.username };
     }),
 
   resellerLogin: publicProcedure
@@ -318,10 +318,10 @@ const authRouter = router({
           const clientIp = getClientIp(ctx.req);
           const ipAllowed = await isAdminIpAllowed(clientIp);
           if (!ipAllowed) throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado: IP nao autorizado" });
-          const token = await signCustomJwt({ sub: String(admin.id), role: "admin", username: admin.username });
+          const token = await signCustomJwt({ sub: String(admin.id), role: "admin", adminRole: admin.role || "full", username: admin.username });
           const maxAge = (input.remember ? 30 * 24 * 3600 : 7 * 24 * 3600) * 1000;
           ctx.res.cookie(CUSTOM_COOKIE, token, { ...getSessionCookieOptions(ctx.req), maxAge });
-          return { success: true, role: "admin" as const, username: admin.username };
+          return { success: true, role: "admin" as const, adminRole: admin.role || "full", username: admin.username };
         }
       }
       // Otherwise try reseller login
@@ -353,7 +353,7 @@ const authRouter = router({
     if (payload.role === "admin") {
       const admin = await getAdminById(id);
       if (!admin) return null;
-      return { id: admin.id, username: admin.username, role: "admin" as const };
+      return { id: admin.id, username: admin.username, role: "admin" as const, adminRole: (admin.role || "full") as "full" | "support" };
     } else {
       const reseller = await getResellerById(id);
       if (!reseller) return null;
@@ -508,7 +508,18 @@ const adminProcedure = publicProcedure.use(async ({ ctx, next }) => {
   if (!token) throw new TRPCError({ code: "UNAUTHORIZED" });
   const payload = await verifyCustomJwt(token);
   if (!payload || payload.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+  // Conta de suporte não acessa o admin completo
+  if (payload.adminRole === "support") throw new TRPCError({ code: "FORBIDDEN", message: "Acesso restrito ao suporte" });
   return next({ ctx: { ...ctx, adminId: parseInt(payload.sub as string) } });
+});
+
+// Suporte: acesso limitado — tickets, dúvidas, license keys e entrega manual
+const supportProcedure = publicProcedure.use(async ({ ctx, next }) => {
+  const token = getCustomToken(ctx.req);
+  if (!token) throw new TRPCError({ code: "UNAUTHORIZED" });
+  const payload = await verifyCustomJwt(token);
+  if (!payload || payload.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+  return next({ ctx: { ...ctx, adminId: parseInt(payload.sub as string), adminRole: payload.adminRole || "full" } });
 });
 
 // ─── Reseller middleware ──────────────────────────────────────────────────────
@@ -528,7 +539,7 @@ const resellerProcedure = publicProcedure.use(async ({ ctx, next }) => {
 // ─── Admin Router ─────────────────────────────────────────────────────────────
 const adminRouter = router({
   // Resellers
-  listResellers: adminProcedure.query(async () => {
+  listResellers: supportProcedure.query(async () => {
     const list = await getAllResellers();
     return list.map(r => ({ ...r, passwordHash: undefined }));
   }),
@@ -640,9 +651,9 @@ const adminRouter = router({
     .mutation(async ({ input }) => { await deleteCategory(input.id); return { success: true }; }),
 
   // Apps
-  listApps: adminProcedure.query(() => getAllApps()),
+  listApps: supportProcedure.query(() => getAllApps()),
 
-  getApp: adminProcedure
+  getApp: supportProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
       const app = await getAppById(input.id);
@@ -801,13 +812,13 @@ const adminRouter = router({
       return { success: true };
     }),
 
-  getAvailableStockForPlan: adminProcedure
+  getAvailableStockForPlan: supportProcedure
     .input(z.object({ appId: z.number(), planId: z.number() }))
     .query(async ({ input }) => {
       return getAvailableStockForPlan(input.appId, input.planId, 1);
     }),
 
-  manualDeliverKey: adminProcedure
+  manualDeliverKey: supportProcedure
     .input(z.object({
       resellerId: z.number(),
       appId: z.number(),
@@ -869,7 +880,7 @@ const adminRouter = router({
     }),
 
   // All keys
-  listAllKeys: adminProcedure.query(() => getAllKeysWithReseller()),
+  listAllKeys: supportProcedure.query(() => getAllKeysWithReseller()),
 
   // Transfer keys between resellers
   resellerKeyCount: adminProcedure
@@ -974,14 +985,14 @@ const adminRouter = router({
     }),
 
   // ─── Tickets ─────────────────────────────────────────────────────────────────
-  listTickets: adminProcedure.query(async () => {
+  listTickets: supportProcedure.query(async () => {
     const rows = await getAllTickets();
     const resellers = await getAllResellers();
     const map = new Map(resellers.map(r => [r.id, r.username]));
     return rows.map(t => ({ ...t, resellerUsername: map.get(t.resellerId) || "Unknown" }));
   }),
 
-  getTicket: adminProcedure
+  getTicket: supportProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
       const ticket = await getTicketById(input.id);
@@ -991,7 +1002,7 @@ const adminRouter = router({
       return { ...ticket, resellerUsername: reseller?.username || "Unknown", messages };
     }),
 
-  sendTicketMessage: adminProcedure
+  sendTicketMessage: supportProcedure
     .input(z.object({
       ticketId: z.number(),
       message: z.string().min(1),
@@ -1014,7 +1025,7 @@ const adminRouter = router({
       return msg;
     }),
 
-  updateTicketStatus: adminProcedure
+  updateTicketStatus: supportProcedure
     .input(z.object({
       id: z.number(),
       status: z.enum(["open", "closed", "archived"]),
@@ -1024,7 +1035,7 @@ const adminRouter = router({
       return { success: true };
     }),
 
-  deleteTicket: adminProcedure
+  deleteTicket: supportProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       await deleteTicket(input.id);
@@ -1078,9 +1089,9 @@ const adminRouter = router({
     }),
 
   // ─── Public Support Tickets (dúvidas) ─────────────────────────────────────────
-  listSupportTickets: adminProcedure.query(() => getAllSupportTickets()),
+  listSupportTickets: supportProcedure.query(() => getAllSupportTickets()),
 
-  getSupportTicket: adminProcedure
+  getSupportTicket: supportProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
       const ticket = await getSupportTicketById(input.id);
@@ -1089,7 +1100,7 @@ const adminRouter = router({
       return { ...ticket, messages };
     }),
 
-  sendSupportMessageAdmin: adminProcedure
+  sendSupportMessageAdmin: supportProcedure
     .input(z.object({
       ticketId: z.number(),
       message: z.string().min(1),
@@ -1106,7 +1117,7 @@ const adminRouter = router({
       return msg;
     }),
 
-  updateSupportTicketStatus: adminProcedure
+  updateSupportTicketStatus: supportProcedure
     .input(z.object({
       id: z.number(),
       status: z.enum(["open", "closed", "archived"]),
@@ -1116,7 +1127,7 @@ const adminRouter = router({
       return { success: true };
     }),
 
-  deleteSupportTicket: adminProcedure
+  deleteSupportTicket: supportProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       await deleteSupportTicket(input.id);

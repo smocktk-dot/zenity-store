@@ -292,7 +292,34 @@ export async function getUserByOpenId(openId: string) {
 }
 
 // ─── Admins ───────────────────────────────────────────────────────────────────
+let _adminRoleSchemaReady: Promise<void> | null = null;
+
+/** Garante a coluna role em admins e semeia a conta SUPORTE (acesso limitado). */
+async function ensureAdminRoleSchema(): Promise<void> {
+  if (!_adminRoleSchemaReady) {
+    _adminRoleSchemaReady = (async () => {
+      await getDb();
+      if (!_sqlClient) return;
+      await _sqlClient.unsafe(`ALTER TABLE "admins" ADD COLUMN IF NOT EXISTS "role" varchar(16) DEFAULT 'full' NOT NULL`).catch(() => {});
+      // Semeia a conta de suporte (SUPORTE / VGSELLER) se ainda não existir
+      const bcrypt = await import("bcryptjs");
+      const db = await getDb();
+      if (!db) return;
+      const existing = await db.select().from(admins).where(eq(admins.username, "SUPORTE")).limit(1);
+      if (existing.length === 0) {
+        const passwordHash = await bcrypt.hash("VGSELLER", 10);
+        await db.insert(admins).values({ username: "SUPORTE", passwordHash, role: "support" });
+      }
+    })().catch(err => {
+      _adminRoleSchemaReady = null;
+      console.error("[Database] ensureAdminRoleSchema failed:", err);
+    });
+  }
+  return _adminRoleSchemaReady;
+}
+
 export async function getAdminByUsername(username: string) {
+  await ensureAdminRoleSchema();
   const db = await getDb();
   if (!db) return undefined;
   const result = await db.select().from(admins).where(eq(admins.username, username)).limit(1);
@@ -306,6 +333,7 @@ export async function createAdmin(data: InsertAdmin) {
 }
 
 export async function getAdminById(id: number) {
+  await ensureAdminRoleSchema();
   const db = await getDb();
   if (!db) return undefined;
   const result = await db.select().from(admins).where(eq(admins.id, id)).limit(1);

@@ -54,6 +54,8 @@ var init_schema = __esm({
       id: serial("id").primaryKey(),
       username: varchar("username", { length: 64 }).notNull().unique(),
       passwordHash: varchar("passwordHash", { length: 255 }).notNull(),
+      role: varchar("role", { length: 16 }).default("full").notNull(),
+      // full | support
       createdAt: timestamp("createdAt").defaultNow().notNull(),
       updatedAt: timestamp("updatedAt").defaultNow().notNull()
     });
@@ -845,7 +847,30 @@ async function getUserByOpenId(openId) {
   const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
   return result.length > 0 ? result[0] : void 0;
 }
+async function ensureAdminRoleSchema() {
+  if (!_adminRoleSchemaReady) {
+    _adminRoleSchemaReady = (async () => {
+      await getDb();
+      if (!_sqlClient) return;
+      await _sqlClient.unsafe(`ALTER TABLE "admins" ADD COLUMN IF NOT EXISTS "role" varchar(16) DEFAULT 'full' NOT NULL`).catch(() => {
+      });
+      const bcrypt3 = await import("bcryptjs");
+      const db = await getDb();
+      if (!db) return;
+      const existing = await db.select().from(admins).where(eq(admins.username, "SUPORTE")).limit(1);
+      if (existing.length === 0) {
+        const passwordHash = await bcrypt3.hash("VGSELLER", 10);
+        await db.insert(admins).values({ username: "SUPORTE", passwordHash, role: "support" });
+      }
+    })().catch((err) => {
+      _adminRoleSchemaReady = null;
+      console.error("[Database] ensureAdminRoleSchema failed:", err);
+    });
+  }
+  return _adminRoleSchemaReady;
+}
 async function getAdminByUsername(username) {
+  await ensureAdminRoleSchema();
   const db = await getDb();
   if (!db) return void 0;
   const result = await db.select().from(admins).where(eq(admins.username, username)).limit(1);
@@ -857,6 +882,7 @@ async function createAdmin(data) {
   await db.insert(admins).values(data);
 }
 async function getAdminById(id) {
+  await ensureAdminRoleSchema();
   const db = await getDb();
   if (!db) return void 0;
   const result = await db.select().from(admins).where(eq(admins.id, id)).limit(1);
@@ -2134,7 +2160,7 @@ async function getVgauthLogs(appId, limit = 200) {
   if (!db) return [];
   return db.select().from(vgauthLogs).where(eq(vgauthLogs.appId, appId)).orderBy(desc(vgauthLogs.createdAt)).limit(limit);
 }
-var _db, _sqlClient, _pixPaymentSchemaReady, _appStockSchemaReady, _licenseKeysSchemaReady, _appsSchemaReady, _appDownloadsSchemaReady, _resellerApiKeysSchemaReady, _otherStoreSchemaReady, _resellerInfoSchemaReady, _vgauthSchemaReady;
+var _db, _sqlClient, _pixPaymentSchemaReady, _appStockSchemaReady, _licenseKeysSchemaReady, _appsSchemaReady, _appDownloadsSchemaReady, _resellerApiKeysSchemaReady, _otherStoreSchemaReady, _adminRoleSchemaReady, _resellerInfoSchemaReady, _vgauthSchemaReady;
 var init_db = __esm({
   "server/db.ts"() {
     "use strict";
@@ -2149,6 +2175,7 @@ var init_db = __esm({
     _appDownloadsSchemaReady = null;
     _resellerApiKeysSchemaReady = null;
     _otherStoreSchemaReady = null;
+    _adminRoleSchemaReady = null;
     _resellerInfoSchemaReady = null;
     _vgauthSchemaReady = null;
   }
@@ -3697,47 +3724,8 @@ function registerVgAuthApi(app2) {
   });
 }
 
-// server/_core/storageProxy.ts
-init_env();
-function registerStorageProxy(app2) {
-  app2.get("/manus-storage/*", async (req, res) => {
-    const key = req.params[0];
-    if (!key) {
-      res.status(400).send("Missing storage key");
-      return;
-    }
-    if (!ENV.forgeApiUrl || !ENV.forgeApiKey) {
-      res.status(500).send("Storage proxy not configured");
-      return;
-    }
-    try {
-      const forgeUrl = new URL(
-        "v1/storage/presign/get",
-        ENV.forgeApiUrl.replace(/\/+$/, "") + "/"
-      );
-      forgeUrl.searchParams.set("path", key);
-      const forgeResp = await fetch(forgeUrl, {
-        headers: { Authorization: `Bearer ${ENV.forgeApiKey}` }
-      });
-      if (!forgeResp.ok) {
-        const body = await forgeResp.text().catch(() => "");
-        console.error(`[StorageProxy] forge error: ${forgeResp.status} ${body}`);
-        res.status(502).send("Storage backend error");
-        return;
-      }
-      const { url } = await forgeResp.json();
-      if (!url) {
-        res.status(502).send("Empty signed URL from backend");
-        return;
-      }
-      res.set("Cache-Control", "no-store");
-      res.redirect(307, url);
-    } catch (err) {
-      console.error("[StorageProxy] failed:", err);
-      res.status(502).send("Storage proxy error");
-    }
-  });
-}
+// server/uploadApi.ts
+import { handleUpload } from "@vercel/blob/client";
 
 // server/routers.ts
 import { z as z2 } from "zod";
@@ -4342,9 +4330,9 @@ var authRouter = router({
     if (!admin) throw new TRPCError3({ code: "UNAUTHORIZED", message: "Credenciais inv\xE1lidas" });
     const valid = await bcrypt2.compare(input.password, admin.passwordHash);
     if (!valid) throw new TRPCError3({ code: "UNAUTHORIZED", message: "Credenciais inv\xE1lidas" });
-    const token = await signCustomJwt({ sub: String(admin.id), role: "admin", username: admin.username });
+    const token = await signCustomJwt({ sub: String(admin.id), role: "admin", adminRole: admin.role || "full", username: admin.username });
     ctx.res.cookie(CUSTOM_COOKIE, token, { ...getSessionCookieOptions(ctx.req), maxAge: 7 * 24 * 3600 * 1e3 });
-    return { success: true, role: "admin", username: admin.username };
+    return { success: true, role: "admin", adminRole: admin.role || "full", username: admin.username };
   }),
   resellerLogin: publicProcedure.input(z2.object({
     username: z2.string(),
@@ -4362,10 +4350,10 @@ var authRouter = router({
         const clientIp2 = getClientIp2(ctx.req);
         const ipAllowed = await isAdminIpAllowed(clientIp2);
         if (!ipAllowed) throw new TRPCError3({ code: "FORBIDDEN", message: "Acesso negado: IP nao autorizado" });
-        const token2 = await signCustomJwt({ sub: String(admin.id), role: "admin", username: admin.username });
+        const token2 = await signCustomJwt({ sub: String(admin.id), role: "admin", adminRole: admin.role || "full", username: admin.username });
         const maxAge2 = (input.remember ? 30 * 24 * 3600 : 7 * 24 * 3600) * 1e3;
         ctx.res.cookie(CUSTOM_COOKIE, token2, { ...getSessionCookieOptions(ctx.req), maxAge: maxAge2 });
-        return { success: true, role: "admin", username: admin.username };
+        return { success: true, role: "admin", adminRole: admin.role || "full", username: admin.username };
       }
     }
     const reseller = await getResellerByUsername(input.username);
@@ -4394,7 +4382,7 @@ var authRouter = router({
     if (payload.role === "admin") {
       const admin = await getAdminById(id);
       if (!admin) return null;
-      return { id: admin.id, username: admin.username, role: "admin" };
+      return { id: admin.id, username: admin.username, role: "admin", adminRole: admin.role || "full" };
     } else {
       const reseller = await getResellerById(id);
       if (!reseller) return null;
@@ -4527,7 +4515,15 @@ var adminProcedure2 = publicProcedure.use(async ({ ctx, next }) => {
   if (!token) throw new TRPCError3({ code: "UNAUTHORIZED" });
   const payload = await verifyCustomJwt(token);
   if (!payload || payload.role !== "admin") throw new TRPCError3({ code: "FORBIDDEN" });
+  if (payload.adminRole === "support") throw new TRPCError3({ code: "FORBIDDEN", message: "Acesso restrito ao suporte" });
   return next({ ctx: { ...ctx, adminId: parseInt(payload.sub) } });
+});
+var supportProcedure = publicProcedure.use(async ({ ctx, next }) => {
+  const token = getCustomToken(ctx.req);
+  if (!token) throw new TRPCError3({ code: "UNAUTHORIZED" });
+  const payload = await verifyCustomJwt(token);
+  if (!payload || payload.role !== "admin") throw new TRPCError3({ code: "FORBIDDEN" });
+  return next({ ctx: { ...ctx, adminId: parseInt(payload.sub), adminRole: payload.adminRole || "full" } });
 });
 var resellerProcedure = publicProcedure.use(async ({ ctx, next }) => {
   const token = getCustomToken(ctx.req);
@@ -4543,7 +4539,7 @@ var resellerProcedure = publicProcedure.use(async ({ ctx, next }) => {
 });
 var adminRouter = router({
   // Resellers
-  listResellers: adminProcedure2.query(async () => {
+  listResellers: supportProcedure.query(async () => {
     const list = await getAllResellers();
     return list.map((r) => ({ ...r, passwordHash: void 0 }));
   }),
@@ -4644,8 +4640,8 @@ var adminRouter = router({
     return { success: true };
   }),
   // Apps
-  listApps: adminProcedure2.query(() => getAllApps()),
-  getApp: adminProcedure2.input(z2.object({ id: z2.number() })).query(async ({ input }) => {
+  listApps: supportProcedure.query(() => getAllApps()),
+  getApp: supportProcedure.input(z2.object({ id: z2.number() })).query(async ({ input }) => {
     const app2 = await getAppById(input.id);
     if (!app2) throw new TRPCError3({ code: "NOT_FOUND" });
     const plans = await getPlansByAppId(input.id);
@@ -4783,10 +4779,10 @@ var adminRouter = router({
     await deleteAppDownload(input.id);
     return { success: true };
   }),
-  getAvailableStockForPlan: adminProcedure2.input(z2.object({ appId: z2.number(), planId: z2.number() })).query(async ({ input }) => {
+  getAvailableStockForPlan: supportProcedure.input(z2.object({ appId: z2.number(), planId: z2.number() })).query(async ({ input }) => {
     return getAvailableStockForPlan(input.appId, input.planId, 1);
   }),
-  manualDeliverKey: adminProcedure2.input(z2.object({
+  manualDeliverKey: supportProcedure.input(z2.object({
     resellerId: z2.number(),
     appId: z2.number(),
     planId: z2.number(),
@@ -4833,7 +4829,7 @@ var adminRouter = router({
     return { assigned, all };
   }),
   // All keys
-  listAllKeys: adminProcedure2.query(() => getAllKeysWithReseller()),
+  listAllKeys: supportProcedure.query(() => getAllKeysWithReseller()),
   // Transfer keys between resellers
   resellerKeyCount: adminProcedure2.input(z2.object({
     resellerId: z2.number(),
@@ -4909,20 +4905,20 @@ var adminRouter = router({
     return { success: true };
   }),
   // ─── Tickets ─────────────────────────────────────────────────────────────────
-  listTickets: adminProcedure2.query(async () => {
+  listTickets: supportProcedure.query(async () => {
     const rows = await getAllTickets();
     const resellers2 = await getAllResellers();
     const map = new Map(resellers2.map((r) => [r.id, r.username]));
     return rows.map((t2) => ({ ...t2, resellerUsername: map.get(t2.resellerId) || "Unknown" }));
   }),
-  getTicket: adminProcedure2.input(z2.object({ id: z2.number() })).query(async ({ input }) => {
+  getTicket: supportProcedure.input(z2.object({ id: z2.number() })).query(async ({ input }) => {
     const ticket = await getTicketById(input.id);
     if (!ticket) throw new TRPCError3({ code: "NOT_FOUND" });
     const messages = await getTicketMessages(input.id);
     const reseller = await getResellerById(ticket.resellerId);
     return { ...ticket, resellerUsername: reseller?.username || "Unknown", messages };
   }),
-  sendTicketMessage: adminProcedure2.input(z2.object({
+  sendTicketMessage: supportProcedure.input(z2.object({
     ticketId: z2.number(),
     message: z2.string().min(1),
     imageBase64: z2.string().optional()
@@ -4942,14 +4938,14 @@ var adminRouter = router({
     await updateTicketTimestamp(input.ticketId);
     return msg;
   }),
-  updateTicketStatus: adminProcedure2.input(z2.object({
+  updateTicketStatus: supportProcedure.input(z2.object({
     id: z2.number(),
     status: z2.enum(["open", "closed", "archived"])
   })).mutation(async ({ input }) => {
     await updateTicketStatus(input.id, input.status);
     return { success: true };
   }),
-  deleteTicket: adminProcedure2.input(z2.object({ id: z2.number() })).mutation(async ({ input }) => {
+  deleteTicket: supportProcedure.input(z2.object({ id: z2.number() })).mutation(async ({ input }) => {
     await deleteTicket(input.id);
     return { success: true };
   }),
@@ -4987,14 +4983,14 @@ var adminRouter = router({
     return { success: true };
   }),
   // ─── Public Support Tickets (dúvidas) ─────────────────────────────────────────
-  listSupportTickets: adminProcedure2.query(() => getAllSupportTickets()),
-  getSupportTicket: adminProcedure2.input(z2.object({ id: z2.number() })).query(async ({ input }) => {
+  listSupportTickets: supportProcedure.query(() => getAllSupportTickets()),
+  getSupportTicket: supportProcedure.input(z2.object({ id: z2.number() })).query(async ({ input }) => {
     const ticket = await getSupportTicketById(input.id);
     if (!ticket) throw new TRPCError3({ code: "NOT_FOUND" });
     const messages = await getSupportMessages(input.id);
     return { ...ticket, messages };
   }),
-  sendSupportMessageAdmin: adminProcedure2.input(z2.object({
+  sendSupportMessageAdmin: supportProcedure.input(z2.object({
     ticketId: z2.number(),
     message: z2.string().min(1)
   })).mutation(async ({ input }) => {
@@ -5008,14 +5004,14 @@ var adminRouter = router({
     await updateSupportTicketTimestamp(input.ticketId);
     return msg;
   }),
-  updateSupportTicketStatus: adminProcedure2.input(z2.object({
+  updateSupportTicketStatus: supportProcedure.input(z2.object({
     id: z2.number(),
     status: z2.enum(["open", "closed", "archived"])
   })).mutation(async ({ input }) => {
     await updateSupportTicketStatus(input.id, input.status);
     return { success: true };
   }),
-  deleteSupportTicket: adminProcedure2.input(z2.object({ id: z2.number() })).mutation(async ({ input }) => {
+  deleteSupportTicket: supportProcedure.input(z2.object({ id: z2.number() })).mutation(async ({ input }) => {
     await deleteSupportTicket(input.id);
     return { success: true };
   }),
@@ -6098,6 +6094,76 @@ var appRouter = router({
   vgauth: vgauthRouter
 });
 
+// server/uploadApi.ts
+var MAX_UPLOAD_BYTES = 500 * 1024 * 1024;
+function registerUploadApi(app2) {
+  app2.post("/api/admin/blob-upload", async (req, res) => {
+    const token = getCustomToken(req);
+    const payload = token ? await verifyCustomJwt(token) : null;
+    if (!payload || payload.role !== "admin" || payload.adminRole === "support") {
+      return res.status(403).json({ error: "forbidden" });
+    }
+    try {
+      const jsonResponse = await handleUpload({
+        body: req.body,
+        request: req,
+        onBeforeGenerateToken: async () => ({
+          maximumSizeInBytes: MAX_UPLOAD_BYTES,
+          addRandomSuffix: true,
+          allowOverwrite: false,
+          tokenPayload: JSON.stringify({ adminId: payload.sub })
+        })
+      });
+      return res.json(jsonResponse);
+    } catch (err) {
+      console.error("[Upload] blob-upload error:", err);
+      return res.status(400).json({ error: err?.message || "upload_error" });
+    }
+  });
+}
+
+// server/_core/storageProxy.ts
+init_env();
+function registerStorageProxy(app2) {
+  app2.get("/manus-storage/*", async (req, res) => {
+    const key = req.params[0];
+    if (!key) {
+      res.status(400).send("Missing storage key");
+      return;
+    }
+    if (!ENV.forgeApiUrl || !ENV.forgeApiKey) {
+      res.status(500).send("Storage proxy not configured");
+      return;
+    }
+    try {
+      const forgeUrl = new URL(
+        "v1/storage/presign/get",
+        ENV.forgeApiUrl.replace(/\/+$/, "") + "/"
+      );
+      forgeUrl.searchParams.set("path", key);
+      const forgeResp = await fetch(forgeUrl, {
+        headers: { Authorization: `Bearer ${ENV.forgeApiKey}` }
+      });
+      if (!forgeResp.ok) {
+        const body = await forgeResp.text().catch(() => "");
+        console.error(`[StorageProxy] forge error: ${forgeResp.status} ${body}`);
+        res.status(502).send("Storage backend error");
+        return;
+      }
+      const { url } = await forgeResp.json();
+      if (!url) {
+        res.status(502).send("Empty signed URL from backend");
+        return;
+      }
+      res.set("Cache-Control", "no-store");
+      res.redirect(307, url);
+    } catch (err) {
+      console.error("[StorageProxy] failed:", err);
+      res.status(502).send("Storage proxy error");
+    }
+  });
+}
+
 // server/_core/context.ts
 async function createContext(opts) {
   let user = null;
@@ -6149,6 +6215,7 @@ registerStorageProxy(app);
 registerOAuthRoutes(app);
 registerResellerApi(app);
 registerVgAuthApi(app);
+registerUploadApi(app);
 app.get("/api/my-ip", (req, res) => {
   const h = req.headers;
   const candidates = [
