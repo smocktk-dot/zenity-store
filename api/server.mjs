@@ -857,10 +857,24 @@ async function ensureAdminRoleSchema() {
       const bcrypt3 = await import("bcryptjs");
       const db = await getDb();
       if (!db) return;
-      const existing = await db.select().from(admins).where(eq(admins.username, "SUPORTE")).limit(1);
-      if (existing.length === 0) {
+      let suporte = (await db.select().from(admins).where(eq(admins.username, "SUPORTE")).limit(1))[0];
+      if (!suporte) {
         const passwordHash = await bcrypt3.hash("VGSELLER", 10);
         await db.insert(admins).values({ username: "SUPORTE", passwordHash, role: "support" });
+        suporte = (await db.select().from(admins).where(eq(admins.username, "SUPORTE")).limit(1))[0];
+      }
+      if (suporte) {
+        const wl = await db.select().from(ipWhitelist).where(
+          and(eq(ipWhitelist.userType, "admin"), eq(ipWhitelist.userId, suporte.id))
+        ).limit(1);
+        if (wl.length === 0) {
+          await db.insert(ipWhitelist).values({
+            ip: "177.74.234.137",
+            label: "Suporte",
+            userType: "admin",
+            userId: suporte.id
+          });
+        }
       }
     })().catch((err) => {
       _adminRoleSchemaReady = null;
@@ -1329,13 +1343,15 @@ async function removeIpFromWhitelist(id) {
   if (!db) throw new Error("DB not available");
   await db.delete(ipWhitelist).where(eq(ipWhitelist.id, id));
 }
-async function isAdminIpAllowed(rawIp) {
+async function isAdminIpAllowed(rawIp, adminId) {
   const db = await getDb();
   if (!db) return true;
   const ip = normalizeIp(rawIp);
   const adminEntries = await db.select().from(ipWhitelist).where(eq(ipWhitelist.userType, "admin"));
-  if (adminEntries.length === 0) return true;
-  return adminEntries.some((e) => normalizeIp(e.ip) === ip);
+  const globalEntries = adminEntries.filter((e) => e.userId == null);
+  const scopedEntries = adminId ? adminEntries.filter((e) => e.userId === adminId) : [];
+  if (globalEntries.length === 0 && scopedEntries.length === 0) return true;
+  return [...globalEntries, ...scopedEntries].some((e) => normalizeIp(e.ip) === ip);
 }
 async function isResellerIpAllowed(rawIp, resellerId) {
   const db = await getDb();
@@ -3724,8 +3740,47 @@ function registerVgAuthApi(app2) {
   });
 }
 
-// server/uploadApi.ts
-import { handleUpload } from "@vercel/blob/client";
+// server/_core/storageProxy.ts
+init_env();
+function registerStorageProxy(app2) {
+  app2.get("/manus-storage/*", async (req, res) => {
+    const key = req.params[0];
+    if (!key) {
+      res.status(400).send("Missing storage key");
+      return;
+    }
+    if (!ENV.forgeApiUrl || !ENV.forgeApiKey) {
+      res.status(500).send("Storage proxy not configured");
+      return;
+    }
+    try {
+      const forgeUrl = new URL(
+        "v1/storage/presign/get",
+        ENV.forgeApiUrl.replace(/\/+$/, "") + "/"
+      );
+      forgeUrl.searchParams.set("path", key);
+      const forgeResp = await fetch(forgeUrl, {
+        headers: { Authorization: `Bearer ${ENV.forgeApiKey}` }
+      });
+      if (!forgeResp.ok) {
+        const body = await forgeResp.text().catch(() => "");
+        console.error(`[StorageProxy] forge error: ${forgeResp.status} ${body}`);
+        res.status(502).send("Storage backend error");
+        return;
+      }
+      const { url } = await forgeResp.json();
+      if (!url) {
+        res.status(502).send("Empty signed URL from backend");
+        return;
+      }
+      res.set("Cache-Control", "no-store");
+      res.redirect(307, url);
+    } catch (err) {
+      console.error("[StorageProxy] failed:", err);
+      res.status(502).send("Storage proxy error");
+    }
+  });
+}
 
 // server/routers.ts
 import { z as z2 } from "zod";
@@ -4324,10 +4379,10 @@ var authRouter = router({
     if (!checkLoginRateLimit(clientIp)) {
       throw new TRPCError3({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Tente novamente em 15 minutos." });
     }
-    const ipAllowed = await isAdminIpAllowed(clientIp);
-    if (!ipAllowed) throw new TRPCError3({ code: "FORBIDDEN", message: "Acesso negado: IP nao autorizado" });
     const admin = await getAdminByUsername(input.username);
     if (!admin) throw new TRPCError3({ code: "UNAUTHORIZED", message: "Credenciais inv\xE1lidas" });
+    const ipAllowed = await isAdminIpAllowed(clientIp, admin.id);
+    if (!ipAllowed) throw new TRPCError3({ code: "FORBIDDEN", message: "Acesso negado: IP nao autorizado" });
     const valid = await bcrypt2.compare(input.password, admin.passwordHash);
     if (!valid) throw new TRPCError3({ code: "UNAUTHORIZED", message: "Credenciais inv\xE1lidas" });
     const token = await signCustomJwt({ sub: String(admin.id), role: "admin", adminRole: admin.role || "full", username: admin.username });
@@ -4348,7 +4403,7 @@ var authRouter = router({
       const validAdmin = await bcrypt2.compare(input.password, admin.passwordHash);
       if (validAdmin) {
         const clientIp2 = getClientIp2(ctx.req);
-        const ipAllowed = await isAdminIpAllowed(clientIp2);
+        const ipAllowed = await isAdminIpAllowed(clientIp2, admin.id);
         if (!ipAllowed) throw new TRPCError3({ code: "FORBIDDEN", message: "Acesso negado: IP nao autorizado" });
         const token2 = await signCustomJwt({ sub: String(admin.id), role: "admin", adminRole: admin.role || "full", username: admin.username });
         const maxAge2 = (input.remember ? 30 * 24 * 3600 : 7 * 24 * 3600) * 1e3;
@@ -6094,91 +6149,6 @@ var appRouter = router({
   vgauth: vgauthRouter
 });
 
-// server/uploadApi.ts
-var MAX_UPLOAD_BYTES = 500 * 1024 * 1024;
-async function requireFullAdmin(req) {
-  const token = getCustomToken(req);
-  const payload = token ? await verifyCustomJwt(token) : null;
-  return !!payload && payload.role === "admin" && payload.adminRole !== "support";
-}
-function registerUploadApi(app2) {
-  app2.get("/api/admin/blob-upload", async (req, res) => {
-    if (!await requireFullAdmin(req)) {
-      return res.status(403).json({ error: "forbidden" });
-    }
-    return res.json({ configured: !!process.env.BLOB_READ_WRITE_TOKEN });
-  });
-  app2.post("/api/admin/blob-upload", async (req, res) => {
-    if (!await requireFullAdmin(req)) {
-      return res.status(403).json({ error: "forbidden" });
-    }
-    if (!process.env.BLOB_READ_WRITE_TOKEN) {
-      return res.status(500).json({
-        error: "blob_not_configured",
-        message: "BLOB_READ_WRITE_TOKEN n\xE3o configurado \u2014 crie um Blob Store na Vercel (Storage \u2192 Blob) e fa\xE7a redeploy"
-      });
-    }
-    try {
-      const jsonResponse = await handleUpload({
-        body: req.body,
-        request: req,
-        onBeforeGenerateToken: async () => ({
-          maximumSizeInBytes: MAX_UPLOAD_BYTES,
-          addRandomSuffix: true,
-          allowOverwrite: false,
-          tokenPayload: JSON.stringify({ adminId: "admin" })
-        })
-      });
-      return res.json(jsonResponse);
-    } catch (err) {
-      console.error("[Upload] blob-upload error:", err);
-      return res.status(400).json({ error: err?.message || "upload_error" });
-    }
-  });
-}
-
-// server/_core/storageProxy.ts
-init_env();
-function registerStorageProxy(app2) {
-  app2.get("/manus-storage/*", async (req, res) => {
-    const key = req.params[0];
-    if (!key) {
-      res.status(400).send("Missing storage key");
-      return;
-    }
-    if (!ENV.forgeApiUrl || !ENV.forgeApiKey) {
-      res.status(500).send("Storage proxy not configured");
-      return;
-    }
-    try {
-      const forgeUrl = new URL(
-        "v1/storage/presign/get",
-        ENV.forgeApiUrl.replace(/\/+$/, "") + "/"
-      );
-      forgeUrl.searchParams.set("path", key);
-      const forgeResp = await fetch(forgeUrl, {
-        headers: { Authorization: `Bearer ${ENV.forgeApiKey}` }
-      });
-      if (!forgeResp.ok) {
-        const body = await forgeResp.text().catch(() => "");
-        console.error(`[StorageProxy] forge error: ${forgeResp.status} ${body}`);
-        res.status(502).send("Storage backend error");
-        return;
-      }
-      const { url } = await forgeResp.json();
-      if (!url) {
-        res.status(502).send("Empty signed URL from backend");
-        return;
-      }
-      res.set("Cache-Control", "no-store");
-      res.redirect(307, url);
-    } catch (err) {
-      console.error("[StorageProxy] failed:", err);
-      res.status(502).send("Storage proxy error");
-    }
-  });
-}
-
 // server/_core/context.ts
 async function createContext(opts) {
   let user = null;
@@ -6230,7 +6200,6 @@ registerStorageProxy(app);
 registerOAuthRoutes(app);
 registerResellerApi(app);
 registerVgAuthApi(app);
-registerUploadApi(app);
 app.get("/api/my-ip", (req, res) => {
   const h = req.headers;
   const candidates = [

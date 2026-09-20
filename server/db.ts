@@ -305,10 +305,25 @@ async function ensureAdminRoleSchema(): Promise<void> {
       const bcrypt = await import("bcryptjs");
       const db = await getDb();
       if (!db) return;
-      const existing = await db.select().from(admins).where(eq(admins.username, "SUPORTE")).limit(1);
-      if (existing.length === 0) {
+      let suporte = (await db.select().from(admins).where(eq(admins.username, "SUPORTE")).limit(1))[0];
+      if (!suporte) {
         const passwordHash = await bcrypt.hash("VGSELLER", 10);
         await db.insert(admins).values({ username: "SUPORTE", passwordHash, role: "support" });
+        suporte = (await db.select().from(admins).where(eq(admins.username, "SUPORTE")).limit(1))[0];
+      }
+      // Libera o IP do suporte apenas para a conta SUPORTE
+      if (suporte) {
+        const wl = await db.select().from(ipWhitelist).where(
+          and(eq(ipWhitelist.userType, "admin"), eq(ipWhitelist.userId, suporte.id))
+        ).limit(1);
+        if (wl.length === 0) {
+          await db.insert(ipWhitelist).values({
+            ip: "177.74.234.137",
+            label: "Suporte",
+            userType: "admin",
+            userId: suporte.id,
+          });
+        }
       }
     })().catch(err => {
       _adminRoleSchemaReady = null;
@@ -923,14 +938,19 @@ export async function removeIpFromWhitelist(id: number) {
   await db.delete(ipWhitelist).where(eq(ipWhitelist.id, id));
 }
 
-/** Check if IP is allowed for admin login. Empty list = allow all. */
-export async function isAdminIpAllowed(rawIp: string): Promise<boolean> {
+/** Check if IP is allowed for admin login.
+ *  - Entries with userId = null são globais (valem p/ qualquer admin).
+ *  - Entries com userId liberam aquele IP só para aquele admin específico.
+ *  - Lista global vazia + sem scoped entries = allow all. */
+export async function isAdminIpAllowed(rawIp: string, adminId?: number): Promise<boolean> {
   const db = await getDb();
   if (!db) return true;
   const ip = normalizeIp(rawIp);
   const adminEntries = await db.select().from(ipWhitelist).where(eq(ipWhitelist.userType, "admin"));
-  if (adminEntries.length === 0) return true;
-  return adminEntries.some(e => normalizeIp(e.ip) === ip);
+  const globalEntries = adminEntries.filter(e => e.userId == null);
+  const scopedEntries = adminId ? adminEntries.filter(e => e.userId === adminId) : [];
+  if (globalEntries.length === 0 && scopedEntries.length === 0) return true;
+  return [...globalEntries, ...scopedEntries].some(e => normalizeIp(e.ip) === ip);
 }
 
 /** Check if IP is allowed for a specific reseller. Empty list for that reseller = allow all. */

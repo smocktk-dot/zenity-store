@@ -286,11 +286,11 @@ const authRouter = router({
       if (!checkLoginRateLimit(clientIp)) {
         throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Tente novamente em 15 minutos." });
       }
-      // IP whitelist check for admin login
-      const ipAllowed = await isAdminIpAllowed(clientIp);
-      if (!ipAllowed) throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado: IP nao autorizado" });
       const admin = await getAdminByUsername(input.username);
       if (!admin) throw new TRPCError({ code: "UNAUTHORIZED", message: "Credenciais inválidas" });
+      // IP whitelist check for admin login (por usuário: entries com userId só valem p/ aquele admin)
+      const ipAllowed = await isAdminIpAllowed(clientIp, admin.id);
+      if (!ipAllowed) throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado: IP nao autorizado" });
       const valid = await bcrypt.compare(input.password, admin.passwordHash);
       if (!valid) throw new TRPCError({ code: "UNAUTHORIZED", message: "Credenciais inválidas" });
       const token = await signCustomJwt({ sub: String(admin.id), role: "admin", adminRole: admin.role || "full", username: admin.username });
@@ -316,7 +316,7 @@ const authRouter = router({
         if (validAdmin) {
           // IP whitelist check for admin login
           const clientIp = getClientIp(ctx.req);
-          const ipAllowed = await isAdminIpAllowed(clientIp);
+          const ipAllowed = await isAdminIpAllowed(clientIp, admin.id);
           if (!ipAllowed) throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado: IP nao autorizado" });
           const token = await signCustomJwt({ sub: String(admin.id), role: "admin", adminRole: admin.role || "full", username: admin.username });
           const maxAge = (input.remember ? 30 * 24 * 3600 : 7 * 24 * 3600) * 1000;
