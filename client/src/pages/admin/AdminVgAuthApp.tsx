@@ -69,6 +69,7 @@ export default function AdminVgAuthApp({ id }: { id: number }) {
   const banUser = trpc.vgauth.banUser.useMutation({ onSuccess: () => { toast.success("Usuário banido (IP + HWIDs registrados)"); refetch(); }, onError: e => toast.error(e.message) });
   const setPass = trpc.vgauth.setUserPassword.useMutation({ onSuccess: () => { toast.success("Senha alterada"); refetch(); }, onError: e => toast.error(e.message) });
   const unbanUser = trpc.vgauth.unbanUser.useMutation({ onSuccess: () => refetch(), onError: e => toast.error(e.message) });
+  const resetUserHwid = trpc.vgauth.resetUserHwid.useMutation({ onSuccess: () => { toast.success("HWID do usuário resetado"); refetch(); }, onError: e => toast.error(e.message) });
   const delUser = trpc.vgauth.deleteUser.useMutation({ onSuccess: () => refetch(), onError: e => toast.error(e.message) });
   const pauseAll = trpc.vgauth.pauseAllKeys.useMutation({ onSuccess: d => { toast.success(`${d.count} keys pausadas`); refetch(); }, onError: e => toast.error(e.message) });
   const resumeAll = trpc.vgauth.resumeAllKeys.useMutation({ onSuccess: d => { toast.success(`${d.count} keys retomadas`); refetch(); }, onError: e => toast.error(e.message) });
@@ -232,6 +233,11 @@ export default function AdminVgAuthApp({ id }: { id: number }) {
                         <button onClick={() => { const p = prompt(`Nova senha para "${u.username}":`); if (p) setPass.mutate({ userId: u.id, appId: id, password: p }); }}
                           title="Trocar senha"
                           className="p-1.5 rounded-lg text-gray-500 hover:text-amber-400 hover:bg-amber-500/10 transition-all"><KeyRound className="w-3.5 h-3.5" /></button>
+                      )}
+                      {(u.hwidMb || u.hwidCpu) && (
+                        <button onClick={() => { if (confirm(`Resetar HWID de ${u.username}?`)) resetUserHwid.mutate({ userId: u.id, appId: id }); }}
+                          title="Resetar HWID (placa-mãe + CPU)"
+                          className="p-1.5 rounded-lg text-gray-500 hover:text-blue-400 hover:bg-blue-500/10 transition-all"><RotateCcw className="w-3.5 h-3.5" /></button>
                       )}
                       {u.status !== "banned" ? (
                         <button onClick={() => { if (confirm(`Banir ${u.username}? IP + HWIDs serão bloqueados globalmente.`)) banUser.mutate({ userId: u.id, appId: id }); }}

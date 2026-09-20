@@ -305,7 +305,18 @@ export function registerVgAuthApi(app: Express) {
           return respond(res, secret, { success: false, message: "hwid_mismatch", sessionid });
         }
 
-        await updateVgauthUser(user.id, { lastLogin: new Date(), ip });
+        // Re-vincula HWID se estiver resetado (null) — senão a key fica aberta pra qualquer PC
+        const rebind: Record<string, any> = { lastLogin: new Date(), ip };
+        if (!user.hwidMb && hwidMb) rebind.hwidMb = hwidMb;
+        if (!user.hwidCpu && hwidCpu) rebind.hwidCpu = hwidCpu;
+        await updateVgauthUser(user.id, rebind);
+        if (license && (!license.hwidMb || !license.hwidCpu)) {
+          await updateVgauthLicense(license.id, {
+            hwidMb: license.hwidMb || hwidMb,
+            hwidCpu: license.hwidCpu || hwidCpu,
+            ip,
+          });
+        }
         await updateVgauthSession(session.id, { userId: user.id, username: user.username, hwidMb, hwidCpu });
         return respond(res, secret, {
           success: true,
@@ -386,6 +397,14 @@ export function registerVgAuthApi(app: Express) {
           return respond(res, secret, { success: false, message: "hwid_mismatch", sessionid });
         }
 
+        // Re-vincula HWID resetado no login direto por key também
+        if (!lic.hwidMb || !lic.hwidCpu) {
+          await updateVgauthLicense(lic.id, {
+            hwidMb: lic.hwidMb || hwidMb,
+            hwidCpu: lic.hwidCpu || hwidCpu,
+            ip,
+          });
+        }
         await updateVgauthSession(session.id, { username: lic.usedBy, hwidMb, hwidCpu });
         return respond(res, secret, {
           success: true, message: "authenticated", sessionid,

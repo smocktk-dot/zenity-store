@@ -3556,7 +3556,17 @@ function registerVgAuthApi(app2) {
           await createVgauthLog({ appId: appRec.id, action: "auth.hwid_mismatch", detail: user.username, ip });
           return respond(res, secret, { success: false, message: "hwid_mismatch", sessionid });
         }
-        await updateVgauthUser(user.id, { lastLogin: /* @__PURE__ */ new Date(), ip });
+        const rebind = { lastLogin: /* @__PURE__ */ new Date(), ip };
+        if (!user.hwidMb && hwidMb) rebind.hwidMb = hwidMb;
+        if (!user.hwidCpu && hwidCpu) rebind.hwidCpu = hwidCpu;
+        await updateVgauthUser(user.id, rebind);
+        if (license && (!license.hwidMb || !license.hwidCpu)) {
+          await updateVgauthLicense(license.id, {
+            hwidMb: license.hwidMb || hwidMb,
+            hwidCpu: license.hwidCpu || hwidCpu,
+            ip
+          });
+        }
         await updateVgauthSession(session.id, { userId: user.id, username: user.username, hwidMb, hwidCpu });
         return respond(res, secret, {
           success: true,
@@ -3633,6 +3643,13 @@ function registerVgAuthApi(app2) {
           }
           await createVgauthLog({ appId: appRec.id, action: "auth.hwid_mismatch", detail: `license ${key.slice(0, 12)}`, ip });
           return respond(res, secret, { success: false, message: "hwid_mismatch", sessionid });
+        }
+        if (!lic.hwidMb || !lic.hwidCpu) {
+          await updateVgauthLicense(lic.id, {
+            hwidMb: lic.hwidMb || hwidMb,
+            hwidCpu: lic.hwidCpu || hwidCpu,
+            ip
+          });
         }
         await updateVgauthSession(session.id, { username: lic.usedBy, hwidMb, hwidCpu });
         return respond(res, secret, {
@@ -5972,8 +5989,25 @@ var vgauthRouter = router({
       ip: null,
       hwidViolations: 0
     });
-    if (lic) await createVgauthLog({ appId: lic.appId, action: "license.hwid_reset", detail: lic.keyValue.slice(0, 12) });
+    if (lic) {
+      const users2 = await getVgauthUsersByApp(lic.appId);
+      for (const u of users2.filter((u2) => u2.licenseId === lic.id)) {
+        await updateVgauthUser(u.id, { hwidMb: null, hwidCpu: null, ip: null });
+      }
+      await createVgauthLog({ appId: lic.appId, action: "license.hwid_reset", detail: lic.keyValue.slice(0, 12) });
+    }
     return lic;
+  }),
+  resetUserHwid: adminProcedure2.input(z2.object({ userId: z2.number(), appId: z2.number() })).mutation(async ({ input }) => {
+    const users2 = await getVgauthUsersByApp(input.appId);
+    const user = users2.find((u) => u.id === input.userId);
+    if (!user) throw new TRPCError3({ code: "NOT_FOUND" });
+    await updateVgauthUser(user.id, { hwidMb: null, hwidCpu: null, ip: null });
+    if (user.licenseId) {
+      await updateVgauthLicense(user.licenseId, { hwidMb: null, hwidCpu: null, ip: null, hwidViolations: 0 });
+    }
+    await createVgauthLog({ appId: input.appId, action: "user.hwid_reset", detail: user.username });
+    return { success: true };
   }),
   deleteLicense: adminProcedure2.input(z2.object({ id: z2.number() })).mutation(async ({ input }) => {
     await deleteVgauthLicense(input.id);
