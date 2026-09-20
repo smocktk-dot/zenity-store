@@ -29,7 +29,7 @@ const navItems = [
   { href: "/admin/security", icon: Lock, label: "Segurança" },
 ];
 
-const SUPPORT_HREFS = new Set(["/admin/keys", "/admin/manual-delivery", "/admin/tickets", "/admin/support"]);
+const SUPPORT_HREFS = new Set(["/admin/keys", "/admin/manual-delivery", "/admin/tickets", "/admin/support", "/admin/downloads"]);
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [location, navigate] = useLocation();

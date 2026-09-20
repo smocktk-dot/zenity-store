@@ -770,13 +770,13 @@ const adminRouter = router({
     }),
 
   // ─── App Downloads ───────────────────────────────────────────────────────────
-  getDownloadsByApp: adminProcedure
+  getDownloadsByApp: supportProcedure
     .input(z.object({ appId: z.number() }))
     .query(async ({ input }) => {
       return getDownloadsByAppId(input.appId);
     }),
 
-  createAppDownload: adminProcedure
+  createAppDownload: supportProcedure
     .input(z.object({
       appId: z.number(),
       type: z.enum(["download", "tutorial"]),
@@ -790,7 +790,7 @@ const adminRouter = router({
       return { success: true };
     }),
 
-  updateAppDownload: adminProcedure
+  updateAppDownload: supportProcedure
     .input(z.object({
       id: z.number(),
       type: z.enum(["download", "tutorial"]).optional(),
@@ -805,7 +805,7 @@ const adminRouter = router({
       return { success: true };
     }),
 
-  deleteAppDownload: adminProcedure
+  deleteAppDownload: supportProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       await deleteAppDownload(input.id);

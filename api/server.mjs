@@ -4804,10 +4804,10 @@ var adminRouter = router({
     return { success: true };
   }),
   // ─── App Downloads ───────────────────────────────────────────────────────────
-  getDownloadsByApp: adminProcedure2.input(z2.object({ appId: z2.number() })).query(async ({ input }) => {
+  getDownloadsByApp: supportProcedure.input(z2.object({ appId: z2.number() })).query(async ({ input }) => {
     return getDownloadsByAppId(input.appId);
   }),
-  createAppDownload: adminProcedure2.input(z2.object({
+  createAppDownload: supportProcedure.input(z2.object({
     appId: z2.number(),
     type: z2.enum(["download", "tutorial"]),
     title: z2.string().min(1),
@@ -4818,7 +4818,7 @@ var adminRouter = router({
     await createAppDownload(input);
     return { success: true };
   }),
-  updateAppDownload: adminProcedure2.input(z2.object({
+  updateAppDownload: supportProcedure.input(z2.object({
     id: z2.number(),
     type: z2.enum(["download", "tutorial"]).optional(),
     title: z2.string().min(1).optional(),
@@ -4830,7 +4830,7 @@ var adminRouter = router({
     await updateAppDownload(id, data);
     return { success: true };
   }),
-  deleteAppDownload: adminProcedure2.input(z2.object({ id: z2.number() })).mutation(async ({ input }) => {
+  deleteAppDownload: supportProcedure.input(z2.object({ id: z2.number() })).mutation(async ({ input }) => {
     await deleteAppDownload(input.id);
     return { success: true };
   }),
