@@ -50,6 +50,11 @@ export default function AdminDownloads() {
     setUploadPct(0);
     setUploadedName("");
     try {
+      // Preflight: detecta Blob Storage não configurado com mensagem clara
+      const status = await fetch("/api/admin/blob-upload").then(r => r.json()).catch(() => null);
+      if (status && status.configured === false) {
+        throw new Error("Blob Storage não configurado na Vercel — crie um Blob Store (Storage → Blob) e faça redeploy");
+      }
       const blob = await upload(file.name, file, {
         access: "public",
         handleUploadUrl: "/api/admin/blob-upload",
@@ -60,7 +65,8 @@ export default function AdminDownloads() {
       setUploadedName(file.name);
       toast.success("Arquivo enviado!");
     } catch (e: any) {
-      toast.error(e?.message || "Falha no upload");
+      const msg = e?.message || "Falha no upload";
+      toast.error(msg.includes("client token") ? "Falha ao autorizar upload — verifique o Blob Storage na Vercel" : msg);
     } finally {
       setUploading(false);
     }

@@ -6096,12 +6096,27 @@ var appRouter = router({
 
 // server/uploadApi.ts
 var MAX_UPLOAD_BYTES = 500 * 1024 * 1024;
+async function requireFullAdmin(req) {
+  const token = getCustomToken(req);
+  const payload = token ? await verifyCustomJwt(token) : null;
+  return !!payload && payload.role === "admin" && payload.adminRole !== "support";
+}
 function registerUploadApi(app2) {
-  app2.post("/api/admin/blob-upload", async (req, res) => {
-    const token = getCustomToken(req);
-    const payload = token ? await verifyCustomJwt(token) : null;
-    if (!payload || payload.role !== "admin" || payload.adminRole === "support") {
+  app2.get("/api/admin/blob-upload", async (req, res) => {
+    if (!await requireFullAdmin(req)) {
       return res.status(403).json({ error: "forbidden" });
+    }
+    return res.json({ configured: !!process.env.BLOB_READ_WRITE_TOKEN });
+  });
+  app2.post("/api/admin/blob-upload", async (req, res) => {
+    if (!await requireFullAdmin(req)) {
+      return res.status(403).json({ error: "forbidden" });
+    }
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      return res.status(500).json({
+        error: "blob_not_configured",
+        message: "BLOB_READ_WRITE_TOKEN n\xE3o configurado \u2014 crie um Blob Store na Vercel (Storage \u2192 Blob) e fa\xE7a redeploy"
+      });
     }
     try {
       const jsonResponse = await handleUpload({
@@ -6111,7 +6126,7 @@ function registerUploadApi(app2) {
           maximumSizeInBytes: MAX_UPLOAD_BYTES,
           addRandomSuffix: true,
           allowOverwrite: false,
-          tokenPayload: JSON.stringify({ adminId: payload.sub })
+          tokenPayload: JSON.stringify({ adminId: "admin" })
         })
       });
       return res.json(jsonResponse);
