@@ -1105,7 +1105,7 @@ async function deletePlan(id) {
   await ensurePixPaymentSchema();
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  await db.delete(licenseKeys).where(eq(licenseKeys.planId, id));
+  await db.update(licenseKeys).set({ planId: null }).where(eq(licenseKeys.planId, id));
   await db.delete(appStock).where(eq(appStock.planId, id));
   await db.update(pixPayments).set({ planId: null }).where(eq(pixPayments.planId, id));
   await db.delete(subscriptionPlans).where(eq(subscriptionPlans.id, id));
