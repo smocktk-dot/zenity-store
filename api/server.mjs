@@ -1064,12 +1064,17 @@ async function updateApp(id, data) {
   await db.update(apps).set(data).where(eq(apps.id, id));
 }
 async function deleteApp(id) {
+  await ensureAppStockSchema();
+  await ensurePixPaymentSchema();
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const plans = await db.select().from(subscriptionPlans).where(eq(subscriptionPlans.appId, id));
   for (const plan of plans) {
     await db.delete(licenseKeys).where(eq(licenseKeys.planId, plan.id));
   }
+  await db.delete(appStock).where(eq(appStock.appId, id));
+  await db.delete(appDownloads).where(eq(appDownloads.appId, id));
+  await db.update(pixPayments).set({ appId: null, planId: null }).where(eq(pixPayments.appId, id));
   await db.delete(subscriptionPlans).where(eq(subscriptionPlans.appId, id));
   await db.delete(resellerApps).where(eq(resellerApps.appId, id));
   await db.delete(apps).where(eq(apps.id, id));
@@ -1096,9 +1101,13 @@ async function updatePlan(id, data) {
   await db.update(subscriptionPlans).set(data).where(eq(subscriptionPlans.id, id));
 }
 async function deletePlan(id) {
+  await ensureAppStockSchema();
+  await ensurePixPaymentSchema();
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   await db.delete(licenseKeys).where(eq(licenseKeys.planId, id));
+  await db.delete(appStock).where(eq(appStock.planId, id));
+  await db.update(pixPayments).set({ planId: null }).where(eq(pixPayments.planId, id));
   await db.delete(subscriptionPlans).where(eq(subscriptionPlans.id, id));
 }
 async function getAppsByResellerId(resellerId) {

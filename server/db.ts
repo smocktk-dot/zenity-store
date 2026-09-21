@@ -544,6 +544,8 @@ export async function updateApp(id: number, data: Partial<InsertApp>) {
 }
 
 export async function deleteApp(id: number) {
+  await ensureAppStockSchema();
+  await ensurePixPaymentSchema();
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   // Get all plans for this app to delete their keys first
@@ -551,6 +553,10 @@ export async function deleteApp(id: number) {
   for (const plan of plans) {
     await db.delete(licenseKeys).where(eq(licenseKeys.planId, plan.id));
   }
+  // Remove dependentes: estoque, downloads, pix (preserva registro financeiro com NULL)
+  await db.delete(appStock).where(eq(appStock.appId, id));
+  await db.delete(appDownloads).where(eq(appDownloads.appId, id));
+  await db.update(pixPayments).set({ appId: null, planId: null }).where(eq(pixPayments.appId, id));
   // Delete plans, reseller assignments, then the app
   await db.delete(subscriptionPlans).where(eq(subscriptionPlans.appId, id));
   await db.delete(resellerApps).where(eq(resellerApps.appId, id));
@@ -587,10 +593,16 @@ export async function updatePlan(id: number, data: Partial<InsertSubscriptionPla
 }
 
 export async function deletePlan(id: number) {
+  await ensureAppStockSchema();
+  await ensurePixPaymentSchema();
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  // Delete associated license keys first to avoid FK constraint violation
+  // Remove todos os dependentes para não violar FK:
+  // keys do plano, estoque do plano e desvincula pagamentos pix
+  // (preserva o registro financeiro — só zera a referência).
   await db.delete(licenseKeys).where(eq(licenseKeys.planId, id));
+  await db.delete(appStock).where(eq(appStock.planId, id));
+  await db.update(pixPayments).set({ planId: null }).where(eq(pixPayments.planId, id));
   await db.delete(subscriptionPlans).where(eq(subscriptionPlans.id, id));
 }
 
