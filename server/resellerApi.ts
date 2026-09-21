@@ -2,9 +2,10 @@ import express, { type Express, type Request, type Response } from "express";
 import {
   getResellerByApiKey, getResellerApiKeyByKey, getResellerById, getAssignedAppIds, getAppsByResellerId,
   getAppById, getAppByName, getAppByNameLike, getPlansByAppId, getPlanById, getStockByApp,
-  getAvailableStockForPlan, createLicenseKey,
+  getAvailableStockForPlan, createLicenseKey, deleteLicenseKeysByValues,
   updateResellerCredits, createCreditTransaction,
   getOtherStoreResellerByHwid, getOtherStoreHwidsByResellerId,
+  createPixPayment,
 } from "./db";
 import { acquireLicenseKeyValues, appGeneratesOnDemand } from "./keyFulfillment";
 import type { Reseller } from "../drizzle/schema";
@@ -122,13 +123,21 @@ async function takeKeysGuarded(opts: {
         app, plan, quantity: qty, resellerId: reseller.id,
         owner: reseller.username, note: noteValue,
       });
-      for (const keyValue of acquisition.keyValues) {
-        await createLicenseKey({
-          keyValue, resellerId: reseller.id, appId: app.id, planId: plan.id,
-          planName: plan.name, durationDays: plan.durationDays,
-          creditsSpent: "0", source: "api",
-          ...(noteValue ? { note: noteValue } : {}),
-        } as any);
+      const created: string[] = [];
+      try {
+        for (const keyValue of acquisition.keyValues) {
+          await createLicenseKey({
+            keyValue, resellerId: reseller.id, appId: app.id, planId: plan.id,
+            planName: plan.name, durationDays: plan.durationDays,
+            creditsSpent: "0", source: "api",
+            ...(noteValue ? { note: noteValue } : {}),
+          } as any);
+          created.push(keyValue);
+        }
+      } catch (e) {
+        await deleteLicenseKeysByValues(created);
+        await acquisition.release();
+        throw e;
       }
       return acquisition.keyValues;
     }
@@ -150,13 +159,21 @@ async function takeKeysGuarded(opts: {
       throw new GatewayError(402, `Insufficient credits. Need: ${totalCost.toFixed(2)}, have: ${freshCredits.toFixed(2)}`);
     }
     const newCredits = freshCredits - totalCost;
-    for (const keyValue of acquisition.keyValues) {
-      await createLicenseKey({
-        keyValue, resellerId: reseller.id, appId: app.id, planId: plan.id,
-        planName: plan.name, durationDays: plan.durationDays,
-        creditsSpent: pricePerKey.toFixed(2), resellerCredits: newCredits.toFixed(2),
-        source: "api", ...(noteValue ? { note: noteValue } : {}),
-      } as any);
+    const createdKeys: string[] = [];
+    try {
+      for (const keyValue of acquisition.keyValues) {
+        await createLicenseKey({
+          keyValue, resellerId: reseller.id, appId: app.id, planId: plan.id,
+          planName: plan.name, durationDays: plan.durationDays,
+          creditsSpent: pricePerKey.toFixed(2), resellerCredits: newCredits.toFixed(2),
+          source: "api", ...(noteValue ? { note: noteValue } : {}),
+        } as any);
+        createdKeys.push(keyValue);
+      }
+    } catch (e) {
+      await deleteLicenseKeysByValues(createdKeys);
+      await acquisition.release();
+      throw e;
     }
     await updateResellerCredits(reseller.id, newCredits.toFixed(2), reseller.totalPurchases + qty, reseller.discountPercent as string);
     await createCreditTransaction({
@@ -176,13 +193,21 @@ async function takeKeysGuarded(opts: {
   } catch (e: any) {
     throw new GatewayError(409, e?.message || "Insufficient stock");
   }
-  for (const keyValue of acquisition.keyValues) {
-    await createLicenseKey({
-      keyValue, resellerId: reseller.id, appId: app.id, planId: plan.id,
-      planName: plan.name, durationDays: plan.durationDays,
-      creditsSpent: "0", source: "api",
-      ...(noteValue ? { note: noteValue } : {}),
-    } as any);
+  const freeKeys: string[] = [];
+  try {
+    for (const keyValue of acquisition.keyValues) {
+      await createLicenseKey({
+        keyValue, resellerId: reseller.id, appId: app.id, planId: plan.id,
+        planName: plan.name, durationDays: plan.durationDays,
+        creditsSpent: "0", source: "api",
+        ...(noteValue ? { note: noteValue } : {}),
+      } as any);
+      freeKeys.push(keyValue);
+    }
+  } catch (e) {
+    await deleteLicenseKeysByValues(freeKeys);
+    await acquisition.release();
+    throw e;
   }
   return acquisition.keyValues;
 }
@@ -616,20 +641,26 @@ export function registerResellerApi(app: Express) {
     const newCredits = currentCredits - totalCost;
     const newPurchases = reseller.totalPurchases + qty;
     const keys: string[] = [];
-    for (const keyValue of acquisition.keyValues) {
-      await createLicenseKey({
-        keyValue,
-        resellerId: reseller.id,
-        appId: app.id,
-        planId: plan.id,
-        planName: plan.name,
-        durationDays: plan.durationDays,
-        creditsSpent: pricePerKey.toFixed(2),
-        resellerCredits: newCredits.toFixed(2),
-        source: "api",
-        ...(noteValue ? { note: noteValue } : {}),
-      } as any);
-      keys.push(keyValue);
+    try {
+      for (const keyValue of acquisition.keyValues) {
+        await createLicenseKey({
+          keyValue,
+          resellerId: reseller.id,
+          appId: app.id,
+          planId: plan.id,
+          planName: plan.name,
+          durationDays: plan.durationDays,
+          creditsSpent: pricePerKey.toFixed(2),
+          resellerCredits: newCredits.toFixed(2),
+          source: "api",
+          ...(noteValue ? { note: noteValue } : {}),
+        } as any);
+        keys.push(keyValue);
+      }
+    } catch (e) {
+      await deleteLicenseKeysByValues(keys);
+      await acquisition.release();
+      throw e;
     }
     await updateResellerCredits(reseller.id, newCredits.toFixed(2), newPurchases, reseller.discountPercent as string);
     await createCreditTransaction({
@@ -702,6 +733,23 @@ export function registerResellerApi(app: Express) {
     const data = await response.json() as any;
     const brCode = data?.pix?.brCode || data?.brCode || null;
     const qrCodeImage = data?.pix?.qrCodeImage || data?.qrCodeImage || null;
+    // Registra o pagamento para o webhook poder entregar as keys — sem isso o
+    // pagamento confirmava mas nenhuma key era gerada.
+    await createPixPayment({
+      resellerId: reseller.id,
+      paymentId: data.paymentId,
+      amountCents,
+      credits: "0",
+      status: "pending",
+      brCode,
+      qrCodeImage,
+      expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
+      paymentType: "other-store",
+      paymentMethod: "pix",
+      appId: app.id,
+      planId: plan.id,
+      quantity: qty,
+    } as any);
     res.json({ paymentId: data.paymentId, amountCents, brCode, qrCodeImage, expiresAt: data.expiresAt, plan: { id: plan.id, name: plan.name, durationDays: plan.durationDays } });
   });
 

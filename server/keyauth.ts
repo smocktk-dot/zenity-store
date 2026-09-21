@@ -1,6 +1,6 @@
 const DEFAULT_KEY_MASK = "KEY-******-******";
 
-export async function keyauthCreateLicense(opts: {
+async function keyauthRequestLicenses(opts: {
   sellerKey: string;
   durationDays: number;
   quantity: number;
@@ -8,10 +8,6 @@ export async function keyauthCreateLicense(opts: {
   note?: string;
   mask?: string;
 }): Promise<string[]> {
-  if (!opts.sellerKey) {
-    throw new Error("Seller key da KeyAuth não configurada");
-  }
-
   const expiry = opts.durationDays >= 9000 ? 0 : opts.durationDays;
   const url = new URL("https://keyauth.win/api/seller/");
   url.searchParams.set("sellerkey", opts.sellerKey);
@@ -28,22 +24,56 @@ export async function keyauthCreateLicense(opts: {
     throw new Error(`KeyAuth respondeu HTTP ${res.status}`);
   }
 
-  const data = await res.json() as { success?: boolean; message?: string; key?: string; keys?: string[] };
+  const data = await res.json() as { success?: boolean; message?: string; key?: string | string[]; keys?: string[] | string };
   if (!data.success) {
     throw new Error(`KeyAuth: ${data.message || "falha ao criar licença"}`);
   }
 
-  const keys = Array.isArray(data.keys)
-    ? data.keys
-    : typeof data.key === "string" && data.key.length > 0
-      ? [data.key]
-      : [];
+  // Normaliza os formatos possíveis da KeyAuth:
+  // - keys: string[]            (amount > 1)
+  // - keys: "K1\nK2\nK3"        (string unica com separadores)
+  // - key:  "K1" | "K1\nK2\nK3" | string[]
+  const rawKeys: unknown = data.keys ?? data.key;
+  return (Array.isArray(rawKeys) ? rawKeys : typeof rawKeys === "string" ? [rawKeys] : [])
+    .flatMap(k => String(k).split(/[\s,;]+/))
+    .map(k => k.trim())
+    .filter(k => k.length > 0);
+}
 
-  if (keys.length !== opts.quantity || keys.some(key => typeof key !== "string" || key.length === 0)) {
-    throw new Error(`KeyAuth retornou ${keys.length} de ${opts.quantity} licença(s)`);
+export async function keyauthCreateLicense(opts: {
+  sellerKey: string;
+  durationDays: number;
+  quantity: number;
+  owner?: string;
+  note?: string;
+  mask?: string;
+}): Promise<string[]> {
+  if (!opts.sellerKey) {
+    throw new Error("Seller key da KeyAuth não configurada");
   }
 
-  return keys;
+  // Pede tudo de uma vez; se a API devolver menos do que o pedido (ex.: ignora
+  // `amount` ou muda o formato da resposta), faz chamadas extras ate completar.
+  // Limite de tentativas evita loop infinito se a API falhar sempre.
+  const keys = new Set<string>();
+  let attempts = 0;
+  const maxAttempts = opts.quantity + 5;
+
+  while (keys.size < opts.quantity && attempts < maxAttempts) {
+    attempts++;
+    const missing = opts.quantity - keys.size;
+    const batch = await keyauthRequestLicenses({ ...opts, quantity: missing });
+    if (batch.length === 0) {
+      throw new Error(`KeyAuth retornou 0 licença(s) (pedido: ${missing})`);
+    }
+    for (const k of batch) keys.add(k);
+  }
+
+  if (keys.size < opts.quantity) {
+    throw new Error(`KeyAuth retornou ${keys.size} de ${opts.quantity} licença(s)`);
+  }
+
+  return Array.from(keys).slice(0, opts.quantity);
 }
 
 export interface KeyauthLicenseInfo {

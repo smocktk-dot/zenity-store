@@ -21,7 +21,7 @@ import {
   getDashboardKeysByMonth, getDashboardTopApps,
   getPlansByAppId, getPlanById, createPlan, updatePlan, deletePlan,
   getAppsByResellerId, assignAppToReseller, removeAppFromReseller, getAssignedAppIds,
-  getKeysByResellerId, getKeysByResellerIdWithApp, getAllKeys, getAllKeysWithReseller, getKeyById, getKeyByValue, createLicenseKey, updateLicenseKey,
+  getKeysByResellerId, getKeysByResellerIdWithApp, getAllKeys, getAllKeysWithReseller, getKeyById, getKeyByValue, createLicenseKey, updateLicenseKey, deleteLicenseKeysByValues,
   countKeysByReseller, transferResellerKeys,
   getTransactionsByResellerId, createCreditTransaction,
   getAllIpWhitelist, addIpToWhitelist, removeIpFromWhitelist, isIpWhitelisted,
@@ -1477,6 +1477,28 @@ const resellerRouter = router({
       // Para créditos, o discountPercent é fixo (definido pelo admin), não atualiza automaticamente
       await updateResellerCredits(ctx.resellerId, newCredits.toFixed(2), newPurchases, reseller.discountPercent as string);
 
+      const generatedKeys: string[] = [];
+      try {
+        for (const keyValue of acquisition.keyValues) {
+          await createLicenseKey({
+            keyValue, resellerId: ctx.resellerId, appId: input.appId,
+            planId: plan.id, planName: plan.name, durationDays: plan.durationDays,
+            creditsSpent: discountedPrice.toFixed(2),
+            resellerCredits: newCredits.toFixed(2),
+            ...(input.note ? { note: input.note } : {}),
+            ...(input.customMask ? { customMask: input.customMask } : {}),
+          } as any);
+          generatedKeys.push(keyValue);
+        }
+      } catch (err) {
+        // Rollback: devolve os créditos e apaga as keys parcialmente criadas,
+        // senão o reseller fica cobrado por keys que não recebeu.
+        await updateResellerCredits(ctx.resellerId, freshCredits.toFixed(2), reseller.totalPurchases, reseller.discountPercent as string);
+        await deleteLicenseKeysByValues(generatedKeys);
+        await acquisition.release();
+        throw err;
+      }
+
       await createCreditTransaction({
         resellerId: ctx.resellerId, type: "deduct",
         amount: totalCost.toFixed(2),
@@ -1484,19 +1506,6 @@ const resellerRouter = router({
         balanceAfter: newCredits.toFixed(2),
         description: `Geração de ${input.quantity}x key(s) - ${app.name} (${plan.name})`,
       });
-
-      const generatedKeys: string[] = [];
-      for (const keyValue of acquisition.keyValues) {
-        await createLicenseKey({
-          keyValue, resellerId: ctx.resellerId, appId: input.appId,
-          planId: plan.id, planName: plan.name, durationDays: plan.durationDays,
-          creditsSpent: discountedPrice.toFixed(2),
-          resellerCredits: newCredits.toFixed(2),
-          ...(input.note ? { note: input.note } : {}),
-          ...(input.customMask ? { customMask: input.customMask } : {}),
-        } as any);
-        generatedKeys.push(keyValue);
-      }
 
       return { success: true, keys: generatedKeys, creditsSpent: totalCost, newBalance: newCredits };
     }),
@@ -2073,10 +2082,24 @@ const resellerRouter = router({
   checkKeyLtcStatus: resellerProcedure
     .input(z.object({ paymentId: z.string() }))
     .query(async ({ ctx, input }) => {
-      const payment = await getPixPaymentByPaymentId(input.paymentId);
+      let payment = await getPixPaymentByPaymentId(input.paymentId);
       if (!payment || payment.resellerId !== ctx.resellerId) {
         throw new TRPCError({ code: "NOT_FOUND" });
       }
+
+      // Polling fallback igual ao PIX: se o webhook nao chegar, pergunta direto
+      // a Purin Cash e processa a entrega das keys.
+      if (payment.status === "pending") {
+        const remote = await checkPurinPaymentStatus(input.paymentId);
+        if (remote?.status === "paid") {
+          await processPurinPaymentUpdate(input.paymentId, "paid", remote.paidAt ? new Date(remote.paidAt) : new Date());
+          payment = (await getPixPaymentByPaymentId(input.paymentId)) ?? payment;
+        } else if (remote?.status && ["expired", "cancelled", "refunded"].includes(remote.status)) {
+          await processPurinPaymentUpdate(input.paymentId, remote.status, new Date());
+          payment = (await getPixPaymentByPaymentId(input.paymentId)) ?? payment;
+        }
+      }
+
       let keys: string[] = [];
       if (payment.status === "paid") {
         const { getKeysByPaymentId } = await import("./db");

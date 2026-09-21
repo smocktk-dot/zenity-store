@@ -868,11 +868,20 @@ export async function createLicenseKey(data: InsertLicenseKey) {
   // Only include optional fields if they were explicitly provided
   const optionalValues: Record<string, unknown> = {};
   if (data.note !== undefined && data.note !== null) optionalValues.note = data.note;
+  if (data.resellerCredits !== undefined && data.resellerCredits !== null) optionalValues.resellerCredits = data.resellerCredits;
   if (data.customMask !== undefined && data.customMask !== null) optionalValues.customMask = data.customMask;
   if (data.expiresAt !== undefined && data.expiresAt !== null) optionalValues.expiresAt = data.expiresAt;
   if (data.source !== undefined && data.source !== null) optionalValues.source = data.source;
 
   await db.insert(licenseKeys).values({ ...requiredValues, ...optionalValues } as InsertLicenseKey);
+}
+
+export async function deleteLicenseKeysByValues(keyValues: string[]) {
+  await ensureLicenseKeysSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  if (keyValues.length === 0) return;
+  await db.delete(licenseKeys).where(inArray(licenseKeys.keyValue, keyValues));
 }
 
 export async function updateLicenseKey(id: number, data: Partial<InsertLicenseKey>) {
@@ -1115,7 +1124,7 @@ export async function purgeResellerPurchases(resellerId: number) {
 
     const deletedTx = await tx
       .delete(creditTransactions)
-      .where(and(eq(creditTransactions.resellerId, resellerId), eq(creditTransactions.type, "purchase")))
+      .where(and(eq(creditTransactions.resellerId, resellerId), eq(creditTransactions.type, "deduct")))
       .returning({ id: creditTransactions.id });
 
     const deletedPix = await tx

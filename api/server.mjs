@@ -461,6 +461,7 @@ __export(db_exports, {
   deleteApp: () => deleteApp,
   deleteAppDownload: () => deleteAppDownload,
   deleteCategory: () => deleteCategory,
+  deleteLicenseKeysByValues: () => deleteLicenseKeysByValues,
   deleteOtherStoreHwid: () => deleteOtherStoreHwid,
   deleteOtherStoreReseller: () => deleteOtherStoreReseller,
   deletePlan: () => deletePlan,
@@ -1294,10 +1295,18 @@ async function createLicenseKey(data) {
   };
   const optionalValues = {};
   if (data.note !== void 0 && data.note !== null) optionalValues.note = data.note;
+  if (data.resellerCredits !== void 0 && data.resellerCredits !== null) optionalValues.resellerCredits = data.resellerCredits;
   if (data.customMask !== void 0 && data.customMask !== null) optionalValues.customMask = data.customMask;
   if (data.expiresAt !== void 0 && data.expiresAt !== null) optionalValues.expiresAt = data.expiresAt;
   if (data.source !== void 0 && data.source !== null) optionalValues.source = data.source;
   await db.insert(licenseKeys).values({ ...requiredValues, ...optionalValues });
+}
+async function deleteLicenseKeysByValues(keyValues) {
+  await ensureLicenseKeysSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  if (keyValues.length === 0) return;
+  await db.delete(licenseKeys).where(inArray(licenseKeys.keyValue, keyValues));
 }
 async function updateLicenseKey(id, data) {
   await ensureLicenseKeysSchema();
@@ -1455,7 +1464,7 @@ async function purgeResellerPurchases(resellerId) {
   if (!db) throw new Error("DB not available");
   return db.transaction(async (tx) => {
     const deletedKeys = await tx.delete(licenseKeys).where(eq(licenseKeys.resellerId, resellerId)).returning({ id: licenseKeys.id });
-    const deletedTx = await tx.delete(creditTransactions).where(and(eq(creditTransactions.resellerId, resellerId), eq(creditTransactions.type, "purchase"))).returning({ id: creditTransactions.id });
+    const deletedTx = await tx.delete(creditTransactions).where(and(eq(creditTransactions.resellerId, resellerId), eq(creditTransactions.type, "deduct"))).returning({ id: creditTransactions.id });
     const deletedPix = await tx.delete(pixPayments).where(and(eq(pixPayments.resellerId, resellerId), eq(pixPayments.paymentType, "key"))).returning({ id: pixPayments.id });
     const [{ c }] = await tx.select({ c: sql`count(*)::int` }).from(licenseKeys).where(eq(licenseKeys.resellerId, resellerId));
     await tx.update(resellers).set({ totalPurchases: c ?? 0 }).where(eq(resellers.id, resellerId));
@@ -2575,10 +2584,7 @@ init_db();
 
 // server/keyauth.ts
 var DEFAULT_KEY_MASK = "KEY-******-******";
-async function keyauthCreateLicense(opts) {
-  if (!opts.sellerKey) {
-    throw new Error("Seller key da KeyAuth n\xE3o configurada");
-  }
+async function keyauthRequestLicenses(opts) {
   const expiry = opts.durationDays >= 9e3 ? 0 : opts.durationDays;
   const url = new URL("https://keyauth.win/api/seller/");
   url.searchParams.set("sellerkey", opts.sellerKey);
@@ -2597,11 +2603,29 @@ async function keyauthCreateLicense(opts) {
   if (!data.success) {
     throw new Error(`KeyAuth: ${data.message || "falha ao criar licen\xE7a"}`);
   }
-  const keys = Array.isArray(data.keys) ? data.keys : typeof data.key === "string" && data.key.length > 0 ? [data.key] : [];
-  if (keys.length !== opts.quantity || keys.some((key) => typeof key !== "string" || key.length === 0)) {
-    throw new Error(`KeyAuth retornou ${keys.length} de ${opts.quantity} licen\xE7a(s)`);
+  const rawKeys = data.keys ?? data.key;
+  return (Array.isArray(rawKeys) ? rawKeys : typeof rawKeys === "string" ? [rawKeys] : []).flatMap((k) => String(k).split(/[\s,;]+/)).map((k) => k.trim()).filter((k) => k.length > 0);
+}
+async function keyauthCreateLicense(opts) {
+  if (!opts.sellerKey) {
+    throw new Error("Seller key da KeyAuth n\xE3o configurada");
   }
-  return keys;
+  const keys = /* @__PURE__ */ new Set();
+  let attempts = 0;
+  const maxAttempts = opts.quantity + 5;
+  while (keys.size < opts.quantity && attempts < maxAttempts) {
+    attempts++;
+    const missing = opts.quantity - keys.size;
+    const batch = await keyauthRequestLicenses({ ...opts, quantity: missing });
+    if (batch.length === 0) {
+      throw new Error(`KeyAuth retornou 0 licen\xE7a(s) (pedido: ${missing})`);
+    }
+    for (const k of batch) keys.add(k);
+  }
+  if (keys.size < opts.quantity) {
+    throw new Error(`KeyAuth retornou ${keys.size} de ${opts.quantity} licen\xE7a(s)`);
+  }
+  return Array.from(keys).slice(0, opts.quantity);
 }
 async function keyauthFetchKeyInfo(opts) {
   if (!opts.sellerKey) return null;
@@ -2776,18 +2800,26 @@ async function takeKeysGuarded(opts) {
         owner: reseller.username,
         note: noteValue
       });
-      for (const keyValue of acquisition3.keyValues) {
-        await createLicenseKey({
-          keyValue,
-          resellerId: reseller.id,
-          appId: app2.id,
-          planId: plan.id,
-          planName: plan.name,
-          durationDays: plan.durationDays,
-          creditsSpent: "0",
-          source: "api",
-          ...noteValue ? { note: noteValue } : {}
-        });
+      const created = [];
+      try {
+        for (const keyValue of acquisition3.keyValues) {
+          await createLicenseKey({
+            keyValue,
+            resellerId: reseller.id,
+            appId: app2.id,
+            planId: plan.id,
+            planName: plan.name,
+            durationDays: plan.durationDays,
+            creditsSpent: "0",
+            source: "api",
+            ...noteValue ? { note: noteValue } : {}
+          });
+          created.push(keyValue);
+        }
+      } catch (e) {
+        await deleteLicenseKeysByValues(created);
+        await acquisition3.release();
+        throw e;
       }
       return acquisition3.keyValues;
     }
@@ -2813,19 +2845,27 @@ async function takeKeysGuarded(opts) {
       throw new GatewayError(402, `Insufficient credits. Need: ${totalCost.toFixed(2)}, have: ${freshCredits.toFixed(2)}`);
     }
     const newCredits = freshCredits - totalCost;
-    for (const keyValue of acquisition2.keyValues) {
-      await createLicenseKey({
-        keyValue,
-        resellerId: reseller.id,
-        appId: app2.id,
-        planId: plan.id,
-        planName: plan.name,
-        durationDays: plan.durationDays,
-        creditsSpent: pricePerKey.toFixed(2),
-        resellerCredits: newCredits.toFixed(2),
-        source: "api",
-        ...noteValue ? { note: noteValue } : {}
-      });
+    const createdKeys = [];
+    try {
+      for (const keyValue of acquisition2.keyValues) {
+        await createLicenseKey({
+          keyValue,
+          resellerId: reseller.id,
+          appId: app2.id,
+          planId: plan.id,
+          planName: plan.name,
+          durationDays: plan.durationDays,
+          creditsSpent: pricePerKey.toFixed(2),
+          resellerCredits: newCredits.toFixed(2),
+          source: "api",
+          ...noteValue ? { note: noteValue } : {}
+        });
+        createdKeys.push(keyValue);
+      }
+    } catch (e) {
+      await deleteLicenseKeysByValues(createdKeys);
+      await acquisition2.release();
+      throw e;
     }
     await updateResellerCredits(reseller.id, newCredits.toFixed(2), reseller.totalPurchases + qty, reseller.discountPercent);
     await createCreditTransaction({
@@ -2851,18 +2891,26 @@ async function takeKeysGuarded(opts) {
   } catch (e) {
     throw new GatewayError(409, e?.message || "Insufficient stock");
   }
-  for (const keyValue of acquisition.keyValues) {
-    await createLicenseKey({
-      keyValue,
-      resellerId: reseller.id,
-      appId: app2.id,
-      planId: plan.id,
-      planName: plan.name,
-      durationDays: plan.durationDays,
-      creditsSpent: "0",
-      source: "api",
-      ...noteValue ? { note: noteValue } : {}
-    });
+  const freeKeys = [];
+  try {
+    for (const keyValue of acquisition.keyValues) {
+      await createLicenseKey({
+        keyValue,
+        resellerId: reseller.id,
+        appId: app2.id,
+        planId: plan.id,
+        planName: plan.name,
+        durationDays: plan.durationDays,
+        creditsSpent: "0",
+        source: "api",
+        ...noteValue ? { note: noteValue } : {}
+      });
+      freeKeys.push(keyValue);
+    }
+  } catch (e) {
+    await deleteLicenseKeysByValues(freeKeys);
+    await acquisition.release();
+    throw e;
   }
   return acquisition.keyValues;
 }
@@ -3248,20 +3296,26 @@ function registerResellerApi(app2) {
     const newCredits = currentCredits - totalCost;
     const newPurchases = reseller.totalPurchases + qty;
     const keys = [];
-    for (const keyValue of acquisition.keyValues) {
-      await createLicenseKey({
-        keyValue,
-        resellerId: reseller.id,
-        appId: app3.id,
-        planId: plan.id,
-        planName: plan.name,
-        durationDays: plan.durationDays,
-        creditsSpent: pricePerKey.toFixed(2),
-        resellerCredits: newCredits.toFixed(2),
-        source: "api",
-        ...noteValue ? { note: noteValue } : {}
-      });
-      keys.push(keyValue);
+    try {
+      for (const keyValue of acquisition.keyValues) {
+        await createLicenseKey({
+          keyValue,
+          resellerId: reseller.id,
+          appId: app3.id,
+          planId: plan.id,
+          planName: plan.name,
+          durationDays: plan.durationDays,
+          creditsSpent: pricePerKey.toFixed(2),
+          resellerCredits: newCredits.toFixed(2),
+          source: "api",
+          ...noteValue ? { note: noteValue } : {}
+        });
+        keys.push(keyValue);
+      }
+    } catch (e) {
+      await deleteLicenseKeysByValues(keys);
+      await acquisition.release();
+      throw e;
     }
     await updateResellerCredits(reseller.id, newCredits.toFixed(2), newPurchases, reseller.discountPercent);
     await createCreditTransaction({
@@ -3328,6 +3382,21 @@ function registerResellerApi(app2) {
     const data = await response.json();
     const brCode = data?.pix?.brCode || data?.brCode || null;
     const qrCodeImage = data?.pix?.qrCodeImage || data?.qrCodeImage || null;
+    await createPixPayment({
+      resellerId: reseller.id,
+      paymentId: data.paymentId,
+      amountCents,
+      credits: "0",
+      status: "pending",
+      brCode,
+      qrCodeImage,
+      expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
+      paymentType: "other-store",
+      paymentMethod: "pix",
+      appId: app3.id,
+      planId: plan.id,
+      quantity: qty
+    });
     res.json({ paymentId: data.paymentId, amountCents, brCode, qrCodeImage, expiresAt: data.expiresAt, plan: { id: plan.id, name: plan.name, durationDays: plan.durationDays } });
   });
   registerAppResellerApi(app2, "/api/public-emulator/v1", ["EMULATOR PUBLIC", "Public Emulator", "public-emulator", "PUB EMU", "Pub Emu", "pubemu"]);
@@ -5368,6 +5437,29 @@ var resellerRouter = router({
     const newCredits = freshCredits - totalCost;
     const newPurchases = reseller.totalPurchases + input.quantity;
     await updateResellerCredits(ctx.resellerId, newCredits.toFixed(2), newPurchases, reseller.discountPercent);
+    const generatedKeys = [];
+    try {
+      for (const keyValue of acquisition.keyValues) {
+        await createLicenseKey({
+          keyValue,
+          resellerId: ctx.resellerId,
+          appId: input.appId,
+          planId: plan.id,
+          planName: plan.name,
+          durationDays: plan.durationDays,
+          creditsSpent: discountedPrice.toFixed(2),
+          resellerCredits: newCredits.toFixed(2),
+          ...input.note ? { note: input.note } : {},
+          ...input.customMask ? { customMask: input.customMask } : {}
+        });
+        generatedKeys.push(keyValue);
+      }
+    } catch (err) {
+      await updateResellerCredits(ctx.resellerId, freshCredits.toFixed(2), reseller.totalPurchases, reseller.discountPercent);
+      await deleteLicenseKeysByValues(generatedKeys);
+      await acquisition.release();
+      throw err;
+    }
     await createCreditTransaction({
       resellerId: ctx.resellerId,
       type: "deduct",
@@ -5376,22 +5468,6 @@ var resellerRouter = router({
       balanceAfter: newCredits.toFixed(2),
       description: `Gera\xE7\xE3o de ${input.quantity}x key(s) - ${app2.name} (${plan.name})`
     });
-    const generatedKeys = [];
-    for (const keyValue of acquisition.keyValues) {
-      await createLicenseKey({
-        keyValue,
-        resellerId: ctx.resellerId,
-        appId: input.appId,
-        planId: plan.id,
-        planName: plan.name,
-        durationDays: plan.durationDays,
-        creditsSpent: discountedPrice.toFixed(2),
-        resellerCredits: newCredits.toFixed(2),
-        ...input.note ? { note: input.note } : {},
-        ...input.customMask ? { customMask: input.customMask } : {}
-      });
-      generatedKeys.push(keyValue);
-    }
     return { success: true, keys: generatedKeys, creditsSpent: totalCost, newBalance: newCredits };
   }),
   resetHwid: resellerProcedure.input(z2.object({ keyId: z2.number() })).mutation(async ({ ctx, input }) => {
@@ -5862,9 +5938,19 @@ var resellerRouter = router({
   }),
   // Verificar status de pagamento LTC de key e retornar keys se pago
   checkKeyLtcStatus: resellerProcedure.input(z2.object({ paymentId: z2.string() })).query(async ({ ctx, input }) => {
-    const payment = await getPixPaymentByPaymentId(input.paymentId);
+    let payment = await getPixPaymentByPaymentId(input.paymentId);
     if (!payment || payment.resellerId !== ctx.resellerId) {
       throw new TRPCError3({ code: "NOT_FOUND" });
+    }
+    if (payment.status === "pending") {
+      const remote = await checkPurinPaymentStatus(input.paymentId);
+      if (remote?.status === "paid") {
+        await processPurinPaymentUpdate(input.paymentId, "paid", remote.paidAt ? new Date(remote.paidAt) : /* @__PURE__ */ new Date());
+        payment = await getPixPaymentByPaymentId(input.paymentId) ?? payment;
+      } else if (remote?.status && ["expired", "cancelled", "refunded"].includes(remote.status)) {
+        await processPurinPaymentUpdate(input.paymentId, remote.status, /* @__PURE__ */ new Date());
+        payment = await getPixPaymentByPaymentId(input.paymentId) ?? payment;
+      }
     }
     let keys = [];
     if (payment.status === "paid") {

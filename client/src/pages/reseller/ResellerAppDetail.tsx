@@ -1101,6 +1101,11 @@ function PercentageAppDetail({ app, id, otherStore }: { app: any; id: number; ot
               />
             </div>
 
+            <div className="p-3.5 rounded-xl bg-emerald-500/[0.06] border border-emerald-500/25 flex items-center justify-between text-xs">
+              <span className="text-gray-300 font-medium">{parseInt(quantity || "1")}x {selectedPlan?.name}</span>
+              <span className="text-emerald-400 font-mono font-bold text-base">R$ {totalCost.toFixed(2)}</span>
+            </div>
+
             <div className="flex gap-2.5 pt-2">
               <Button
                 variant="outline"
