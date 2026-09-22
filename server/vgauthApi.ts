@@ -215,7 +215,11 @@ export function registerVgAuthApi(app: Express) {
                 }
                 await createVgauthLog({
                   appId: appRow.id, action: "protect.auto_ban",
-                  detail: `${alertData.username || ip} (${alertData.check})`, ip,
+                  detail: JSON.stringify({
+                    check: alertData.check, username: alertData.username,
+                    hwidMb: alertData.hwidMb, hwidCpu: alertData.hwidCpu,
+                    detail: `${hits.length} alertas em 24h`,
+                  }), ip,
                 });
               }
             }

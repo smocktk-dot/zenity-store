@@ -2544,9 +2544,47 @@ const vgauthRouter = router({
       }
       await createVgauthLog({
         appId: input.appId, action: "protect.ban",
-        detail: input.username || input.ip || input.hwidMb || input.hwidCpu,
+        detail: JSON.stringify({
+          username: input.username || null, hwidMb: input.hwidMb || null,
+          hwidCpu: input.hwidCpu || null, detail: input.reason || "manual",
+        }),
       });
       return { success: true };
+    }),
+
+  // Desfaz o ban de um alvo do Protect: reativa conta + key e remove todos os
+  // bans globais que batem em qualquer identificador informado.
+  unbanProtectTarget: adminProcedure
+    .input(z.object({
+      appId: z.number(),
+      username: z.string().max(128).optional(),
+      ip: z.string().max(64).optional(),
+      hwidMb: z.string().max(255).optional(),
+      hwidCpu: z.string().max(255).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      if (input.username) {
+        const user = await getVgauthUserByUsername(input.appId, input.username);
+        if (user) {
+          if (user.status === "banned") await updateVgauthUser(user.id, { status: "active" });
+          if (user.licenseId) await updateVgauthLicense(user.licenseId, { status: "active" });
+        }
+      }
+      const bans = await getVgauthBans();
+      const match = bans.filter(b =>
+        (input.username && b.username === input.username) ||
+        (input.ip && b.ip === input.ip) ||
+        (input.hwidMb && b.hwidMb === input.hwidMb) ||
+        (input.hwidCpu && b.hwidCpu === input.hwidCpu));
+      for (const b of match) await deleteVgauthBan(b.id);
+      await createVgauthLog({
+        appId: input.appId, action: "protect.unban",
+        detail: JSON.stringify({
+          username: input.username || null, hwidMb: input.hwidMb || null,
+          hwidCpu: input.hwidCpu || null, detail: `${match.length} bans removidos`,
+        }),
+      });
+      return { success: true, removed: match.length };
     }),
 });
 

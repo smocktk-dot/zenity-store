@@ -85,6 +85,11 @@ export default function AdminVgAuthApp({ id }: { id: number }) {
     onSuccess: () => { toast.success("Alvo banido (conta + key + IP + HWIDs)"); refetch(); refetchProtect(); },
     onError: e => toast.error(e.message),
   });
+  const unbanProtect = trpc.vgauth.unbanProtectTarget.useMutation({
+    onSuccess: d => { toast.success(`Desbanido — ${d.removed} ban(s) removido(s)`); refetch(); refetchProtect(); },
+    onError: e => toast.error(e.message),
+  });
+  const [protectSub, setProtectSub] = useState<string>("all");
 
   if (isLoading || !data) {
     return <div className="p-6 text-gray-500">Carregando...</div>;
@@ -334,77 +339,131 @@ export default function AdminVgAuthApp({ id }: { id: number }) {
       )}
 
       {/* ── PROTECT LOGS (deteccoes anti-tamper do cliente) ── */}
-      {activeTab === "protect" && (
-        <div className="space-y-4">
-          <div className="rounded-2xl border border-red-500/15 p-4 flex items-center gap-3" style={{ background: "rgba(239,68,68,0.03)" }}>
-            <ShieldAlert className="w-5 h-5 text-red-400 flex-shrink-0" />
-            <div>
-              <h3 className="text-white text-sm font-semibold">Detecções de proteção</h3>
-              <p className="text-gray-500 text-xs">
-                Alertas enviados pelo cliente quando o anti-debug/anti-tamper dispara, quando o ptk é rejeitado
-                ou quando o auto-ban (3+ alertas em 24h) entra em ação.
-              </p>
+      {activeTab === "protect" && (() => {
+        const subTabs = [
+          { id: "all", label: "Todos" },
+          { id: "alerts", label: "Alertas" },
+          { id: "rejected", label: "PTK rejeitado" },
+          { id: "bans", label: "Bans" },
+        ];
+        const filtered = (protectLogs || []).filter((l: any) =>
+          protectSub === "all" ? true :
+          protectSub === "alerts" ? l.action === "protect.alert" :
+          protectSub === "rejected" ? l.action === "protect.ptk_rejected" :
+          ["protect.auto_ban", "protect.ban", "protect.unban"].includes(l.action));
+        return (
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-red-500/15 p-4 flex items-center gap-3" style={{ background: "rgba(239,68,68,0.03)" }}>
+              <ShieldAlert className="w-5 h-5 text-red-400 flex-shrink-0" />
+              <div>
+                <h3 className="text-white text-sm font-semibold">Detecções de proteção</h3>
+                <p className="text-gray-500 text-xs">
+                  Alertas enviados pelo cliente quando o anti-debug/anti-tamper dispara, quando o ptk é rejeitado
+                  ou quando o auto-ban (3+ alertas em 24h) entra em ação.
+                </p>
+              </div>
+            </div>
+
+            {/* Mini-abas */}
+            <div className="flex gap-1.5">
+              {subTabs.map(s => {
+                const count = s.id === "all" ? (protectLogs?.length ?? 0)
+                  : (protectLogs || []).filter((l: any) =>
+                      s.id === "alerts" ? l.action === "protect.alert" :
+                      s.id === "rejected" ? l.action === "protect.ptk_rejected" :
+                      ["protect.auto_ban", "protect.ban", "protect.unban"].includes(l.action)).length;
+                return (
+                  <button key={s.id} onClick={() => setProtectSub(s.id)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                      protectSub === s.id
+                        ? "bg-red-500/15 text-red-400 border border-red-500/25"
+                        : "text-gray-500 hover:text-gray-300 border border-white/[0.06]"}`}>
+                    {s.label} <span className="opacity-60">({count})</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="rounded-3xl border border-white/[0.06] overflow-x-auto" style={{ background: "rgba(255,255,255,0.02)" }}>
+              <table className="w-full min-w-[900px]">
+                <thead>
+                  <tr className="border-b border-white/[0.04]">
+                    {["Data", "Evento", "Check", "Usuário", "HWID MB", "HWID CPU", "IP", "Detalhe", ""].map(h => <th key={h} className={th}>{h}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.length === 0 ? (
+                    <tr><td colSpan={9} className="text-center py-10 text-gray-600">Nenhuma detecção — tudo limpo</td></tr>
+                  ) : filtered.map((l: any) => {
+                    const a = l.alert || {};
+                    const isAlert = l.action === "protect.alert";
+                    const isBan = ["protect.auto_ban", "protect.ban"].includes(l.action);
+                    const isUnban = l.action === "protect.unban";
+                    const hasIds = a.username || a.hwidMb || a.hwidCpu || l.ip;
+                    return (
+                      <tr key={l.id} className="border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02]">
+                        <td className={`${td} text-gray-500 text-xs font-mono whitespace-nowrap`}>{new Date(l.createdAt).toLocaleString("pt-BR")}</td>
+                        <td className={td}>
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold uppercase ${
+                            isBan ? "bg-red-500/15 text-red-400 border-red-500/25"
+                            : isUnban ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/25"
+                            : isAlert ? "bg-amber-500/15 text-amber-400 border-amber-500/25"
+                            : "bg-violet-500/15 text-violet-400 border-violet-500/25"}`}>
+                            {l.action.replace("protect.", "")}
+                          </span>
+                        </td>
+                        <td className={`${td} text-red-300 font-mono text-xs`}>{a.check || "—"}</td>
+                        <td className={`${td} text-gray-300`}>{a.username || "—"}</td>
+                        <td className={`${td} text-gray-500 font-mono text-xs`}>{a.hwidMb ? a.hwidMb.slice(0, 12) + "…" : "—"}</td>
+                        <td className={`${td} text-gray-500 font-mono text-xs`}>{a.hwidCpu ? a.hwidCpu.slice(0, 12) + "…" : "—"}</td>
+                        <td className={`${td} text-gray-400 font-mono text-xs`}>{l.ip || "—"}</td>
+                        <td className={`${td} text-gray-500 text-xs max-w-[220px] truncate`} title={a.detail || l.detail || ""}>{a.detail || l.detail || "—"}</td>
+                        <td className={td}>
+                          <div className="flex items-center gap-1.5">
+                            {hasIds && !isUnban && (
+                              <button
+                                onClick={() => {
+                                  if (confirm(`Banir ${a.username || l.ip}? Ban global (IP + HWIDs) + conta/key banidas.`))
+                                    banProtect.mutate({
+                                      appId: id,
+                                      username: a.username || undefined,
+                                      ip: l.ip || undefined,
+                                      hwidMb: a.hwidMb || undefined,
+                                      hwidCpu: a.hwidCpu || undefined,
+                                      reason: `protect: ${a.check || "detection"}`,
+                                    });
+                                }}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/25 hover:bg-red-500/20 transition-all">
+                                <ShieldBan className="w-3 h-3" /> Banir
+                              </button>
+                            )}
+                            {hasIds && (
+                              <button
+                                onClick={() => {
+                                  if (confirm(`Desbanir ${a.username || l.ip}? Reativa conta/key e remove os bans globais.`))
+                                    unbanProtect.mutate({
+                                      appId: id,
+                                      username: a.username || undefined,
+                                      ip: l.ip || undefined,
+                                      hwidMb: a.hwidMb || undefined,
+                                      hwidCpu: a.hwidCpu || undefined,
+                                    });
+                                }}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 hover:bg-emerald-500/20 transition-all">
+                                <ShieldCheck className="w-3 h-3" /> Desbanir
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           </div>
-
-          <div className="rounded-3xl border border-white/[0.06] overflow-x-auto" style={{ background: "rgba(255,255,255,0.02)" }}>
-            <table className="w-full min-w-[900px]">
-              <thead>
-                <tr className="border-b border-white/[0.04]">
-                  {["Data", "Evento", "Check", "Usuário", "HWID MB", "HWID CPU", "IP", "Detalhe", ""].map(h => <th key={h} className={th}>{h}</th>)}
-                </tr>
-              </thead>
-              <tbody>
-                {(!protectLogs || protectLogs.length === 0) ? (
-                  <tr><td colSpan={9} className="text-center py-10 text-gray-600">Nenhuma detecção — tudo limpo</td></tr>
-                ) : protectLogs.map((l: any) => {
-                  const a = l.alert || {};
-                  const isAlert = l.action === "protect.alert";
-                  const isBan = l.action === "protect.auto_ban" || l.action === "protect.ban";
-                  return (
-                    <tr key={l.id} className="border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02]">
-                      <td className={`${td} text-gray-500 text-xs font-mono whitespace-nowrap`}>{new Date(l.createdAt).toLocaleString("pt-BR")}</td>
-                      <td className={td}>
-                        <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold uppercase ${
-                          isBan ? "bg-red-500/15 text-red-400 border-red-500/25"
-                          : isAlert ? "bg-amber-500/15 text-amber-400 border-amber-500/25"
-                          : "bg-violet-500/15 text-violet-400 border-violet-500/25"}`}>
-                          {l.action.replace("protect.", "")}
-                        </span>
-                      </td>
-                      <td className={`${td} text-red-300 font-mono text-xs`}>{a.check || "—"}</td>
-                      <td className={`${td} text-gray-300`}>{a.username || "—"}</td>
-                      <td className={`${td} text-gray-500 font-mono text-xs`}>{a.hwidMb ? a.hwidMb.slice(0, 12) + "…" : "—"}</td>
-                      <td className={`${td} text-gray-500 font-mono text-xs`}>{a.hwidCpu ? a.hwidCpu.slice(0, 12) + "…" : "—"}</td>
-                      <td className={`${td} text-gray-400 font-mono text-xs`}>{l.ip || "—"}</td>
-                      <td className={`${td} text-gray-500 text-xs max-w-[220px] truncate`} title={a.detail || l.detail || ""}>{a.detail || l.detail || "—"}</td>
-                      <td className={td}>
-                        {isAlert && (a.username || a.hwidMb || a.hwidCpu || l.ip) && (
-                          <button
-                            onClick={() => {
-                              if (confirm(`Banir ${a.username || l.ip}? Ban global (IP + HWIDs) + conta/key banidas.`))
-                                banProtect.mutate({
-                                  appId: id,
-                                  username: a.username || undefined,
-                                  ip: l.ip || undefined,
-                                  hwidMb: a.hwidMb || undefined,
-                                  hwidCpu: a.hwidCpu || undefined,
-                                  reason: `protect: ${a.check || "detection"}`,
-                                });
-                            }}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/25 hover:bg-red-500/20 transition-all">
-                            <ShieldBan className="w-3 h-3" /> Banir
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ── GENERATE KEYS MODAL (estilo KeyAuth) ── */}
       {genOpen && (
