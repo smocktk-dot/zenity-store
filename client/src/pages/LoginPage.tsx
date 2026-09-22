@@ -13,7 +13,9 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import CyberNetwork from "@/components/CyberNetwork";
 
 const APP_STORAGE_KEY = "zenity_application_id";
+const APP_TOKEN_KEY = "zenity_application_token";
 const SUPPORT_STORAGE_KEY = "zenity_support_id";
+const SUPPORT_TOKEN_KEY = "zenity_support_token";
 
 function formatDate(d: Date | string | null | undefined) {
   if (!d) return "—";
@@ -34,7 +36,10 @@ export default function LoginPage() {
   const [showApply, setShowApply] = useState(false);
   const [showAppChat, setShowAppChat] = useState(false);
   const [applicationId, setApplicationId] = useState<number | null>(null);
+  const [applicationToken, setApplicationToken] = useState<string | null>(null);
   const [appChatText, setAppChatText] = useState("");
+  const [recoverEmail, setRecoverEmail] = useState("");
+  const [showRecover, setShowRecover] = useState(false);
   const [form, setForm] = useState({
     discordLink: "",
     discordId: "",
@@ -47,7 +52,10 @@ export default function LoginPage() {
   const [showSupport, setShowSupport] = useState(false);
   const [showSupportChat, setShowSupportChat] = useState(false);
   const [supportId, setSupportId] = useState<number | null>(null);
+  const [supportToken, setSupportToken] = useState<string | null>(null);
   const [supportChatText, setSupportChatText] = useState("");
+  const [supportRecoverEmail, setSupportRecoverEmail] = useState("");
+  const [showSupportRecover, setShowSupportRecover] = useState(false);
   const [supportForm, setSupportForm] = useState({
     name: "",
     email: "",
@@ -61,38 +69,50 @@ export default function LoginPage() {
 
   useEffect(() => {
     const savedApp = localStorage.getItem(APP_STORAGE_KEY);
-    if (savedApp) {
+    const savedAppToken = localStorage.getItem(APP_TOKEN_KEY);
+    if (savedApp && savedAppToken) {
       const id = parseInt(savedApp, 10);
-      if (!isNaN(id)) setApplicationId(id);
+      if (!isNaN(id)) {
+        setApplicationId(id);
+        setApplicationToken(savedAppToken);
+      }
     }
     const savedSupport = localStorage.getItem(SUPPORT_STORAGE_KEY);
-    if (savedSupport) {
+    const savedSupportToken = localStorage.getItem(SUPPORT_TOKEN_KEY);
+    if (savedSupport && savedSupportToken) {
       const id = parseInt(savedSupport, 10);
-      if (!isNaN(id)) setSupportId(id);
+      if (!isNaN(id)) {
+        setSupportId(id);
+        setSupportToken(savedSupportToken);
+      }
     }
   }, []);
 
   const { data: application, isLoading: isLoadingApp } = trpc.auth.getMyApplication.useQuery(
-    { id: applicationId || 0 },
+    { id: applicationId || 0, token: applicationToken || undefined },
     {
-      enabled: !!applicationId,
+      enabled: !!applicationId && !!applicationToken,
       onError: (e: any) => {
-        if (e?.data?.code === "NOT_FOUND") {
+        if (e?.data?.code === "NOT_FOUND" || e?.data?.code === "FORBIDDEN") {
           localStorage.removeItem(APP_STORAGE_KEY);
+          localStorage.removeItem(APP_TOKEN_KEY);
           setApplicationId(null);
+          setApplicationToken(null);
         }
       },
     }
   );
 
   const { data: supportTicket, isLoading: isLoadingSupport } = trpc.auth.getMySupportTicket.useQuery(
-    { id: supportId || 0 },
+    { id: supportId || 0, token: supportToken || undefined },
     {
-      enabled: !!supportId,
+      enabled: !!supportId && !!supportToken,
       onError: (e: any) => {
-        if (e?.data?.code === "NOT_FOUND") {
+        if (e?.data?.code === "NOT_FOUND" || e?.data?.code === "FORBIDDEN") {
           localStorage.removeItem(SUPPORT_STORAGE_KEY);
+          localStorage.removeItem(SUPPORT_TOKEN_KEY);
           setSupportId(null);
+          setSupportToken(null);
         }
       },
     }
@@ -101,11 +121,13 @@ export default function LoginPage() {
   const submit = trpc.auth.submitResellerApplication.useMutation({
     onSuccess: (data) => {
       localStorage.setItem(APP_STORAGE_KEY, String(data.id));
+      if (data.token) localStorage.setItem(APP_TOKEN_KEY, data.token);
       setApplicationId(data.id);
+      setApplicationToken(data.token || null);
       setShowApply(false);
       setShowAppChat(true);
       toast.success("Pré-aprovado!");
-      utils.auth.getMyApplication.invalidate({ id: data.id });
+      utils.auth.getMyApplication.invalidate({ id: data.id, token: data.token || undefined });
     },
     onError: (e) => toast.error(e.message),
   });
@@ -113,7 +135,23 @@ export default function LoginPage() {
   const sendAppMessage = trpc.auth.sendApplicationMessage.useMutation({
     onSuccess: () => {
       setAppChatText("");
-      utils.auth.getMyApplication.invalidate({ id: applicationId || 0 });
+      utils.auth.getMyApplication.invalidate({ id: applicationId || 0, token: applicationToken || undefined });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const recoverApp = trpc.auth.recoverApplication.useMutation({
+    onSuccess: (data) => {
+      if (!data) { toast.error("Nenhuma aplicação encontrada para esse e-mail"); return; }
+      localStorage.setItem(APP_STORAGE_KEY, String(data.id));
+      localStorage.setItem(APP_TOKEN_KEY, data.token);
+      setApplicationId(data.id);
+      setApplicationToken(data.token);
+      setShowApply(false);
+      setShowAppChat(true);
+      setShowRecover(false);
+      setRecoverEmail("");
+      toast.success("Acesso recuperado!");
     },
     onError: (e) => toast.error(e.message),
   });
@@ -121,11 +159,13 @@ export default function LoginPage() {
   const submitSupport = trpc.auth.submitSupportTicket.useMutation({
     onSuccess: (data) => {
       localStorage.setItem(SUPPORT_STORAGE_KEY, String(data.id));
+      if (data.token) localStorage.setItem(SUPPORT_TOKEN_KEY, data.token);
       setSupportId(data.id);
+      setSupportToken(data.token || null);
       setShowSupport(false);
       setShowSupportChat(true);
       toast.success("Dúvida enviada!");
-      utils.auth.getMySupportTicket.invalidate({ id: data.id });
+      utils.auth.getMySupportTicket.invalidate({ id: data.id, token: data.token || undefined });
     },
     onError: (e) => toast.error(e.message),
   });
@@ -133,7 +173,23 @@ export default function LoginPage() {
   const sendSupportMessage = trpc.auth.sendSupportMessage.useMutation({
     onSuccess: () => {
       setSupportChatText("");
-      utils.auth.getMySupportTicket.invalidate({ id: supportId || 0 });
+      utils.auth.getMySupportTicket.invalidate({ id: supportId || 0, token: supportToken || undefined });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const recoverTicket = trpc.auth.recoverSupportTicket.useMutation({
+    onSuccess: (data) => {
+      if (!data) { toast.error("Nenhuma dúvida encontrada para esse e-mail"); return; }
+      localStorage.setItem(SUPPORT_STORAGE_KEY, String(data.id));
+      localStorage.setItem(SUPPORT_TOKEN_KEY, data.token);
+      setSupportId(data.id);
+      setSupportToken(data.token);
+      setShowSupport(false);
+      setShowSupportChat(true);
+      setShowSupportRecover(false);
+      setSupportRecoverEmail("");
+      toast.success("Acesso recuperado!");
     },
     onError: (e) => toast.error(e.message),
   });
@@ -172,8 +228,8 @@ export default function LoginPage() {
 
   const handleAppChatSend = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!appChatText.trim() || !applicationId) return;
-    sendAppMessage.mutate({ applicationId, message: appChatText.trim() });
+    if (!appChatText.trim() || !applicationId || !applicationToken) return;
+    sendAppMessage.mutate({ applicationId, token: applicationToken, message: appChatText.trim() });
   };
 
   const handleSupport = (e: React.FormEvent) => {
@@ -184,8 +240,8 @@ export default function LoginPage() {
 
   const handleSupportChatSend = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!supportChatText.trim() || !supportId) return;
-    sendSupportMessage.mutate({ ticketId: supportId, message: supportChatText.trim() });
+    if (!supportChatText.trim() || !supportId || !supportToken) return;
+    sendSupportMessage.mutate({ ticketId: supportId, token: supportToken, message: supportChatText.trim() });
   };
 
   const isLoading = resellerLogin.isPending;
@@ -197,7 +253,9 @@ export default function LoginPage() {
   useEffect(() => {
     if (application && !activeAppStatus.includes(application.status)) {
       localStorage.removeItem(APP_STORAGE_KEY);
+      localStorage.removeItem(APP_TOKEN_KEY);
       setApplicationId(null);
+      setApplicationToken(null);
       setShowAppChat(false);
     }
   }, [application]);
@@ -208,7 +266,9 @@ export default function LoginPage() {
   useEffect(() => {
     if (supportTicket && !activeSupportStatus.includes(supportTicket.status)) {
       localStorage.removeItem(SUPPORT_STORAGE_KEY);
+      localStorage.removeItem(SUPPORT_TOKEN_KEY);
       setSupportId(null);
+      setSupportToken(null);
       setShowSupportChat(false);
     }
   }, [supportTicket]);
@@ -552,6 +612,35 @@ export default function LoginPage() {
               </button>
             </div>
           </form>
+          <div className="pt-3 mt-1 border-t border-white/[0.06]">
+            {!showRecover ? (
+              <button
+                type="button"
+                onClick={() => setShowRecover(true)}
+                className="text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors"
+              >
+                Já enviou uma candidatura? Acompanhar pelo e-mail
+              </button>
+            ) : (
+              <div className="flex gap-2">
+                <Input
+                  type="email"
+                  value={recoverEmail}
+                  onChange={(e) => setRecoverEmail(e.target.value)}
+                  placeholder="seu@email.com"
+                  className="h-9 flex-1 text-[12px] text-white bg-[#07080b] border border-white/10 rounded-lg placeholder:text-zinc-600 focus:outline-none focus:border-white/30"
+                />
+                <button
+                  type="button"
+                  onClick={() => recoverEmail.trim() && recoverApp.mutate({ email: recoverEmail.trim() })}
+                  disabled={recoverApp.isPending || !recoverEmail.trim()}
+                  className="h-9 px-3 rounded-lg bg-white/10 text-[11px] font-semibold text-white hover:bg-white/15 transition-all disabled:opacity-50"
+                >
+                  {recoverApp.isPending ? "..." : "Acessar"}
+                </button>
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -639,6 +728,35 @@ export default function LoginPage() {
               </button>
             </div>
           </form>
+          <div className="pt-3 mt-1 border-t border-white/[0.06]">
+            {!showSupportRecover ? (
+              <button
+                type="button"
+                onClick={() => setShowSupportRecover(true)}
+                className="text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors"
+              >
+                Já abriu um ticket? Acompanhar pelo e-mail
+              </button>
+            ) : (
+              <div className="flex gap-2">
+                <Input
+                  type="email"
+                  value={supportRecoverEmail}
+                  onChange={(e) => setSupportRecoverEmail(e.target.value)}
+                  placeholder="seu@email.com"
+                  className="h-9 flex-1 text-[12px] text-white bg-[#07080b] border border-white/10 rounded-lg placeholder:text-zinc-600 focus:outline-none focus:border-white/30"
+                />
+                <button
+                  type="button"
+                  onClick={() => supportRecoverEmail.trim() && recoverTicket.mutate({ email: supportRecoverEmail.trim() })}
+                  disabled={recoverTicket.isPending || !supportRecoverEmail.trim()}
+                  className="h-9 px-3 rounded-lg bg-white/10 text-[11px] font-semibold text-white hover:bg-white/15 transition-all disabled:opacity-50"
+                >
+                  {recoverTicket.isPending ? "..." : "Acessar"}
+                </button>
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -744,7 +862,9 @@ export default function LoginPage() {
             <button
               onClick={() => {
                 localStorage.removeItem(SUPPORT_STORAGE_KEY);
+                localStorage.removeItem(SUPPORT_TOKEN_KEY);
                 setSupportId(null);
+                setSupportToken(null);
                 setShowSupportChat(false);
                 setShowSupport(true);
                 setSupportForm({ name: "", email: "", subject: "", question: "" });

@@ -306,6 +306,7 @@ export const resellerApplications = pgTable("reseller_applications", {
   reason: text("reason").notNull(),
   status: applicationStatusEnum("status").default("pending").notNull(),
   ip: varchar("ip", { length: 64 }),
+  accessToken: varchar("accessToken", { length: 64 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
 });
@@ -333,6 +334,7 @@ export const supportTickets = pgTable("support_tickets", {
   question: text("question").notNull(),
   status: supportTicketStatusEnum("status").default("open").notNull(),
   ip: varchar("ip", { length: 64 }),
+  accessToken: varchar("accessToken", { length: 64 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
 });

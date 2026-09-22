@@ -246,6 +246,7 @@ var init_schema = __esm({
       reason: text("reason").notNull(),
       status: applicationStatusEnum("status").default("pending").notNull(),
       ip: varchar("ip", { length: 64 }),
+      accessToken: varchar("accessToken", { length: 64 }),
       createdAt: timestamp("createdAt").defaultNow().notNull(),
       updatedAt: timestamp("updatedAt").defaultNow().notNull()
     });
@@ -264,6 +265,7 @@ var init_schema = __esm({
       question: text("question").notNull(),
       status: supportTicketStatusEnum("status").default("open").notNull(),
       ip: varchar("ip", { length: 64 }),
+      accessToken: varchar("accessToken", { length: 64 }),
       createdAt: timestamp("createdAt").defaultNow().notNull(),
       updatedAt: timestamp("updatedAt").defaultNow().notNull()
     });
@@ -545,6 +547,7 @@ __export(db_exports, {
   getSubResellerKeyLogs: () => getSubResellerKeyLogs,
   getSubResellerKeyStats: () => getSubResellerKeyStats,
   getSupportMessages: () => getSupportMessages,
+  getSupportTicketByEmail: () => getSupportTicketByEmail,
   getSupportTicketById: () => getSupportTicketById,
   getTicketById: () => getTicketById,
   getTicketMessages: () => getTicketMessages,
@@ -1530,23 +1533,38 @@ async function createTicketMessage(data) {
   const [row] = await db.insert(ticketMessages).values(data).returning();
   return row;
 }
+async function ensurePublicAccessTokenColumns() {
+  if (_accessTokensEnsured || !_sqlClient) return;
+  await _sqlClient.unsafe(`ALTER TABLE "reseller_applications" ADD COLUMN IF NOT EXISTS "accessToken" varchar(64)`).catch(() => {
+  });
+  await _sqlClient.unsafe(`ALTER TABLE "support_tickets" ADD COLUMN IF NOT EXISTS "accessToken" varchar(64)`).catch(() => {
+  });
+  await _sqlClient.unsafe(`UPDATE "reseller_applications" SET "accessToken" = md5(random()::text || clock_timestamp()::text || id::text) WHERE "accessToken" IS NULL`).catch(() => {
+  });
+  await _sqlClient.unsafe(`UPDATE "support_tickets" SET "accessToken" = md5(random()::text || clock_timestamp()::text || id::text) WHERE "accessToken" IS NULL`).catch(() => {
+  });
+  _accessTokensEnsured = true;
+}
 async function createResellerApplication(data) {
+  await ensurePublicAccessTokenColumns();
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const [row] = await db.insert(resellerApplications).values(data).returning();
   return row;
 }
 async function getResellerApplicationById(id) {
+  await ensurePublicAccessTokenColumns();
   const db = await getDb();
   if (!db) return void 0;
   const [row] = await db.select().from(resellerApplications).where(eq(resellerApplications.id, id));
   return row;
 }
 async function getResellerApplicationByEmail(email) {
+  await ensurePublicAccessTokenColumns();
   const db = await getDb();
   if (!db) return void 0;
-  const [row] = await db.select().from(resellerApplications).where(eq(resellerApplications.email, email)).orderBy(desc(resellerApplications.createdAt)).limit(1);
-  return row;
+  const rows = await db.select().from(resellerApplications).where(sql`lower(${resellerApplications.email}) = ${email.trim().toLowerCase()}`).orderBy(desc(resellerApplications.createdAt)).limit(1);
+  return rows[0];
 }
 async function getAllResellerApplications() {
   const db = await getDb();
@@ -1581,16 +1599,25 @@ async function createApplicationMessage(data) {
   return row;
 }
 async function createSupportTicket(data) {
+  await ensurePublicAccessTokenColumns();
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const [row] = await db.insert(supportTickets).values(data).returning();
   return row;
 }
 async function getSupportTicketById(id) {
+  await ensurePublicAccessTokenColumns();
   const db = await getDb();
   if (!db) return void 0;
   const [row] = await db.select().from(supportTickets).where(eq(supportTickets.id, id));
   return row;
+}
+async function getSupportTicketByEmail(email) {
+  await ensurePublicAccessTokenColumns();
+  const db = await getDb();
+  if (!db) return void 0;
+  const rows = await db.select().from(supportTickets).where(sql`lower(${supportTickets.email}) = ${email.trim().toLowerCase()}`).orderBy(desc(supportTickets.createdAt)).limit(1);
+  return rows[0];
 }
 async function getAllSupportTickets() {
   const db = await getDb();
@@ -2215,7 +2242,7 @@ async function getVgauthLogs(appId, limit = 200) {
   if (!db) return [];
   return db.select().from(vgauthLogs).where(eq(vgauthLogs.appId, appId)).orderBy(desc(vgauthLogs.createdAt)).limit(limit);
 }
-var _db, _sqlClient, _pixPaymentSchemaReady, _appStockSchemaReady, _licenseKeysSchemaReady, _appsSchemaReady, _appDownloadsSchemaReady, _resellerApiKeysSchemaReady, _otherStoreSchemaReady, _adminRoleSchemaReady, _resellerInfoSchemaReady, _vgauthSchemaReady;
+var _db, _sqlClient, _pixPaymentSchemaReady, _appStockSchemaReady, _licenseKeysSchemaReady, _appsSchemaReady, _appDownloadsSchemaReady, _resellerApiKeysSchemaReady, _otherStoreSchemaReady, _adminRoleSchemaReady, _accessTokensEnsured, _resellerInfoSchemaReady, _vgauthSchemaReady;
 var init_db = __esm({
   "server/db.ts"() {
     "use strict";
@@ -2231,6 +2258,7 @@ var init_db = __esm({
     _resellerApiKeysSchemaReady = null;
     _otherStoreSchemaReady = null;
     _adminRoleSchemaReady = null;
+    _accessTokensEnsured = false;
     _resellerInfoSchemaReady = null;
     _vgauthSchemaReady = null;
   }
@@ -4341,6 +4369,13 @@ function getClientIp2(req) {
   const raw = candidates.find((c) => c && c.length > 0) || "";
   return normalizeIp(raw);
 }
+async function verifyAccessToken(stored, provided) {
+  if (!stored || !provided) return false;
+  const { createHash, timingSafeEqual } = await import("crypto");
+  const a = createHash("sha256").update(provided).digest();
+  const b = createHash("sha256").update(stored).digest();
+  return timingSafeEqual(a, b);
+}
 async function uploadBase64Image(base64, folder = "tickets") {
   try {
     const match = base64.match(/^data:(image\/\w+);base64,(.+)$/);
@@ -4593,25 +4628,41 @@ var authRouter = router({
     if (existing && ["pending", "pre_approved"].includes(existing.status)) {
       throw new TRPCError3({ code: "CONFLICT", message: "Voc\xEA j\xE1 possui uma aplica\xE7\xE3o em andamento" });
     }
+    const { randomBytes } = await import("crypto");
     const row = await createResellerApplication({
       ...input,
       status: "pre_approved",
-      ip
+      ip,
+      accessToken: randomBytes(24).toString("hex")
     });
-    return { id: row.id, status: row.status };
+    return { id: row.id, status: row.status, token: row.accessToken };
   }),
-  getMyApplication: publicProcedure.input(z2.object({ id: z2.number() })).query(async ({ input }) => {
+  // Recupera acesso à aplicação pelo e-mail (novo dispositivo / storage limpo)
+  recoverApplication: publicProcedure.input(z2.object({ email: z2.string().email() })).mutation(async ({ input }) => {
+    const app2 = await getResellerApplicationByEmail(input.email.trim().toLowerCase());
+    if (!app2 || !app2.accessToken) return null;
+    return { id: app2.id, token: app2.accessToken };
+  }),
+  getMyApplication: publicProcedure.input(z2.object({ id: z2.number(), token: z2.string().max(128).optional() })).query(async ({ input }) => {
     const app2 = await getResellerApplicationById(input.id);
     if (!app2) return null;
+    if (!await verifyAccessToken(app2.accessToken, input.token)) {
+      throw new TRPCError3({ code: "FORBIDDEN", message: "Acesso negado" });
+    }
     const messages = await getApplicationMessages(input.id);
-    return { ...app2, messages };
+    const { accessToken, ...rest } = app2;
+    return { ...rest, messages };
   }),
   sendApplicationMessage: publicProcedure.input(z2.object({
     applicationId: z2.number(),
+    token: z2.string().max(128).optional(),
     message: z2.string().min(1)
   })).mutation(async ({ input }) => {
     const app2 = await getResellerApplicationById(input.applicationId);
     if (!app2) throw new TRPCError3({ code: "NOT_FOUND" });
+    if (!await verifyAccessToken(app2.accessToken, input.token)) {
+      throw new TRPCError3({ code: "FORBIDDEN", message: "Acesso negado" });
+    }
     if (app2.status === "archived" || app2.status === "rejected") {
       throw new TRPCError3({ code: "FORBIDDEN", message: "Aplica\xE7\xE3o arquivada ou rejeitada" });
     }
@@ -4631,26 +4682,41 @@ var authRouter = router({
     question: z2.string().min(1)
   })).mutation(async ({ input, ctx }) => {
     const ip = getClientIp2(ctx.req);
-    const row = await createSupportTicket({ ...input, status: "open", ip });
+    const { randomBytes } = await import("crypto");
+    const row = await createSupportTicket({ ...input, status: "open", ip, accessToken: randomBytes(24).toString("hex") });
     await createSupportMessage({
       ticketId: row.id,
       senderType: "user",
       message: input.question
     });
-    return { id: row.id, status: row.status };
+    return { id: row.id, status: row.status, token: row.accessToken };
   }),
-  getMySupportTicket: publicProcedure.input(z2.object({ id: z2.number() })).query(async ({ input }) => {
+  // Recupera acesso ao ticket pelo e-mail (novo dispositivo / storage limpo)
+  recoverSupportTicket: publicProcedure.input(z2.object({ email: z2.string().email() })).mutation(async ({ input }) => {
+    const ticket = await getSupportTicketByEmail(input.email.trim().toLowerCase());
+    if (!ticket || !ticket.accessToken) return null;
+    return { id: ticket.id, token: ticket.accessToken };
+  }),
+  getMySupportTicket: publicProcedure.input(z2.object({ id: z2.number(), token: z2.string().max(128).optional() })).query(async ({ input }) => {
     const ticket = await getSupportTicketById(input.id);
     if (!ticket) return null;
+    if (!await verifyAccessToken(ticket.accessToken, input.token)) {
+      throw new TRPCError3({ code: "FORBIDDEN", message: "Acesso negado" });
+    }
     const messages = await getSupportMessages(input.id);
-    return { ...ticket, messages };
+    const { accessToken, ...rest } = ticket;
+    return { ...rest, messages };
   }),
   sendSupportMessage: publicProcedure.input(z2.object({
     ticketId: z2.number(),
+    token: z2.string().max(128).optional(),
     message: z2.string().min(1)
   })).mutation(async ({ input }) => {
     const ticket = await getSupportTicketById(input.ticketId);
     if (!ticket) throw new TRPCError3({ code: "NOT_FOUND" });
+    if (!await verifyAccessToken(ticket.accessToken, input.token)) {
+      throw new TRPCError3({ code: "FORBIDDEN", message: "Acesso negado" });
+    }
     if (ticket.status === "archived" || ticket.status === "closed") {
       throw new TRPCError3({ code: "FORBIDDEN", message: "Ticket fechado ou arquivado" });
     }

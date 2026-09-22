@@ -1216,7 +1216,20 @@ export async function createTicketMessage(data: InsertTicketMessage) {
 }
 
 // ─── Reseller Applications ────────────────────────────────────────────────────
+// Token de acesso público: sem ele, qualquer um enumerava IDs e lia/escrevia
+// em aplicações e tickets de terceiros (IDOR). Backfill cobre registros antigos.
+let _accessTokensEnsured = false;
+async function ensurePublicAccessTokenColumns() {
+  if (_accessTokensEnsured || !_sqlClient) return;
+  await _sqlClient.unsafe(`ALTER TABLE "reseller_applications" ADD COLUMN IF NOT EXISTS "accessToken" varchar(64)`).catch(() => {});
+  await _sqlClient.unsafe(`ALTER TABLE "support_tickets" ADD COLUMN IF NOT EXISTS "accessToken" varchar(64)`).catch(() => {});
+  await _sqlClient.unsafe(`UPDATE "reseller_applications" SET "accessToken" = md5(random()::text || clock_timestamp()::text || id::text) WHERE "accessToken" IS NULL`).catch(() => {});
+  await _sqlClient.unsafe(`UPDATE "support_tickets" SET "accessToken" = md5(random()::text || clock_timestamp()::text || id::text) WHERE "accessToken" IS NULL`).catch(() => {});
+  _accessTokensEnsured = true;
+}
+
 export async function createResellerApplication(data: InsertResellerApplication) {
+  await ensurePublicAccessTokenColumns();
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const [row] = await db.insert(resellerApplications).values(data).returning();
@@ -1224,6 +1237,7 @@ export async function createResellerApplication(data: InsertResellerApplication)
 }
 
 export async function getResellerApplicationById(id: number) {
+  await ensurePublicAccessTokenColumns();
   const db = await getDb();
   if (!db) return undefined;
   const [row] = await db.select().from(resellerApplications).where(eq(resellerApplications.id, id));
@@ -1231,10 +1245,13 @@ export async function getResellerApplicationById(id: number) {
 }
 
 export async function getResellerApplicationByEmail(email: string) {
+  await ensurePublicAccessTokenColumns();
   const db = await getDb();
   if (!db) return undefined;
-  const [row] = await db.select().from(resellerApplications).where(eq(resellerApplications.email, email)).orderBy(desc(resellerApplications.createdAt)).limit(1);
-  return row;
+  const rows = await db.select().from(resellerApplications)
+    .where(sql`lower(${resellerApplications.email}) = ${email.trim().toLowerCase()}`)
+    .orderBy(desc(resellerApplications.createdAt)).limit(1);
+  return rows[0];
 }
 
 export async function getAllResellerApplications() {
@@ -1277,6 +1294,7 @@ export async function createApplicationMessage(data: InsertApplicationMessage) {
 
 // ─── Public Support Tickets (dúvidas) ─────────────────────────────────────────
 export async function createSupportTicket(data: InsertSupportTicket) {
+  await ensurePublicAccessTokenColumns();
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const [row] = await db.insert(supportTickets).values(data).returning();
@@ -1284,10 +1302,21 @@ export async function createSupportTicket(data: InsertSupportTicket) {
 }
 
 export async function getSupportTicketById(id: number) {
+  await ensurePublicAccessTokenColumns();
   const db = await getDb();
   if (!db) return undefined;
   const [row] = await db.select().from(supportTickets).where(eq(supportTickets.id, id));
   return row;
+}
+
+export async function getSupportTicketByEmail(email: string) {
+  await ensurePublicAccessTokenColumns();
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db.select().from(supportTickets)
+    .where(sql`lower(${supportTickets.email}) = ${email.trim().toLowerCase()}`)
+    .orderBy(desc(supportTickets.createdAt)).limit(1);
+  return rows[0];
 }
 
 export async function getAllSupportTickets() {

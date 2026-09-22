@@ -38,7 +38,7 @@ import {
   createResellerApplication, getResellerApplicationById, getResellerApplicationByEmail, getAllResellerApplications,
   updateResellerApplicationStatus, updateResellerApplicationTimestamp, deleteResellerApplication,
   getApplicationMessages, createApplicationMessage,
-  createSupportTicket, getSupportTicketById, getAllSupportTickets,
+  createSupportTicket, getSupportTicketById, getSupportTicketByEmail, getAllSupportTickets,
   updateSupportTicketStatus, updateSupportTicketTimestamp, deleteSupportTicket,
   getSupportMessages, createSupportMessage,
   getOtherStoreResellers, createOtherStoreReseller, updateOtherStoreReseller, deleteOtherStoreReseller,
@@ -107,6 +107,15 @@ function getClientIp(req: { headers: Record<string, string | string[] | undefine
   ];
   const raw = candidates.find(c => c && c.length > 0) || "";
   return normalizeIp(raw);
+}
+
+// Comparação timing-safe do accessToken de aplicações/tickets públicos (anti-IDOR)
+async function verifyAccessToken(stored: string | null | undefined, provided: string | undefined): Promise<boolean> {
+  if (!stored || !provided) return false;
+  const { createHash, timingSafeEqual } = await import("crypto");
+  const a = createHash("sha256").update(provided).digest();
+  const b = createHash("sha256").update(stored).digest();
+  return timingSafeEqual(a, b);
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -416,31 +425,50 @@ const authRouter = router({
       if (existing && ["pending", "pre_approved"].includes(existing.status)) {
         throw new TRPCError({ code: "CONFLICT", message: "Você já possui uma aplicação em andamento" });
       }
+      const { randomBytes } = await import("crypto");
       const row = await createResellerApplication({
         ...input,
         status: "pre_approved",
         ip,
+        accessToken: randomBytes(24).toString("hex"),
       });
-      return { id: row.id, status: row.status };
+      return { id: row.id, status: row.status, token: row.accessToken };
+    }),
+
+  // Recupera acesso à aplicação pelo e-mail (novo dispositivo / storage limpo)
+  recoverApplication: publicProcedure
+    .input(z.object({ email: z.string().email() }))
+    .mutation(async ({ input }) => {
+      const app = await getResellerApplicationByEmail(input.email.trim().toLowerCase());
+      if (!app || !app.accessToken) return null;
+      return { id: app.id, token: app.accessToken };
     }),
 
   getMyApplication: publicProcedure
-    .input(z.object({ id: z.number() }))
+    .input(z.object({ id: z.number(), token: z.string().max(128).optional() }))
     .query(async ({ input }) => {
       const app = await getResellerApplicationById(input.id);
       if (!app) return null;
+      if (!(await verifyAccessToken(app.accessToken, input.token))) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado" });
+      }
       const messages = await getApplicationMessages(input.id);
-      return { ...app, messages };
+      const { accessToken, ...rest } = app;
+      return { ...rest, messages };
     }),
 
   sendApplicationMessage: publicProcedure
     .input(z.object({
       applicationId: z.number(),
+      token: z.string().max(128).optional(),
       message: z.string().min(1),
     }))
     .mutation(async ({ input }) => {
       const app = await getResellerApplicationById(input.applicationId);
       if (!app) throw new TRPCError({ code: "NOT_FOUND" });
+      if (!(await verifyAccessToken(app.accessToken, input.token))) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado" });
+      }
       if (app.status === "archived" || app.status === "rejected") {
         throw new TRPCError({ code: "FORBIDDEN", message: "Aplicação arquivada ou rejeitada" });
       }
@@ -463,32 +491,50 @@ const authRouter = router({
     }))
     .mutation(async ({ input, ctx }) => {
       const ip = getClientIp(ctx.req);
-      const row = await createSupportTicket({ ...input, status: "open", ip });
+      const { randomBytes } = await import("crypto");
+      const row = await createSupportTicket({ ...input, status: "open", ip, accessToken: randomBytes(24).toString("hex") });
       await createSupportMessage({
         ticketId: row.id,
         senderType: "user",
         message: input.question,
       });
-      return { id: row.id, status: row.status };
+      return { id: row.id, status: row.status, token: row.accessToken };
+    }),
+
+  // Recupera acesso ao ticket pelo e-mail (novo dispositivo / storage limpo)
+  recoverSupportTicket: publicProcedure
+    .input(z.object({ email: z.string().email() }))
+    .mutation(async ({ input }) => {
+      const ticket = await getSupportTicketByEmail(input.email.trim().toLowerCase());
+      if (!ticket || !ticket.accessToken) return null;
+      return { id: ticket.id, token: ticket.accessToken };
     }),
 
   getMySupportTicket: publicProcedure
-    .input(z.object({ id: z.number() }))
+    .input(z.object({ id: z.number(), token: z.string().max(128).optional() }))
     .query(async ({ input }) => {
       const ticket = await getSupportTicketById(input.id);
       if (!ticket) return null;
+      if (!(await verifyAccessToken(ticket.accessToken, input.token))) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado" });
+      }
       const messages = await getSupportMessages(input.id);
-      return { ...ticket, messages };
+      const { accessToken, ...rest } = ticket;
+      return { ...rest, messages };
     }),
 
   sendSupportMessage: publicProcedure
     .input(z.object({
       ticketId: z.number(),
+      token: z.string().max(128).optional(),
       message: z.string().min(1),
     }))
     .mutation(async ({ input }) => {
       const ticket = await getSupportTicketById(input.ticketId);
       if (!ticket) throw new TRPCError({ code: "NOT_FOUND" });
+      if (!(await verifyAccessToken(ticket.accessToken, input.token))) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado" });
+      }
       if (ticket.status === "archived" || ticket.status === "closed") {
         throw new TRPCError({ code: "FORBIDDEN", message: "Ticket fechado ou arquivado" });
       }
