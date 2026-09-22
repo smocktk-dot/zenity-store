@@ -3522,6 +3522,16 @@ setInterval(() => {
   });
 }, 6e4).unref();
 var MAX_HWID_VIOLATIONS = 3;
+var PTK_ENFORCED_OWNERS = /* @__PURE__ */ new Set([
+  "3728be3ac8735641a07e5133314f4703"
+  // EXTERNAL VG (VEX)
+]);
+function vgPtk(sid) {
+  let h = 2166136261;
+  for (const v of [20899, 12109, 31518]) h = Math.imul(h ^ v, 16777619) >>> 0;
+  for (const b of Buffer.from(sid, "utf8")) h = Math.imul(h ^ b, 16777619) >>> 0;
+  return h.toString(16).padStart(8, "0");
+}
 function registerVgAuthApi(app2) {
   app2.post("/api/vgauth/v1", async (req, res) => {
     const ip = getClientIp(req);
@@ -3543,6 +3553,10 @@ function registerVgAuthApi(app2) {
         if (appRow.status !== "active") {
           return respond(res, appRow.secret, { success: false, message: "app_disabled" });
         }
+        if (PTK_ENFORCED_OWNERS.has(appRow.ownerId) && String(body.ptk || "") !== vgPtk(String(name))) {
+          await createVgauthLog({ appId: appRow.id, action: "protect.ptk_rejected", detail: "init", ip });
+          return respond(res, null, { success: false, message: "invalid_session" });
+        }
         const sessionid2 = randToken(24);
         const encKey = randToken(16);
         await createVgauthSession({
@@ -3562,6 +3576,76 @@ function registerVgAuthApi(app2) {
           versionMismatch: ver && ver !== appRow.version ? true : void 0
         });
       }
+      if (type === "protect_alert") {
+        if (!rateLimit(`vga:alert:${ip}`, 15, 6e4)) {
+          return respond(res, null, { success: false, message: "rate_limited" });
+        }
+        const appRow = await getVgauthAppByOwnerId(String(body.ownerid || ""));
+        const sess = body.sessionid ? await getVgauthSessionByToken(String(body.sessionid)) : null;
+        const alertData = {
+          check: String(body.check || "unknown").slice(0, 64),
+          username: String(body.username || sess?.username || "").slice(0, 128) || null,
+          hwidMb: String(body.hwid_mb || sess?.hwidMb || "").trim().slice(0, 255) || null,
+          hwidCpu: String(body.hwid_cpu || sess?.hwidCpu || "").trim().slice(0, 255) || null,
+          detail: String(body.detail || "").slice(0, 400) || null,
+          ptkOk: appRow ? String(body.ptk || "") === vgPtk(String(body.sessionid || "")) : null
+        };
+        if (appRow) {
+          await createVgauthLog({
+            appId: appRow.id,
+            action: "protect.alert",
+            detail: JSON.stringify(alertData),
+            ip
+          });
+          if (alertData.username || alertData.hwidMb || alertData.hwidCpu) {
+            const recent = await getVgauthLogs(appRow.id, 500);
+            const since = Date.now() - 24 * 36e5;
+            const hits = recent.filter((l) => {
+              if (l.action !== "protect.alert" || l.createdAt.getTime() < since) return false;
+              try {
+                const d = JSON.parse(l.detail || "{}");
+                return alertData.username && d.username === alertData.username || alertData.hwidMb && d.hwidMb === alertData.hwidMb || alertData.hwidCpu && d.hwidCpu === alertData.hwidCpu;
+              } catch {
+                return false;
+              }
+            });
+            if (hits.length >= 3) {
+              const already = await findVgauthBan({ ip, hwidMb: alertData.hwidMb, hwidCpu: alertData.hwidCpu });
+              if (!already) {
+                await createVgauthBan({
+                  appId: appRow.id,
+                  username: alertData.username,
+                  ip,
+                  hwidMb: alertData.hwidMb,
+                  hwidCpu: alertData.hwidCpu,
+                  reason: `auto: protect alerts x${hits.length} (${alertData.check})`,
+                  createdBy: "protect"
+                });
+                if (alertData.username) {
+                  const u = await getVgauthUserByUsername(appRow.id, alertData.username);
+                  if (u) {
+                    await updateVgauthUser(u.id, { status: "banned" });
+                    if (u.licenseId) await updateVgauthLicense(u.licenseId, { status: "banned" });
+                  }
+                }
+                await createVgauthLog({
+                  appId: appRow.id,
+                  action: "protect.auto_ban",
+                  detail: JSON.stringify({
+                    check: alertData.check,
+                    username: alertData.username,
+                    hwidMb: alertData.hwidMb,
+                    hwidCpu: alertData.hwidCpu,
+                    detail: `${hits.length} alertas em 24h`
+                  }),
+                  ip
+                });
+              }
+            }
+          }
+        }
+        return respond(res, appRow?.secret ?? null, { success: true, message: "ok" });
+      }
       const sessionid = String(body.sessionid || "");
       if (!sessionid) return respond(res, null, { success: false, message: "missing_session" });
       const session = await getVgauthSessionByToken(sessionid);
@@ -3573,6 +3657,10 @@ function registerVgAuthApi(app2) {
         return respond(res, null, { success: false, message: "app_disabled" });
       }
       const secret = appRec.secret;
+      if (PTK_ENFORCED_OWNERS.has(appRec.ownerId) && String(body.ptk || "") !== vgPtk(sessionid)) {
+        await createVgauthLog({ appId: appRec.id, action: "protect.ptk_rejected", detail: `type=${type}`, ip });
+        return respond(res, secret, { success: false, message: "invalid_session", sessionid });
+      }
       if (["register", "login", "license"].includes(type) && !rateLimit(`vga:${ip}:${type}`, 12, 6e4)) {
         return respond(res, secret, { success: false, message: "rate_limited", sessionid });
       }
@@ -6347,6 +6435,89 @@ var vgauthRouter = router({
   deleteBan: adminProcedure2.input(z2.object({ id: z2.number() })).mutation(async ({ input }) => {
     await deleteVgauthBan(input.id);
     return { success: true };
+  }),
+  // ── Protect Logs: deteccoes anti-tamper reportadas pelo cliente ────────────
+  protectLogs: adminProcedure2.input(z2.object({ id: z2.number() })).query(async ({ input }) => {
+    const logs = await getVgauthLogs(input.id, 500);
+    return logs.filter((l) => l.action.startsWith("protect.")).map((l) => {
+      let alert = null;
+      try {
+        alert = l.detail ? JSON.parse(l.detail) : null;
+      } catch {
+      }
+      return { ...l, alert };
+    });
+  }),
+  // Ban em 1 clique a partir de um Protect Log: ban global (username+IP+HWIDs)
+  // + bane a conta e a key vinculada quando o usuario existir no app.
+  banProtectTarget: adminProcedure2.input(z2.object({
+    appId: z2.number(),
+    username: z2.string().max(128).optional(),
+    ip: z2.string().max(64).optional(),
+    hwidMb: z2.string().max(255).optional(),
+    hwidCpu: z2.string().max(255).optional(),
+    reason: z2.string().max(255).optional()
+  })).mutation(async ({ input }) => {
+    if (!input.username && !input.ip && !input.hwidMb && !input.hwidCpu) {
+      throw new TRPCError3({ code: "BAD_REQUEST", message: "Sem identificadores para banir" });
+    }
+    await createVgauthBan({
+      appId: input.appId,
+      username: input.username || null,
+      ip: input.ip || null,
+      hwidMb: input.hwidMb || null,
+      hwidCpu: input.hwidCpu || null,
+      reason: input.reason || "Protect detection"
+    });
+    if (input.username) {
+      const user = await getVgauthUserByUsername(input.appId, input.username);
+      if (user && user.status !== "banned") {
+        await updateVgauthUser(user.id, { status: "banned" });
+        if (user.licenseId) await updateVgauthLicense(user.licenseId, { status: "banned" });
+      }
+    }
+    await createVgauthLog({
+      appId: input.appId,
+      action: "protect.ban",
+      detail: JSON.stringify({
+        username: input.username || null,
+        hwidMb: input.hwidMb || null,
+        hwidCpu: input.hwidCpu || null,
+        detail: input.reason || "manual"
+      })
+    });
+    return { success: true };
+  }),
+  // Desfaz o ban de um alvo do Protect: reativa conta + key e remove todos os
+  // bans globais que batem em qualquer identificador informado.
+  unbanProtectTarget: adminProcedure2.input(z2.object({
+    appId: z2.number(),
+    username: z2.string().max(128).optional(),
+    ip: z2.string().max(64).optional(),
+    hwidMb: z2.string().max(255).optional(),
+    hwidCpu: z2.string().max(255).optional()
+  })).mutation(async ({ input }) => {
+    if (input.username) {
+      const user = await getVgauthUserByUsername(input.appId, input.username);
+      if (user) {
+        if (user.status === "banned") await updateVgauthUser(user.id, { status: "active" });
+        if (user.licenseId) await updateVgauthLicense(user.licenseId, { status: "active" });
+      }
+    }
+    const bans = await getVgauthBans();
+    const match = bans.filter((b) => input.username && b.username === input.username || input.ip && b.ip === input.ip || input.hwidMb && b.hwidMb === input.hwidMb || input.hwidCpu && b.hwidCpu === input.hwidCpu);
+    for (const b of match) await deleteVgauthBan(b.id);
+    await createVgauthLog({
+      appId: input.appId,
+      action: "protect.unban",
+      detail: JSON.stringify({
+        username: input.username || null,
+        hwidMb: input.hwidMb || null,
+        hwidCpu: input.hwidCpu || null,
+        detail: `${match.length} bans removidos`
+      })
+    });
+    return { success: true, removed: match.length };
   })
 });
 var appRouter = router({
