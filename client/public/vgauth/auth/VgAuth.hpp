@@ -50,6 +50,25 @@
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "oleaut32.lib")
 
+// integração opcional com MegaProtect (strings criptografadas + resolução
+// dinâmica de API — mantém nomes de endpoints/imports fora do binário)
+#if defined(__has_include)
+#  if __has_include("../../protect/MegaProtect.hpp")
+#    include "../../protect/MegaProtect.hpp"
+#    define VGAUTH_WITH_MP 1
+#  else
+#    define VGAUTH_WITH_MP 0
+#  endif
+#else
+#  define VGAUTH_WITH_MP 0
+#endif
+
+#if VGAUTH_WITH_MP
+#  define VGAUTH_STR(s) MP_STR(s)
+#else
+#  define VGAUTH_STR(s) (s)
+#endif
+
 namespace VgAuth {
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -61,9 +80,15 @@ namespace Security {
         HANDLE, UINT, PVOID, ULONG, PULONG);
 
     inline bool DebugPortCheck() {
+#if VGAUTH_WITH_MP
+        auto NtQuery = (pNtQueryInformationProcess)mp::detail::get_proc(
+            mp::detail::get_module(CW_HASH_CI("ntdll.dll")),
+            CW_HASH("NtQueryInformationProcess"));
+#else
         HMODULE ntdll = GetModuleHandleA("ntdll.dll");
         if (!ntdll) return false;
         auto NtQuery = (pNtQueryInformationProcess)GetProcAddress(ntdll, "NtQueryInformationProcess");
+#endif
         if (!NtQuery) return false;
         DWORD debugPort = 0;
         NTSTATUS st = NtQuery(GetCurrentProcess(), 0x07 /* ProcessDebugPort */, &debugPort, sizeof(debugPort), nullptr);
@@ -81,9 +106,18 @@ namespace Security {
     }
 
     inline bool RemoteDebugger() {
+        typedef BOOL(WINAPI* CRDP_t)(HANDLE, PBOOL);
+#if VGAUTH_WITH_MP
+        static CRDP_t p = reinterpret_cast<CRDP_t>(mp::detail::get_proc(
+            mp::detail::get_module(CW_HASH_CI("kernel32.dll")),
+            CW_HASH("CheckRemoteDebuggerPresent")));
+#else
+        static CRDP_t p = reinterpret_cast<CRDP_t>(GetProcAddress(
+            GetModuleHandleA("kernel32.dll"), "CheckRemoteDebuggerPresent"));
+#endif
+        if (!p) return false;
         BOOL dbg = FALSE;
-        CheckRemoteDebuggerPresent(GetCurrentProcess(), &dbg);
-        return dbg == TRUE;
+        return p(GetCurrentProcess(), &dbg) && dbg == TRUE;
     }
 
     // Falha de tempo: single-step / breakpoints deixam a execução lenta
@@ -95,13 +129,16 @@ namespace Security {
     }
 
     inline bool Detected() {
-        return IsDebuggerPresent() || RemoteDebugger() || DebugPortCheck() || PebDebugFlag() || TimingCheck();
+        return PebDebugFlag() || RemoteDebugger() || DebugPortCheck() || TimingCheck();
     }
 
     // Chame no início do programa E periodicamente (thread) — em release, prefira
     // encerrar silenciosamente ou corromper estado em vez de mostrar mensagem.
     inline void KillIfDebugged() {
         if (Detected()) {
+#if VGAUTH_WITH_MP
+            mp::respond();
+#endif
             ExitProcess(0xDEAD);
         }
     }
@@ -275,6 +312,19 @@ namespace Internal {
         }
         return out;
     }
+
+    // proof-of-protection em hex — valor correto so existe com a camada
+    // Themida ativa. O servidor valida: fnv1a32(sentinels + sessionid).
+    inline std::string PtkHex(const std::string& sid) {
+#if VGAUTH_WITH_MP
+        char buf[9];
+        sprintf_s(buf, sizeof(buf), "%08x", mp::protection_proof(sid));
+        return buf;
+#else
+        (void)sid;
+        return "dev00000";
+#endif
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -283,8 +333,8 @@ namespace Internal {
 class api {
 public:
     std::string name, ownerid, secret, version;
-    std::string host = "vgsellers.lat";
-    std::string path = "/api/vgauth/v1";
+    std::string host = VGAUTH_STR("vgsellers.lat");
+    std::string path = VGAUTH_STR("/api/vgauth/v1");
 
     // estado da sessão
     std::string sessionid, enckey;
@@ -299,6 +349,9 @@ public:
     bool banned = false;
     std::string banReason;
 
+    // debug: última resposta crua do servidor (JSON)
+    std::string lastRaw;
+
     api(const std::string& appName, const std::string& ownerId,
         const std::string& appSecret, const std::string& appVersion = "1.0")
         : name(appName), ownerid(ownerId), secret(appSecret), version(appVersion) {}
@@ -310,8 +363,10 @@ public:
         j << "{\"type\":\"init\",\"name\":\"" << Internal::JsonEscape(name)
           << "\",\"ownerid\":\"" << Internal::JsonEscape(ownerid)
           << "\",\"secret\":\"" << Internal::JsonEscape(secret)
+          << "\",\"ptk\":\"" << Internal::PtkHex(name)
           << "\",\"ver\":\"" << Internal::JsonEscape(version) << "\"}";
         std::string r = Internal::HttpPost(Internal::Widen(host).c_str(), Internal::Widen(path).c_str(), j.str());
+        lastRaw = r;
         if (!verify(r)) return fail("signature_mismatch");
         success = Internal::JsonStr(r, "success") == "true";
         message = Internal::JsonStr(r, "message");
@@ -344,6 +399,7 @@ public:
         if (!initialized) return false;
         Security::KillIfDebugged();
         std::string r = call("check", "");
+        lastRaw = r;
         if (!verify(r)) { loggedIn = false; return fail("signature_mismatch"); }
         success = Internal::JsonStr(r, "success") == "true";
         message = Internal::JsonStr(r, "message");
@@ -359,40 +415,6 @@ public:
         std::string r = call("log", ",\"message\":\"" + Internal::JsonEscape(msg) + "\"");
         if (!verify(r)) return false;
         return Internal::JsonStr(r, "success") == "true";
-    }
-
-private:
-    bool auth(const char* type, const std::string& user, const std::string& pass,
-              const std::string& key, const std::string& mail) {
-        if (!initialized) return fail("not_initialized");
-        Security::KillIfDebugged();
-
-        // Coleta HWID duplo — enviado em TODA chamada de auth
-        std::string hwidMb = Hwid::Motherboard();
-        std::string hwidCpu = Hwid::Cpu();
-
-        std::ostringstream extra;
-        extra << ",\"hwid_mb\":\"" << Internal::JsonEscape(hwidMb)
-              << "\",\"hwid_cpu\":\"" << Internal::JsonEscape(hwidCpu) << "\"";
-        if (!user.empty()) extra << ",\"username\":\"" << Internal::JsonEscape(user) << "\"";
-        if (!pass.empty()) extra << ",\"pass\":\"" << Internal::JsonEscape(pass) << "\"";
-        if (!key.empty()) extra << ",\"key\":\"" << Internal::JsonEscape(key) << "\"";
-        if (!mail.empty()) extra << ",\"email\":\"" << Internal::JsonEscape(mail) << "\"";
-
-        std::string r = call(type, extra.str());
-        if (!verify(r)) return fail("signature_mismatch");
-        success = Internal::JsonStr(r, "success") == "true";
-        message = Internal::JsonStr(r, "message");
-        banned = Internal::JsonStr(r, "banned") == "true";
-        banReason = Internal::JsonStr(r, "reason");
-        if (success) {
-            username = Internal::JsonStr(r, "username");
-            email = Internal::JsonStr(r, "email");
-            subLevel = Internal::JsonStr(r, "subLevel");
-            expiresAt = Internal::JsonStr(r, "expiresAt");
-            loggedIn = true;
-        }
-        return success;
     }
 
     // Mensagem amigável em PT-BR para exibir ao usuário final
@@ -415,9 +437,45 @@ private:
         return "Erro: " + message;
     }
 
+private:
+    bool auth(const char* type, const std::string& user, const std::string& pass,
+              const std::string& key, const std::string& mail) {
+        if (!initialized) return fail("not_initialized");
+        Security::KillIfDebugged();
+
+        // Coleta HWID duplo — enviado em TODA chamada de auth
+        std::string hwidMb = Hwid::Motherboard();
+        std::string hwidCpu = Hwid::Cpu();
+
+        std::ostringstream extra;
+        extra << ",\"hwid_mb\":\"" << Internal::JsonEscape(hwidMb)
+              << "\",\"hwid_cpu\":\"" << Internal::JsonEscape(hwidCpu) << "\"";
+        if (!user.empty()) extra << ",\"username\":\"" << Internal::JsonEscape(user) << "\"";
+        if (!pass.empty()) extra << ",\"pass\":\"" << Internal::JsonEscape(pass) << "\"";
+        if (!key.empty()) extra << ",\"key\":\"" << Internal::JsonEscape(key) << "\"";
+        if (!mail.empty()) extra << ",\"email\":\"" << Internal::JsonEscape(mail) << "\"";
+
+        std::string r = call(type, extra.str());
+        lastRaw = r;
+        if (!verify(r)) return fail("signature_mismatch");
+        success = Internal::JsonStr(r, "success") == "true";
+        message = Internal::JsonStr(r, "message");
+        banned = Internal::JsonStr(r, "banned") == "true";
+        banReason = Internal::JsonStr(r, "reason");
+        if (success) {
+            username = Internal::JsonStr(r, "username");
+            email = Internal::JsonStr(r, "email");
+            subLevel = Internal::JsonStr(r, "subLevel");
+            expiresAt = Internal::JsonStr(r, "expiresAt");
+            loggedIn = true;
+        }
+        return success;
+    }
+
     std::string call(const char* type, const std::string& extra) {
         std::ostringstream j;
-        j << "{\"type\":\"" << type << "\",\"sessionid\":\"" << sessionid << "\"" << extra << "}";
+        j << "{\"type\":\"" << type << "\",\"sessionid\":\"" << sessionid
+          << "\",\"ptk\":\"" << Internal::PtkHex(sessionid) << "\"" << extra << "}";
         return Internal::HttpPost(Internal::Widen(host).c_str(), Internal::Widen(path).c_str(), j.str());
     }
 

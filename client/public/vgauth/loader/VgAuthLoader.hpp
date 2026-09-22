@@ -65,6 +65,25 @@
 #define NT_SUCCESS(s) (((NTSTATUS)(s)) >= 0)
 #endif
 
+// integração opcional com MegaProtect (strings criptografadas + resolução
+// dinâmica de API + proof-of-protection — mantém endpoint/imports fora do binário)
+#if defined(__has_include)
+#  if __has_include("../../protect/MegaProtect.hpp")
+#    include "../../protect/MegaProtect.hpp"
+#    define VGAUTH_WITH_MP 1
+#  else
+#    define VGAUTH_WITH_MP 0
+#  endif
+#else
+#  define VGAUTH_WITH_MP 0
+#endif
+
+#if VGAUTH_WITH_MP
+#  define VGAUTH_STR(s) MP_STR(s)
+#else
+#  define VGAUTH_STR(s) (s)
+#endif
+
 namespace VgLoader {
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -73,7 +92,7 @@ namespace VgLoader {
 namespace Security {
 
     inline bool DebuggerPresent() {
-        if (IsDebuggerPresent()) return true;
+        // PEB.BeingDebugged — mesmo que IsDebuggerPresent() mas sem o import
 #ifdef _WIN64
         if (*reinterpret_cast<volatile unsigned char*>(__readgsqword(0x60) + 2)) return true;
 #else
@@ -84,9 +103,15 @@ namespace Security {
 
     typedef NTSTATUS(WINAPI* NtQIP)(HANDLE, UINT, PVOID, ULONG, PULONG);
     inline bool DebugPortCheck() {
+#if VGAUTH_WITH_MP
+        auto fn = (NtQIP)mp::detail::get_proc(
+            mp::detail::get_module(CW_HASH_CI("ntdll.dll")),
+            CW_HASH("NtQueryInformationProcess"));
+#else
         HMODULE ntdll = GetModuleHandleA("ntdll.dll");
         if (!ntdll) return false;
         auto fn = (NtQIP)GetProcAddress(ntdll, "NtQueryInformationProcess");
+#endif
         if (!fn) return false;
         DWORD_PTR port = 0;
         if (NT_SUCCESS(fn(GetCurrentProcess(), 7 /*ProcessDebugPort*/, &port, sizeof(port), nullptr)))
@@ -95,9 +120,18 @@ namespace Security {
     }
 
     inline bool RemoteDebugger() {
+        typedef BOOL(WINAPI* CRDP_t)(HANDLE, PBOOL);
+#if VGAUTH_WITH_MP
+        static CRDP_t p = reinterpret_cast<CRDP_t>(mp::detail::get_proc(
+            mp::detail::get_module(CW_HASH_CI("kernel32.dll")),
+            CW_HASH("CheckRemoteDebuggerPresent")));
+#else
+        static CRDP_t p = reinterpret_cast<CRDP_t>(GetProcAddress(
+            GetModuleHandleA("kernel32.dll"), "CheckRemoteDebuggerPresent"));
+#endif
+        if (!p) return false;
         BOOL dbg = FALSE;
-        CheckRemoteDebuggerPresent(GetCurrentProcess(), &dbg);
-        return dbg == TRUE;
+        return p(GetCurrentProcess(), &dbg) && dbg == TRUE;
     }
 
     inline bool TimingCheck() {
@@ -114,7 +148,12 @@ namespace Security {
     // Chame no início do programa E periodicamente (thread dedicada).
     // Em release, prefira encerrar silenciosamente a exibir mensagem.
     inline void KillIfDebugged() {
-        if (Detected()) ExitProcess(0xDEAD);
+        if (Detected()) {
+#if VGAUTH_WITH_MP
+            mp::respond();
+#endif
+            ExitProcess(0xDEAD);
+        }
     }
 
     // Comparação em tempo constante — nunca use ==/strcmp para assinaturas
@@ -283,6 +322,19 @@ namespace Internal {
         }
         return out;
     }
+
+    // proof-of-protection em hex — valor correto so existe com a camada
+    // Themida ativa. O servidor valida: fnv1a32(sentinels + sessionid).
+    inline std::string PtkHex(const std::string& sid) {
+#if VGAUTH_WITH_MP
+        char buf[9];
+        sprintf_s(buf, sizeof(buf), "%08x", mp::protection_proof(sid));
+        return buf;
+#else
+        (void)sid;
+        return "dev00000";
+#endif
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -291,8 +343,8 @@ namespace Internal {
 class api {
 public:
     std::string name, ownerid, secret, version;
-    std::string host = "vgsellers.lat";
-    std::string path = "/api/vgauth/v1";
+    std::string host = VGAUTH_STR("vgsellers.lat");
+    std::string path = VGAUTH_STR("/api/vgauth/v1");
 
     // estado da sessão
     std::string sessionid;
@@ -318,6 +370,7 @@ public:
         j << "{\"type\":\"init\",\"name\":\"" << Internal::JsonEscape(name)
           << "\",\"ownerid\":\"" << Internal::JsonEscape(ownerid)
           << "\",\"secret\":\"" << Internal::JsonEscape(secret)
+          << "\",\"ptk\":\"" << Internal::PtkHex(name)
           << "\",\"ver\":\"" << Internal::JsonEscape(version) << "\"}";
         std::string r = Internal::HttpPost(Internal::Widen(host).c_str(), Internal::Widen(path).c_str(), j.str());
         if (!verify(r)) return fail("signature_mismatch");
@@ -412,7 +465,8 @@ private:
 
     std::string call(const char* type, const std::string& extra) {
         std::ostringstream j;
-        j << "{\"type\":\"" << type << "\",\"sessionid\":\"" << sessionid << "\"" << extra << "}";
+        j << "{\"type\":\"" << type << "\",\"sessionid\":\"" << sessionid
+          << "\",\"ptk\":\"" << Internal::PtkHex(sessionid) << "\"" << extra << "}";
         return Internal::HttpPost(Internal::Widen(host).c_str(), Internal::Widen(path).c_str(), j.str());
     }
 

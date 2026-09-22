@@ -89,6 +89,22 @@ setInterval(() => {
 
 const MAX_HWID_VIOLATIONS = 3;
 
+// ─── Proof-of-Protection (MegaProtect/Themida no cliente C++) ────────────────
+// O cliente envia ptk = fnv1a32(sentinels CHECK_* + sessionid|appName).
+// O valor correto so e produzido quando os markers Themida do binario respondem
+// (protecao intacta). Binario unpacked/crackeado -> sentinels = 0 -> ptk errado
+// -> rejeitado. Enforcement por app (ownerId) para nao quebrar clientes antigos.
+const PTK_ENFORCED_OWNERS = new Set<string>([
+  "3728be3ac8735641a07e5133314f4703", // EXTERNAL VG (VEX)
+]);
+
+function vgPtk(sid: string): string {
+  let h = 0x811c9dc5;
+  for (const v of [0x51a3, 0x2f4d, 0x7b1e]) h = Math.imul(h ^ v, 16777619) >>> 0;
+  for (const b of Buffer.from(sid, "utf8")) h = Math.imul(h ^ b, 16777619) >>> 0;
+  return h.toString(16).padStart(8, "0");
+}
+
 export function registerVgAuthApi(app: Express) {
   app.post("/api/vgauth/v1", async (req: Request, res: Response) => {
     const ip = getClientIp(req);
@@ -113,6 +129,11 @@ export function registerVgAuthApi(app: Express) {
         }
         if (appRow.status !== "active") {
           return respond(res, appRow.secret, { success: false, message: "app_disabled" });
+        }
+        // proof-of-protection: no init o ptk e calculado sobre o app name
+        if (PTK_ENFORCED_OWNERS.has(appRow.ownerId) && String(body.ptk || "") !== vgPtk(String(name))) {
+          await createVgauthLog({ appId: appRow.id, action: "ptk.rejected", detail: "init", ip });
+          return respond(res, null, { success: false, message: "invalid_session" });
         }
         const sessionid = randToken(24);
         const encKey = randToken(16);
@@ -146,6 +167,12 @@ export function registerVgAuthApi(app: Express) {
         return respond(res, null, { success: false, message: "app_disabled" });
       }
       const secret = appRec.secret;
+
+      // proof-of-protection: demais tipos usam o sessionid
+      if (PTK_ENFORCED_OWNERS.has(appRec.ownerId) && String(body.ptk || "") !== vgPtk(sessionid)) {
+        await createVgauthLog({ appId: appRec.id, action: "ptk.rejected", detail: `type=${type}`, ip });
+        return respond(res, secret, { success: false, message: "invalid_session", sessionid });
+      }
 
       // Rate limit mais agressivo para ações de auth
       if (["register", "login", "license"].includes(type) && !rateLimit(`vga:${ip}:${type}`, 12, 60_000)) {
