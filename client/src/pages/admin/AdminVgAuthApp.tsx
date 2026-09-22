@@ -3,7 +3,7 @@ import { trpc } from "@/lib/trpc";
 import { Link } from "wouter";
 import {
   ArrowLeft, Key, Users, Ban, ScrollText, Plus, Copy, Check, Trash2,
-  Pause, Play, CalendarPlus, RotateCcw, ShieldBan, ShieldCheck, Download, X, KeyRound
+  Pause, Play, CalendarPlus, RotateCcw, ShieldBan, ShieldCheck, Download, X, KeyRound, ShieldAlert
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -12,6 +12,7 @@ const allTabs = [
   { id: "keys", label: "Licenses", icon: Key, authOnly: true },
   { id: "users", label: "Users", icon: Users, authOnly: false },
   { id: "bans", label: "Bans", icon: Ban, authOnly: false },
+  { id: "protect", label: "Protect", icon: ShieldAlert, authOnly: false },
   { id: "logs", label: "Logs", icon: ScrollText, authOnly: false },
 ] as const;
 
@@ -37,6 +38,7 @@ function CopyBtn({ text }: { text: string }) {
 
 export default function AdminVgAuthApp({ id }: { id: number }) {
   const { data, refetch, isLoading } = trpc.vgauth.getAppDetail.useQuery({ id });
+  const { data: protectLogs, refetch: refetchProtect } = trpc.vgauth.protectLogs.useQuery({ id });
   const [tab, setTab] = useState<string>("keys");
 
   // Generate keys modal state
@@ -79,6 +81,10 @@ export default function AdminVgAuthApp({ id }: { id: number }) {
     onError: e => toast.error(e.message),
   });
   const deleteBan = trpc.vgauth.deleteBan.useMutation({ onSuccess: () => refetch(), onError: e => toast.error(e.message) });
+  const banProtect = trpc.vgauth.banProtectTarget.useMutation({
+    onSuccess: () => { toast.success("Alvo banido (conta + key + IP + HWIDs)"); refetch(); refetchProtect(); },
+    onError: e => toast.error(e.message),
+  });
 
   if (isLoading || !data) {
     return <div className="p-6 text-gray-500">Carregando...</div>;
@@ -324,6 +330,79 @@ export default function AdminVgAuthApp({ id }: { id: number }) {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── PROTECT LOGS (deteccoes anti-tamper do cliente) ── */}
+      {activeTab === "protect" && (
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-red-500/15 p-4 flex items-center gap-3" style={{ background: "rgba(239,68,68,0.03)" }}>
+            <ShieldAlert className="w-5 h-5 text-red-400 flex-shrink-0" />
+            <div>
+              <h3 className="text-white text-sm font-semibold">Detecções de proteção</h3>
+              <p className="text-gray-500 text-xs">
+                Alertas enviados pelo cliente quando o anti-debug/anti-tamper dispara, quando o ptk é rejeitado
+                ou quando o auto-ban (3+ alertas em 24h) entra em ação.
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-white/[0.06] overflow-x-auto" style={{ background: "rgba(255,255,255,0.02)" }}>
+            <table className="w-full min-w-[900px]">
+              <thead>
+                <tr className="border-b border-white/[0.04]">
+                  {["Data", "Evento", "Check", "Usuário", "HWID MB", "HWID CPU", "IP", "Detalhe", ""].map(h => <th key={h} className={th}>{h}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {(!protectLogs || protectLogs.length === 0) ? (
+                  <tr><td colSpan={9} className="text-center py-10 text-gray-600">Nenhuma detecção — tudo limpo</td></tr>
+                ) : protectLogs.map((l: any) => {
+                  const a = l.alert || {};
+                  const isAlert = l.action === "protect.alert";
+                  const isBan = l.action === "protect.auto_ban" || l.action === "protect.ban";
+                  return (
+                    <tr key={l.id} className="border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02]">
+                      <td className={`${td} text-gray-500 text-xs font-mono whitespace-nowrap`}>{new Date(l.createdAt).toLocaleString("pt-BR")}</td>
+                      <td className={td}>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold uppercase ${
+                          isBan ? "bg-red-500/15 text-red-400 border-red-500/25"
+                          : isAlert ? "bg-amber-500/15 text-amber-400 border-amber-500/25"
+                          : "bg-violet-500/15 text-violet-400 border-violet-500/25"}`}>
+                          {l.action.replace("protect.", "")}
+                        </span>
+                      </td>
+                      <td className={`${td} text-red-300 font-mono text-xs`}>{a.check || "—"}</td>
+                      <td className={`${td} text-gray-300`}>{a.username || "—"}</td>
+                      <td className={`${td} text-gray-500 font-mono text-xs`}>{a.hwidMb ? a.hwidMb.slice(0, 12) + "…" : "—"}</td>
+                      <td className={`${td} text-gray-500 font-mono text-xs`}>{a.hwidCpu ? a.hwidCpu.slice(0, 12) + "…" : "—"}</td>
+                      <td className={`${td} text-gray-400 font-mono text-xs`}>{l.ip || "—"}</td>
+                      <td className={`${td} text-gray-500 text-xs max-w-[220px] truncate`} title={a.detail || l.detail || ""}>{a.detail || l.detail || "—"}</td>
+                      <td className={td}>
+                        {isAlert && (a.username || a.hwidMb || a.hwidCpu || l.ip) && (
+                          <button
+                            onClick={() => {
+                              if (confirm(`Banir ${a.username || l.ip}? Ban global (IP + HWIDs) + conta/key banidas.`))
+                                banProtect.mutate({
+                                  appId: id,
+                                  username: a.username || undefined,
+                                  ip: l.ip || undefined,
+                                  hwidMb: a.hwidMb || undefined,
+                                  hwidCpu: a.hwidCpu || undefined,
+                                  reason: `protect: ${a.check || "detection"}`,
+                                });
+                            }}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/25 hover:bg-red-500/20 transition-all">
+                            <ShieldBan className="w-3 h-3" /> Banir
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

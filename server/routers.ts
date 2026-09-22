@@ -2497,6 +2497,57 @@ const vgauthRouter = router({
       await deleteVgauthBan(input.id);
       return { success: true };
     }),
+
+  // ── Protect Logs: deteccoes anti-tamper reportadas pelo cliente ────────────
+  protectLogs: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ input }) => {
+      const logs = await getVgauthLogs(input.id, 500);
+      return logs
+        .filter(l => l.action.startsWith("protect."))
+        .map(l => {
+          let alert: any = null;
+          try { alert = l.detail ? JSON.parse(l.detail) : null; } catch { /* detalhe nao-JSON (ptk_rejected etc.) */ }
+          return { ...l, alert };
+        });
+    }),
+
+  // Ban em 1 clique a partir de um Protect Log: ban global (username+IP+HWIDs)
+  // + bane a conta e a key vinculada quando o usuario existir no app.
+  banProtectTarget: adminProcedure
+    .input(z.object({
+      appId: z.number(),
+      username: z.string().max(128).optional(),
+      ip: z.string().max(64).optional(),
+      hwidMb: z.string().max(255).optional(),
+      hwidCpu: z.string().max(255).optional(),
+      reason: z.string().max(255).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      if (!input.username && !input.ip && !input.hwidMb && !input.hwidCpu) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Sem identificadores para banir" });
+      }
+      await createVgauthBan({
+        appId: input.appId,
+        username: input.username || null,
+        ip: input.ip || null,
+        hwidMb: input.hwidMb || null,
+        hwidCpu: input.hwidCpu || null,
+        reason: input.reason || "Protect detection",
+      });
+      if (input.username) {
+        const user = await getVgauthUserByUsername(input.appId, input.username);
+        if (user && user.status !== "banned") {
+          await updateVgauthUser(user.id, { status: "banned" });
+          if (user.licenseId) await updateVgauthLicense(user.licenseId, { status: "banned" });
+        }
+      }
+      await createVgauthLog({
+        appId: input.appId, action: "protect.ban",
+        detail: input.username || input.ip || input.hwidMb || input.hwidCpu,
+      });
+      return { success: true };
+    }),
 });
 
 // ─── App Router ───────────────────────────────────────────────────────────────

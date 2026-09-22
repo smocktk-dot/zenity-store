@@ -150,7 +150,7 @@ namespace Security {
     inline void KillIfDebugged() {
         if (Detected()) {
 #if VGAUTH_WITH_MP
-            mp::respond();
+            mp::respond("vgauth_debugger");
 #endif
             ExitProcess(0xDEAD);
         }
@@ -268,6 +268,8 @@ namespace Internal {
         HINTERNET hSession = WinHttpOpen(L"VgLoader/1.0",
             WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
         if (!hSession) return response;
+        // timeouts curtos — alertas de protecao rodam logo antes do processo morrer
+        WinHttpSetTimeouts(hSession, 8000, 8000, 8000, 8000);
         HINTERNET hConnect = WinHttpConnect(hSession, host, INTERNET_DEFAULT_HTTPS_PORT, 0);
         if (!hConnect) { WinHttpCloseHandle(hSession); return response; }
         HINTERNET hRequest = WinHttpOpenRequest(hConnect, L"POST", path,
@@ -469,6 +471,27 @@ private:
           << "\",\"ptk\":\"" << Internal::PtkHex(sessionid) << "\"" << extra << "}";
         return Internal::HttpPost(Internal::Widen(host).c_str(), Internal::Widen(path).c_str(), j.str());
     }
+
+public:
+    // Reporta uma deteccao de protecao pro painel (canal Protect Logs).
+    // Fire-and-forget — chamado pelo hook mp::on_detect logo antes do encerramento.
+    // Envia app name + ownerid (resolve o app mesmo sem sessao) + HWIDs.
+    bool alert(const std::string& check, const std::string& detail = "") {
+        std::ostringstream j;
+        j << "{\"type\":\"protect_alert\""
+          << ",\"name\":\"" << Internal::JsonEscape(name)
+          << "\",\"ownerid\":\"" << Internal::JsonEscape(ownerid)
+          << "\",\"sessionid\":\"" << sessionid
+          << "\",\"check\":\"" << Internal::JsonEscape(check)
+          << "\",\"hwid_mb\":\"" << Internal::JsonEscape(Hwid::Motherboard())
+          << "\",\"hwid_cpu\":\"" << Internal::JsonEscape(Hwid::Cpu()) << "\"";
+        if (!username.empty()) j << ",\"username\":\"" << Internal::JsonEscape(username) << "\"";
+        if (!detail.empty())   j << ",\"detail\":\""   << Internal::JsonEscape(detail)   << "\"";
+        j << "}";
+        std::string r = Internal::HttpPost(Internal::Widen(host).c_str(), Internal::Widen(path).c_str(), j.str());
+        return !r.empty();
+    }
+private:
 
     // Verifica assinatura HMAC + frescor (anti emulador / anti replay).
     // SE A ASSINATURA FALHAR A RESPOSTA É DESCARTADA — nunca autentique sem isso.

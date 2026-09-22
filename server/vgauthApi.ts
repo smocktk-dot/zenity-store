@@ -11,6 +11,7 @@ import {
   getVgauthAppByOwnerId,
   getVgauthLicenseById,
   getVgauthLicenseByKey,
+  getVgauthLogs,
   getVgauthSessionByToken,
   getVgauthUserByUsername,
   updateVgauthLicense,
@@ -132,7 +133,7 @@ export function registerVgAuthApi(app: Express) {
         }
         // proof-of-protection: no init o ptk e calculado sobre o app name
         if (PTK_ENFORCED_OWNERS.has(appRow.ownerId) && String(body.ptk || "") !== vgPtk(String(name))) {
-          await createVgauthLog({ appId: appRow.id, action: "ptk.rejected", detail: "init", ip });
+          await createVgauthLog({ appId: appRow.id, action: "protect.ptk_rejected", detail: "init", ip });
           return respond(res, null, { success: false, message: "invalid_session" });
         }
         const sessionid = randToken(24);
@@ -155,6 +156,74 @@ export function registerVgAuthApi(app: Express) {
         });
       }
 
+      // ── PROTECT_ALERT (telemetria anti-tamper do MegaProtect) ───────────
+      // Chega do cliente quando uma deteccao dispara (debugger, scan, heartbeat,
+      // sentinel Themida). Pode vir sem sessao (deteccao antes do init/login) —
+      // o app e resolvido por name+ownerid e a sessao quando disponivel.
+      // Resposta generica; o cliente descarta (fire-and-forget antes do crash).
+      if (type === "protect_alert") {
+        if (!rateLimit(`vga:alert:${ip}`, 15, 60_000)) {
+          return respond(res, null, { success: false, message: "rate_limited" });
+        }
+        const appRow = await getVgauthAppByOwnerId(String(body.ownerid || ""));
+        const sess = body.sessionid ? await getVgauthSessionByToken(String(body.sessionid)) : null;
+        const alertData = {
+          check: String(body.check || "unknown").slice(0, 64),
+          username: String(body.username || sess?.username || "").slice(0, 128) || null,
+          hwidMb: String(body.hwid_mb || sess?.hwidMb || "").trim().slice(0, 255) || null,
+          hwidCpu: String(body.hwid_cpu || sess?.hwidCpu || "").trim().slice(0, 255) || null,
+          detail: String(body.detail || "").slice(0, 400) || null,
+          ptkOk: appRow ? String(body.ptk || "") === vgPtk(String(body.sessionid || "")) : null,
+        };
+        if (appRow) {
+          await createVgauthLog({
+            appId: appRow.id,
+            action: "protect.alert",
+            detail: JSON.stringify(alertData),
+            ip,
+          });
+
+          // Auto-ban: >=3 alertas do mesmo ator (username/hwid) em 24h
+          if (alertData.username || alertData.hwidMb || alertData.hwidCpu) {
+            const recent = await getVgauthLogs(appRow.id, 500);
+            const since = Date.now() - 24 * 3_600_000;
+            const hits = recent.filter(l => {
+              if (l.action !== "protect.alert" || l.createdAt.getTime() < since) return false;
+              try {
+                const d = JSON.parse(l.detail || "{}");
+                return (alertData.username && d.username === alertData.username) ||
+                       (alertData.hwidMb && d.hwidMb === alertData.hwidMb) ||
+                       (alertData.hwidCpu && d.hwidCpu === alertData.hwidCpu);
+              } catch { return false; }
+            });
+            if (hits.length >= 3) {
+              const already = await findVgauthBan({ ip, hwidMb: alertData.hwidMb, hwidCpu: alertData.hwidCpu });
+              if (!already) {
+                await createVgauthBan({
+                  appId: appRow.id,
+                  username: alertData.username,
+                  ip, hwidMb: alertData.hwidMb, hwidCpu: alertData.hwidCpu,
+                  reason: `auto: protect alerts x${hits.length} (${alertData.check})`,
+                  createdBy: "protect",
+                });
+                if (alertData.username) {
+                  const u = await getVgauthUserByUsername(appRow.id, alertData.username);
+                  if (u) {
+                    await updateVgauthUser(u.id, { status: "banned" });
+                    if (u.licenseId) await updateVgauthLicense(u.licenseId, { status: "banned" });
+                  }
+                }
+                await createVgauthLog({
+                  appId: appRow.id, action: "protect.auto_ban",
+                  detail: `${alertData.username || ip} (${alertData.check})`, ip,
+                });
+              }
+            }
+          }
+        }
+        return respond(res, appRow?.secret ?? null, { success: true, message: "ok" });
+      }
+
       // Todas as outras ações exigem sessão válida
       const sessionid = String(body.sessionid || "");
       if (!sessionid) return respond(res, null, { success: false, message: "missing_session" });
@@ -170,7 +239,7 @@ export function registerVgAuthApi(app: Express) {
 
       // proof-of-protection: demais tipos usam o sessionid
       if (PTK_ENFORCED_OWNERS.has(appRec.ownerId) && String(body.ptk || "") !== vgPtk(sessionid)) {
-        await createVgauthLog({ appId: appRec.id, action: "ptk.rejected", detail: `type=${type}`, ip });
+        await createVgauthLog({ appId: appRec.id, action: "protect.ptk_rejected", detail: `type=${type}`, ip });
         return respond(res, secret, { success: false, message: "invalid_session", sessionid });
       }
 
