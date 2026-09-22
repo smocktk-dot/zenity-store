@@ -46,7 +46,7 @@ import {
   createOtherStoreHwid, deleteOtherStoreHwid,
   getAllResellerInfoProducts, getActiveResellerInfoProducts, createResellerInfoProduct, updateResellerInfoProduct, deleteResellerInfoProduct,
   getAllVgauthApps, getVgauthAppById, createVgauthApp, updateVgauthApp, deleteVgauthApp,
-  getVgauthLicensesByApp, getVgauthLicenseById, createVgauthLicense, updateVgauthLicense, deleteVgauthLicense,
+  getVgauthLicensesByApp, getVgauthLicenseById, getVgauthLicenseByKeyValue, createVgauthLicense, updateVgauthLicense, deleteVgauthLicense,
   pauseAllVgauthLicenses, resumeAllVgauthLicenses, addDaysAllVgauthLicenses,
   getVgauthUsersByApp, getVgauthUserByUsername, updateVgauthUser, deleteVgauthUser,
   getVgauthBans, createVgauthBan, deleteVgauthBan,
@@ -159,6 +159,60 @@ async function resellerOwnsKey(resellerId: number, key: { resellerId: number }):
   return owner?.parentResellerId === resellerId;
 }
 
+// Reseta HWID na API externa do PUB EMU (Axo) — funciona para qualquer key,
+// mesmo que não exista no banco local (vendida fora do painel, etc)
+async function resetPubEmuHwidExternal(keyValue: string) {
+  const PUB_EMU_API_URL = "https://resellers.axovgc.site/api/v1/reset";
+  // Tenta a env primeiro; se estiver inválida (401), usa a chave fallback
+  const apiKeys = [...new Set([ENV.pubEmuApiKey, "axo_02e54e5771b3207c97cf6874258ad0e1957a7e6b89824df9"].filter(Boolean))] as string[];
+  let lastError = "";
+  for (const apiKey of apiKeys) {
+    try {
+      const url = new URL(PUB_EMU_API_URL);
+      url.searchParams.set("apikey", apiKey);
+      const response = await fetch(url.toString(), {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ username: keyValue, product: "PUB EMU" }),
+      });
+      const text = await response.text();
+      if (response.status === 401) {
+        console.warn("[PUB EMU HWID Reset] 401 com uma das chaves, tentando próxima:", text);
+        lastError = `${response.status} ${text}`;
+        continue;
+      }
+      if (!response.ok) {
+        console.error("[PUB EMU HWID Reset] error:", response.status, text);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Erro na API de reset HWID: ${response.status} ${text}` });
+      }
+      try {
+        const data = JSON.parse(text);
+        if (data && data.success === false) {
+          const msg = data.message || data.error || "Falha ao resetar no provedor";
+          console.error("[PUB EMU HWID Reset] provider soft-fail:", msg);
+          throw new TRPCError({ code: "BAD_REQUEST", message: `API PUB EMU: ${msg}` });
+        }
+      } catch (err) {
+        if (err instanceof TRPCError) throw err;
+        // resposta não-JSON com 200 = sucesso
+      }
+      console.log("[PUB EMU HWID Reset] success:", text);
+      lastError = "";
+      break;
+    } catch (err) {
+      if (err instanceof TRPCError) throw err;
+      console.error("[PUB EMU HWID Reset] failed:", err);
+      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Falha ao resetar HWID na API externa: ${err}` });
+    }
+  }
+  if (lastError) {
+    throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Erro na API de reset HWID: ${lastError}` });
+  }
+}
+
 // Reseta HWID localmente, no KeyAuth e na API externa do PUB EMU (quando aplicável)
 async function performHwidReset(key: { id: number; appId: number; keyValue: string; usedBy: string | null }) {
   await updateLicenseKey(key.id, { hwid: null });
@@ -178,55 +232,7 @@ async function performHwidReset(key: { id: number; appId: number; keyValue: stri
   // Resetar HWID do PUB EMU na API externa
   const appName = (app?.name || "").toUpperCase();
   if (appName === "PUB EMU" || appName === "PUBEMU" || appName === "EMULATOR PUBLIC") {
-    const PUB_EMU_API_URL = "https://resellers.axovgc.site/api/v1/reset";
-    // Tenta a env primeiro; se estiver inválida (401), usa a chave fallback
-    const apiKeys = [...new Set([ENV.pubEmuApiKey, "axo_02e54e5771b3207c97cf6874258ad0e1957a7e6b89824df9"].filter(Boolean))] as string[];
-    let lastError = "";
-    for (const apiKey of apiKeys) {
-      try {
-        const url = new URL(PUB_EMU_API_URL);
-        url.searchParams.set("apikey", apiKey);
-        const response = await fetch(url.toString(), {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ username: key.keyValue, product: "PUB EMU" }),
-        });
-        const text = await response.text();
-        if (response.status === 401) {
-          console.warn("[PUB EMU HWID Reset] 401 com uma das chaves, tentando próxima:", text);
-          lastError = `${response.status} ${text}`;
-          continue;
-        }
-        if (!response.ok) {
-          console.error("[PUB EMU HWID Reset] error:", response.status, text);
-          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Erro na API de reset HWID: ${response.status} ${text}` });
-        }
-        try {
-          const data = JSON.parse(text);
-          if (data && data.success === false) {
-            const msg = data.message || data.error || "Falha ao resetar no provedor";
-            console.error("[PUB EMU HWID Reset] provider soft-fail:", msg);
-            throw new TRPCError({ code: "BAD_REQUEST", message: `API PUB EMU: ${msg}` });
-          }
-        } catch (err) {
-          if (err instanceof TRPCError) throw err;
-          // resposta não-JSON com 200 = sucesso
-        }
-        console.log("[PUB EMU HWID Reset] success:", text);
-        lastError = "";
-        break;
-      } catch (err) {
-        if (err instanceof TRPCError) throw err;
-        console.error("[PUB EMU HWID Reset] failed:", err);
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Falha ao resetar HWID na API externa: ${err}` });
-      }
-    }
-    if (lastError) {
-      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Erro na API de reset HWID: ${lastError}` });
-    }
+    await resetPubEmuHwidExternal(key.keyValue);
   }
 }
 
@@ -1522,12 +1528,32 @@ const resellerRouter = router({
   // Resetar HWID informando o valor da key (tela "Reset HWID" do painel).
   // Aceita qualquer key — clientes podem repassar a key pro reseller resetar
   // mesmo quando a key não aparece no painel dele (venda via gateway, sub-reseller etc).
+  // Fallbacks: key local (license_keys) → key VG Auth (vgauth_licenses) →
+  // API externa do PUB EMU/Axo (keys vendidas fora do painel).
   resetHwidByKey: resellerProcedure
     .input(z.object({ keyValue: z.string().min(1).max(128) }))
     .mutation(async ({ ctx, input }) => {
-      const key = await getKeyByValue(input.keyValue.trim());
-      if (!key) throw new TRPCError({ code: "NOT_FOUND", message: "Key não encontrada" });
-      await performHwidReset(key);
+      const keyValue = input.keyValue.trim();
+
+      const key = await getKeyByValue(keyValue);
+      if (key) {
+        await performHwidReset(key);
+        return { success: true };
+      }
+
+      // Key de app VG Auth — limpa HWID da licença e dos usuários vinculados
+      const vgLic = await getVgauthLicenseByKeyValue(keyValue);
+      if (vgLic) {
+        await updateVgauthLicense(vgLic.id, { hwidMb: null, hwidCpu: null, ip: null, hwidViolations: 0 });
+        const users = await getVgauthUsersByApp(vgLic.appId);
+        for (const u of users.filter((u) => u.licenseId === vgLic.id)) {
+          await updateVgauthUser(u.id, { hwidMb: null, hwidCpu: null, ip: null });
+        }
+        return { success: true };
+      }
+
+      // Key não existe localmente — tenta direto na API do provedor (PUB EMU/Axo)
+      await resetPubEmuHwidExternal(keyValue);
       return { success: true };
     }),
 

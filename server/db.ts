@@ -1815,6 +1815,16 @@ export async function getVgauthLicenseById(id: number) {
   return row ?? null;
 }
 
+/** Busca licença VG Auth por keyValue em todos os apps (reset de HWID por key) */
+export async function getVgauthLicenseByKeyValue(keyValue: string) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db.select().from(vgauthLicenses)
+    .where(eq(vgauthLicenses.keyValue, keyValue));
+  return row ?? null;
+}
+
 export async function createVgauthLicense(data: InsertVgauthLicense) {
   await ensureVgAuthSchema();
   const db = await getDb();
