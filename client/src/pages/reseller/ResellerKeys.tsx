@@ -414,8 +414,8 @@ export default function ResellerKeys() {
                 <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                 <p className="text-gray-400 text-[11px] leading-relaxed">
                   {language === "en"
-                    ? "The key must belong to your account or to one of your sub-resellers. The reset clears the linked HWID locally and on the provider."
-                    : "A key precisa pertencer à sua conta ou a um dos seus sub-resellers. O reset limpa o HWID vinculado localmente e no provedor."}
+                    ? "Paste any client key — it works even for keys that don't appear in your panel (gateway sales, sub-resellers, etc). The reset clears the linked HWID locally and on the provider."
+                    : "Cole qualquer key de cliente — funciona mesmo para keys que não aparecem no seu painel (vendas via gateway, sub-resellers, etc). O reset limpa o HWID vinculado localmente e no provedor."}
                 </p>
               </div>
 

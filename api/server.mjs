@@ -5485,13 +5485,12 @@ var resellerRouter = router({
     await performHwidReset(key);
     return { success: true };
   }),
-  // Resetar HWID informando o valor da key (tela "Reset HWID" do painel)
+  // Resetar HWID informando o valor da key (tela "Reset HWID" do painel).
+  // Aceita qualquer key — clientes podem repassar a key pro reseller resetar
+  // mesmo quando a key não aparece no painel dele (venda via gateway, sub-reseller etc).
   resetHwidByKey: resellerProcedure.input(z2.object({ keyValue: z2.string().min(1).max(128) })).mutation(async ({ ctx, input }) => {
     const key = await getKeyByValue(input.keyValue.trim());
     if (!key) throw new TRPCError3({ code: "NOT_FOUND", message: "Key n\xE3o encontrada" });
-    if (!await resellerOwnsKey(ctx.resellerId, key)) {
-      throw new TRPCError3({ code: "FORBIDDEN", message: "Esta key n\xE3o pertence a voc\xEA" });
-    }
     await performHwidReset(key);
     return { success: true };
   }),
