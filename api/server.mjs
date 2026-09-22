@@ -1567,6 +1567,7 @@ async function getResellerApplicationByEmail(email) {
   return rows[0];
 }
 async function getAllResellerApplications() {
+  await ensurePublicAccessTokenColumns();
   const db = await getDb();
   if (!db) return [];
   return db.select().from(resellerApplications).orderBy(desc(resellerApplications.updatedAt));
@@ -1620,6 +1621,7 @@ async function getSupportTicketByEmail(email) {
   return rows[0];
 }
 async function getAllSupportTickets() {
+  await ensurePublicAccessTokenColumns();
   const db = await getDb();
   if (!db) return [];
   return db.select().from(supportTickets).orderBy(desc(supportTickets.updatedAt));

@@ -1255,6 +1255,7 @@ export async function getResellerApplicationByEmail(email: string) {
 }
 
 export async function getAllResellerApplications() {
+  await ensurePublicAccessTokenColumns();
   const db = await getDb();
   if (!db) return [];
   return db.select().from(resellerApplications).orderBy(desc(resellerApplications.updatedAt));
@@ -1320,6 +1321,7 @@ export async function getSupportTicketByEmail(email: string) {
 }
 
 export async function getAllSupportTickets() {
+  await ensurePublicAccessTokenColumns();
   const db = await getDb();
   if (!db) return [];
   return db.select().from(supportTickets).orderBy(desc(supportTickets.updatedAt));
