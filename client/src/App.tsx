@@ -2,6 +2,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
+import { useEffect, useState } from "react";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
@@ -26,6 +27,7 @@ import AdminOtherStore from "./pages/admin/AdminOtherStore";
 import AdminManualDelivery from "./pages/admin/AdminManualDelivery";
 import AdminDownloads from "./pages/admin/AdminDownloads";
 import AdminResellerInfo from "./pages/admin/AdminResellerInfo";
+import AdminProtect from "./pages/admin/AdminProtect";
 import AdminTransferKeys from "./pages/admin/AdminTransferKeys";
 import AdminVgAuth from "./pages/admin/AdminVgAuth";
 import AdminVgAuthApp from "./pages/admin/AdminVgAuthApp";
@@ -122,6 +124,13 @@ function Router() {
         {() => (
           <AdminLayout>
             <AdminSecurity />
+          </AdminLayout>
+        )}
+      </Route>
+      <Route path="/admin/protect">
+        {() => (
+          <AdminLayout>
+            <AdminProtect />
           </AdminLayout>
         )}
       </Route>
@@ -253,6 +262,28 @@ function Router() {
   );
 }
 
+// Tela exibida para IPs banidos (Protect Website)
+function BanGate({ children }: { children: React.ReactNode }) {
+  const [banned, setBanned] = useState(false);
+  useEffect(() => {
+    fetch("/api/ban-check")
+      .then(r => r.json())
+      .then(d => setBanned(!!d.banned))
+      .catch(() => {});
+  }, []);
+  if (banned) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-black px-6">
+        <div className="text-center space-y-4">
+          <div className="text-6xl font-black text-red-500 tracking-tight">Você Foi Banido Seu Otario</div>
+          <p className="text-zinc-500 text-sm">Seu acesso a este site foi permanentemente bloqueado.</p>
+        </div>
+      </div>
+    );
+  }
+  return <>{children}</>;
+}
+
 function App() {
   return (
     <ErrorBoundary>
@@ -261,7 +292,9 @@ function App() {
           <TooltipProvider>
             <Toaster theme="dark" position="top-right" />
             <LanguageWelcomeModal />
-            <Router />
+            <BanGate>
+              <Router />
+            </BanGate>
           </TooltipProvider>
         </LanguageProvider>
       </ThemeProvider>

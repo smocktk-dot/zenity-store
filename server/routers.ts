@@ -36,6 +36,7 @@ import {
   getDownloadsByAppId, getDownloadById, createAppDownload, updateAppDownload, deleteAppDownload,
   getResellerKeysByMonth, getResellerKeysByApp,
   createResellerApplication, getResellerApplicationById, getResellerApplicationByEmail, getAllResellerApplications,
+  createSecurityEvent, getSecurityEvents, banIpAddress, unbanIpAddress, getBannedIps, isIpInAdminWhitelist,
   updateResellerApplicationStatus, updateResellerApplicationTimestamp, deleteResellerApplication,
   getApplicationMessages, createApplicationMessage,
   createSupportTicket, getSupportTicketById, getSupportTicketByEmail, getAllSupportTickets,
@@ -116,6 +117,35 @@ async function verifyAccessToken(stored: string | null | undefined, provided: st
   const a = createHash("sha256").update(provided).digest();
   const b = createHash("sha256").update(stored).digest();
   return timingSafeEqual(a, b);
+}
+
+// ─── Protect Website: detecção de payloads maliciosos ──────────────────────────
+const ATTACK_PATTERNS: { type: string; label: string; re: RegExp }[] = [
+  { type: "xss", label: "Injeção XSS (script/HTML malicioso)", re: /<\s*(script|img|svg|iframe|object|embed|video|audio)\b|on\w+\s*=\s*["'`]?|javascript\s*:|eval\s*\(|atob\s*\(|alert\s*\(|document\.cookie|localStorage|sessionStorage|String\.fromCharCode/i },
+  { type: "sqli", label: "Injeção SQL", re: /union\s+(all\s+)?select|or\s+\d+\s*=\s*\d+|'\s*or\s*'|drop\s+table|insert\s+into|update\s+\w+\s+set|select\s+.*\s+from\s+information_schema|sleep\s*\(\s*\d/i },
+  { type: "path_traversal", label: "Path traversal / leitura de arquivos", re: /\.\.[\/\\]|%2e%2e|\/etc\/passwd|boot\.ini/i },
+];
+
+function detectAttack(fields: (string | null | undefined)[]): { type: string; label: string; snippet: string } | null {
+  const joined = fields.filter(Boolean).join("\n");
+  if (!joined) return null;
+  for (const p of ATTACK_PATTERNS) {
+    const m = joined.match(p.re);
+    if (m) return { type: p.type, label: p.label, snippet: joined.slice(0, 500) };
+  }
+  return null;
+}
+
+// Registra tentativa de ataque no log do Protect Website (nunca quebra o fluxo)
+async function logSecurityEvent(opts: { req: any; eventType: string; label: string; identifier?: string; detail?: string }) {
+  try {
+    await createSecurityEvent({
+      eventType: opts.eventType,
+      ip: getClientIp(opts.req) || null,
+      identifier: (opts.identifier || "").slice(0, 255) || null,
+      detail: `[${opts.label}] ${(opts.detail || "").slice(0, 500)}`,
+    });
+  } catch { /* silencioso */ }
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -302,12 +332,18 @@ const authRouter = router({
         throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Tente novamente em 15 minutos." });
       }
       const admin = await getAdminByUsername(input.username);
-      if (!admin) throw new TRPCError({ code: "UNAUTHORIZED", message: "Credenciais inválidas" });
+      if (!admin) {
+        await logSecurityEvent({ req: ctx.req, eventType: "bruteforce", label: "Login admin com usuário inexistente", identifier: input.username });
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Credenciais inválidas" });
+      }
       // IP whitelist check for admin login (por usuário: entries com userId só valem p/ aquele admin)
       const ipAllowed = await isAdminIpAllowed(clientIp, admin.id);
       if (!ipAllowed) throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado: IP nao autorizado" });
       const valid = await bcrypt.compare(input.password, admin.passwordHash);
-      if (!valid) throw new TRPCError({ code: "UNAUTHORIZED", message: "Credenciais inválidas" });
+      if (!valid) {
+        await logSecurityEvent({ req: ctx.req, eventType: "bruteforce", label: "Senha incorreta no login admin", identifier: input.username });
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Credenciais inválidas" });
+      }
       const token = await signCustomJwt({ sub: String(admin.id), role: "admin", adminRole: admin.role || "full", username: admin.username });
       ctx.res.cookie(CUSTOM_COOKIE, token, { ...getSessionCookieOptions(ctx.req), maxAge: 7 * 24 * 3600 * 1000 });
       return { success: true, role: "admin" as const, adminRole: admin.role || "full", username: admin.username };
@@ -328,6 +364,9 @@ const authRouter = router({
       const admin = await getAdminByUsername(input.username);
       if (admin) {
         const validAdmin = await bcrypt.compare(input.password, admin.passwordHash);
+        if (!validAdmin) {
+          await logSecurityEvent({ req: ctx.req, eventType: "bruteforce", label: "Senha incorreta p/ conta admin", identifier: input.username });
+        }
         if (validAdmin) {
           // IP whitelist check for admin login
           const clientIp = getClientIp(ctx.req);
@@ -341,10 +380,16 @@ const authRouter = router({
       }
       // Otherwise try reseller login
       const reseller = await getResellerByUsername(input.username);
-      if (!reseller) throw new TRPCError({ code: "UNAUTHORIZED", message: "Credenciais inválidas" });
+      if (!reseller) {
+        await logSecurityEvent({ req: ctx.req, eventType: "bruteforce", label: "Login reseller com usuário inexistente", identifier: input.username });
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Credenciais inválidas" });
+      }
       if (reseller.status !== "active") throw new TRPCError({ code: "FORBIDDEN", message: "Conta desativada" });
       const valid = await bcrypt.compare(input.password, reseller.passwordHash);
-      if (!valid) throw new TRPCError({ code: "UNAUTHORIZED", message: "Credenciais inválidas" });
+      if (!valid) {
+        await logSecurityEvent({ req: ctx.req, eventType: "bruteforce", label: "Senha incorreta no login reseller", identifier: input.username });
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Credenciais inválidas" });
+      }
       await updateReseller(reseller.id, { lastLoginAt: new Date() });
       const otherStoreOwnerId = reseller.parentResellerId ?? reseller.id;
       const otherStore = await getOtherStoreResellerByOwnerResellerId(otherStoreOwnerId);
@@ -421,6 +466,10 @@ const authRouter = router({
     }))
     .mutation(async ({ input, ctx }) => {
       const ip = getClientIp(ctx.req);
+      const attack = detectAttack([input.discordLink, input.discordId, input.product, input.reason]);
+      if (attack) {
+        await logSecurityEvent({ req: ctx.req, eventType: attack.type, label: attack.label, identifier: input.email, detail: `Candidatura: ${attack.snippet}` });
+      }
       const existing = await getResellerApplicationByEmail(input.email);
       if (existing && ["pending", "pre_approved"].includes(existing.status)) {
         throw new TRPCError({ code: "CONFLICT", message: "Você já possui uma aplicação em andamento" });
@@ -446,10 +495,11 @@ const authRouter = router({
 
   getMyApplication: publicProcedure
     .input(z.object({ id: z.number(), token: z.string().max(128).optional() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const app = await getResellerApplicationById(input.id);
       if (!app) return null;
       if (!(await verifyAccessToken(app.accessToken, input.token))) {
+        await logSecurityEvent({ req: ctx.req, eventType: "idor", label: "IDOR — tentou ler candidatura de terceiro", detail: `applicationId=${input.id}` });
         throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado" });
       }
       const messages = await getApplicationMessages(input.id);
@@ -463,11 +513,16 @@ const authRouter = router({
       token: z.string().max(128).optional(),
       message: z.string().min(1),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const app = await getResellerApplicationById(input.applicationId);
       if (!app) throw new TRPCError({ code: "NOT_FOUND" });
       if (!(await verifyAccessToken(app.accessToken, input.token))) {
+        await logSecurityEvent({ req: ctx.req, eventType: "idor", label: "IDOR — tentou escrever em candidatura de terceiro", detail: `applicationId=${input.applicationId} msg: ${input.message.slice(0, 200)}` });
         throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado" });
+      }
+      const attack = detectAttack([input.message]);
+      if (attack) {
+        await logSecurityEvent({ req: ctx.req, eventType: attack.type, label: attack.label, identifier: app.email, detail: `Msg candidatura #${input.applicationId}: ${attack.snippet}` });
       }
       if (app.status === "archived" || app.status === "rejected") {
         throw new TRPCError({ code: "FORBIDDEN", message: "Aplicação arquivada ou rejeitada" });
@@ -491,6 +546,10 @@ const authRouter = router({
     }))
     .mutation(async ({ input, ctx }) => {
       const ip = getClientIp(ctx.req);
+      const attack = detectAttack([input.name, input.subject, input.question]);
+      if (attack) {
+        await logSecurityEvent({ req: ctx.req, eventType: attack.type, label: attack.label, identifier: input.email, detail: `Ticket: ${attack.snippet}` });
+      }
       const { randomBytes } = await import("crypto");
       const row = await createSupportTicket({ ...input, status: "open", ip, accessToken: randomBytes(24).toString("hex") });
       await createSupportMessage({
@@ -512,10 +571,11 @@ const authRouter = router({
 
   getMySupportTicket: publicProcedure
     .input(z.object({ id: z.number(), token: z.string().max(128).optional() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const ticket = await getSupportTicketById(input.id);
       if (!ticket) return null;
       if (!(await verifyAccessToken(ticket.accessToken, input.token))) {
+        await logSecurityEvent({ req: ctx.req, eventType: "idor", label: "IDOR — tentou ler ticket de terceiro", detail: `ticketId=${input.id}` });
         throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado" });
       }
       const messages = await getSupportMessages(input.id);
@@ -529,11 +589,16 @@ const authRouter = router({
       token: z.string().max(128).optional(),
       message: z.string().min(1),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const ticket = await getSupportTicketById(input.ticketId);
       if (!ticket) throw new TRPCError({ code: "NOT_FOUND" });
       if (!(await verifyAccessToken(ticket.accessToken, input.token))) {
+        await logSecurityEvent({ req: ctx.req, eventType: "idor", label: "IDOR — tentou escrever em ticket de terceiro", detail: `ticketId=${input.ticketId} msg: ${input.message.slice(0, 200)}` });
         throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado" });
+      }
+      const attack = detectAttack([input.message]);
+      if (attack) {
+        await logSecurityEvent({ req: ctx.req, eventType: attack.type, label: attack.label, identifier: ticket.email, detail: `Msg ticket #${input.ticketId}: ${attack.snippet}` });
       }
       if (ticket.status === "archived" || ticket.status === "closed") {
         throw new TRPCError({ code: "FORBIDDEN", message: "Ticket fechado ou arquivado" });
@@ -1103,6 +1168,31 @@ const adminRouter = router({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       await deleteTicket(input.id);
+      return { success: true };
+    }),
+
+  // ─── Protect Website: log de ataques + banimento de IP ───────────────────────
+  securityEvents: adminProcedure.query(() => getSecurityEvents(300)),
+
+  bannedIps: adminProcedure.query(() => getBannedIps()),
+
+  banIp: adminProcedure
+    .input(z.object({ ip: z.string().min(1).max(64), reason: z.string().max(500).optional() }))
+    .mutation(async ({ input, ctx }) => {
+      const ip = input.ip.trim();
+      if (!ip) throw new TRPCError({ code: "BAD_REQUEST", message: "IP inválido" });
+      // Não permite banir IP que esteja na whitelist de admin (evita auto-bloqueio)
+      if (await isIpInAdminWhitelist(ip)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Este IP está na whitelist de admin e não pode ser banido" });
+      }
+      await banIpAddress(ip, input.reason || null, `admin#${ctx.adminId}`);
+      return { success: true };
+    }),
+
+  unbanIp: adminProcedure
+    .input(z.object({ ip: z.string().min(1).max(64) }))
+    .mutation(async ({ input }) => {
+      await unbanIpAddress(input.ip.trim());
       return { success: true };
     }),
 

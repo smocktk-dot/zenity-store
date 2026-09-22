@@ -11,6 +11,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { handlePurinCashWebhook } from "../purinCashWebhook";
+import { isIpBanned } from "../db";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -72,6 +73,49 @@ async function startServer() {
         "socket": req.socket?.remoteAddress,
       },
     });
+  });
+
+  // Ban check — isento do middleware de ban pra o frontend saber exibir a tela
+  app.get("/api/ban-check", async (req, res) => {
+    try {
+      const h = req.headers;
+      const candidates = [
+        (h["cf-connecting-ip"] as string) || "",
+        (h["true-client-ip"] as string) || "",
+        (h["x-real-ip"] as string) || "",
+        ((h["x-forwarded-for"] as string) || "").split(",")[0].trim(),
+        req.socket?.remoteAddress || "",
+      ];
+      let ip = (candidates.find(c => c && c.length > 0) || "").trim();
+      const mapped = ip.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
+      if (mapped) ip = mapped[1];
+      if (ip === "::1" || ip === "0:0:0:0:0:0:0:1") ip = "127.0.0.1";
+      res.json({ banned: await isIpBanned(ip) });
+    } catch {
+      res.json({ banned: false });
+    }
+  });
+
+  // IP banido → bloqueia toda a API
+  app.use("/api", async (req, res, next) => {
+    try {
+      const h = req.headers;
+      const candidates = [
+        (h["cf-connecting-ip"] as string) || "",
+        (h["true-client-ip"] as string) || "",
+        (h["x-real-ip"] as string) || "",
+        ((h["x-forwarded-for"] as string) || "").split(",")[0].trim(),
+        req.socket?.remoteAddress || "",
+      ];
+      let ip = (candidates.find(c => c && c.length > 0) || "").trim();
+      const mapped = ip.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
+      if (mapped) ip = mapped[1];
+      if (ip === "::1" || ip === "0:0:0:0:0:0:0:1") ip = "127.0.0.1";
+      if (await isIpBanned(ip)) {
+        return res.status(403).json({ error: "banned", message: "Você Foi Banido Seu Otario" });
+      }
+    } catch { /* falha no check não bloqueia o site */ }
+    next();
   });
 
   // tRPC API

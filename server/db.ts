@@ -1,7 +1,7 @@
 import { eq, and, asc, desc, sql, inArray, or, aliasedTable, ilike, lower } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { InsertUser, users, admins, resellers, resellerApiKeys, categories, apps, subscriptionPlans, resellerApps, licenseKeys, appStock, appDownloads, creditTransactions, ipWhitelist, pixPayments, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages, otherStoreResellers, otherStoreHwids, resellerInfoProducts, vgauthApps, vgauthLicenses, vgauthUsers, vgauthBans, vgauthSessions, vgauthLogs } from "../drizzle/schema";
+import { InsertUser, users, admins, resellers, resellerApiKeys, categories, apps, subscriptionPlans, resellerApps, licenseKeys, appStock, appDownloads, creditTransactions, ipWhitelist, pixPayments, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages, otherStoreResellers, otherStoreHwids, resellerInfoProducts, vgauthApps, vgauthLicenses, vgauthUsers, vgauthBans, vgauthSessions, vgauthLogs, securityEvents, bannedIps, InsertSecurityEvent } from "../drizzle/schema";
 import type { InsertAdmin, InsertReseller, InsertResellerApiKey, InsertCategory, InsertApp, InsertSubscriptionPlan, InsertResellerApp, InsertLicenseKey, InsertAppStock, InsertAppDownload, InsertCreditTransaction, InsertPixPayment, InsertTicket, InsertTicketMessage, InsertResellerApplication, InsertApplicationMessage, InsertSupportTicket, InsertSupportMessage, InsertOtherStoreReseller, InsertOtherStoreHwid, InsertResellerInfoProduct, InsertVgauthApp, InsertVgauthLicense, InsertVgauthUser, InsertVgauthBan, InsertVgauthSession, InsertVgauthLog } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import { randomUUID } from "crypto";
@@ -991,6 +991,15 @@ export async function isResellerIpAllowed(rawIp: string, resellerId: number): Pr
 // Backward compat alias
 export async function isIpWhitelisted(ip: string): Promise<boolean> {
   return isAdminIpAllowed(ip);
+}
+
+/** Verdadeiro se o IP consta na whitelist de admin (global ou por usuário) — impede ban acidental */
+export async function isIpInAdminWhitelist(rawIp: string): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  const ip = normalizeIp(rawIp);
+  const entries = await db.select().from(ipWhitelist).where(eq(ipWhitelist.userType, "admin"));
+  return entries.some(e => normalizeIp(e.ip) === ip);
 }
 
 
@@ -2061,4 +2070,76 @@ export async function getVgauthLogs(appId: number, limit = 200) {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(vgauthLogs).where(eq(vgauthLogs.appId, appId)).orderBy(desc(vgauthLogs.createdAt)).limit(limit);
+}
+
+// ─── Protect Website: security events + IP bans ────────────────────────────────
+let _securitySchemaEnsured = false;
+export async function ensureSecuritySchema() {
+  if (_securitySchemaEnsured || !_sqlClient) return;
+  await _sqlClient.unsafe(`CREATE TABLE IF NOT EXISTS "security_events" (
+    "id" serial PRIMARY KEY,
+    "eventType" varchar(32) NOT NULL,
+    "ip" varchar(64),
+    "identifier" varchar(255),
+    "detail" text,
+    "createdAt" timestamp DEFAULT now() NOT NULL
+  )`).catch(() => {});
+  await _sqlClient.unsafe(`CREATE INDEX IF NOT EXISTS "security_events_createdAt" ON "security_events" ("createdAt")`).catch(() => {});
+  await _sqlClient.unsafe(`CREATE TABLE IF NOT EXISTS "banned_ips" (
+    "id" serial PRIMARY KEY,
+    "ip" varchar(64) NOT NULL,
+    "reason" text,
+    "bannedBy" varchar(128),
+    "createdAt" timestamp DEFAULT now() NOT NULL
+  )`).catch(() => {});
+  await _sqlClient.unsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "banned_ips_ip" ON "banned_ips" ("ip")`).catch(() => {});
+  _securitySchemaEnsured = true;
+}
+
+export async function createSecurityEvent(data: InsertSecurityEvent) {
+  await ensureSecuritySchema();
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(securityEvents).values(data).catch(() => {});
+}
+
+export async function getSecurityEvents(limit = 200) {
+  await ensureSecuritySchema();
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(securityEvents).orderBy(desc(securityEvents.createdAt)).limit(limit);
+}
+
+export async function banIpAddress(ip: string, reason: string | null, bannedBy: string | null) {
+  await ensureSecuritySchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.insert(bannedIps).values({ ip, reason, bannedBy }).onConflictDoNothing();
+  _bannedIpCache = null;
+}
+
+export async function unbanIpAddress(ip: string) {
+  await ensureSecuritySchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.delete(bannedIps).where(eq(bannedIps.ip, ip));
+  _bannedIpCache = null;
+}
+
+export async function getBannedIps() {
+  await ensureSecuritySchema();
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(bannedIps).orderBy(desc(bannedIps.createdAt));
+}
+
+// Cache em memória (60s) pra não consultar o banco em cada request
+let _bannedIpCache: { set: Set<string>; at: number } | null = null;
+export async function isIpBanned(ip: string): Promise<boolean> {
+  if (!ip) return false;
+  if (!_bannedIpCache || Date.now() - _bannedIpCache.at > 60_000) {
+    const rows = await getBannedIps();
+    _bannedIpCache = { set: new Set(rows.map(r => r.ip)), at: Date.now() };
+  }
+  return _bannedIpCache.set.has(ip);
 }

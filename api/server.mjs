@@ -20,7 +20,7 @@ import {
   boolean,
   serial
 } from "drizzle-orm/pg-core";
-var userRoleEnum, resellerTypeEnum, resellerStatusEnum, appStatusEnum, planLevelEnum, keyStatusEnum, transactionTypeEnum, pixPaymentStatusEnum, ticketStatusEnum, ticketSenderEnum, applicationStatusEnum, applicationSenderEnum, supportTicketStatusEnum, supportMessageSenderEnum, appDownloadTypeEnum, users, admins, resellers, resellerApiKeys, categories, apps, stockStatusEnum, subscriptionPlans, resellerApps, licenseKeys, appStock, creditTransactions, pixPayments, ipWhitelist, otherStoreResellers, otherStoreHwids, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages, appDownloads, resellerInfoStatusEnum, resellerInfoProducts, vgauthApps, vgauthLicenses, vgauthUsers, vgauthBans, vgauthSessions, vgauthLogs;
+var userRoleEnum, resellerTypeEnum, resellerStatusEnum, appStatusEnum, planLevelEnum, keyStatusEnum, transactionTypeEnum, pixPaymentStatusEnum, ticketStatusEnum, ticketSenderEnum, applicationStatusEnum, applicationSenderEnum, supportTicketStatusEnum, supportMessageSenderEnum, appDownloadTypeEnum, users, admins, resellers, resellerApiKeys, categories, apps, stockStatusEnum, subscriptionPlans, resellerApps, licenseKeys, appStock, creditTransactions, pixPayments, ipWhitelist, otherStoreResellers, otherStoreHwids, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages, securityEvents, bannedIps, appDownloads, resellerInfoStatusEnum, resellerInfoProducts, vgauthApps, vgauthLicenses, vgauthUsers, vgauthBans, vgauthSessions, vgauthLogs;
 var init_schema = __esm({
   "drizzle/schema.ts"() {
     "use strict";
@@ -276,6 +276,24 @@ var init_schema = __esm({
       message: text("message").notNull(),
       createdAt: timestamp("createdAt").defaultNow().notNull()
     });
+    securityEvents = pgTable("security_events", {
+      id: serial("id").primaryKey(),
+      eventType: varchar("eventType", { length: 32 }).notNull(),
+      // xss | sqli | idor | bruteforce | path_traversal
+      ip: varchar("ip", { length: 64 }),
+      identifier: varchar("identifier", { length: 255 }),
+      // usuário/e-mail tentado
+      detail: text("detail"),
+      // o que ele tentou fazer
+      createdAt: timestamp("createdAt").defaultNow().notNull()
+    });
+    bannedIps = pgTable("banned_ips", {
+      id: serial("id").primaryKey(),
+      ip: varchar("ip", { length: 64 }).notNull(),
+      reason: text("reason"),
+      bannedBy: varchar("bannedBy", { length: 128 }),
+      createdAt: timestamp("createdAt").defaultNow().notNull()
+    });
     appDownloads = pgTable("app_downloads", {
       id: serial("id").primaryKey(),
       appId: integer("appId").notNull().references(() => apps.id),
@@ -434,6 +452,7 @@ __export(db_exports, {
   addIpToWhitelist: () => addIpToWhitelist,
   addStockBatch: () => addStockBatch,
   assignAppToReseller: () => assignAppToReseller,
+  banIpAddress: () => banIpAddress,
   countKeysByReseller: () => countKeysByReseller,
   createAdmin: () => createAdmin,
   createApp: () => createApp,
@@ -450,6 +469,7 @@ __export(db_exports, {
   createResellerApiKey: () => createResellerApiKey,
   createResellerApplication: () => createResellerApplication,
   createResellerInfoProduct: () => createResellerInfoProduct,
+  createSecurityEvent: () => createSecurityEvent,
   createSupportMessage: () => createSupportMessage,
   createSupportTicket: () => createSupportTicket,
   createTicket: () => createTicket,
@@ -485,6 +505,7 @@ __export(db_exports, {
   ensurePixPaymentSchema: () => ensurePixPaymentSchema,
   ensureResellerApiKeySchema: () => ensureResellerApiKeySchema,
   ensureResellerInfoSchema: () => ensureResellerInfoSchema,
+  ensureSecuritySchema: () => ensureSecuritySchema,
   ensureVgAuthSchema: () => ensureVgAuthSchema,
   findVgauthBan: () => findVgauthBan,
   getActiveResellerInfoProducts: () => getActiveResellerInfoProducts,
@@ -508,6 +529,7 @@ __export(db_exports, {
   getAppsByResellerId: () => getAppsByResellerId,
   getAssignedAppIds: () => getAssignedAppIds,
   getAvailableStockForPlan: () => getAvailableStockForPlan,
+  getBannedIps: () => getBannedIps,
   getDashboardKeysByMonth: () => getDashboardKeysByMonth,
   getDashboardTopApps: () => getDashboardTopApps,
   getDb: () => getDb,
@@ -542,6 +564,7 @@ __export(db_exports, {
   getResellerKeysByMonth: () => getResellerKeysByMonth,
   getResellerParent: () => getResellerParent,
   getResellersByParentId: () => getResellersByParentId,
+  getSecurityEvents: () => getSecurityEvents,
   getStockByApp: () => getStockByApp,
   getStockCountsByApp: () => getStockCountsByApp,
   getSubResellerKeyLogs: () => getSubResellerKeyLogs,
@@ -566,6 +589,8 @@ __export(db_exports, {
   getVgauthUserByUsername: () => getVgauthUserByUsername,
   getVgauthUsersByApp: () => getVgauthUsersByApp,
   isAdminIpAllowed: () => isAdminIpAllowed,
+  isIpBanned: () => isIpBanned,
+  isIpInAdminWhitelist: () => isIpInAdminWhitelist,
   isIpWhitelisted: () => isIpWhitelisted,
   isResellerIpAllowed: () => isResellerIpAllowed,
   listResellerApiKeys: () => listResellerApiKeys,
@@ -579,6 +604,7 @@ __export(db_exports, {
   resumeAllVgauthLicenses: () => resumeAllVgauthLicenses,
   revokeResellerApiKey: () => revokeResellerApiKey,
   transferResellerKeys: () => transferResellerKeys,
+  unbanIpAddress: () => unbanIpAddress,
   updateAdminPassword: () => updateAdminPassword,
   updateApp: () => updateApp,
   updateAppDownload: () => updateAppDownload,
@@ -1388,6 +1414,13 @@ async function isResellerIpAllowed(rawIp, resellerId) {
 }
 async function isIpWhitelisted(ip) {
   return isAdminIpAllowed(ip);
+}
+async function isIpInAdminWhitelist(rawIp) {
+  const db = await getDb();
+  if (!db) return false;
+  const ip = normalizeIp(rawIp);
+  const entries = await db.select().from(ipWhitelist).where(eq(ipWhitelist.userType, "admin"));
+  return entries.some((e) => normalizeIp(e.ip) === ip);
 }
 async function createPixPayment(data) {
   await ensurePixPaymentSchema();
@@ -2244,7 +2277,73 @@ async function getVgauthLogs(appId, limit = 200) {
   if (!db) return [];
   return db.select().from(vgauthLogs).where(eq(vgauthLogs.appId, appId)).orderBy(desc(vgauthLogs.createdAt)).limit(limit);
 }
-var _db, _sqlClient, _pixPaymentSchemaReady, _appStockSchemaReady, _licenseKeysSchemaReady, _appsSchemaReady, _appDownloadsSchemaReady, _resellerApiKeysSchemaReady, _otherStoreSchemaReady, _adminRoleSchemaReady, _accessTokensEnsured, _resellerInfoSchemaReady, _vgauthSchemaReady;
+async function ensureSecuritySchema() {
+  if (_securitySchemaEnsured || !_sqlClient) return;
+  await _sqlClient.unsafe(`CREATE TABLE IF NOT EXISTS "security_events" (
+    "id" serial PRIMARY KEY,
+    "eventType" varchar(32) NOT NULL,
+    "ip" varchar(64),
+    "identifier" varchar(255),
+    "detail" text,
+    "createdAt" timestamp DEFAULT now() NOT NULL
+  )`).catch(() => {
+  });
+  await _sqlClient.unsafe(`CREATE INDEX IF NOT EXISTS "security_events_createdAt" ON "security_events" ("createdAt")`).catch(() => {
+  });
+  await _sqlClient.unsafe(`CREATE TABLE IF NOT EXISTS "banned_ips" (
+    "id" serial PRIMARY KEY,
+    "ip" varchar(64) NOT NULL,
+    "reason" text,
+    "bannedBy" varchar(128),
+    "createdAt" timestamp DEFAULT now() NOT NULL
+  )`).catch(() => {
+  });
+  await _sqlClient.unsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "banned_ips_ip" ON "banned_ips" ("ip")`).catch(() => {
+  });
+  _securitySchemaEnsured = true;
+}
+async function createSecurityEvent(data) {
+  await ensureSecuritySchema();
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(securityEvents).values(data).catch(() => {
+  });
+}
+async function getSecurityEvents(limit = 200) {
+  await ensureSecuritySchema();
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(securityEvents).orderBy(desc(securityEvents.createdAt)).limit(limit);
+}
+async function banIpAddress(ip, reason, bannedBy) {
+  await ensureSecuritySchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.insert(bannedIps).values({ ip, reason, bannedBy }).onConflictDoNothing();
+  _bannedIpCache = null;
+}
+async function unbanIpAddress(ip) {
+  await ensureSecuritySchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.delete(bannedIps).where(eq(bannedIps.ip, ip));
+  _bannedIpCache = null;
+}
+async function getBannedIps() {
+  await ensureSecuritySchema();
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(bannedIps).orderBy(desc(bannedIps.createdAt));
+}
+async function isIpBanned(ip) {
+  if (!ip) return false;
+  if (!_bannedIpCache || Date.now() - _bannedIpCache.at > 6e4) {
+    const rows = await getBannedIps();
+    _bannedIpCache = { set: new Set(rows.map((r) => r.ip)), at: Date.now() };
+  }
+  return _bannedIpCache.set.has(ip);
+}
+var _db, _sqlClient, _pixPaymentSchemaReady, _appStockSchemaReady, _licenseKeysSchemaReady, _appsSchemaReady, _appDownloadsSchemaReady, _resellerApiKeysSchemaReady, _otherStoreSchemaReady, _adminRoleSchemaReady, _accessTokensEnsured, _resellerInfoSchemaReady, _vgauthSchemaReady, _securitySchemaEnsured, _bannedIpCache;
 var init_db = __esm({
   "server/db.ts"() {
     "use strict";
@@ -2263,6 +2362,8 @@ var init_db = __esm({
     _accessTokensEnsured = false;
     _resellerInfoSchemaReady = null;
     _vgauthSchemaReady = null;
+    _securitySchemaEnsured = false;
+    _bannedIpCache = null;
   }
 });
 
@@ -4466,6 +4567,31 @@ async function verifyAccessToken(stored, provided) {
   const b = createHash("sha256").update(stored).digest();
   return timingSafeEqual(a, b);
 }
+var ATTACK_PATTERNS = [
+  { type: "xss", label: "Inje\xE7\xE3o XSS (script/HTML malicioso)", re: /<\s*(script|img|svg|iframe|object|embed|video|audio)\b|on\w+\s*=\s*["'`]?|javascript\s*:|eval\s*\(|atob\s*\(|alert\s*\(|document\.cookie|localStorage|sessionStorage|String\.fromCharCode/i },
+  { type: "sqli", label: "Inje\xE7\xE3o SQL", re: /union\s+(all\s+)?select|or\s+\d+\s*=\s*\d+|'\s*or\s*'|drop\s+table|insert\s+into|update\s+\w+\s+set|select\s+.*\s+from\s+information_schema|sleep\s*\(\s*\d/i },
+  { type: "path_traversal", label: "Path traversal / leitura de arquivos", re: /\.\.[\/\\]|%2e%2e|\/etc\/passwd|boot\.ini/i }
+];
+function detectAttack(fields) {
+  const joined = fields.filter(Boolean).join("\n");
+  if (!joined) return null;
+  for (const p of ATTACK_PATTERNS) {
+    const m = joined.match(p.re);
+    if (m) return { type: p.type, label: p.label, snippet: joined.slice(0, 500) };
+  }
+  return null;
+}
+async function logSecurityEvent(opts) {
+  try {
+    await createSecurityEvent({
+      eventType: opts.eventType,
+      ip: getClientIp2(opts.req) || null,
+      identifier: (opts.identifier || "").slice(0, 255) || null,
+      detail: `[${opts.label}] ${(opts.detail || "").slice(0, 500)}`
+    });
+  } catch {
+  }
+}
 async function uploadBase64Image(base64, folder = "tickets") {
   try {
     const match = base64.match(/^data:(image\/\w+);base64,(.+)$/);
@@ -4607,11 +4733,17 @@ var authRouter = router({
       throw new TRPCError3({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Tente novamente em 15 minutos." });
     }
     const admin = await getAdminByUsername(input.username);
-    if (!admin) throw new TRPCError3({ code: "UNAUTHORIZED", message: "Credenciais inv\xE1lidas" });
+    if (!admin) {
+      await logSecurityEvent({ req: ctx.req, eventType: "bruteforce", label: "Login admin com usu\xE1rio inexistente", identifier: input.username });
+      throw new TRPCError3({ code: "UNAUTHORIZED", message: "Credenciais inv\xE1lidas" });
+    }
     const ipAllowed = await isAdminIpAllowed(clientIp, admin.id);
     if (!ipAllowed) throw new TRPCError3({ code: "FORBIDDEN", message: "Acesso negado: IP nao autorizado" });
     const valid = await bcrypt2.compare(input.password, admin.passwordHash);
-    if (!valid) throw new TRPCError3({ code: "UNAUTHORIZED", message: "Credenciais inv\xE1lidas" });
+    if (!valid) {
+      await logSecurityEvent({ req: ctx.req, eventType: "bruteforce", label: "Senha incorreta no login admin", identifier: input.username });
+      throw new TRPCError3({ code: "UNAUTHORIZED", message: "Credenciais inv\xE1lidas" });
+    }
     const token = await signCustomJwt({ sub: String(admin.id), role: "admin", adminRole: admin.role || "full", username: admin.username });
     ctx.res.cookie(CUSTOM_COOKIE, token, { ...getSessionCookieOptions(ctx.req), maxAge: 7 * 24 * 3600 * 1e3 });
     return { success: true, role: "admin", adminRole: admin.role || "full", username: admin.username };
@@ -4628,6 +4760,9 @@ var authRouter = router({
     const admin = await getAdminByUsername(input.username);
     if (admin) {
       const validAdmin = await bcrypt2.compare(input.password, admin.passwordHash);
+      if (!validAdmin) {
+        await logSecurityEvent({ req: ctx.req, eventType: "bruteforce", label: "Senha incorreta p/ conta admin", identifier: input.username });
+      }
       if (validAdmin) {
         const clientIp2 = getClientIp2(ctx.req);
         const ipAllowed = await isAdminIpAllowed(clientIp2, admin.id);
@@ -4639,10 +4774,16 @@ var authRouter = router({
       }
     }
     const reseller = await getResellerByUsername(input.username);
-    if (!reseller) throw new TRPCError3({ code: "UNAUTHORIZED", message: "Credenciais inv\xE1lidas" });
+    if (!reseller) {
+      await logSecurityEvent({ req: ctx.req, eventType: "bruteforce", label: "Login reseller com usu\xE1rio inexistente", identifier: input.username });
+      throw new TRPCError3({ code: "UNAUTHORIZED", message: "Credenciais inv\xE1lidas" });
+    }
     if (reseller.status !== "active") throw new TRPCError3({ code: "FORBIDDEN", message: "Conta desativada" });
     const valid = await bcrypt2.compare(input.password, reseller.passwordHash);
-    if (!valid) throw new TRPCError3({ code: "UNAUTHORIZED", message: "Credenciais inv\xE1lidas" });
+    if (!valid) {
+      await logSecurityEvent({ req: ctx.req, eventType: "bruteforce", label: "Senha incorreta no login reseller", identifier: input.username });
+      throw new TRPCError3({ code: "UNAUTHORIZED", message: "Credenciais inv\xE1lidas" });
+    }
     await updateReseller(reseller.id, { lastLoginAt: /* @__PURE__ */ new Date() });
     const otherStoreOwnerId = reseller.parentResellerId ?? reseller.id;
     const otherStore = await getOtherStoreResellerByOwnerResellerId(otherStoreOwnerId);
@@ -4714,6 +4855,10 @@ var authRouter = router({
     reason: z2.string().min(1)
   })).mutation(async ({ input, ctx }) => {
     const ip = getClientIp2(ctx.req);
+    const attack = detectAttack([input.discordLink, input.discordId, input.product, input.reason]);
+    if (attack) {
+      await logSecurityEvent({ req: ctx.req, eventType: attack.type, label: attack.label, identifier: input.email, detail: `Candidatura: ${attack.snippet}` });
+    }
     const existing = await getResellerApplicationByEmail(input.email);
     if (existing && ["pending", "pre_approved"].includes(existing.status)) {
       throw new TRPCError3({ code: "CONFLICT", message: "Voc\xEA j\xE1 possui uma aplica\xE7\xE3o em andamento" });
@@ -4733,10 +4878,11 @@ var authRouter = router({
     if (!app2 || !app2.accessToken) return null;
     return { id: app2.id, token: app2.accessToken };
   }),
-  getMyApplication: publicProcedure.input(z2.object({ id: z2.number(), token: z2.string().max(128).optional() })).query(async ({ input }) => {
+  getMyApplication: publicProcedure.input(z2.object({ id: z2.number(), token: z2.string().max(128).optional() })).query(async ({ input, ctx }) => {
     const app2 = await getResellerApplicationById(input.id);
     if (!app2) return null;
     if (!await verifyAccessToken(app2.accessToken, input.token)) {
+      await logSecurityEvent({ req: ctx.req, eventType: "idor", label: "IDOR \u2014 tentou ler candidatura de terceiro", detail: `applicationId=${input.id}` });
       throw new TRPCError3({ code: "FORBIDDEN", message: "Acesso negado" });
     }
     const messages = await getApplicationMessages(input.id);
@@ -4747,11 +4893,16 @@ var authRouter = router({
     applicationId: z2.number(),
     token: z2.string().max(128).optional(),
     message: z2.string().min(1)
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     const app2 = await getResellerApplicationById(input.applicationId);
     if (!app2) throw new TRPCError3({ code: "NOT_FOUND" });
     if (!await verifyAccessToken(app2.accessToken, input.token)) {
+      await logSecurityEvent({ req: ctx.req, eventType: "idor", label: "IDOR \u2014 tentou escrever em candidatura de terceiro", detail: `applicationId=${input.applicationId} msg: ${input.message.slice(0, 200)}` });
       throw new TRPCError3({ code: "FORBIDDEN", message: "Acesso negado" });
+    }
+    const attack = detectAttack([input.message]);
+    if (attack) {
+      await logSecurityEvent({ req: ctx.req, eventType: attack.type, label: attack.label, identifier: app2.email, detail: `Msg candidatura #${input.applicationId}: ${attack.snippet}` });
     }
     if (app2.status === "archived" || app2.status === "rejected") {
       throw new TRPCError3({ code: "FORBIDDEN", message: "Aplica\xE7\xE3o arquivada ou rejeitada" });
@@ -4772,6 +4923,10 @@ var authRouter = router({
     question: z2.string().min(1)
   })).mutation(async ({ input, ctx }) => {
     const ip = getClientIp2(ctx.req);
+    const attack = detectAttack([input.name, input.subject, input.question]);
+    if (attack) {
+      await logSecurityEvent({ req: ctx.req, eventType: attack.type, label: attack.label, identifier: input.email, detail: `Ticket: ${attack.snippet}` });
+    }
     const { randomBytes } = await import("crypto");
     const row = await createSupportTicket({ ...input, status: "open", ip, accessToken: randomBytes(24).toString("hex") });
     await createSupportMessage({
@@ -4787,10 +4942,11 @@ var authRouter = router({
     if (!ticket || !ticket.accessToken) return null;
     return { id: ticket.id, token: ticket.accessToken };
   }),
-  getMySupportTicket: publicProcedure.input(z2.object({ id: z2.number(), token: z2.string().max(128).optional() })).query(async ({ input }) => {
+  getMySupportTicket: publicProcedure.input(z2.object({ id: z2.number(), token: z2.string().max(128).optional() })).query(async ({ input, ctx }) => {
     const ticket = await getSupportTicketById(input.id);
     if (!ticket) return null;
     if (!await verifyAccessToken(ticket.accessToken, input.token)) {
+      await logSecurityEvent({ req: ctx.req, eventType: "idor", label: "IDOR \u2014 tentou ler ticket de terceiro", detail: `ticketId=${input.id}` });
       throw new TRPCError3({ code: "FORBIDDEN", message: "Acesso negado" });
     }
     const messages = await getSupportMessages(input.id);
@@ -4801,11 +4957,16 @@ var authRouter = router({
     ticketId: z2.number(),
     token: z2.string().max(128).optional(),
     message: z2.string().min(1)
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     const ticket = await getSupportTicketById(input.ticketId);
     if (!ticket) throw new TRPCError3({ code: "NOT_FOUND" });
     if (!await verifyAccessToken(ticket.accessToken, input.token)) {
+      await logSecurityEvent({ req: ctx.req, eventType: "idor", label: "IDOR \u2014 tentou escrever em ticket de terceiro", detail: `ticketId=${input.ticketId} msg: ${input.message.slice(0, 200)}` });
       throw new TRPCError3({ code: "FORBIDDEN", message: "Acesso negado" });
+    }
+    const attack = detectAttack([input.message]);
+    if (attack) {
+      await logSecurityEvent({ req: ctx.req, eventType: attack.type, label: attack.label, identifier: ticket.email, detail: `Msg ticket #${input.ticketId}: ${attack.snippet}` });
     }
     if (ticket.status === "archived" || ticket.status === "closed") {
       throw new TRPCError3({ code: "FORBIDDEN", message: "Ticket fechado ou arquivado" });
@@ -5269,6 +5430,22 @@ var adminRouter = router({
   }),
   deleteTicket: supportProcedure.input(z2.object({ id: z2.number() })).mutation(async ({ input }) => {
     await deleteTicket(input.id);
+    return { success: true };
+  }),
+  // ─── Protect Website: log de ataques + banimento de IP ───────────────────────
+  securityEvents: adminProcedure2.query(() => getSecurityEvents(300)),
+  bannedIps: adminProcedure2.query(() => getBannedIps()),
+  banIp: adminProcedure2.input(z2.object({ ip: z2.string().min(1).max(64), reason: z2.string().max(500).optional() })).mutation(async ({ input, ctx }) => {
+    const ip = input.ip.trim();
+    if (!ip) throw new TRPCError3({ code: "BAD_REQUEST", message: "IP inv\xE1lido" });
+    if (await isIpInAdminWhitelist(ip)) {
+      throw new TRPCError3({ code: "BAD_REQUEST", message: "Este IP est\xE1 na whitelist de admin e n\xE3o pode ser banido" });
+    }
+    await banIpAddress(ip, input.reason || null, `admin#${ctx.adminId}`);
+    return { success: true };
+  }),
+  unbanIp: adminProcedure2.input(z2.object({ ip: z2.string().min(1).max(64) })).mutation(async ({ input }) => {
+    await unbanIpAddress(input.ip.trim());
     return { success: true };
   }),
   // ─── Reseller Applications ───────────────────────────────────────────────────
@@ -6572,6 +6749,7 @@ async function createContext(opts) {
 }
 
 // server/_core/serverless.ts
+init_db();
 var app = express();
 app.set("trust proxy", true);
 app.post("/api/webhooks/purincash", express.raw({ type: "application/json" }), handlePurinCashWebhook);
@@ -6581,7 +6759,7 @@ registerStorageProxy(app);
 registerOAuthRoutes(app);
 registerResellerApi(app);
 registerVgAuthApi(app);
-app.get("/api/my-ip", (req, res) => {
+function getReqIp(req) {
   const h = req.headers;
   const candidates = [
     h["cf-connecting-ip"] || "",
@@ -6596,7 +6774,26 @@ app.get("/api/my-ip", (req, res) => {
   const mapped = ip.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
   if (mapped) ip = mapped[1];
   if (ip === "::1" || ip === "0:0:0:0:0:0:0:1") ip = "127.0.0.1";
-  res.json({ ip, raw });
+  return ip;
+}
+app.get("/api/my-ip", (req, res) => {
+  res.json({ ip: getReqIp(req) });
+});
+app.get("/api/ban-check", async (req, res) => {
+  try {
+    res.json({ banned: await isIpBanned(getReqIp(req)) });
+  } catch {
+    res.json({ banned: false });
+  }
+});
+app.use("/api", async (req, res, next) => {
+  try {
+    if (await isIpBanned(getReqIp(req))) {
+      return res.status(403).json({ error: "banned", message: "Voc\xEA Foi Banido Seu Otario" });
+    }
+  } catch {
+  }
+  next();
 });
 app.use(
   "/api/trpc",

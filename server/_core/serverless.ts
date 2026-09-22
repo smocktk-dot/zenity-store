@@ -8,6 +8,7 @@ import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { handlePurinCashWebhook } from "../purinCashWebhook";
+import { isIpBanned } from "../db";
 
 const app = express();
 // Build bust: 8008d57
@@ -28,7 +29,7 @@ registerResellerApi(app);
 registerVgAuthApi(app);
 
 // Endpoint that returns the real IP seen by the server
-app.get("/api/my-ip", (req, res) => {
+function getReqIp(req: express.Request): string {
   const h = req.headers;
   const candidates = [
     (h["cf-connecting-ip"] as string) || "",
@@ -43,7 +44,30 @@ app.get("/api/my-ip", (req, res) => {
   const mapped = ip.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
   if (mapped) ip = mapped[1];
   if (ip === "::1" || ip === "0:0:0:0:0:0:0:1") ip = "127.0.0.1";
-  res.json({ ip, raw });
+  return ip;
+}
+
+app.get("/api/my-ip", (req, res) => {
+  res.json({ ip: getReqIp(req) });
+});
+
+// Ban check — isento do middleware de ban pra o frontend saber exibir a tela
+app.get("/api/ban-check", async (req, res) => {
+  try {
+    res.json({ banned: await isIpBanned(getReqIp(req)) });
+  } catch {
+    res.json({ banned: false });
+  }
+});
+
+// IP banido → bloqueia toda a API (tRPC, gateway, vgauth, webhooks internos)
+app.use("/api", async (req, res, next) => {
+  try {
+    if (await isIpBanned(getReqIp(req))) {
+      return res.status(403).json({ error: "banned", message: "Você Foi Banido Seu Otario" });
+    }
+  } catch { /* falha no check não bloqueia o site */ }
+  next();
 });
 
 // tRPC API

@@ -353,6 +353,30 @@ export const supportMessages = pgTable("support_messages", {
 export type SupportMessage = typeof supportMessages.$inferSelect;
 export type InsertSupportMessage = typeof supportMessages.$inferInsert;
 
+// ─── Protect Website: log de tentativas de ataque + IPs banidos ────────────────
+export const securityEvents = pgTable("security_events", {
+  id: serial("id").primaryKey(),
+  eventType: varchar("eventType", { length: 32 }).notNull(), // xss | sqli | idor | bruteforce | path_traversal
+  ip: varchar("ip", { length: 64 }),
+  identifier: varchar("identifier", { length: 255 }), // usuário/e-mail tentado
+  detail: text("detail"), // o que ele tentou fazer
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type SecurityEvent = typeof securityEvents.$inferSelect;
+export type InsertSecurityEvent = typeof securityEvents.$inferInsert;
+
+export const bannedIps = pgTable("banned_ips", {
+  id: serial("id").primaryKey(),
+  ip: varchar("ip", { length: 64 }).notNull(),
+  reason: text("reason"),
+  bannedBy: varchar("bannedBy", { length: 128 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type BannedIp = typeof bannedIps.$inferSelect;
+export type InsertBannedIp = typeof bannedIps.$inferInsert;
+
 // ─── App Downloads (download links + tutorials per app) ────────────────────────
 export const appDownloads = pgTable("app_downloads", {
   id: serial("id").primaryKey(),
