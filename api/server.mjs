@@ -708,6 +708,7 @@ async function ensureLicenseKeysSchema() {
     _licenseKeysSchemaReady = (async () => {
       try {
         await _sqlClient.unsafe(`ALTER TABLE "license_keys" ADD COLUMN IF NOT EXISTS "resellerCredits" decimal(12, 2)`);
+        await _sqlClient.unsafe(`ALTER TABLE "license_keys" ADD COLUMN IF NOT EXISTS "source" varchar(32) DEFAULT 'panel'`);
       } catch (e) {
         console.error("[Database] Failed to ensure license_keys schema:", e);
         throw e;
