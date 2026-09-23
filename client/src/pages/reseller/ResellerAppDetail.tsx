@@ -17,8 +17,8 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useCurrency } from "@/hooks/useCurrency";
 import { QRCodeSVG } from "qrcode.react";
 
-// ─── Credits Flow (Gerar Keys) ────────────────────────────────────────────────
-function CreditsAppDetail({ app, id }: { app: any; id: number }) {
+// ─── Credits Flow (Gerar Keys) — também usado por resellers Unlimited ────────
+function CreditsAppDetail({ app, id, isUnlimited = false }: { app: any; id: number; isUnlimited?: boolean }) {
   const [, navigate] = useLocation();
   const utils = trpc.useUtils();
   const { data: profile } = trpc.reseller.profile.useQuery();
@@ -83,28 +83,39 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+              <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${isUnlimited ? "bg-violet-500/10 border border-violet-500/20 text-violet-400" : "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400"}`}>
                 <CreditCard className="w-4 h-4" />
               </div>
               <div>
-                <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Saldo Disponível</p>
-                <p className="text-white font-bold font-mono text-lg">{credits.toFixed(2)} <span className="text-emerald-400 text-xs">cr</span></p>
+                <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">{isUnlimited ? "Assinatura" : "Saldo Disponível"}</p>
+                {isUnlimited ? (
+                  <p className="text-white font-bold font-mono text-lg">
+                    {(profile as any)?.subscriptionExpiresAt
+                      ? new Date((profile as any).subscriptionExpiresAt).toLocaleDateString("pt-BR")
+                      : "—"}
+                    <span className="text-violet-400 text-xs"> expira</span>
+                  </p>
+                ) : (
+                  <p className="text-white font-bold font-mono text-lg">{credits.toFixed(2)} <span className="text-emerald-400 text-xs">cr</span></p>
+                )}
               </div>
             </div>
           </div>
 
           <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+              <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${isUnlimited ? "bg-violet-500/10 border border-violet-500/20 text-violet-400" : "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400"}`}>
                 <Percent className="w-4 h-4" />
               </div>
               <div>
-                <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Desconto Ativo</p>
-                <p className="text-emerald-400 font-bold font-mono text-lg">{discount.toFixed(0)}% OFF</p>
+                <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">{isUnlimited ? "Custo por Key" : "Desconto Ativo"}</p>
+                <p className={`font-bold font-mono text-lg ${isUnlimited ? "text-violet-400" : "text-emerald-400"}`}>
+                  {isUnlimited ? "Grátis" : `${discount.toFixed(0)}% OFF`}
+                </p>
               </div>
             </div>
-            <span className="text-[10px] px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 border border-emerald-500/25 font-semibold">
-              APLICADO
+            <span className={`text-[10px] px-2 py-0.5 rounded-md font-semibold border ${isUnlimited ? "bg-violet-500/15 text-violet-300 border-violet-500/25" : "bg-emerald-500/15 text-emerald-300 border-emerald-500/25"}`}>
+              {isUnlimited ? "UNLIMITED" : "APLICADO"}
             </span>
           </div>
 
@@ -126,7 +137,7 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
               <h3 className="text-white font-semibold text-sm flex items-center gap-2">
                 <Key className="w-4 h-4 text-emerald-400" /> Planos Disponíveis
               </h3>
-              <p className="text-gray-500 text-xs mt-0.5">Selecione o plano desejado para debitar dos seus créditos e gerar as chaves</p>
+              <p className="text-gray-500 text-xs mt-0.5">{isUnlimited ? "Selecione o plano e gere as chaves — incluído na sua assinatura" : "Selecione o plano desejado para debitar dos seus créditos e gerar as chaves"}</p>
             </div>
 
             <div className="flex items-center gap-1 bg-black/40 border border-white/[0.06] p-1 rounded-lg">
@@ -187,8 +198,10 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
                         <td className="px-4 py-3.5 text-right text-gray-500 line-through font-mono">
                           {original.toFixed(2)} cr
                         </td>
-                        <td className="px-4 py-3.5 text-right font-mono font-bold text-emerald-400 text-sm">
-                          {price.toFixed(2)} cr
+                        <td className="px-4 py-3.5 text-right font-mono font-bold text-sm">
+                          {isUnlimited
+                            ? <span className="text-violet-400">Grátis</span>
+                            : <span className="text-emerald-400">{price.toFixed(2)} cr</span>}
                         </td>
                         <td className="px-4 py-3.5 text-right font-mono text-gray-300">
                           {suggestedSell > 0 ? `R$ ${suggestedSell.toFixed(2)}` : "—"}
@@ -231,7 +244,9 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
                       <div className="my-3 py-2.5 px-3 rounded-lg bg-white/[0.02] border border-white/[0.04] flex items-center justify-between">
                         <div>
                           <p className="text-[10px] text-gray-400 uppercase font-medium">Seu Custo</p>
-                          <p className="text-emerald-400 font-mono font-bold text-base leading-tight mt-0.5">{price.toFixed(2)} cr</p>
+                          <p className={`font-mono font-bold text-base leading-tight mt-0.5 ${isUnlimited ? "text-violet-400" : "text-emerald-400"}`}>
+                            {isUnlimited ? "Grátis" : `${price.toFixed(2)} cr`}
+                          </p>
                         </div>
                         {suggestedSell > 0 && (
                           <div className="text-right">
@@ -294,8 +309,12 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
 
           <div className="space-y-4">
             <div className="p-3 rounded-xl bg-black/40 border border-white/[0.06] flex items-center justify-between text-xs">
-              <span className="text-gray-400">Total a debitar:</span>
-              <span className="text-emerald-400 font-mono font-bold text-sm">{totalCost.toFixed(2)} cr</span>
+              <span className="text-gray-400">{isUnlimited ? "Custo:" : "Total a debitar:"}</span>
+              {isUnlimited ? (
+                <span className="text-violet-400 font-mono font-bold text-sm">Incluído na assinatura</span>
+              ) : (
+                <span className="text-emerald-400 font-mono font-bold text-sm">{totalCost.toFixed(2)} cr</span>
+              )}
             </div>
 
             <div>
@@ -336,7 +355,7 @@ function CreditsAppDetail({ app, id }: { app: any; id: number }) {
                   customMask: genForm.customMask || undefined,
                   note: genForm.note || undefined,
                 })}
-                disabled={generateKeys.isPending || credits < totalCost}
+                disabled={generateKeys.isPending || (!isUnlimited && credits < totalCost)}
                 className="flex-1 h-9 rounded-lg font-semibold bg-emerald-500 hover:bg-emerald-400 text-black text-xs border-0"
               >
                 {generateKeys.isPending ? "Gerando..." : "Confirmar"}
@@ -1376,6 +1395,10 @@ export default function ResellerAppDetail({ id }: { id: number }) {
             <span className="text-xs px-3 py-1.5 rounded-xl border border-amber-500/25 bg-amber-500/10 text-amber-300 font-medium flex items-center gap-1.5">
               <CreditCard className="w-3.5 h-3.5" /> Revendedor de Créditos
             </span>
+          ) : resellerType === "unlimited" ? (
+            <span className="text-xs px-3 py-1.5 rounded-xl border border-violet-500/25 bg-violet-500/10 text-violet-300 font-medium flex items-center gap-1.5">
+              <Zap className="w-3.5 h-3.5" /> Revendedor Unlimited
+            </span>
           ) : (
             <span className="text-xs px-3 py-1.5 rounded-xl border border-emerald-500/25 bg-emerald-500/10 text-emerald-300 font-medium flex items-center gap-1.5">
               <Percent className="w-3.5 h-3.5" /> Revendedor de Porcentagem
@@ -1385,8 +1408,8 @@ export default function ResellerAppDetail({ id }: { id: number }) {
       </div>
 
       {/* Main Content */}
-      {resellerType === "credits" ? (
-        <CreditsAppDetail app={app} id={id} />
+      {resellerType === "credits" || resellerType === "unlimited" ? (
+        <CreditsAppDetail app={app} id={id} isUnlimited={resellerType === "unlimited"} />
       ) : (
         <PercentageAppDetail app={app} id={id} otherStore={resellerType === "other"} />
       )}

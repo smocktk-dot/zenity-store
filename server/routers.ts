@@ -26,7 +26,8 @@ import {
   getTransactionsByResellerId, createCreditTransaction,
   getAllIpWhitelist, addIpToWhitelist, removeIpFromWhitelist, isIpWhitelisted,
   listResellerApiKeys, createResellerApiKey, revokeResellerApiKey,
-  isAdminIpAllowed, normalizeIp,
+  isAdminIpAllowed, isResellerIpAllowed, normalizeIp,
+  getUnlimitedKeysLog,
   updateAdminPassword, updateResellerPassword,
   createPixPayment, getPixPaymentByPaymentId, updatePixPaymentStatus,
   getPendingPixPaymentsByReseller, getPixPaymentsByReseller,
@@ -390,6 +391,17 @@ const authRouter = router({
         await logSecurityEvent({ req: ctx.req, eventType: "bruteforce", label: "Senha incorreta no login reseller", identifier: input.username });
         throw new TRPCError({ code: "UNAUTHORIZED", message: "Credenciais inválidas" });
       }
+      // Reseller unlimited: assinatura mensal + whitelist de IP obrigatória
+      if (reseller.resellerType === "unlimited") {
+        const exp = reseller.subscriptionExpiresAt ? new Date(reseller.subscriptionExpiresAt) : null;
+        if (!exp || exp < new Date()) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Você precisa renovar para sua conta ser ativada" });
+        }
+        if (!(await isResellerIpAllowed(clientIp, reseller.id, true))) {
+          await logSecurityEvent({ req: ctx.req, eventType: "unauthorized_access", label: "Reseller unlimited tentou login de IP não autorizado", identifier: reseller.username });
+          throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado: IP não autorizado. Peça ao administrador para liberar seu IP." });
+        }
+      }
       await updateReseller(reseller.id, { lastLoginAt: new Date() });
       const otherStoreOwnerId = reseller.parentResellerId ?? reseller.id;
       const otherStore = await getOtherStoreResellerByOwnerResellerId(otherStoreOwnerId);
@@ -648,6 +660,16 @@ const resellerProcedure = publicProcedure.use(async ({ ctx, next }) => {
   const resellerId = parseInt(payload.sub as string);
   const reseller = await getResellerById(resellerId);
   if (!reseller || reseller.status !== "active") throw new TRPCError({ code: "FORBIDDEN", message: "Conta desativada" });
+  // Reseller unlimited: sessão morre junto com a assinatura + IP precisa estar autorizado
+  if (reseller.resellerType === "unlimited") {
+    const exp = reseller.subscriptionExpiresAt ? new Date(reseller.subscriptionExpiresAt) : null;
+    if (!exp || exp < new Date()) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Você precisa renovar para sua conta ser ativada" });
+    }
+    if (!(await isResellerIpAllowed(getClientIp(ctx.req), resellerId, true))) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado: IP não autorizado. Peça ao administrador para liberar seu IP." });
+    }
+  }
   const otherStoreOwnerId = reseller.parentResellerId ?? reseller.id;
   const otherStore = await getOtherStoreResellerByOwnerResellerId(otherStoreOwnerId);
   return next({ ctx: { ...ctx, resellerId, reseller, otherStore } });
@@ -698,21 +720,28 @@ const adminRouter = router({
       password: z.string().min(6),
       email: z.string().email().optional(),
       location: z.string().optional(),
-      resellerType: z.enum(["credits", "percentage", "other"]).default("credits"),
+      resellerType: z.enum(["credits", "percentage", "other", "unlimited"]).default("credits"),
       canCreateSubResellers: z.boolean().default(false),
+      subscriptionMonths: z.number().min(1).max(24).default(1),
     }))
     .mutation(async ({ input }) => {
       const existing = await getResellerByUsername(input.username);
       if (existing) throw new TRPCError({ code: "CONFLICT", message: "Username já existe" });
       const passwordHash = await bcrypt.hash(input.password, 10);
-      await createReseller({
+      const data: Record<string, unknown> = {
         username: input.username,
         passwordHash,
         email: input.email,
         location: input.location,
         resellerType: input.resellerType,
         canCreateSubResellers: input.canCreateSubResellers,
-      });
+      };
+      if (input.resellerType === "unlimited") {
+        const exp = new Date();
+        exp.setMonth(exp.getMonth() + input.subscriptionMonths);
+        data.subscriptionExpiresAt = exp;
+      }
+      await createReseller(data as any);
       return { success: true };
     }),
 
@@ -723,15 +752,26 @@ const adminRouter = router({
       location: z.string().optional().nullable(),
       status: z.enum(["active", "inactive", "banned"]).optional(),
       password: z.string().min(6).optional(),
-      resellerType: z.enum(["credits", "percentage", "other"]).optional(),
+      resellerType: z.enum(["credits", "percentage", "other", "unlimited"]).optional(),
       discountPercent: z.number().min(0).max(100).optional(),
       canCreateSubResellers: z.boolean().optional(),
+      // Renova/define a assinatura do reseller unlimited (+N meses a partir de agora ou da expiração atual)
+      renewMonths: z.number().min(1).max(24).optional(),
     }))
     .mutation(async ({ input }) => {
-      const { id, password, discountPercent, ...rest } = input;
+      const { id, password, discountPercent, renewMonths, ...rest } = input;
       const data: Record<string, unknown> = { ...rest };
       if (password) data.passwordHash = await bcrypt.hash(password, 10);
       if (discountPercent !== undefined) data.discountPercent = discountPercent.toFixed(2);
+      if (renewMonths !== undefined) {
+        const reseller = await getResellerById(id);
+        if (!reseller) throw new TRPCError({ code: "NOT_FOUND" });
+        const now = new Date();
+        const current = reseller.subscriptionExpiresAt ? new Date(reseller.subscriptionExpiresAt) : null;
+        const base = current && current > now ? current : now;
+        base.setMonth(base.getMonth() + renewMonths);
+        data.subscriptionExpiresAt = base;
+      }
       await updateReseller(id, data as any);
       return { success: true };
     }),
@@ -1010,6 +1050,9 @@ const adminRouter = router({
 
   // All keys
   listAllKeys: supportProcedure.query(() => getAllKeysWithReseller()),
+
+  // Log de keys geradas por resellers unlimited (admin only)
+  unlimitedKeysLog: adminProcedure.query(() => getUnlimitedKeysLog()),
 
   // Transfer keys between resellers
   resellerKeyCount: adminProcedure
@@ -1500,6 +1543,7 @@ const resellerRouter = router({
       id: r.id, username: r.username, email: r.email, location: r.location,
       credits: r.credits, discountPercent: discount, totalPurchases: purchases,
       resellerType: r.resellerType,
+      subscriptionExpiresAt: r.subscriptionExpiresAt,
       canCreateSubResellers: r.canCreateSubResellers,
       status: r.status, createdAt: r.createdAt, lastLoginAt: r.lastLoginAt,
       nextLevel, transactions,
@@ -1570,9 +1614,10 @@ const resellerRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       const reseller = ctx.reseller;
-      if (reseller.resellerType !== "credits") {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Esta ação é apenas para resellers de créditos" });
+      if (reseller.resellerType !== "credits" && reseller.resellerType !== "unlimited") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Esta ação é apenas para resellers de créditos ou unlimited" });
       }
+      const isUnlimited = reseller.resellerType === "unlimited";
       const assigned = await getAssignedAppIds(ctx.resellerId);
       if (!assigned.includes(input.appId)) throw new TRPCError({ code: "FORBIDDEN", message: "App não disponível" });
 
@@ -1581,6 +1626,40 @@ const resellerRouter = router({
 
       const app = await getAppById(input.appId);
       if (!app) throw new TRPCError({ code: "NOT_FOUND" });
+
+      // Reseller unlimited: gera sem cobrar — assinatura mensal cobre tudo.
+      // Keys marcadas com source='unlimited' e creditsSpent=0 (não entram no faturamento).
+      if (isUnlimited) {
+        const acquisition = await acquireLicenseKeyValues({
+          app,
+          plan,
+          quantity: input.quantity,
+          resellerId: ctx.resellerId,
+          owner: reseller.username,
+          note: input.note,
+          mask: input.customMask,
+        });
+        const generatedKeys: string[] = [];
+        try {
+          for (const keyValue of acquisition.keyValues) {
+            await createLicenseKey({
+              keyValue, resellerId: ctx.resellerId, appId: input.appId,
+              planId: plan.id, planName: plan.name, durationDays: plan.durationDays,
+              creditsSpent: "0.00",
+              resellerCredits: reseller.credits,
+              source: "unlimited",
+              ...(input.note ? { note: input.note } : {}),
+              ...(input.customMask ? { customMask: input.customMask } : {}),
+            } as any);
+            generatedKeys.push(keyValue);
+          }
+        } catch (err) {
+          await deleteLicenseKeysByValues(generatedKeys);
+          await acquisition.release();
+          throw err;
+        }
+        return { success: true, keys: generatedKeys, creditsSpent: 0, newBalance: parseFloat(reseller.credits as string) };
+      }
 
       // Resellers de créditos pagam o preço cheio do plano (sem desconto progressivo)
       // O discountPercent só é aplicado para resellers de porcentagem

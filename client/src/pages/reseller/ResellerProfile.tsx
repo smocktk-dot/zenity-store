@@ -753,7 +753,7 @@ export default function ResellerProfile() {
 
   return (
     <div className="space-y-6">
-      {profile.resellerType === "credits"
+      {profile.resellerType === "credits" || profile.resellerType === "unlimited"
         ? <CreditsProfile profile={profile} refetch={refetch} />
         : <PercentageProfile profile={profile} otherStore={profile.resellerType === "other"} />}
     </div>

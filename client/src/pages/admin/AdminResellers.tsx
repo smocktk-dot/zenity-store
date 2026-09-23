@@ -3,7 +3,8 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
   Plus, Search, Edit2, UserCheck, UserX, PlusCircle, Package,
-  CreditCard, Percent, Eye, Users, Store, Check, Key, Eraser
+  CreditCard, Percent, Eye, Users, Store, Check, Key, Eraser, Infinity as InfinityIcon, CalendarClock,
+  Globe, Trash2
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ type Reseller = {
   id: number; username: string; email: string | null; credits: string;
   totalPurchases: number; discountPercent: string; status: string;
   location: string | null; resellerType: string; createdAt: Date; lastLoginAt: Date | null;
+  subscriptionExpiresAt?: Date | string | null;
 };
 
 function StatusBadge({ status }: { status: string }) {
@@ -46,6 +48,13 @@ function TypeBadge({ type }: { type: string }) {
       </span>
     );
   }
+  if (type === "unlimited") {
+    return (
+      <span className="text-[10px] px-2 py-0.5 rounded-md border border-violet-500/25 bg-violet-500/10 text-violet-300 font-medium flex items-center gap-1 w-fit">
+        <InfinityIcon className="w-3 h-3" /> Unlimited
+      </span>
+    );
+  }
   return (
     <span className="text-[10px] px-2 py-0.5 rounded-md border border-emerald-500/25 bg-emerald-500/10 text-emerald-300 font-medium flex items-center gap-1 w-fit">
       <Percent className="w-3 h-3" /> Porcentagem
@@ -53,8 +62,8 @@ function TypeBadge({ type }: { type: string }) {
   );
 }
 
-const emptyCreate = { username: "", password: "", email: "", location: "", resellerType: "credits" as "credits" | "percentage" | "other", canCreateSubResellers: false };
-const emptyEdit = { email: "", location: "", status: "active" as string, password: "", resellerType: "credits" as "credits" | "percentage" | "other", discountPercent: "0", canCreateSubResellers: false };
+const emptyCreate = { username: "", password: "", email: "", location: "", resellerType: "credits" as "credits" | "percentage" | "other" | "unlimited", canCreateSubResellers: false, subscriptionMonths: "1" };
+const emptyEdit = { email: "", location: "", status: "active" as string, password: "", resellerType: "credits" as "credits" | "percentage" | "other" | "unlimited", discountPercent: "0", canCreateSubResellers: false, renewMonths: "1" };
 
 export default function AdminResellers() {
   const [, navigate] = useLocation();
@@ -65,6 +74,8 @@ export default function AdminResellers() {
   const [showCreate, setShowCreate] = useState(false);
   const [editReseller, setEditReseller] = useState<Reseller | null>(null);
   const [creditReseller, setCreditReseller] = useState<Reseller | null>(null);
+  const [ipReseller, setIpReseller] = useState<Reseller | null>(null);
+  const [newIp, setNewIp] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [cf, setCf] = useState(emptyCreate);
   const [ef, setEf] = useState(emptyEdit);
@@ -80,6 +91,15 @@ export default function AdminResellers() {
   });
   const addCredits = trpc.admin.addCredits.useMutation({
     onSuccess: () => { toast.success("Créditos adicionados!"); utils.admin.listResellers.invalidate(); setCreditReseller(null); setCreditAmount(""); },
+    onError: e => toast.error(e.message),
+  });
+  const { data: whitelist = [] } = trpc.admin.listIpWhitelist.useQuery(undefined, { enabled: !!ipReseller });
+  const addIp = trpc.admin.addIp.useMutation({
+    onSuccess: () => { toast.success("IP autorizado!"); utils.admin.listIpWhitelist.invalidate(); setNewIp(""); },
+    onError: e => toast.error(e.message),
+  });
+  const removeIp = trpc.admin.removeIp.useMutation({
+    onSuccess: () => { toast.success("IP removido"); utils.admin.listIpWhitelist.invalidate(); },
     onError: e => toast.error(e.message),
   });
   const purge = trpc.admin.purgeResellerPurchases.useMutation({
@@ -99,6 +119,7 @@ export default function AdminResellers() {
   const creditsResellers = filtered.filter(r => r.resellerType === "credits");
   const percentageResellers = filtered.filter(r => r.resellerType === "percentage");
   const otherResellers = filtered.filter(r => r.resellerType === "other");
+  const unlimitedResellers = filtered.filter(r => r.resellerType === "unlimited");
 
   const openEdit = (r: Reseller) => {
     setEditReseller(r);
@@ -107,13 +128,14 @@ export default function AdminResellers() {
       location: r.location || "",
       status: r.status,
       password: "",
-      resellerType: (r.resellerType as "credits" | "percentage" | "other") || "credits",
+      resellerType: (r.resellerType as "credits" | "percentage" | "other" | "unlimited") || "credits",
       discountPercent: String(parseFloat(String(r.discountPercent ?? 0))),
       canCreateSubResellers: (r as any).canCreateSubResellers === true,
+      renewMonths: "1",
     });
   };
 
-  const ResellerTable = ({ list, type }: { list: Reseller[]; type: "credits" | "percentage" | "other" }) => (
+  const ResellerTable = ({ list, type }: { list: Reseller[]; type: "credits" | "percentage" | "other" | "unlimited" }) => (
     <div className="rounded-2xl border border-white/[0.08] bg-white/[0.015] overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-left text-xs">
@@ -121,7 +143,7 @@ export default function AdminResellers() {
             <tr className="border-b border-white/[0.06] text-gray-400 font-semibold uppercase tracking-wider text-[11px]">
               <th className="px-5 py-3">Usuário</th>
               <th className="px-4 py-3">Email</th>
-              <th className="px-4 py-3 text-right">{type === "credits" ? "Créditos" : "Desconto Atual"}</th>
+              <th className="px-4 py-3 text-right">{type === "credits" ? "Créditos" : type === "unlimited" ? "Assinatura" : "Desconto Atual"}</th>
               <th className="px-4 py-3 text-center">Compras</th>
               <th className="px-4 py-3 text-center">Status</th>
               <th className="px-5 py-3 text-right">Ações</th>
@@ -151,6 +173,17 @@ export default function AdminResellers() {
                 <td className="px-4 py-3.5 text-right font-mono font-bold">
                   {type === "credits" ? (
                     <span className="text-amber-300">{parseFloat(r.credits).toFixed(2)} cr</span>
+                  ) : type === "unlimited" ? (
+                    (() => {
+                      const exp = r.subscriptionExpiresAt ? new Date(r.subscriptionExpiresAt) : null;
+                      const expired = !exp || exp < new Date();
+                      return (
+                        <span className={expired ? "text-red-400" : "text-emerald-400"}>
+                          {exp ? exp.toLocaleDateString("pt-BR") : "—"}
+                          {expired && <span className="block text-[9px] font-normal">EXPIRADA</span>}
+                        </span>
+                      );
+                    })()
                   ) : (
                     <span className="text-emerald-400">{parseFloat(r.discountPercent).toFixed(0)}% OFF</span>
                   )}
@@ -178,6 +211,24 @@ export default function AdminResellers() {
                       >
                         <PlusCircle className="w-3.5 h-3.5" />
                       </button>
+                    )}
+                    {type === "unlimited" && (
+                      <>
+                        <button
+                          onClick={() => update.mutate({ id: r.id, renewMonths: 1 })}
+                          className="p-1.5 rounded-lg bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 transition-all"
+                          title="Renovar +1 mês"
+                        >
+                          <CalendarClock className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => { setIpReseller(r); setNewIp(""); }}
+                          className="p-1.5 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 transition-all"
+                          title="IPs Autorizados (whitelist)"
+                        >
+                          <Globe className="w-3.5 h-3.5" />
+                        </button>
+                      </>
                     )}
                     <button
                       onClick={() => navigate(`/admin/resellers/${r.id}`)}
@@ -248,7 +299,7 @@ export default function AdminResellers() {
       </div>
 
       {/* Metric Cards Corporativos */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="rounded-xl border border-white/[0.08] bg-white/[0.015] p-4 flex items-center gap-3.5">
           <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shrink-0">
             <CreditCard className="w-5 h-5" />
@@ -287,6 +338,19 @@ export default function AdminResellers() {
             <p className="text-[10px] text-gray-500 mt-0.5">Integração por IP e split automático</p>
           </div>
         </div>
+
+        <div className="rounded-xl border border-white/[0.08] bg-white/[0.015] p-4 flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400 shrink-0">
+            <InfinityIcon className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Unlimited</p>
+            <p className="text-white font-bold font-mono text-xl leading-tight mt-0.5">
+              {(resellers as Reseller[]).filter(r => r.resellerType === "unlimited").length}
+            </p>
+            <p className="text-[10px] text-gray-500 mt-0.5">Keys ilimitadas por assinatura mensal</p>
+          </div>
+        </div>
       </div>
 
       {/* Tabs por Tipo */}
@@ -314,6 +378,13 @@ export default function AdminResellers() {
               <Store className="w-3.5 h-3.5 text-emerald-400" />
               Other Store ({otherResellers.length})
             </TabsTrigger>
+            <TabsTrigger
+              value="unlimited"
+              className="data-[state=active]:bg-white/[0.08] data-[state=active]:text-white text-gray-400 text-xs font-semibold rounded-lg px-3.5 py-1.5 transition-all flex items-center gap-1.5"
+            >
+              <InfinityIcon className="w-3.5 h-3.5 text-violet-400" />
+              Unlimited ({unlimitedResellers.length})
+            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -326,6 +397,9 @@ export default function AdminResellers() {
         <TabsContent value="other">
           <ResellerTable list={otherResellers} type="other" />
         </TabsContent>
+        <TabsContent value="unlimited">
+          <ResellerTable list={unlimitedResellers} type="unlimited" />
+        </TabsContent>
       </Tabs>
 
       {/* Modal Criar Reseller */}
@@ -336,7 +410,7 @@ export default function AdminResellers() {
             <p className="text-gray-400 text-xs mt-0.5">Crie as credenciais de acesso para o revendedor</p>
           </DialogHeader>
 
-          <form onSubmit={e => { e.preventDefault(); create.mutate(cf); }} className="space-y-4">
+          <form onSubmit={e => { e.preventDefault(); create.mutate({ ...cf, subscriptionMonths: parseInt(cf.subscriptionMonths) || 1 }); }} className="space-y-4">
             <div>
               <Label className="text-gray-300 text-xs font-medium block mb-1">Username *</Label>
               <Input
@@ -401,9 +475,27 @@ export default function AdminResellers() {
                   <SelectItem value="credits" className="text-xs">Créditos (Gera keys com saldo em créditos)</SelectItem>
                   <SelectItem value="percentage" className="text-xs">Porcentagem (Desconto progressivo 35% a 50%)</SelectItem>
                   <SelectItem value="other" className="text-xs">Other Store (Acesso externo por IP e Split)</SelectItem>
+                  <SelectItem value="unlimited" className="text-xs">Unlimited (Keys grátis por assinatura mensal)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+
+            {cf.resellerType === "unlimited" && (
+              <div className="rounded-lg border border-violet-500/20 bg-violet-500/[0.06] p-3 space-y-2">
+                <Label className="text-violet-300 text-xs font-medium block">Duração da Assinatura (meses) *</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  max="24"
+                  value={cf.subscriptionMonths}
+                  onChange={e => setCf(f => ({ ...f, subscriptionMonths: e.target.value }))}
+                  className="bg-black/30 border-white/[0.1] text-white rounded-lg h-9 text-xs"
+                />
+                <p className="text-[10px] text-gray-500">
+                  Gera keys de qualquer plano sem custo. Login bloqueado após a expiração + exige IP na whitelist.
+                </p>
+              </div>
+            )}
 
             <div className="flex items-center gap-2.5 pt-1">
               <input
@@ -459,6 +551,7 @@ export default function AdminResellers() {
                 resellerType: ef.resellerType,
                 discountPercent: !isNaN(discount) && discount >= 0 && discount <= 100 ? discount : undefined,
                 canCreateSubResellers: ef.canCreateSubResellers,
+                renewMonths: ef.resellerType === "unlimited" && parseInt(ef.renewMonths) > 0 ? parseInt(ef.renewMonths) : undefined,
               });
             }
           }} className="space-y-4">
@@ -493,6 +586,7 @@ export default function AdminResellers() {
                     <SelectItem value="credits" className="text-xs">Créditos</SelectItem>
                     <SelectItem value="percentage" className="text-xs">Porcentagem</SelectItem>
                     <SelectItem value="other" className="text-xs">Other Store</SelectItem>
+                    <SelectItem value="unlimited" className="text-xs">Unlimited</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -511,6 +605,26 @@ export default function AdminResellers() {
                 </Select>
               </div>
             </div>
+
+            {ef.resellerType === "unlimited" && (
+              <div className="rounded-lg border border-violet-500/20 bg-violet-500/[0.06] p-3 space-y-2">
+                <Label className="text-violet-300 text-xs font-medium block">Renovar Assinatura (meses)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  max="24"
+                  value={ef.renewMonths}
+                  onChange={e => setEf(f => ({ ...f, renewMonths: e.target.value }))}
+                  className="bg-black/30 border-white/[0.1] text-white rounded-lg h-9 text-xs"
+                />
+                <p className="text-[10px] text-gray-500">
+                  {editReseller?.subscriptionExpiresAt
+                    ? `Expira em: ${new Date(editReseller.subscriptionExpiresAt).toLocaleString("pt-BR")}`
+                    : "Sem assinatura ativa — definir meses ativa o login."}
+                  {" "}0 = não renovar agora.
+                </p>
+              </div>
+            )}
 
             <div>
               <Label className="text-gray-300 text-xs font-medium block mb-1">Nova Senha (Deixe em branco para não alterar)</Label>
@@ -601,6 +715,79 @@ export default function AdminResellers() {
                 className="flex-1 h-9 rounded-lg font-semibold bg-emerald-500 hover:bg-emerald-400 text-black text-xs border-0"
               >
                 {addCredits.isPending ? "Adicionando..." : "Confirmar Créditos"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal IPs Autorizados (Unlimited) */}
+      <Dialog open={!!ipReseller} onOpenChange={() => setIpReseller(null)}>
+        <DialogContent className="bg-[#0b100e] border border-white/[0.1] text-white max-w-sm rounded-2xl p-6 shadow-2xl">
+          <DialogHeader className="mb-4">
+            <DialogTitle className="text-white font-bold text-base flex items-center gap-2">
+              <Globe className="w-4 h-4 text-blue-400" /> IPs Autorizados
+            </DialogTitle>
+            <p className="text-gray-400 text-xs mt-0.5">
+              Reseller: {ipReseller?.username} — somente esses IPs conseguem acessar a conta
+            </p>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="rounded-xl bg-black/40 border border-white/[0.06] divide-y divide-white/[0.04] max-h-44 overflow-y-auto">
+              {(whitelist as any[]).filter(w => w.userType === "reseller" && w.userId === ipReseller?.id).length === 0 ? (
+                <p className="text-gray-500 text-xs text-center py-5">
+                  Nenhum IP autorizado — o reseller não consegue logar até você adicionar um
+                </p>
+              ) : (
+                (whitelist as any[])
+                  .filter(w => w.userType === "reseller" && w.userId === ipReseller?.id)
+                  .map(w => (
+                    <div key={w.id} className="flex items-center justify-between px-3.5 py-2.5">
+                      <div>
+                        <p className="text-white text-xs font-mono">{w.ip}</p>
+                        {w.label && <p className="text-[10px] text-gray-500">{w.label}</p>}
+                      </div>
+                      <button
+                        onClick={() => removeIp.mutate({ id: w.id })}
+                        className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                        title="Remover IP"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))
+              )}
+            </div>
+
+            <div>
+              <Label className="text-gray-300 text-xs font-medium block mb-1">Autorizar novo IP</Label>
+              <Input
+                value={newIp}
+                onChange={e => setNewIp(e.target.value)}
+                placeholder="Ex: 177.74.234.137"
+                className="bg-black/30 border-white/[0.1] text-white rounded-lg h-9 text-xs font-mono"
+              />
+            </div>
+
+            <div className="flex gap-2.5 pt-2">
+              <Button
+                type="button"
+                onClick={() => setIpReseller(null)}
+                className="flex-1 h-9 rounded-lg border-white/[0.1] bg-white/[0.02] text-gray-300 hover:text-white text-xs"
+              >
+                Fechar
+              </Button>
+              <Button
+                onClick={() => {
+                  if (ipReseller && newIp.trim()) {
+                    addIp.mutate({ ip: newIp.trim(), label: ipReseller.username, userType: "reseller", userId: ipReseller.id });
+                  }
+                }}
+                disabled={addIp.isPending || !newIp.trim()}
+                className="flex-1 h-9 rounded-lg font-semibold bg-blue-500 hover:bg-blue-400 text-black text-xs border-0"
+              >
+                {addIp.isPending ? "Autorizando..." : "Autorizar IP"}
               </Button>
             </div>
           </div>

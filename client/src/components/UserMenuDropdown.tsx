@@ -60,6 +60,8 @@ export default function UserMenuDropdown({
     ? "RESELLER %"
     : resellerType === "credits"
     ? "RESELLER CRÉDITOS"
+    : resellerType === "unlimited"
+    ? "RESELLER UNLIMITED"
     : "RESELLER";
 
   const handleNavigate = (path: string) => {

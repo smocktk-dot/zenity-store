@@ -80,6 +80,7 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
   const resellerSession = session?.role === "reseller" ? session : null;
   const isCredits = resellerSession?.resellerType === "credits";
   const isPercentage = resellerSession?.resellerType === "percentage";
+  const isUnlimited = resellerSession?.resellerType === "unlimited";
   const displayUsername = session?.username ?? "User";
 
   return (
@@ -246,6 +247,20 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
               </div>
             )}
 
+            {resellerSession && isUnlimited && (
+              <div
+                className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
+                style={{
+                  background: "rgba(139, 92, 246, 0.08)",
+                  border: "1px solid rgba(139, 92, 246, 0.3)",
+                  color: "#c4b5fd",
+                }}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-violet-400" />
+                <span>Unlimited</span>
+              </div>
+            )}
+
             {/* User Avatar Menu Trigger (matching Image 1!) */}
             <button
               onClick={() => setUserMenuOpen(!userMenuOpen)}
@@ -325,7 +340,7 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
           <div className="flex items-center gap-1.5 mt-2">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             <span className="text-emerald-400 text-xs font-semibold">
-              {isPercentage ? "Reseller Porcentagem" : isCredits ? "Reseller Créditos" : "Reseller Autorizado"}
+              {isPercentage ? "Reseller Porcentagem" : isCredits ? "Reseller Créditos" : isUnlimited ? "Reseller Unlimited" : "Reseller Autorizado"}
             </span>
           </div>
         </div>

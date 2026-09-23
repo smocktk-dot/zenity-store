@@ -4,7 +4,7 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
   ArrowLeft, Coins, Percent, Package, Plus, Trash2,
-  CheckCircle2, Circle, User, Calendar, CreditCard, ShoppingBag
+  CheckCircle2, Circle, User, Calendar, CreditCard, ShoppingBag, Zap
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,7 +54,8 @@ export default function AdminResellerDetail({ id }: { id: number }) {
   const assignedApps = allApps.filter(a => assigned.includes(a.id));
   const availableApps = allApps.filter(a => !assigned.includes(a.id));
 
-  const isCredits = !reseller?.resellerType || reseller?.resellerType === "credits";
+  const isUnlimited = reseller?.resellerType === "unlimited";
+  const isCredits = !reseller?.resellerType || reseller?.resellerType === "credits" || isUnlimited;
   const currentDiscount = parseFloat(reseller?.discountPercent ?? "0");
   const discountValue = discount === "" ? currentDiscount.toFixed(0) : discount;
 
@@ -75,7 +76,11 @@ export default function AdminResellerDetail({ id }: { id: number }) {
           <div>
             <h1 className="text-white text-xl font-bold">{reseller?.username ?? `Reseller #${id}`}</h1>
             <div className="flex items-center gap-2 mt-0.5">
-              {isCredits ? (
+              {isUnlimited ? (
+                <span className="flex items-center gap-1 text-xs text-violet-300 bg-violet-500/10 px-2 py-0.5 rounded-full border border-violet-500/25">
+                  <Zap className="w-3 h-3" /> Unlimited
+                </span>
+              ) : isCredits ? (
                 <span className="flex items-center gap-1 text-xs text-yellow-400 bg-yellow-500/10 px-2 py-0.5 rounded-full border border-yellow-500/20">
                   <Coins className="w-3 h-3" /> Créditos
                 </span>

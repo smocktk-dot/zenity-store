@@ -361,6 +361,8 @@ async function ensureResellerColumns() {
   if (!_sqlClient) return;
   await _sqlClient.unsafe(`ALTER TABLE "resellers" ADD COLUMN IF NOT EXISTS "parentResellerId" integer`).catch(() => {});
   await _sqlClient.unsafe(`ALTER TABLE "resellers" ADD COLUMN IF NOT EXISTS "canCreateSubResellers" boolean DEFAULT false`).catch(() => {});
+  await _sqlClient.unsafe(`ALTER TYPE "reseller_type" ADD VALUE IF NOT EXISTS 'unlimited'`).catch(() => {});
+  await _sqlClient.unsafe(`ALTER TABLE "resellers" ADD COLUMN IF NOT EXISTS "subscriptionExpiresAt" timestamp`).catch(() => {});
 }
 
 export async function getResellerByUsername(username: string) {
@@ -372,6 +374,7 @@ export async function getResellerByUsername(username: string) {
 }
 
 export async function getResellerById(id: number) {
+  await ensureResellerColumns();
   const db = await getDb();
   if (!db) return undefined;
   const result = await db.select().from(resellers).where(eq(resellers.id, id)).limit(1);
@@ -397,12 +400,14 @@ export async function getAllResellers() {
 }
 
 export async function createReseller(data: InsertReseller) {
+  await ensureResellerColumns();
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   await db.insert(resellers).values(data);
 }
 
 export async function updateReseller(id: number, data: Partial<InsertReseller>) {
+  await ensureResellerColumns();
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   await db.update(resellers).set(data).where(eq(resellers.id, id));
@@ -703,6 +708,21 @@ export async function getAllKeysWithReseller() {
   }));
 }
 
+/** Log de keys geradas por resellers unlimited (source='unlimited') */
+export async function getUnlimitedKeysLog(limit = 500) {
+  await ensureLicenseKeysSchema();
+  await ensureResellerColumns();
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db.select({ key: licenseKeys, reseller: resellers })
+    .from(licenseKeys)
+    .leftJoin(resellers, eq(licenseKeys.resellerId, resellers.id))
+    .where(eq(licenseKeys.source, "unlimited"))
+    .orderBy(desc(licenseKeys.createdAt))
+    .limit(limit);
+  return rows.map(r => ({ ...r.key, resellerName: r.reseller?.username ?? "—" }));
+}
+
 export async function countKeysByReseller(resellerId: number, status?: "active" | "used" | "revoked" | "expired") {
   await ensureLicenseKeysSchema();
   const db = await getDb();
@@ -977,15 +997,18 @@ export async function isAdminIpAllowed(rawIp: string, adminId?: number): Promise
   return [...globalEntries, ...scopedEntries].some(e => normalizeIp(e.ip) === ip);
 }
 
-/** Check if IP is allowed for a specific reseller. Empty list for that reseller = allow all. */
-export async function isResellerIpAllowed(rawIp: string, resellerId: number): Promise<boolean> {
+/** Check if IP is allowed for a specific reseller.
+ *  - strict=false: lista vazia libera tudo (compat com resellers normais).
+ *  - strict=true (resellers unlimited): lista vazia bloqueia — o admin precisa
+ *    autorizar pelo menos um IP no painel. */
+export async function isResellerIpAllowed(rawIp: string, resellerId: number, strict = false): Promise<boolean> {
   const db = await getDb();
   if (!db) return true;
   const ip = normalizeIp(rawIp);
   const entries = await db.select().from(ipWhitelist).where(
     and(eq(ipWhitelist.userType, "reseller"), eq(ipWhitelist.userId, resellerId))
   );
-  if (entries.length === 0) return true;
+  if (entries.length === 0) return !strict;
   return entries.some(e => normalizeIp(e.ip) === ip);
 }
 

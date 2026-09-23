@@ -12,7 +12,7 @@ import {
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
 export const userRoleEnum = pgEnum("user_role", ["user", "admin"]);
-export const resellerTypeEnum = pgEnum("reseller_type", ["credits", "percentage", "other"]);
+export const resellerTypeEnum = pgEnum("reseller_type", ["credits", "percentage", "other", "unlimited"]);
 export const resellerStatusEnum = pgEnum("reseller_status", ["active", "inactive", "banned"]);
 export const appStatusEnum = pgEnum("app_status", ["active", "inactive"]);
 export const planLevelEnum = pgEnum("plan_level", ["basic", "premium", "lifetime"]);
@@ -70,6 +70,8 @@ export const resellers = pgTable("resellers", {
   canCreateSubResellers: boolean("canCreateSubResellers").default(false).notNull(),
   status: resellerStatusEnum("status").default("active").notNull(),
   location: varchar("location", { length: 255 }),
+  // Reseller "unlimited": assinatura mensal — expira aqui, login bloqueado até renovar
+  subscriptionExpiresAt: timestamp("subscriptionExpiresAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
   lastLoginAt: timestamp("lastLoginAt"),

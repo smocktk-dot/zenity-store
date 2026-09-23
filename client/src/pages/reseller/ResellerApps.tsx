@@ -174,7 +174,11 @@ export default function ResellerApps() {
                       <span>{plans.length} {plans.length === 1 ? "plano" : "planos"}</span>
                     </div>
 
-                    {lowestPrice !== null && (
+                    {resellerType === "unlimited" ? (
+                      <div className="text-right">
+                        <span className="text-violet-400 font-mono font-bold text-xs">Incluído na assinatura</span>
+                      </div>
+                    ) : lowestPrice !== null && (
                       <div className="text-right">
                         <span className="text-gray-500 text-[10px] mr-1">a partir de</span>
                         <span className="text-emerald-400 font-mono font-bold text-xs">

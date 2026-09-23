@@ -241,7 +241,7 @@ export default function AdminAppDetail({ id }: { id: number }) {
                 <SelectContent className="bg-[#0b100e] border-white/[0.1] text-white text-xs">
                   {resellers.map((r: any) => (
                     <SelectItem key={r.id} value={String(r.id)} className="text-xs">
-                      {r.username} ({r.resellerType === "percentage" ? "Porcentagem" : r.resellerType === "other" ? "Other Store" : "Créditos"})
+                      {r.username} ({r.resellerType === "percentage" ? "Porcentagem" : r.resellerType === "other" ? "Other Store" : r.resellerType === "unlimited" ? "Unlimited" : "Créditos"})
                     </SelectItem>
                   ))}
                 </SelectContent>

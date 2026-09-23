@@ -52,7 +52,7 @@ export default function AdminTransferKeys() {
   const canSubmit = !!fromId && !!toId && !sameReseller && !transfer.isPending;
 
   const resellerLabel = (r: any) =>
-    `${r.username} — ${r.resellerType === "percentage" ? "Porcentagem" : r.resellerType === "other" ? "Other Store" : "Créditos"}`;
+    `${r.username} — ${r.resellerType === "percentage" ? "Porcentagem" : r.resellerType === "other" ? "Other Store" : r.resellerType === "unlimited" ? "Unlimited" : "Créditos"}`;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
