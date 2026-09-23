@@ -1,8 +1,9 @@
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import {
-  Key, DollarSign, ShoppingBag, BarChart3, Package, Users, TrendingUp
+  Key, DollarSign, ShoppingBag, BarChart3, Package, Users, TrendingUp, CalendarClock, Infinity as InfinityIcon
 } from "lucide-react";
+import { SubscriptionCountdownInline } from "@/components/SubscriptionCountdown";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, Cell
@@ -40,10 +41,14 @@ export default function ResellerDashboard() {
   }, [dashboard?.monthly, selectedYear]);
 
   const counts = dashboard?.counts || { totalKeys: 0, totalSpent: "0.00", activeKeys: 0, usedKeys: 0 };
+  const isUnlimited = (profile as any)?.resellerType === "unlimited";
+  const subscriptionExpiresAt = (profile as any)?.subscriptionExpiresAt;
 
   const summaryCards = [
-    { label: "Total Keys", value: counts.totalKeys, sub: "compradas", icon: Key },
-    { label: "Gasto Total", value: `R$ ${Number(counts.totalSpent).toFixed(2)}`, sub: "créditos", icon: DollarSign },
+    { label: "Total Keys", value: counts.totalKeys, sub: "geradas", icon: Key },
+    isUnlimited
+      ? { label: "Assinatura", value: "", sub: "", icon: CalendarClock, countdown: true }
+      : { label: "Gasto Total", value: `R$ ${Number(counts.totalSpent).toFixed(2)}`, sub: "créditos", icon: DollarSign },
     { label: "Ativas", value: counts.activeKeys, sub: "keys disponíveis", icon: ShoppingBag },
     { label: "Usadas", value: counts.usedKeys, sub: "consumidas", icon: BarChart3 },
   ];
@@ -57,10 +62,19 @@ export default function ResellerDashboard() {
           <h1 className="text-white text-2xl font-bold">Dashboard</h1>
           <p className="text-gray-500 text-sm mt-1">Visão geral da sua conta</p>
         </div>
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-          <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
-          <span className="text-emerald-400 text-xs font-medium">{profile?.discountPercent?.toFixed?.(0) || profile?.discountPercent}% desconto</span>
-        </div>
+        {isUnlimited ? (
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-violet-500/10 border border-violet-500/25">
+            <InfinityIcon className="w-3.5 h-3.5 text-violet-400" />
+            <span className="text-violet-300 text-xs font-medium">
+              <SubscriptionCountdownInline expiresAt={subscriptionExpiresAt} />
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+            <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="text-emerald-400 text-xs font-medium">{profile?.discountPercent?.toFixed?.(0) || profile?.discountPercent}% desconto</span>
+          </div>
+        )}
       </div>
 
       {/* Year filter */}
@@ -78,14 +92,32 @@ export default function ResellerDashboard() {
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {summaryCards.map(({ label, value, sub, icon: Icon }) => (
-          <div key={label} className="rounded-2xl p-4" style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.15) 0%, rgba(16,185,129,0.05) 100%)", border: "1px solid rgba(16,185,129,0.20)" }}>
+        {summaryCards.map(({ label, value, sub, icon: Icon, countdown }: any) => (
+          <div
+            key={label}
+            className="rounded-2xl p-4"
+            style={countdown
+              ? { background: "linear-gradient(135deg, rgba(139,92,246,0.18) 0%, rgba(139,92,246,0.05) 100%)", border: "1px solid rgba(139,92,246,0.30)" }
+              : { background: "linear-gradient(135deg, rgba(16,185,129,0.15) 0%, rgba(16,185,129,0.05) 100%)", border: "1px solid rgba(16,185,129,0.20)" }}
+          >
             <div className="w-9 h-9 rounded-xl bg-black/20 flex items-center justify-center mb-3">
-              <Icon className="w-4 h-4 text-emerald-400" />
+              <Icon className={`w-4 h-4 ${countdown ? "text-violet-400" : "text-emerald-400"}`} />
             </div>
-            <p className="text-white text-xl font-bold leading-none">{value}</p>
-            <p className="text-white/80 text-xs mt-1">{label}</p>
-            <p className="text-emerald-400/80 text-[10px]">{sub}</p>
+            {countdown ? (
+              <>
+                <p className="text-white text-base font-bold leading-none">
+                  <SubscriptionCountdownInline expiresAt={subscriptionExpiresAt} />
+                </p>
+                <p className="text-white/80 text-xs mt-1.5">{label}</p>
+                <p className="text-violet-300/80 text-[10px]">restante até a renovação</p>
+              </>
+            ) : (
+              <>
+                <p className="text-white text-xl font-bold leading-none">{value}</p>
+                <p className="text-white/80 text-xs mt-1">{label}</p>
+                <p className="text-emerald-400/80 text-[10px]">{sub}</p>
+              </>
+            )}
           </div>
         ))}
       </div>

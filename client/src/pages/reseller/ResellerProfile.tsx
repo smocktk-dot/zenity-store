@@ -17,6 +17,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useCurrency } from "@/hooks/useCurrency";
 import PercentageProfile from "./PercentageProfile";
 import SubResellersSection from "./SubResellersSection";
+import { SubscriptionPanel, SubscriptionCountdownInline } from "@/components/SubscriptionCountdown";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
@@ -477,12 +478,13 @@ const chartTooltipStyle = {
   color: "#fff",
 };
 
-function CreditsProfile({ profile, refetch }: { profile: any; refetch: () => void }) {
+function CreditsProfile({ profile, refetch, isUnlimited = false }: { profile: any; refetch: () => void; isUnlimited?: boolean }) {
   const { t, language } = useLanguage();
   const { fmt } = useCurrency();
   const [showBuy, setShowBuy] = useState(false);
   const [activeTab, setActiveTab] = useState<"overview" | "credits" | "subresellers">("overview");
   const credits = parseFloat(String(profile.credits ?? "0"));
+  const subscriptionExpiresAt = profile.subscriptionExpiresAt;
 
   const monthlyData = useMemo(() => {
     const groups: Record<string, number> = {};
@@ -517,7 +519,9 @@ function CreditsProfile({ profile, refetch }: { profile: any; refetch: () => voi
   };
 
   const summaryCards = [
-    { label: "Saldo Disponível", value: `${credits.toFixed(2)} cr`, sub: "créditos prontos para uso", icon: CreditCard },
+    isUnlimited
+      ? { label: "Assinatura", value: subscriptionExpiresAt ? new Date(subscriptionExpiresAt).toLocaleDateString("pt-BR") : "—", sub: "expiração da assinatura", icon: CreditCard }
+      : { label: "Saldo Disponível", value: `${credits.toFixed(2)} cr`, sub: "créditos prontos para uso", icon: CreditCard },
     { label: t.profile_total_purchases, value: profile.totalPurchases, sub: "histórico acumulado", icon: ShoppingBag },
     { label: t.profile_member_since, value: formatDate(profile.createdAt, language), sub: "data de registro", icon: Calendar },
     { label: language === "en" ? "Last access" : "Último acesso", value: formatDate(profile.lastLoginAt, language), sub: "sessão recente", icon: Clock },
@@ -532,22 +536,30 @@ function CreditsProfile({ profile, refetch }: { profile: any; refetch: () => voi
             <h1 className="text-2xl font-bold text-white tracking-tight">
               {t.profile_title}
             </h1>
-            <span className="text-[11px] font-medium px-2.5 py-0.5 rounded-md bg-white/[0.04] border border-white/[0.08] text-zinc-300">
-              {credits.toFixed(2)} créditos
-            </span>
+            {isUnlimited ? (
+              <span className="text-[11px] font-medium px-2.5 py-0.5 rounded-md bg-violet-500/10 border border-violet-500/25 text-violet-300">
+                Unlimited
+              </span>
+            ) : (
+              <span className="text-[11px] font-medium px-2.5 py-0.5 rounded-md bg-white/[0.04] border border-white/[0.08] text-zinc-300">
+                {credits.toFixed(2)} créditos
+              </span>
+            )}
           </div>
           <p className="text-zinc-500 text-xs mt-1">
-            {t.profile_type_credits}
+            {isUnlimited ? "Revendedor Unlimited — geração incluída na assinatura" : t.profile_type_credits}
           </p>
         </div>
 
         <div className="flex items-center gap-2.5">
-          <Button
-            onClick={() => setShowBuy(true)}
-            className="font-semibold gap-2 h-9 px-4 text-xs text-black rounded-lg bg-white hover:bg-zinc-200 transition-all"
-          >
-            <Plus className="w-3.5 h-3.5" /> {t.profile_buy_credits}
-          </Button>
+          {!isUnlimited && (
+            <Button
+              onClick={() => setShowBuy(true)}
+              className="font-semibold gap-2 h-9 px-4 text-xs text-black rounded-lg bg-white hover:bg-zinc-200 transition-all"
+            >
+              <Plus className="w-3.5 h-3.5" /> {t.profile_buy_credits}
+            </Button>
+          )}
 
           <Link href="/reseller/keys">
             <button
@@ -564,7 +576,7 @@ function CreditsProfile({ profile, refetch }: { profile: any; refetch: () => voi
       {/* Tabs */}
       <div className="flex items-center gap-1.5">
         {tabButton("overview", language === "en" ? "Overview" : "Visão Geral", LayoutDashboard)}
-        {tabButton("credits", language === "en" ? "My Credits" : "Meus Créditos", CreditCard)}
+        {tabButton("credits", isUnlimited ? "Assinatura" : (language === "en" ? "My Credits" : "Meus Créditos"), isUnlimited ? Clock : CreditCard)}
         {profile.canCreateSubResellers && tabButton("subresellers", language === "en" ? "Sub Resellers" : "Sub Resellers", Users)}
       </div>
 
@@ -599,23 +611,37 @@ function CreditsProfile({ profile, refetch }: { profile: any; refetch: () => voi
               </div>
               <div className="pt-3 mt-3 border-t border-white/[0.06] flex items-center gap-1.5 text-xs text-zinc-400">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                <span>Ativo • Créditos</span>
+                <span>{isUnlimited ? "Ativo • Unlimited" : "Ativo • Créditos"}</span>
               </div>
             </div>
 
             <div className="p-4 rounded-xl border border-white/[0.06] bg-white/[0.02] flex flex-col justify-between">
-              <div>
-                <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-500 mb-1">Saldo Atual</p>
-                <p className="text-2xl font-bold text-white font-mono mt-1">{credits.toFixed(2)} cr</p>
-                <p className="text-xs text-zinc-400 mt-0.5">Saldo disponível para chaves</p>
-              </div>
+              {isUnlimited ? (
+                <div>
+                  <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-500 mb-1">Assinatura</p>
+                  <p className="text-lg font-bold text-white font-mono mt-1">
+                    <SubscriptionCountdownInline expiresAt={subscriptionExpiresAt} />
+                  </p>
+                  <p className="text-xs text-zinc-400 mt-0.5">Tempo restante até a renovação</p>
+                </div>
+              ) : (
+                <div>
+                  <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-500 mb-1">Saldo Atual</p>
+                  <p className="text-2xl font-bold text-white font-mono mt-1">{credits.toFixed(2)} cr</p>
+                  <p className="text-xs text-zinc-400 mt-0.5">Saldo disponível para chaves</p>
+                </div>
+              )}
               <div className="pt-3 mt-3 border-t border-white/[0.06] flex items-center justify-between">
-                <button
-                  onClick={() => setShowBuy(true)}
-                  className="text-xs text-emerald-400 hover:text-emerald-300 font-medium"
-                >
-                  + Adicionar créditos
-                </button>
+                {isUnlimited ? (
+                  <span className="text-xs text-violet-300/80 font-medium">Renovação via administrador</span>
+                ) : (
+                  <button
+                    onClick={() => setShowBuy(true)}
+                    className="text-xs text-emerald-400 hover:text-emerald-300 font-medium"
+                  >
+                    + Adicionar créditos
+                  </button>
+                )}
               </div>
             </div>
 
@@ -670,7 +696,21 @@ function CreditsProfile({ profile, refetch }: { profile: any; refetch: () => voi
         </div>
       )}
 
-      {activeTab === "credits" && (
+      {activeTab === "credits" && isUnlimited && (
+        <div className="space-y-5 animate-in fade-in duration-200">
+          <SubscriptionPanel expiresAt={subscriptionExpiresAt} />
+          <div className="p-5 rounded-xl border border-white/[0.06] bg-white/[0.02]">
+            <h2 className="text-white font-semibold text-sm mb-2">Como funciona</h2>
+            <ul className="space-y-1.5 text-xs text-zinc-400">
+              <li className="flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-violet-400 shrink-0" /> Geração de keys ilimitada em todos os planos dos seus apps — sem custo por key</li>
+              <li className="flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-violet-400 shrink-0" /> Acesso liberado apenas do(s) IP(s) autorizado(s) pelo administrador</li>
+              <li className="flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-violet-400 shrink-0" /> Quando a assinatura expirar, sua conta fica inativa até a renovação</li>
+            </ul>
+          </div>
+        </div>
+      )}
+
+      {activeTab === "credits" && !isUnlimited && (
         <div className="space-y-5 animate-in fade-in duration-200">
           {/* Balance card */}
           <div className="p-8 rounded-xl border border-white/[0.06] bg-white/[0.02] text-center">
@@ -724,12 +764,14 @@ function CreditsProfile({ profile, refetch }: { profile: any; refetch: () => voi
         </div>
       )}
 
-      <BuyCreditsModal
-        open={showBuy}
-        onClose={() => setShowBuy(false)}
-        currentCredits={credits}
-        onSuccess={() => { refetch(); }}
-      />
+      {!isUnlimited && (
+        <BuyCreditsModal
+          open={showBuy}
+          onClose={() => setShowBuy(false)}
+          currentCredits={credits}
+          onSuccess={() => { refetch(); }}
+        />
+      )}
     </div>
   );
 }
@@ -754,7 +796,7 @@ export default function ResellerProfile() {
   return (
     <div className="space-y-6">
       {profile.resellerType === "credits" || profile.resellerType === "unlimited"
-        ? <CreditsProfile profile={profile} refetch={refetch} />
+        ? <CreditsProfile profile={profile} refetch={refetch} isUnlimited={profile.resellerType === "unlimited"} />
         : <PercentageProfile profile={profile} otherStore={profile.resellerType === "other"} />}
     </div>
   );

@@ -19,6 +19,7 @@ import {
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useLanguage } from "@/contexts/LanguageContext";
 import UserMenuDropdown from "@/components/UserMenuDropdown";
+import { SubscriptionCountdownInline } from "@/components/SubscriptionCountdown";
 
 export default function ResellerLayout({ children }: { children: React.ReactNode }) {
   const [location, navigate] = useLocation();
@@ -257,7 +258,7 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
                 }}
               >
                 <span className="w-1.5 h-1.5 rounded-full bg-violet-400" />
-                <span>Unlimited</span>
+                <SubscriptionCountdownInline expiresAt={(liveProfile as any)?.subscriptionExpiresAt} />
               </div>
             )}
 
