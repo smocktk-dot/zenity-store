@@ -75,90 +75,108 @@ export default function AdminDashboard() {
   const bestSeller = allSellers[0];
 
   const summaryCards = [
-    { label: "Quantidade Total", value: counts.keys, sub: "keys no sistema", icon: Key, color: "text-white" },
-    { label: "Faturamento Total", value: formatCurrency(counts.totalCredits), sub: "créditos movimentados", icon: DollarSign, color: "text-white" },
-    { label: "Resellers Ativos", value: counts.activeResellers, sub: "de " + counts.resellers, icon: Users, color: "text-white" },
-    { label: "Apps Cadastrados", value: counts.apps, sub: "disponíveis", icon: AppWindow, color: "text-white" },
-    { label: "Keys Usadas", value: counts.usedKeys, sub: "consumidas", icon: ShoppingBag, color: "text-white" },
+    { label: "Quantidade Total", value: counts.keys, sub: "keys no sistema", icon: Key },
+    { label: "Faturamento Total", value: formatCurrency(counts.totalCredits), sub: "créditos movimentados", icon: DollarSign },
+    { label: "Resellers Ativos", value: `${counts.activeResellers} / ${counts.resellers}`, sub: "revendedores em operação", icon: Users },
+    { label: "Apps Cadastrados", value: counts.apps, sub: "softwares disponíveis", icon: AppWindow },
+    { label: "Keys Usadas", value: counts.usedKeys, sub: "licenças consumidas", icon: ShoppingBag },
   ];
 
   const topResellers = [
-    { label: "Créditos", data: resellerStats?.credits || [] },
-    { label: "Porcentagem", data: resellerStats?.percentage || [] },
-    { label: "Other Store", data: resellerStats?.other || [] },
+    { label: "Créditos", data: resellerStats?.credits || [], badge: "bg-amber-500/15 text-amber-300 border-amber-500/25" },
+    { label: "Porcentagem", data: resellerStats?.percentage || [], badge: "bg-violet-500/15 text-violet-300 border-violet-500/25" },
+    { label: "Other Store", data: resellerStats?.other || [], badge: "bg-emerald-500/15 text-emerald-300 border-emerald-500/25" },
   ];
 
   return (
-    <div className="min-h-screen p-6 pl-4">
-      <div className="max-w-[1600px] mx-auto grid grid-cols-[260px_1fr] gap-6">
+    <div className="min-h-screen p-4 sm:p-6 lg:p-8">
+      <div className="max-w-[1600px] mx-auto grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6">
         {/* Sidebar filters */}
-        <aside className="rounded-3xl p-5 space-y-8 h-fit" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
-          <div className="flex items-center gap-2 text-white font-semibold">
-            <Filter className="w-4 h-4 text-emerald-400" /> Filtros
+        <aside className="rounded-2xl border border-white/[0.08] bg-white/[0.015] p-5 space-y-6 h-fit">
+          <div className="flex items-center gap-2 text-white font-semibold pb-3 border-b border-white/[0.06]">
+            <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+              <Filter className="w-3.5 h-3.5" />
+            </div>
+            <span className="text-sm">Filtros & Métricas</span>
           </div>
 
           <div>
-            <p className="text-gray-400 text-xs uppercase tracking-wide mb-3">Produto</p>
-            <div className="space-y-2">
-              {productOptions.length === 0 && <p className="text-gray-600 text-xs">Nenhum app</p>}
-              {productOptions.map((p: string) => (
-                <button
-                  key={p}
-                  onClick={() => setSelectedProduct(p)}
-                  className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${selectedProduct === p ? "text-emerald-400 bg-emerald-500/10 border border-emerald-500/20" : "text-gray-400 hover:text-white hover:bg-white/5"}`}
-                >
-                  {p}
-                </button>
-              ))}
+            <p className="text-zinc-500 text-[11px] font-mono uppercase tracking-wider mb-2 font-medium">Produto / App</p>
+            <div className="space-y-1">
+              {productOptions.length === 0 && <p className="text-zinc-600 text-xs">Nenhum software cadastrado</p>}
+              {productOptions.map((p: string) => {
+                const active = selectedProduct === p;
+                return (
+                  <button
+                    key={p}
+                    onClick={() => setSelectedProduct(p)}
+                    className={`w-full text-left px-3 py-2 rounded-xl text-xs font-medium transition-all ${
+                      active
+                        ? "text-emerald-300 bg-emerald-500/15 border border-emerald-500/30"
+                        : "text-zinc-400 hover:text-white hover:bg-white/[0.03] border border-transparent"
+                    }`}
+                  >
+                    {p}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
           <div>
-            <p className="text-gray-400 text-xs uppercase tracking-wide mb-3">Ano</p>
-            <div className="space-y-2">
-              {years.map((y: string) => (
-                <button
-                  key={y}
-                  onClick={() => setSelectedYear(y)}
-                className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${selectedYear === y ? "text-emerald-400 bg-emerald-500/10 border border-emerald-500/20" : "text-gray-400 hover:text-white hover:bg-white/5"}`}
-              >
-                {y}
-              </button>
-              ))}
+            <p className="text-zinc-500 text-[11px] font-mono uppercase tracking-wider mb-2 font-medium">Ano Contábil</p>
+            <div className="grid grid-cols-3 gap-1.5">
+              {years.map((y: string) => {
+                const active = selectedYear === y;
+                return (
+                  <button
+                    key={y}
+                    onClick={() => setSelectedYear(y)}
+                    className={`px-2.5 py-1.5 rounded-lg text-xs font-mono font-medium transition-all text-center ${
+                      active
+                        ? "text-emerald-300 bg-emerald-500/15 border border-emerald-500/30"
+                        : "text-zinc-400 hover:text-white hover:bg-white/[0.03] border border-white/[0.04]"
+                    }`}
+                  >
+                    {y}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          <div>
-            <p className="text-gray-400 text-xs uppercase tracking-wide mb-3">Melhores Vendedores</p>
-            <div className="space-y-3">
+          <div className="pt-2 border-t border-white/[0.06]">
+            <p className="text-zinc-500 text-[11px] font-mono uppercase tracking-wider mb-3 font-medium">Melhores Vendedores</p>
+            <div className="space-y-2.5">
               {[
-                { type: "Créditos", data: resellerStats?.credits || [], color: "text-yellow-400", bg: "bg-yellow-500/10", border: "border-yellow-500/20" },
-                { type: "Porcentagem", data: resellerStats?.percentage || [], color: "text-purple-400", bg: "bg-purple-500/10", border: "border-purple-500/20" },
-                { type: "Other Store", data: resellerStats?.other || [], color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/20" },
-              ].map(({ type, data, color, bg, border }) => {
+                { type: "Créditos", data: resellerStats?.credits || [], badge: "bg-amber-500/10 text-amber-300 border-amber-500/25" },
+                { type: "Porcentagem", data: resellerStats?.percentage || [], badge: "bg-violet-500/10 text-violet-300 border-violet-500/25" },
+                { type: "Other Store", data: resellerStats?.other || [], badge: "bg-emerald-500/10 text-emerald-300 border-emerald-500/25" },
+              ].map(({ type, data, badge }) => {
                 const top = data[0];
                 return (
-                  <div key={type} className={`p-4 rounded-2xl border ${border} ${bg}`}>
-                    <p className={`text-xs font-semibold mb-2 ${color}`}>{type}</p>
+                  <div key={type} className="p-3 rounded-xl border border-white/[0.06] bg-white/[0.015]">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className={`text-[10px] px-2 py-0.5 rounded-md font-semibold border ${badge}`}>
+                        {type}
+                      </span>
+                      {top && <span className="text-[10px] text-zinc-500 font-mono font-medium">Top 1</span>}
+                    </div>
                     {top ? (
-                      <div className="space-y-1">
+                      <div className="space-y-1.5">
                         <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-full bg-black/20 flex items-center justify-center text-white text-xs font-bold">
-                            {top.username[0].toUpperCase()}
+                          <div className="w-6 h-6 rounded-md bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-white text-[11px] font-bold uppercase">
+                            {top.username[0]?.toUpperCase()}
                           </div>
-                          <p className="text-white text-sm font-semibold">{top.username}</p>
+                          <p className="text-white text-xs font-semibold truncate">{top.username}</p>
                         </div>
-                        <div className="flex justify-between text-xs">
-                          <span className="text-gray-500">Keys</span>
-                          <span className="text-white font-semibold">{top.count}</span>
-                        </div>
-                        <div className="flex justify-between text-xs">
-                          <span className="text-gray-500">Total</span>
-                          <span className="text-emerald-400 font-semibold">{formatCurrency(top.total)}</span>
+                        <div className="flex items-center justify-between text-[11px] pt-1 border-t border-white/[0.04]">
+                          <span className="text-zinc-500">{top.count} keys</span>
+                          <span className="text-emerald-400 font-mono font-bold">{formatCurrency(top.total)}</span>
                         </div>
                       </div>
                     ) : (
-                      <p className="text-gray-500 text-xs">Sem dados</p>
+                      <p className="text-zinc-600 text-xs py-1">Sem movimentações</p>
                     )}
                   </div>
                 );
@@ -168,70 +186,83 @@ export default function AdminDashboard() {
         </aside>
 
         {/* Main dashboard */}
-        <div className="space-y-5">
+        <div className="space-y-6">
           {/* Header */}
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/[0.06]">
             <div>
-              <h1 className="text-white text-2xl font-bold">Dashboard</h1>
-              <p className="text-gray-500 text-sm mt-1">Visão geral do sistema</p>
+              <div className="flex items-center gap-3">
+                <h1 className="text-2xl font-bold text-white tracking-tight">Dashboard Executivo</h1>
+                <span className="text-[10px] px-2 py-0.5 rounded-md bg-white/[0.04] text-zinc-400 border border-white/[0.08] font-mono">
+                  {selectedYear}
+                </span>
+              </div>
+              <p className="text-zinc-400 text-xs mt-1">Métricas consolidadas de vendas, estoque e atividade de revendedores</p>
             </div>
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-              <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-              <span className="text-emerald-400 text-xs font-medium">Sistema Online</span>
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 w-fit">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-emerald-400 text-xs font-semibold">Sistema Online (100%)</span>
             </div>
           </div>
 
-          {/* Summary cards */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-            {summaryCards.map(({ label, value, sub, icon: Icon, color }) => (
+          {/* Metric cards (Clean corporate cards matching Reseller panel) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+            {summaryCards.map(({ label, value, sub, icon: Icon }) => (
               <div
                 key={label}
-                className="rounded-2xl p-4 flex items-center gap-3"
-                style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.15) 0%, rgba(16,185,129,0.05) 100%)", border: "1px solid rgba(16,185,129,0.20)" }}
+                className="rounded-2xl border border-white/[0.08] bg-white/[0.015] hover:bg-white/[0.03] hover:border-white/[0.14] p-4 flex items-center gap-3.5 transition-all"
               >
-                <div className="w-10 h-10 rounded-xl bg-black/20 flex items-center justify-center">
-                  <Icon className={`w-5 h-5 ${color}`} />
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+                  <Icon className="w-4 h-4" />
                 </div>
-                <div>
-                  <p className="text-white text-xl font-bold leading-none">{value}</p>
-                  <p className="text-white/80 text-xs mt-1">{label}</p>
-                  <p className="text-emerald-400/80 text-[10px]">{sub}</p>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-medium text-zinc-400 uppercase tracking-wider truncate">{label}</p>
+                  <p className="text-white font-bold font-mono text-lg leading-tight mt-0.5 truncate">{value}</p>
+                  <p className="text-[10px] text-zinc-500 mt-0.5 truncate">{sub}</p>
                 </div>
               </div>
             ))}
           </div>
 
-          {/* Line chart */}
-          <div className="rounded-3xl p-5" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
-            <div className="flex items-center gap-2 mb-4">
-              <BarChart3 className="w-4 h-4 text-emerald-400" />
-              <h2 className="text-white font-semibold text-sm">Keys por Mês</h2>
+          {/* Area chart */}
+          <div className="rounded-2xl border border-white/[0.08] bg-white/[0.015] p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                  <BarChart3 className="w-3.5 h-3.5" />
+                </div>
+                <div>
+                  <h2 className="text-white font-semibold text-sm">Volume de Keys por Mês</h2>
+                  <p className="text-zinc-500 text-[11px]">Distribuição de chaves emitidas no ano contábil {selectedYear}</p>
+                </div>
+              </div>
             </div>
             <div className="h-72">
               {monthlyData.every((d) => d.count === 0) ? (
-                <div className="h-full flex items-center justify-center text-gray-500 text-sm">Nenhuma key neste ano</div>
+                <div className="h-full flex items-center justify-center text-zinc-500 text-xs">
+                  Nenhuma key gerada neste ano
+                </div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={monthlyData} margin={{ top: 20, right: 20, left: 0, bottom: 0 }}>
                     <defs>
                       <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#34d399" stopOpacity={0.35} />
-                        <stop offset="95%" stopColor="#34d399" stopOpacity={0} />
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.25} />
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
-                    <XAxis dataKey="label" stroke="#6b7280" fontSize={12} tick={{ fill: "#9ca3af" }} />
-                    <YAxis stroke="#6b7280" fontSize={12} tick={{ fill: "#9ca3af" }} allowDecimals={false} />
+                    <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
+                    <XAxis dataKey="label" stroke="#52525b" fontSize={11} tick={{ fill: "#71717a" }} axisLine={false} />
+                    <YAxis stroke="#52525b" fontSize={11} tick={{ fill: "#71717a" }} allowDecimals={false} axisLine={false} />
                     <Tooltip contentStyle={chartTooltipStyle} />
                     <Area
                       type="monotone"
                       dataKey="count"
-                      stroke="#34d399"
+                      stroke="#10b981"
                       strokeWidth={2}
                       fillOpacity={1}
                       fill="url(#colorCount)"
-                      dot={{ r: 3, fill: "#34d399" }}
-                      activeDot={{ r: 6 }}
+                      dot={{ r: 3, fill: "#10b981" }}
+                      activeDot={{ r: 5 }}
                     />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -242,67 +273,97 @@ export default function AdminDashboard() {
           {/* Bottom charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             {/* Top apps */}
-            <div className="rounded-3xl p-5" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            <div className="rounded-2xl border border-white/[0.08] bg-white/[0.015] p-5">
               <div className="flex items-center gap-2 mb-4">
-                <Package className="w-4 h-4 text-emerald-400" />
-                <h2 className="text-white font-semibold text-sm">Faturamento por App</h2>
+                <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                  <Package className="w-3.5 h-3.5" />
+                </div>
+                <div>
+                  <h2 className="text-white font-semibold text-sm">Faturamento por Software</h2>
+                  <p className="text-zinc-500 text-[11px]">Top aplicações com maior movimentação</p>
+                </div>
               </div>
               <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={regionData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                    <CartesianGrid stroke="rgba(255,255,255,0.05)" horizontal={false} />
-                    <XAxis type="number" stroke="#6b7280" fontSize={11} tick={{ fill: "#9ca3af" }} />
-                    <YAxis type="category" dataKey="region" stroke="#9ca3af" fontSize={10} width={90} />
-                    <Tooltip contentStyle={chartTooltipStyle} formatter={(v: number) => formatCurrency(v)} />
-                    <Bar dataKey="value" radius={[0, 8, 8, 0]}>
-                      {regionData.map((_, i) => (
-                        <Cell key={`cell-${i}`} fill={i % 2 === 0 ? "#34d399" : "#10b981"} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+                {regionData.length === 0 ? (
+                  <div className="h-full flex items-center justify-center text-zinc-500 text-xs">
+                    Sem dados de faturamento por software
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={regionData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                      <CartesianGrid stroke="rgba(255,255,255,0.04)" horizontal={false} />
+                      <XAxis type="number" stroke="#52525b" fontSize={11} tick={{ fill: "#71717a" }} axisLine={false} />
+                      <YAxis type="category" dataKey="region" stroke="#71717a" fontSize={10} width={90} axisLine={false} />
+                      <Tooltip contentStyle={chartTooltipStyle} formatter={(v: number) => formatCurrency(v)} />
+                      <Bar dataKey="value" radius={[0, 6, 6, 0]}>
+                        {regionData.map((_, i) => (
+                          <Cell key={`cell-${i}`} fill={i % 2 === 0 ? "#10b981" : "#059669"} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
               </div>
             </div>
 
             {/* Seller vertical bar */}
-            <div className="rounded-3xl p-5" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            <div className="rounded-2xl border border-white/[0.08] bg-white/[0.015] p-5">
               <div className="flex items-center gap-2 mb-4">
-                <User className="w-4 h-4 text-emerald-400" />
-                <h2 className="text-white font-semibold text-sm">Faturamento por Vendedor</h2>
+                <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                  <User className="w-3.5 h-3.5" />
+                </div>
+                <div>
+                  <h2 className="text-white font-semibold text-sm">Faturamento por Revendedor</h2>
+                  <p className="text-zinc-500 text-[11px]">Líderes de receita no ecossistema</p>
+                </div>
               </div>
               <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={allSellers} margin={{ top: 20, right: 10, left: 0, bottom: 0 }}>
-                    <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
-                    <XAxis dataKey="name" stroke="#6b7280" fontSize={10} tick={{ fill: "#9ca3af" }} interval={0} />
-                    <YAxis stroke="#6b7280" fontSize={11} tick={{ fill: "#9ca3af" }} hide />
-                    <Tooltip contentStyle={chartTooltipStyle} formatter={(v: number) => formatCurrency(v)} />
-                    <Bar dataKey="value" radius={[8, 8, 0, 0]}>
-                      {allSellers.map((_, i) => (
-                        <Cell key={`cell2-${i}`} fill={i % 2 === 0 ? "#34d399" : "#10b981"} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+                {allSellers.length === 0 ? (
+                  <div className="h-full flex items-center justify-center text-zinc-500 text-xs">
+                    Sem revendedores cadastrados com vendas
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={allSellers} margin={{ top: 20, right: 10, left: 0, bottom: 0 }}>
+                      <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
+                      <XAxis dataKey="name" stroke="#52525b" fontSize={10} tick={{ fill: "#71717a" }} interval={0} axisLine={false} />
+                      <YAxis stroke="#52525b" fontSize={11} tick={{ fill: "#71717a" }} hide />
+                      <Tooltip contentStyle={chartTooltipStyle} formatter={(v: number) => formatCurrency(v)} />
+                      <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                        {allSellers.map((_, i) => (
+                          <Cell key={`cell2-${i}`} fill={i % 2 === 0 ? "#10b981" : "#059669"} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
               </div>
             </div>
           </div>
 
-          {/* Top resellers small */}
+          {/* Top resellers small cards */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-            {topResellers.map(({ label, data }) => (
-              <div key={label} className="rounded-3xl p-5" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                <h2 className="text-white font-semibold text-sm mb-4">Top {label}</h2>
+            {topResellers.map(({ label, data, badge }) => (
+              <div key={label} className="rounded-2xl border border-white/[0.08] bg-white/[0.015] p-5">
+                <div className="flex items-center justify-between mb-4 pb-3 border-b border-white/[0.06]">
+                  <h2 className="text-white font-semibold text-xs tracking-wide">Top Revendedores</h2>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-md font-semibold border ${badge}`}>
+                    {label}
+                  </span>
+                </div>
                 <div className="space-y-2">
                   {data.length === 0 ? (
-                    <p className="text-gray-600 text-sm text-center py-4">Nenhuma compra</p>
+                    <p className="text-zinc-500 text-xs text-center py-6">Nenhuma compra registrada</p>
                   ) : data.slice(0, 5).map((r: any, idx: number) => (
-                    <div key={r.resellerId} className="flex items-center justify-between py-2 border-b border-white/[0.04] last:border-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-gray-500 text-xs w-5">#{idx + 1}</span>
-                        <span className="text-gray-300 text-sm">{r.username}</span>
+                    <div key={r.resellerId} className="flex items-center justify-between py-2 px-2.5 rounded-lg bg-white/[0.01] hover:bg-white/[0.03] transition-colors">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="text-[11px] font-mono font-bold text-zinc-500 w-5">#{idx + 1}</span>
+                        <div className="w-6 h-6 rounded-md bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-white text-[10px] font-bold uppercase shrink-0">
+                          {r.username?.[0]?.toUpperCase()}
+                        </div>
+                        <span className="text-zinc-200 text-xs font-medium truncate">{r.username}</span>
                       </div>
-                      <span className="text-emerald-400 text-xs font-semibold">{r.count} keys</span>
+                      <span className="text-emerald-400 text-xs font-mono font-bold shrink-0">{r.count} keys</span>
                     </div>
                   ))}
                 </div>
