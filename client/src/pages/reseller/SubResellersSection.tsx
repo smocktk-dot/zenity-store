@@ -1,10 +1,8 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
-import { Plus, Trash2, Users } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Plus, Trash2, Users, UserPlus, User, Lock, Mail, Percent } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
 export default function SubResellersSection() {
@@ -37,9 +35,9 @@ export default function SubResellersSection() {
             <h2 className="text-white font-semibold text-sm flex items-center gap-2"><Users className="w-4 h-4 text-emerald-400" /> Meus Resellers</h2>
             <p className="text-gray-500 text-xs">Crie logins de resellers para seu time.</p>
           </div>
-          <Button onClick={() => setOpen(true)} className="gap-2 h-9 text-xs bg-emerald-600 hover:bg-emerald-500" size="sm">
+          <button onClick={() => setOpen(true)} className="flex items-center gap-2 h-9 px-4 rounded-xl text-xs font-semibold bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/25 transition-all">
             <Plus className="w-3.5 h-3.5" /> Criar
-          </Button>
+          </button>
         </div>
 
         {data?.length === 0 && <p className="text-gray-500 text-sm">Nenhum reseller criado ainda.</p>}
@@ -69,38 +67,99 @@ export default function SubResellersSection() {
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="text-white border-0" style={{ background: "linear-gradient(145deg, rgba(18,12,35,0.98) 0%, rgba(10,8,25,0.98) 100%)", boxShadow: "0 0 0 1px rgba(16,185,129,0.2), 0 25px 60px rgba(0,0,0,0.7)" }}>
-          <h3 className="text-lg font-bold text-white mb-4">Criar Reseller</h3>
-          <form onSubmit={handleCreate} className="space-y-4">
-            <div>
-              <Label className="text-gray-400 text-xs uppercase">Usuario</Label>
-              <Input value={username} onChange={(e) => setUsername(e.target.value)} className="mt-1.5 text-white border-white/10 bg-white/5" required />
-            </div>
-            <div>
-              <Label className="text-gray-400 text-xs uppercase">Senha</Label>
-              <Input value={password} onChange={(e) => setPassword(e.target.value)} className="mt-1.5 text-white border-white/10 bg-white/5" required />
-            </div>
-            <div>
-              <Label className="text-gray-400 text-xs uppercase">Email (opcional)</Label>
-              <Input value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1.5 text-white border-white/10 bg-white/5" />
-            </div>
-            <div>
-              <Label className="text-gray-400 text-xs uppercase">Desconto</Label>
-              <select
-                value={discount}
-                onChange={(e) => setDiscount(e.target.value as "35" | "40" | "50")}
-                className="w-full h-10 mt-1.5 rounded-md px-3 text-white border-white/10 bg-white/5 focus:outline-none focus:border-emerald-500"
-                style={{ background: "rgba(255,255,255,0.05)" }}
-              >
-                <option value="35" className="bg-[#0a0a0c] text-white">35%</option>
-                <option value="40" className="bg-[#0a0a0c] text-white">40%</option>
-                <option value="50" className="bg-[#0a0a0c] text-white">50%</option>
-              </select>
-            </div>
-            <Button type="submit" disabled={create.isPending} className="w-full bg-emerald-600 hover:bg-emerald-500">
-              {create.isPending ? "Criando..." : "Criar"}
-            </Button>
-          </form>
+        <DialogContent className="bg-[#080808] border-white/[0.08] text-white max-w-md rounded-3xl p-0 overflow-hidden">
+          <div className="p-6 space-y-5" style={{ background: "linear-gradient(180deg, rgba(16,185,129,0.08) 0%, rgba(8,8,8,0.9) 120px)" }}>
+            <DialogHeader>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center">
+                  <UserPlus className="w-5 h-5 text-emerald-400" />
+                </div>
+                <div>
+                  <DialogTitle className="text-white text-base font-semibold">Criar Reseller</DialogTitle>
+                  <p className="text-gray-500 text-xs">Novo login de sub-reseller para o seu time</p>
+                </div>
+              </div>
+            </DialogHeader>
+
+            <form onSubmit={handleCreate} className="space-y-4">
+              <div>
+                <label className="text-gray-400 text-xs font-semibold uppercase tracking-wider block mb-1.5">Usuário</label>
+                <div className="relative">
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                  <Input
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="Nome de usuário"
+                    className="pl-11 h-12 rounded-2xl bg-white/[0.03] border-white/[0.06] text-white text-sm placeholder:text-gray-600 focus:border-emerald-500/50"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-gray-400 text-xs font-semibold uppercase tracking-wider block mb-1.5">Senha</label>
+                <div className="relative">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                  <Input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Senha de acesso"
+                    className="pl-11 h-12 rounded-2xl bg-white/[0.03] border-white/[0.06] text-white text-sm placeholder:text-gray-600 focus:border-emerald-500/50"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-gray-400 text-xs font-semibold uppercase tracking-wider block mb-1.5">Email (opcional)</label>
+                <div className="relative">
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                  <Input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="email@exemplo.com"
+                    className="pl-11 h-12 rounded-2xl bg-white/[0.03] border-white/[0.06] text-white text-sm placeholder:text-gray-600 focus:border-emerald-500/50"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-gray-400 text-xs font-semibold uppercase tracking-wider block mb-1.5">Desconto</label>
+                <div className="relative">
+                  <Percent className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                  <select
+                    value={discount}
+                    onChange={(e) => setDiscount(e.target.value as "35" | "40" | "50")}
+                    className="w-full h-12 pl-11 pr-4 rounded-2xl text-sm text-white border border-white/[0.06] bg-white/[0.03] focus:outline-none focus:border-emerald-500/50 appearance-none cursor-pointer"
+                  >
+                    <option value="35" className="bg-[#0a0a0c] text-white">35% de desconto</option>
+                    <option value="40" className="bg-[#0a0a0c] text-white">40% de desconto</option>
+                    <option value="50" className="bg-[#0a0a0c] text-white">50% de desconto</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-white/[0.05] hover:bg-white/10 text-gray-300 text-sm transition-all border border-white/[0.06]"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={create.isPending}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 text-sm font-semibold transition-all border border-emerald-500/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  {create.isPending ? "Criando..." : "Criar Reseller"}
+                </button>
+              </div>
+            </form>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

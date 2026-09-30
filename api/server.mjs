@@ -4877,11 +4877,11 @@ var authRouter = router({
   }),
   // ─── Reseller Applications (public) ───────────────────────────────────────────
   submitResellerApplication: publicProcedure.input(z2.object({
-    discordLink: z2.string().min(1),
-    discordId: z2.string().min(1),
-    email: z2.string().email(),
-    product: z2.string().min(1),
-    reason: z2.string().min(1)
+    discordLink: z2.string().min(1).max(300).refine((v) => /^https?:\/\//i.test(v.trim()), { message: "Link do Discord inv\xE1lido" }),
+    discordId: z2.string().min(1).max(100),
+    email: z2.string().email().max(200),
+    product: z2.string().min(1).max(200),
+    reason: z2.string().min(1).max(5e3)
   })).mutation(async ({ input, ctx }) => {
     const ip = getClientIp2(ctx.req);
     const attack = detectAttack([input.discordLink, input.discordId, input.product, input.reason]);

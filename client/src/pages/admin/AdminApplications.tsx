@@ -160,7 +160,11 @@ export default function AdminApplications() {
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div className="rounded-3xl border border-white/[0.06] p-4" style={{ background: "rgba(255,255,255,0.02)" }}>
             <p className="text-gray-500 text-xs uppercase tracking-wider">Discord Link</p>
-            <a href={detail.discordLink} target="_blank" rel="noopener noreferrer" className="text-violet-400 text-sm break-all hover:underline">{detail.discordLink}</a>
+            {/^https?:\/\//i.test(detail.discordLink || "") ? (
+              <a href={detail.discordLink} target="_blank" rel="noopener noreferrer" className="text-violet-400 text-sm break-all hover:underline">{detail.discordLink}</a>
+            ) : (
+              <p className="text-white text-sm break-all">{detail.discordLink}</p>
+            )}
           </div>
           <div className="rounded-3xl border border-white/[0.06] p-4" style={{ background: "rgba(255,255,255,0.02)" }}>
             <p className="text-gray-500 text-xs uppercase tracking-wider">Discord ID</p>

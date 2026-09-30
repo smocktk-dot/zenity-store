@@ -470,11 +470,11 @@ const authRouter = router({
   // ─── Reseller Applications (public) ───────────────────────────────────────────
   submitResellerApplication: publicProcedure
     .input(z.object({
-      discordLink: z.string().min(1),
-      discordId: z.string().min(1),
-      email: z.string().email(),
-      product: z.string().min(1),
-      reason: z.string().min(1),
+      discordLink: z.string().min(1).max(300).refine((v) => /^https?:\/\//i.test(v.trim()), { message: "Link do Discord inválido" }),
+      discordId: z.string().min(1).max(100),
+      email: z.string().email().max(200),
+      product: z.string().min(1).max(200),
+      reason: z.string().min(1).max(5000),
     }))
     .mutation(async ({ input, ctx }) => {
       const ip = getClientIp(ctx.req);
