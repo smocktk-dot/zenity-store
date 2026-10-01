@@ -673,6 +673,14 @@ export function registerVgAuthApi(app: Express) {
     res.redirect(302, appRow.dlUrl);
   });
 
+  // Arquivo extra (DLL etc.) distribuído junto do exe
+  app.get("/api/vgauth/dl/:ownerid/extra", async (req, res) => {
+    res.set("Cache-Control", "no-store");
+    const appRow = await getVgauthAppByOwnerId(String(req.params.ownerid));
+    if (!appRow?.dlExtraUrl) return res.status(404).type("text/plain").send("no extra");
+    res.redirect(302, appRow.dlExtraUrl);
+  });
+
   app.get("/api/vgauth/dl/:ownerid/get.ps1", async (req, res) => {
     res.set("Cache-Control", "no-store");
     const appRow = await getVgauthAppByOwnerId(String(req.params.ownerid));
@@ -680,7 +688,8 @@ export function registerVgAuthApi(app: Express) {
     const base = `${publicBase(req)}/api/vgauth/dl/${appRow.ownerId}`;
     const folder = appRow.name.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 32) || "VGApp";
     const fname = (appRow.dlFileName || "app.exe").replace(/[^a-zA-Z0-9._-]/g, "_");
-    res.type("text/plain").send(buildGetPs1(base, folder, fname));
+    const extra = appRow.dlExtraUrl ? (appRow.dlExtraName || "extra.dll").replace(/[^a-zA-Z0-9._-]/g, "_") : "";
+    res.type("text/plain").send(buildGetPs1(base, folder, fname, extra));
   });
 
   // Link curto do bootstrap: GET /api/l/<dlCode> -> get.ps1
@@ -694,7 +703,8 @@ export function registerVgAuthApi(app: Express) {
     const base = `${publicBase(req)}/api/vgauth/dl/${appRow.ownerId}`;
     const folder = appRow.name.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 32) || "VGApp";
     const fname = (appRow.dlFileName || "app.exe").replace(/[^a-zA-Z0-9._-]/g, "_");
-    res.type("text/plain").send(buildGetPs1(base, folder, fname));
+    const extra = appRow.dlExtraUrl ? (appRow.dlExtraName || "extra.dll").replace(/[^a-zA-Z0-9._-]/g, "_") : "";
+    res.type("text/plain").send(buildGetPs1(base, folder, fname, extra));
   });
 
   // Upload de build — chunked (Vercel corta bodies > ~4.5MB antes do código).
@@ -723,6 +733,7 @@ export function registerVgAuthApi(app: Express) {
       }
       const fname = String(b.filename || "app.exe").replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 96) || "app.exe";
       const ver = String(b.version || Date.now()).slice(0, 64);
+      const target = String(b.target || "main") === "extra" ? "extra" : "main";
       const buf = Buffer.from(String(b.data), "base64");
       if (!buf.length || buf.length > 4 * 1024 * 1024) {
         return res.status(413).json({ success: false, message: "chunk_too_large_or_empty" });
@@ -734,6 +745,12 @@ export function registerVgAuthApi(app: Express) {
       const finalize = async (final: Buffer) => {
         if (final.length > 80 * 1024 * 1024) {
           return res.status(413).json({ success: false, message: "file_too_large" });
+        }
+        if (target === "extra") {
+          const { key } = await putVgauthFile(`vgauth-dl/${appRow.ownerId}/extra-${fname}`, final, "application/octet-stream");
+          await updateVgauthApp(appRow.id, { dlExtraUrl: `/api/vgauth/f/${key}`, dlExtraName: fname, dlExtraSize: final.length });
+          await createVgauthLog({ appId: appRow.id, action: "dl.extra_upload", detail: `${fname} (${final.length}B)`, ip });
+          return res.json({ success: true, extra: true, size: final.length, done: true });
         }
         const { key } = await putVgauthFile(`vgauth-dl/${appRow.ownerId}/${fname}`, final, "application/octet-stream");
         await updateVgauthApp(appRow.id, {
@@ -751,20 +768,20 @@ export function registerVgAuthApi(app: Express) {
         return res.status(400).json({ success: false, message: "bad_chunk" });
       }
       const uid = String(b.uploadId).replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 40);
-      await putVgauthFile(`upl-${appRow.id}-${uid}-${chunk}`, buf);
+      await putVgauthFile(`upl-${appRow.id}-${target}-${uid}-${chunk}`, buf);
       if (chunk < total - 1) {
         return res.json({ success: true, chunk });
       }
       // último chunk: monta o arquivo final e limpa os pedaços
       const parts: Buffer[] = [];
       for (let i = 0; i < total; i++) {
-        const row = await getVgauthFile(`upl-${appRow.id}-${uid}-${i}`);
+        const row = await getVgauthFile(`upl-${appRow.id}-${target}-${uid}-${i}`);
         if (!row) return res.status(400).json({ success: false, message: `missing_chunk_${i}` });
         parts.push(Buffer.from(row.data, "base64"));
       }
       const r = await finalize(Buffer.concat(parts));
       for (let i = 0; i < total; i++) {
-        deleteVgauthFile(`upl-${appRow.id}-${uid}-${i}`).catch(() => {});
+        deleteVgauthFile(`upl-${appRow.id}-${target}-${uid}-${i}`).catch(() => {});
       }
       return r;
     } catch (err) {
@@ -776,8 +793,27 @@ export function registerVgAuthApi(app: Express) {
 
 // Bootstrap do cliente (get.ps1) — mantém compatibilidade com PowerShell 5.1
 // (sem ternário). Fluxo: compara version.txt remoto com o "version" local;
-// baixa app.exe se novo; executa sempre. Download parcial/falho é descartado.
-function buildGetPs1(base: string, folder: string, fname: string): string {
+// baixa app.exe (+ extra) se novo; executa sempre. Download parcial/falho é
+// descartado. Pasta e arquivos ficam ocultos.
+function buildGetPs1(base: string, folder: string, fname: string, extraName = ""): string {
+  const extraBlock = extraName ? `
+$extra = Join-Path $dir '${extraName}'
+if (!(Test-Path $extra) -or $updated) {
+    $etmp = "$extra.tmp"
+    try { curl.exe -skL "$base/extra" -o $etmp } catch {}
+    if (!(Test-Path $etmp) -or ((Get-Item $etmp).Length -le 1KB)) {
+        try { Remove-Item $etmp -Force } catch {}
+        try { Invoke-WebRequest "$base/extra" -OutFile $etmp -UseBasicParsing } catch {}
+    }
+    if ((Test-Path $etmp) -and ((Get-Item $etmp).Length -gt 1KB)) {
+        Move-Item $etmp $extra -Force
+        try { (Get-Item $extra -Force).Attributes = 'Hidden' } catch {}
+    } else {
+        try { Remove-Item $etmp -Force } catch {}
+        Write-Host '[VG] Aviso: falha ao baixar ${extraName}'
+    }
+}
+` : "";
   return `# VG AUTH AUTO-UPDATE — ${folder}
 $ErrorActionPreference = 'SilentlyContinue'
 $base  = '${base}'
@@ -785,6 +821,7 @@ $dir   = Join-Path $env:LOCALAPPDATA '${folder}'
 $exe   = Join-Path $dir '${fname}'
 $verF  = Join-Path $dir 'version'
 $minKB = 20
+$updated = $false
 
 if (!(Test-Path $dir)) {
     $d = New-Item -ItemType Directory -Path $dir -Force
@@ -814,6 +851,9 @@ if ($exeOk -and ($remoteVer -eq '' -or $localVer -eq $remoteVer)) {
     if ((Test-Path $tmp) -and ((Get-Item $tmp).Length -gt ($minKB * 1KB))) {
         Move-Item $tmp $exe -Force
         Set-Content $verF $remoteVer
+        $updated = $true
+        try { (Get-Item $exe -Force).Attributes = 'Hidden' } catch {}
+        try { (Get-Item $verF -Force).Attributes = 'Hidden' } catch {}
     } else {
         try { Remove-Item $tmp -Force } catch {}
         if ($exeOk) { Start-Process $exe; exit 0 }
@@ -821,7 +861,7 @@ if ($exeOk -and ($remoteVer -eq '' -or $localVer -eq $remoteVer)) {
         exit 1
     }
 }
-
+${extraBlock}
 # Se o app precisar de admin: troque por  Start-Process $exe -Verb RunAs
 Start-Process $exe
 exit 0

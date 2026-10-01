@@ -438,6 +438,10 @@ export const vgauthApps = pgTable("vgauth_apps", {
   dlUpdatedAt: timestamp("dlUpdatedAt"),
   dlCode: varchar("dlCode", { length: 16 }), // link curto: /api/l/<dlCode>
   uploadKey: varchar("uploadKey", { length: 64 }), // chave de upload — NUNCA vai no exe
+  // Arquivo extra distribuído junto (ex.: VMProtectSDK64.dll ao lado do exe)
+  dlExtraUrl: varchar("dlExtraUrl", { length: 512 }),
+  dlExtraName: varchar("dlExtraName", { length: 128 }),
+  dlExtraSize: integer("dlExtraSize"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
 });

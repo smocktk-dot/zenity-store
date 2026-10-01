@@ -2722,6 +2722,7 @@ const vgauthRouter = router({
       id: z.number(),
       uploadId: z.string().max(64),
       chunkIndex: z.number().int().min(0).max(200),
+      extra: z.boolean().default(false), // true = chunk do arquivo extra (DLL)
       data: z.string(), // base64 do chunk (<= ~2.5MB cru)
     }))
     .mutation(async ({ input }) => {
@@ -2731,7 +2732,7 @@ const vgauthRouter = router({
       }
       const uid = input.uploadId.replace(/[^a-zA-Z0-9_-]/g, "");
       if (!uid) throw new TRPCError({ code: "BAD_REQUEST", message: "uploadId inválido" });
-      await putVgauthFile(`upl-${input.id}-${uid}-${input.chunkIndex}`, buf);
+      await putVgauthFile(`upl-${input.id}-${input.extra ? "x" : "m"}-${uid}-${input.chunkIndex}`, buf);
       return { success: true, chunk: input.chunkIndex };
     }),
 
@@ -2742,20 +2743,33 @@ const vgauthRouter = router({
       totalChunks: z.number().int().min(1).max(200),
       fileName: z.string().max(128).default("app.exe"),
       version: z.string().max(64),
+      // arquivo extra opcional (DLL distribuída junto)
+      extraUploadId: z.string().max(64).optional(),
+      extraTotalChunks: z.number().int().min(1).max(200).optional(),
+      extraFileName: z.string().max(128).optional(),
     }))
     .mutation(async ({ input }) => {
       const appRow = await getVgauthAppById(input.id);
       if (!appRow) throw new TRPCError({ code: "NOT_FOUND", message: "App não encontrado" });
-      const uid = input.uploadId.replace(/[^a-zA-Z0-9_-]/g, "");
-      const parts: Buffer[] = [];
-      for (let i = 0; i < input.totalChunks; i++) {
-        const row = await getVgauthFile(`upl-${input.id}-${uid}-${i}`);
-        if (!row) throw new TRPCError({ code: "BAD_REQUEST", message: `Chunk ${i} não chegou — tente de novo` });
-        parts.push(Buffer.from(row.data, "base64"));
-      }
-      const final = Buffer.concat(parts);
-      if (final.length > 80 * 1024 * 1024) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Arquivo final > 80MB" });
+
+      const assemble = async (uidRaw: string, total: number, tag: string) => {
+        const uid = uidRaw.replace(/[^a-zA-Z0-9_-]/g, "");
+        const parts: Buffer[] = [];
+        for (let i = 0; i < total; i++) {
+          const row = await getVgauthFile(`upl-${input.id}-${tag}-${uid}-${i}`);
+          if (!row) throw new TRPCError({ code: "BAD_REQUEST", message: `Chunk ${i} não chegou — tente de novo` });
+          parts.push(Buffer.from(row.data, "base64"));
+        }
+        const buf = Buffer.concat(parts);
+        for (let i = 0; i < total; i++) {
+          deleteVgauthFile(`upl-${input.id}-${tag}-${uid}-${i}`).catch(() => {});
+        }
+        return buf;
+      };
+
+      const final = await assemble(input.uploadId, input.totalChunks, "m");
+      if (!final.length || final.length > 80 * 1024 * 1024) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Arquivo final vazio ou > 80MB" });
       }
       const fname = input.fileName.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 96) || "app.exe";
       const { key } = await putVgauthFile(`vgauth-dl/${appRow.ownerId}/${fname}`, final, "application/octet-stream");
@@ -2764,9 +2778,17 @@ const vgauthRouter = router({
         dlUrl: `/api/vgauth/f/${key}`, dlVersion: version,
         dlFileName: fname, dlSize: final.length, dlUpdatedAt: new Date(),
       });
-      for (let i = 0; i < input.totalChunks; i++) {
-        deleteVgauthFile(`upl-${input.id}-${uid}-${i}`).catch(() => {});
+
+      // Extra (DLL) opcional — sobe junto no mesmo publish
+      if (input.extraUploadId && input.extraTotalChunks && input.extraFileName) {
+        const exBuf = await assemble(input.extraUploadId, input.extraTotalChunks, "x");
+        if (exBuf.length && exBuf.length <= 80 * 1024 * 1024) {
+          const exName = input.extraFileName.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 96);
+          const { key: exKey } = await putVgauthFile(`vgauth-dl/${appRow.ownerId}/extra-${exName}`, exBuf, "application/octet-stream");
+          await updateVgauthApp(appRow.id, { dlExtraUrl: `/api/vgauth/f/${exKey}`, dlExtraName: exName, dlExtraSize: exBuf.length });
+        }
       }
+
       await createVgauthLog({ appId: appRow.id, action: "dl.upload", detail: `${fname} v${version} (${final.length}B)` });
       return { success: true, version, size: final.length };
     }),

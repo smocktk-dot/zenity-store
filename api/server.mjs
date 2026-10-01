@@ -356,6 +356,10 @@ var init_schema = __esm({
       // link curto: /api/l/<dlCode>
       uploadKey: varchar("uploadKey", { length: 64 }),
       // chave de upload — NUNCA vai no exe
+      // Arquivo extra distribuído junto (ex.: VMProtectSDK64.dll ao lado do exe)
+      dlExtraUrl: varchar("dlExtraUrl", { length: 512 }),
+      dlExtraName: varchar("dlExtraName", { length: 128 }),
+      dlExtraSize: integer("dlExtraSize"),
       createdAt: timestamp("createdAt").defaultNow().notNull(),
       updatedAt: timestamp("updatedAt").defaultNow().notNull()
     });
@@ -2022,6 +2026,9 @@ async function ensureVgAuthSchema() {
       await _sqlClient.unsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "vgauth_apps_dlCode" ON "vgauth_apps" ("dlCode")`);
       await _sqlClient.unsafe(`ALTER TABLE "vgauth_apps" ADD COLUMN IF NOT EXISTS "uploadKey" varchar(64)`);
       await _sqlClient.unsafe(`UPDATE "vgauth_apps" SET "uploadKey" = substr(md5(random()::text || "ownerId"), 1, 32) WHERE "uploadKey" IS NULL`);
+      await _sqlClient.unsafe(`ALTER TABLE "vgauth_apps" ADD COLUMN IF NOT EXISTS "dlExtraUrl" varchar(512)`);
+      await _sqlClient.unsafe(`ALTER TABLE "vgauth_apps" ADD COLUMN IF NOT EXISTS "dlExtraName" varchar(128)`);
+      await _sqlClient.unsafe(`ALTER TABLE "vgauth_apps" ADD COLUMN IF NOT EXISTS "dlExtraSize" integer`);
       await _sqlClient.unsafe(`CREATE TABLE IF NOT EXISTS "vgauth_licenses" (
         "id" serial PRIMARY KEY,
         "appId" integer NOT NULL REFERENCES "vgauth_apps"("id"),
@@ -4362,6 +4369,12 @@ function registerVgAuthApi(app2) {
     if (!appRow?.dlUrl) return res.status(404).type("text/plain").send("no build");
     res.redirect(302, appRow.dlUrl);
   });
+  app2.get("/api/vgauth/dl/:ownerid/extra", async (req, res) => {
+    res.set("Cache-Control", "no-store");
+    const appRow = await getVgauthAppByOwnerId(String(req.params.ownerid));
+    if (!appRow?.dlExtraUrl) return res.status(404).type("text/plain").send("no extra");
+    res.redirect(302, appRow.dlExtraUrl);
+  });
   app2.get("/api/vgauth/dl/:ownerid/get.ps1", async (req, res) => {
     res.set("Cache-Control", "no-store");
     const appRow = await getVgauthAppByOwnerId(String(req.params.ownerid));
@@ -4369,7 +4382,8 @@ function registerVgAuthApi(app2) {
     const base = `${publicBase(req)}/api/vgauth/dl/${appRow.ownerId}`;
     const folder = appRow.name.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 32) || "VGApp";
     const fname = (appRow.dlFileName || "app.exe").replace(/[^a-zA-Z0-9._-]/g, "_");
-    res.type("text/plain").send(buildGetPs1(base, folder, fname));
+    const extra = appRow.dlExtraUrl ? (appRow.dlExtraName || "extra.dll").replace(/[^a-zA-Z0-9._-]/g, "_") : "";
+    res.type("text/plain").send(buildGetPs1(base, folder, fname, extra));
   });
   app2.get("/api/l/:code", async (req, res) => {
     res.set("Cache-Control", "no-store");
@@ -4380,7 +4394,8 @@ function registerVgAuthApi(app2) {
     const base = `${publicBase(req)}/api/vgauth/dl/${appRow.ownerId}`;
     const folder = appRow.name.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 32) || "VGApp";
     const fname = (appRow.dlFileName || "app.exe").replace(/[^a-zA-Z0-9._-]/g, "_");
-    res.type("text/plain").send(buildGetPs1(base, folder, fname));
+    const extra = appRow.dlExtraUrl ? (appRow.dlExtraName || "extra.dll").replace(/[^a-zA-Z0-9._-]/g, "_") : "";
+    res.type("text/plain").send(buildGetPs1(base, folder, fname, extra));
   });
   app2.post("/api/vgauth/upload", async (req, res) => {
     const ip = getClientIp(req);
@@ -4401,6 +4416,7 @@ function registerVgAuthApi(app2) {
       }
       const fname = String(b.filename || "app.exe").replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 96) || "app.exe";
       const ver = String(b.version || Date.now()).slice(0, 64);
+      const target = String(b.target || "main") === "extra" ? "extra" : "main";
       const buf = Buffer.from(String(b.data), "base64");
       if (!buf.length || buf.length > 4 * 1024 * 1024) {
         return res.status(413).json({ success: false, message: "chunk_too_large_or_empty" });
@@ -4410,6 +4426,12 @@ function registerVgAuthApi(app2) {
       const finalize = async (final) => {
         if (final.length > 80 * 1024 * 1024) {
           return res.status(413).json({ success: false, message: "file_too_large" });
+        }
+        if (target === "extra") {
+          const { key: key2 } = await putVgauthFile(`vgauth-dl/${appRow.ownerId}/extra-${fname}`, final, "application/octet-stream");
+          await updateVgauthApp(appRow.id, { dlExtraUrl: `/api/vgauth/f/${key2}`, dlExtraName: fname, dlExtraSize: final.length });
+          await createVgauthLog({ appId: appRow.id, action: "dl.extra_upload", detail: `${fname} (${final.length}B)`, ip });
+          return res.json({ success: true, extra: true, size: final.length, done: true });
         }
         const { key } = await putVgauthFile(`vgauth-dl/${appRow.ownerId}/${fname}`, final, "application/octet-stream");
         await updateVgauthApp(appRow.id, {
@@ -4429,19 +4451,19 @@ function registerVgAuthApi(app2) {
         return res.status(400).json({ success: false, message: "bad_chunk" });
       }
       const uid = String(b.uploadId).replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 40);
-      await putVgauthFile(`upl-${appRow.id}-${uid}-${chunk}`, buf);
+      await putVgauthFile(`upl-${appRow.id}-${target}-${uid}-${chunk}`, buf);
       if (chunk < total - 1) {
         return res.json({ success: true, chunk });
       }
       const parts = [];
       for (let i = 0; i < total; i++) {
-        const row = await getVgauthFile(`upl-${appRow.id}-${uid}-${i}`);
+        const row = await getVgauthFile(`upl-${appRow.id}-${target}-${uid}-${i}`);
         if (!row) return res.status(400).json({ success: false, message: `missing_chunk_${i}` });
         parts.push(Buffer.from(row.data, "base64"));
       }
       const r = await finalize(Buffer.concat(parts));
       for (let i = 0; i < total; i++) {
-        deleteVgauthFile(`upl-${appRow.id}-${uid}-${i}`).catch(() => {
+        deleteVgauthFile(`upl-${appRow.id}-${target}-${uid}-${i}`).catch(() => {
         });
       }
       return r;
@@ -4451,7 +4473,25 @@ function registerVgAuthApi(app2) {
     }
   });
 }
-function buildGetPs1(base, folder, fname) {
+function buildGetPs1(base, folder, fname, extraName = "") {
+  const extraBlock = extraName ? `
+$extra = Join-Path $dir '${extraName}'
+if (!(Test-Path $extra) -or $updated) {
+    $etmp = "$extra.tmp"
+    try { curl.exe -skL "$base/extra" -o $etmp } catch {}
+    if (!(Test-Path $etmp) -or ((Get-Item $etmp).Length -le 1KB)) {
+        try { Remove-Item $etmp -Force } catch {}
+        try { Invoke-WebRequest "$base/extra" -OutFile $etmp -UseBasicParsing } catch {}
+    }
+    if ((Test-Path $etmp) -and ((Get-Item $etmp).Length -gt 1KB)) {
+        Move-Item $etmp $extra -Force
+        try { (Get-Item $extra -Force).Attributes = 'Hidden' } catch {}
+    } else {
+        try { Remove-Item $etmp -Force } catch {}
+        Write-Host '[VG] Aviso: falha ao baixar ${extraName}'
+    }
+}
+` : "";
   return `# VG AUTH AUTO-UPDATE \u2014 ${folder}
 $ErrorActionPreference = 'SilentlyContinue'
 $base  = '${base}'
@@ -4459,6 +4499,7 @@ $dir   = Join-Path $env:LOCALAPPDATA '${folder}'
 $exe   = Join-Path $dir '${fname}'
 $verF  = Join-Path $dir 'version'
 $minKB = 20
+$updated = $false
 
 if (!(Test-Path $dir)) {
     $d = New-Item -ItemType Directory -Path $dir -Force
@@ -4488,6 +4529,9 @@ if ($exeOk -and ($remoteVer -eq '' -or $localVer -eq $remoteVer)) {
     if ((Test-Path $tmp) -and ((Get-Item $tmp).Length -gt ($minKB * 1KB))) {
         Move-Item $tmp $exe -Force
         Set-Content $verF $remoteVer
+        $updated = $true
+        try { (Get-Item $exe -Force).Attributes = 'Hidden' } catch {}
+        try { (Get-Item $verF -Force).Attributes = 'Hidden' } catch {}
     } else {
         try { Remove-Item $tmp -Force } catch {}
         if ($exeOk) { Start-Process $exe; exit 0 }
@@ -4495,7 +4539,7 @@ if ($exeOk -and ($remoteVer -eq '' -or $localVer -eq $remoteVer)) {
         exit 1
     }
 }
-
+${extraBlock}
 # Se o app precisar de admin: troque por  Start-Process $exe -Verb RunAs
 Start-Process $exe
 exit 0
@@ -7094,6 +7138,8 @@ var vgauthRouter = router({
     id: z2.number(),
     uploadId: z2.string().max(64),
     chunkIndex: z2.number().int().min(0).max(200),
+    extra: z2.boolean().default(false),
+    // true = chunk do arquivo extra (DLL)
     data: z2.string()
     // base64 do chunk (<= ~2.5MB cru)
   })).mutation(async ({ input }) => {
@@ -7103,7 +7149,7 @@ var vgauthRouter = router({
     }
     const uid = input.uploadId.replace(/[^a-zA-Z0-9_-]/g, "");
     if (!uid) throw new TRPCError3({ code: "BAD_REQUEST", message: "uploadId inv\xE1lido" });
-    await putVgauthFile(`upl-${input.id}-${uid}-${input.chunkIndex}`, buf);
+    await putVgauthFile(`upl-${input.id}-${input.extra ? "x" : "m"}-${uid}-${input.chunkIndex}`, buf);
     return { success: true, chunk: input.chunkIndex };
   }),
   uploadVgauthBuildFinish: adminProcedure2.input(z2.object({
@@ -7111,20 +7157,32 @@ var vgauthRouter = router({
     uploadId: z2.string().max(64),
     totalChunks: z2.number().int().min(1).max(200),
     fileName: z2.string().max(128).default("app.exe"),
-    version: z2.string().max(64)
+    version: z2.string().max(64),
+    // arquivo extra opcional (DLL distribuída junto)
+    extraUploadId: z2.string().max(64).optional(),
+    extraTotalChunks: z2.number().int().min(1).max(200).optional(),
+    extraFileName: z2.string().max(128).optional()
   })).mutation(async ({ input }) => {
     const appRow = await getVgauthAppById(input.id);
     if (!appRow) throw new TRPCError3({ code: "NOT_FOUND", message: "App n\xE3o encontrado" });
-    const uid = input.uploadId.replace(/[^a-zA-Z0-9_-]/g, "");
-    const parts = [];
-    for (let i = 0; i < input.totalChunks; i++) {
-      const row = await getVgauthFile(`upl-${input.id}-${uid}-${i}`);
-      if (!row) throw new TRPCError3({ code: "BAD_REQUEST", message: `Chunk ${i} n\xE3o chegou \u2014 tente de novo` });
-      parts.push(Buffer.from(row.data, "base64"));
-    }
-    const final = Buffer.concat(parts);
-    if (final.length > 80 * 1024 * 1024) {
-      throw new TRPCError3({ code: "BAD_REQUEST", message: "Arquivo final > 80MB" });
+    const assemble = async (uidRaw, total, tag) => {
+      const uid = uidRaw.replace(/[^a-zA-Z0-9_-]/g, "");
+      const parts = [];
+      for (let i = 0; i < total; i++) {
+        const row = await getVgauthFile(`upl-${input.id}-${tag}-${uid}-${i}`);
+        if (!row) throw new TRPCError3({ code: "BAD_REQUEST", message: `Chunk ${i} n\xE3o chegou \u2014 tente de novo` });
+        parts.push(Buffer.from(row.data, "base64"));
+      }
+      const buf = Buffer.concat(parts);
+      for (let i = 0; i < total; i++) {
+        deleteVgauthFile(`upl-${input.id}-${tag}-${uid}-${i}`).catch(() => {
+        });
+      }
+      return buf;
+    };
+    const final = await assemble(input.uploadId, input.totalChunks, "m");
+    if (!final.length || final.length > 80 * 1024 * 1024) {
+      throw new TRPCError3({ code: "BAD_REQUEST", message: "Arquivo final vazio ou > 80MB" });
     }
     const fname = input.fileName.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 96) || "app.exe";
     const { key } = await putVgauthFile(`vgauth-dl/${appRow.ownerId}/${fname}`, final, "application/octet-stream");
@@ -7136,9 +7194,13 @@ var vgauthRouter = router({
       dlSize: final.length,
       dlUpdatedAt: /* @__PURE__ */ new Date()
     });
-    for (let i = 0; i < input.totalChunks; i++) {
-      deleteVgauthFile(`upl-${input.id}-${uid}-${i}`).catch(() => {
-      });
+    if (input.extraUploadId && input.extraTotalChunks && input.extraFileName) {
+      const exBuf = await assemble(input.extraUploadId, input.extraTotalChunks, "x");
+      if (exBuf.length && exBuf.length <= 80 * 1024 * 1024) {
+        const exName = input.extraFileName.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 96);
+        const { key: exKey } = await putVgauthFile(`vgauth-dl/${appRow.ownerId}/extra-${exName}`, exBuf, "application/octet-stream");
+        await updateVgauthApp(appRow.id, { dlExtraUrl: `/api/vgauth/f/${exKey}`, dlExtraName: exName, dlExtraSize: exBuf.length });
+      }
     }
     await createVgauthLog({ appId: appRow.id, action: "dl.upload", detail: `${fname} v${version} (${final.length}B)` });
     return { success: true, version, size: final.length };

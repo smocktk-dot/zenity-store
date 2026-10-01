@@ -103,34 +103,45 @@ export default function AdminVgAuthApp({ id }: { id: number }) {
 
   // Auto-update / distribuição (upload em chunks — Vercel corta body > ~4.5MB)
   const [dlFile, setDlFile] = useState<File | null>(null);
+  const [dlExtra, setDlExtra] = useState<File | null>(null);
   const [dlVersion, setDlVersion] = useState("");
   const [dlProgress, setDlProgress] = useState("");
   const uploadChunk = trpc.vgauth.uploadVgauthBuildChunk.useMutation();
   const finishBuild = trpc.vgauth.uploadVgauthBuildFinish.useMutation();
   const [uploading, setUploading] = useState(false);
+  const blobToB64 = (blob: Blob) => new Promise<string>((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(",")[1] || "");
+    r.onerror = () => reject(new Error("Falha ao ler arquivo"));
+    r.readAsDataURL(blob);
+  });
+  const sendChunks = async (file: File, uploadId: string, extra: boolean, label: string) => {
+    const CHUNK = 2.5 * 1024 * 1024;
+    const total = Math.ceil(file.size / CHUNK);
+    for (let i = 0; i < total; i++) {
+      setDlProgress(`${label}: parte ${i + 1}/${total}...`);
+      const b64 = await blobToB64(file.slice(i * CHUNK, (i + 1) * CHUNK));
+      await uploadChunk.mutateAsync({ id, uploadId, chunkIndex: i, extra, data: b64 });
+    }
+    return total;
+  };
   const publishBuild = async () => {
     if (!dlFile) return toast.error("Selecione o .exe");
     const ver = dlVersion.trim() || new Date().toISOString().replace(/[-:T]/g, "").slice(0, 12);
-    const CHUNK = 2.5 * 1024 * 1024;
-    const total = Math.ceil(dlFile.size / CHUNK);
     const uploadId = Math.random().toString(36).slice(2, 12);
+    const extraId = dlExtra ? Math.random().toString(36).slice(2, 12) : undefined;
     setUploading(true);
     try {
-      for (let i = 0; i < total; i++) {
-        setDlProgress(`Enviando parte ${i + 1}/${total}...`);
-        const slice = dlFile.slice(i * CHUNK, (i + 1) * CHUNK);
-        const b64 = await new Promise<string>((resolve, reject) => {
-          const r = new FileReader();
-          r.onload = () => resolve(String(r.result).split(",")[1] || "");
-          r.onerror = () => reject(new Error("Falha ao ler arquivo"));
-          r.readAsDataURL(slice);
-        });
-        await uploadChunk.mutateAsync({ id, uploadId, chunkIndex: i, data: b64 });
-      }
+      const total = await sendChunks(dlFile, uploadId, false, "Enviando exe");
+      let extraTotal: number | undefined;
+      if (dlExtra && extraId) extraTotal = await sendChunks(dlExtra, extraId, true, "Enviando DLL");
       setDlProgress("Montando build...");
-      const d = await finishBuild.mutateAsync({ id, uploadId, totalChunks: total, fileName: dlFile.name, version: ver });
+      const d = await finishBuild.mutateAsync({
+        id, uploadId, totalChunks: total, fileName: dlFile.name, version: ver,
+        extraUploadId: extraId, extraTotalChunks: extraTotal, extraFileName: dlExtra?.name,
+      });
       toast.success(`Build v${d.version} publicada (${(d.size / 1024 / 1024).toFixed(1)} MB) — clientes atualizam na próxima execução`);
-      setDlFile(null); setDlVersion(""); refetch();
+      setDlFile(null); setDlExtra(null); setDlVersion(""); refetch();
     } catch (e: any) {
       toast.error(e?.message || "Falha no upload");
     }
@@ -570,24 +581,31 @@ export default function AdminVgAuthApp({ id }: { id: number }) {
 $ownerid = '${app.ownerId}'
 $secret  = '${app.uploadKey || ""}'   # uploadKey — NAO e o secret do app (esse vai no exe)
 $file    = '.\\app.exe'   # caminho do exe compilado
+$extra   = ''             # opcional: '.\\VMProtectSDK64.dll' pra subir DLL junto
 $api     = '${origin}/api/vgauth/upload'
 $version = Get-Date -Format 'yyyyMMddHHmm'
 
-$bytes = [IO.File]::ReadAllBytes((Resolve-Path $file))
-$chunkSize = 2500000
-$total = [Math]::Ceiling($bytes.Length / $chunkSize)
-$uploadId = -join ((48..57) + (97..122) | Get-Random -Count 10 | % { [char]$_ })
-$fname = Split-Path $file -Leaf
-for ($i = 0; $i -lt $total; $i++) {
-    $len = [Math]::Min($chunkSize, $bytes.Length - ($i * $chunkSize))
-    $b64 = [Convert]::ToBase64String($bytes, $i * $chunkSize, $len)
-    $body = @{ ownerid=$ownerid; secret=$secret; filename=$fname; version=$version;
-               uploadId=$uploadId; chunk=$i; total=$total; data=$b64 } | ConvertTo-Json -Compress
-    $r = Invoke-RestMethod $api -Method Post -ContentType 'application/json' -Body $body
-    if (-not $r.success) { "Erro no chunk $i"; exit 1 }
-    Write-Host "chunk $($i + 1)/$total ok"
+function Send-File($path, $target) {
+    $bytes = [IO.File]::ReadAllBytes((Resolve-Path $path))
+    $chunkSize = 2500000
+    $total = [Math]::Ceiling($bytes.Length / $chunkSize)
+    $uploadId = -join ((48..57) + (97..122) | Get-Random -Count 10 | % { [char]$_ })
+    $fname = Split-Path $path -Leaf
+    for ($i = 0; $i -lt $total; $i++) {
+        $len = [Math]::Min($chunkSize, $bytes.Length - ($i * $chunkSize))
+        $b64 = [Convert]::ToBase64String($bytes, $i * $chunkSize, $len)
+        $body = @{ ownerid=$ownerid; secret=$secret; filename=$fname; version=$version; target=$target;
+                   uploadId=$uploadId; chunk=$i; total=$total; data=$b64 } | ConvertTo-Json -Compress
+        $r = Invoke-RestMethod $api -Method Post -ContentType 'application/json' -Body $body
+        if (-not $r.success) { "Erro no chunk $i ($target)"; exit 1 }
+        Write-Host "$target chunk $($i + 1)/$total ok"
+    }
+    return $bytes.Length
 }
-"Publicado v$version ($($bytes.Length) bytes) — clientes atualizam na proxima execucao"`;
+
+$sz = Send-File $file 'main'
+if ($extra -and (Test-Path $extra)) { Send-File $extra 'extra' | Out-Null }
+"Publicado v$version ($sz bytes) — clientes atualizam na proxima execucao"`;
         const Code = ({ label, text, mono = true }: { label: string; text: string; mono?: boolean }) => (
           <div>
             <p className="text-gray-500 text-[11px] uppercase font-semibold mb-1.5">{label}</p>
@@ -608,7 +626,7 @@ for ($i = 0; $i -lt $total; $i++) {
                     <h3 className="text-white text-sm font-semibold">Distribuição / Auto-Update</h3>
                     <p className="text-gray-500 text-xs">
                       {app.dlUrl
-                        ? `Build atual: v${app.dlVersion} • ${app.dlFileName} • ${((app.dlSize || 0) / 1024 / 1024).toFixed(1)} MB • ${app.dlUpdatedAt ? new Date(app.dlUpdatedAt).toLocaleString("pt-BR") : ""}`
+                        ? `Build atual: v${app.dlVersion} • ${app.dlFileName} • ${((app.dlSize || 0) / 1024 / 1024).toFixed(1)} MB${app.dlExtraName ? ` • +${app.dlExtraName} (${((app.dlExtraSize || 0) / 1024).toFixed(0)} KB)` : ""} • ${app.dlUpdatedAt ? new Date(app.dlUpdatedAt).toLocaleString("pt-BR") : ""}`
                         : "Nenhum build publicado ainda — faça o primeiro upload"}
                     </p>
                   </div>
@@ -629,7 +647,7 @@ for ($i = 0; $i -lt $total; $i++) {
                 <h3 className="text-white text-sm font-semibold">Comando pro usuário final</h3>
                 <Code label="Curto" text={oneLiner} />
                 <Code label="Ofuscado (base64 — não expõe a URL)" text={b64cmd} />
-                <p className="text-gray-600 text-[11px]">O cliente roda uma vez → baixa o exe pra %LOCALAPPDATA% e auto-atualiza sozinho em toda execução futura.</p>
+                <p className="text-gray-600 text-[11px]">O link é <b>permanente</b> — nunca muda. Você publica build novo e os clientes atualizam sozinho na próxima execução. O exe + DLL ficam numa pasta oculta em %LOCALAPPDATA%.</p>
               </div>
             )}
 
@@ -637,10 +655,15 @@ for ($i = 0; $i -lt $total; $i++) {
             <div className="rounded-2xl border border-white/[0.06] p-5 space-y-4" style={{ background: "rgba(255,255,255,0.02)" }}>
               <h3 className="text-white text-sm font-semibold">Publicar novo build</h3>
               <div className="flex flex-wrap items-end gap-3">
-                <div className="flex-1 min-w-[220px]">
-                  <label className="text-gray-400 text-xs font-semibold uppercase">Arquivo (.exe)</label>
+                <div className="flex-1 min-w-[180px]">
+                  <label className="text-gray-400 text-xs font-semibold uppercase">Loader (.exe)</label>
                   <input type="file" onChange={e => setDlFile(e.target.files?.[0] || null)}
                     className="mt-1 block w-full text-xs text-gray-400 file:mr-3 file:rounded-lg file:border-0 file:bg-emerald-500/15 file:text-emerald-400 file:px-3 file:py-2 file:text-xs file:font-semibold hover:file:bg-emerald-500/25 file:cursor-pointer" />
+                </div>
+                <div className="flex-1 min-w-[180px]">
+                  <label className="text-gray-400 text-xs font-semibold uppercase">DLL extra (opcional)</label>
+                  <input type="file" onChange={e => setDlExtra(e.target.files?.[0] || null)}
+                    className="mt-1 block w-full text-xs text-gray-400 file:mr-3 file:rounded-lg file:border-0 file:bg-violet-500/15 file:text-violet-400 file:px-3 file:py-2 file:text-xs file:font-semibold hover:file:bg-violet-500/25 file:cursor-pointer" />
                 </div>
                 <div className="w-48">
                   <label className="text-gray-400 text-xs font-semibold uppercase">Versão</label>

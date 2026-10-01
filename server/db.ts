@@ -1735,6 +1735,9 @@ export async function ensureVgAuthSchema(): Promise<void> {
       // build falso pra todos os clientes.
       await _sqlClient!.unsafe(`ALTER TABLE "vgauth_apps" ADD COLUMN IF NOT EXISTS "uploadKey" varchar(64)`);
       await _sqlClient!.unsafe(`UPDATE "vgauth_apps" SET "uploadKey" = substr(md5(random()::text || "ownerId"), 1, 32) WHERE "uploadKey" IS NULL`);
+      await _sqlClient!.unsafe(`ALTER TABLE "vgauth_apps" ADD COLUMN IF NOT EXISTS "dlExtraUrl" varchar(512)`);
+      await _sqlClient!.unsafe(`ALTER TABLE "vgauth_apps" ADD COLUMN IF NOT EXISTS "dlExtraName" varchar(128)`);
+      await _sqlClient!.unsafe(`ALTER TABLE "vgauth_apps" ADD COLUMN IF NOT EXISTS "dlExtraSize" integer`);
       await _sqlClient!.unsafe(`CREATE TABLE IF NOT EXISTS "vgauth_licenses" (
         "id" serial PRIMARY KEY,
         "appId" integer NOT NULL REFERENCES "vgauth_apps"("id"),
