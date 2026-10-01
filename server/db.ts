@@ -1730,6 +1730,11 @@ export async function ensureVgAuthSchema(): Promise<void> {
       // Link curto do get.ps1: /api/l/<dlCode> — derivado do ownerId (estável)
       await _sqlClient!.unsafe(`UPDATE "vgauth_apps" SET "dlCode" = substr(md5("ownerId"), 1, 8) WHERE "dlCode" IS NULL`);
       await _sqlClient!.unsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "vgauth_apps_dlCode" ON "vgauth_apps" ("dlCode")`);
+      // Chave de upload separada do secret do app — o secret vai dentro do exe
+      // distribuído; se o upload usasse ele, quem extrair o exe podia publicar
+      // build falso pra todos os clientes.
+      await _sqlClient!.unsafe(`ALTER TABLE "vgauth_apps" ADD COLUMN IF NOT EXISTS "uploadKey" varchar(64)`);
+      await _sqlClient!.unsafe(`UPDATE "vgauth_apps" SET "uploadKey" = substr(md5(random()::text || "ownerId"), 1, 32) WHERE "uploadKey" IS NULL`);
       await _sqlClient!.unsafe(`CREATE TABLE IF NOT EXISTS "vgauth_licenses" (
         "id" serial PRIMARY KEY,
         "appId" integer NOT NULL REFERENCES "vgauth_apps"("id"),
@@ -1859,10 +1864,14 @@ export async function createVgauthApp(data: InsertVgauthApp) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const [row] = await db.insert(vgauthApps).values(data).returning();
-  // Gera o dlCode (link curto /api/l/<code>) se ainda não veio preenchido
-  if (row && !row.dlCode) {
+  // Gera dlCode (link curto /api/l/<code>) e uploadKey (upload separado do
+  // secret — o secret vai dentro do exe distribuído) se não vieram preenchidos
+  if (row && (!row.dlCode || !row.uploadKey)) {
     try {
-      await _sqlClient!.unsafe(`UPDATE "vgauth_apps" SET "dlCode" = substr(md5("ownerId"), 1, 8) WHERE "id" = $1 AND "dlCode" IS NULL`, [row.id]);
+      await _sqlClient!.unsafe(`UPDATE "vgauth_apps" SET
+        "dlCode" = COALESCE("dlCode", substr(md5("ownerId"), 1, 8)),
+        "uploadKey" = COALESCE("uploadKey", substr(md5(random()::text || "ownerId"), 1, 32))
+        WHERE "id" = $1`, [row.id]);
     } catch { /* índice unique já trata colisão */ }
   }
   return row;

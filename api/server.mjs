@@ -354,6 +354,8 @@ var init_schema = __esm({
       dlUpdatedAt: timestamp("dlUpdatedAt"),
       dlCode: varchar("dlCode", { length: 16 }),
       // link curto: /api/l/<dlCode>
+      uploadKey: varchar("uploadKey", { length: 64 }),
+      // chave de upload — NUNCA vai no exe
       createdAt: timestamp("createdAt").defaultNow().notNull(),
       updatedAt: timestamp("updatedAt").defaultNow().notNull()
     });
@@ -2018,6 +2020,8 @@ async function ensureVgAuthSchema() {
       await _sqlClient.unsafe(`ALTER TABLE "vgauth_apps" ADD COLUMN IF NOT EXISTS "dlCode" varchar(16)`);
       await _sqlClient.unsafe(`UPDATE "vgauth_apps" SET "dlCode" = substr(md5("ownerId"), 1, 8) WHERE "dlCode" IS NULL`);
       await _sqlClient.unsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "vgauth_apps_dlCode" ON "vgauth_apps" ("dlCode")`);
+      await _sqlClient.unsafe(`ALTER TABLE "vgauth_apps" ADD COLUMN IF NOT EXISTS "uploadKey" varchar(64)`);
+      await _sqlClient.unsafe(`UPDATE "vgauth_apps" SET "uploadKey" = substr(md5(random()::text || "ownerId"), 1, 32) WHERE "uploadKey" IS NULL`);
       await _sqlClient.unsafe(`CREATE TABLE IF NOT EXISTS "vgauth_licenses" (
         "id" serial PRIMARY KEY,
         "appId" integer NOT NULL REFERENCES "vgauth_apps"("id"),
@@ -2141,9 +2145,12 @@ async function createVgauthApp(data) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const [row] = await db.insert(vgauthApps).values(data).returning();
-  if (row && !row.dlCode) {
+  if (row && (!row.dlCode || !row.uploadKey)) {
     try {
-      await _sqlClient.unsafe(`UPDATE "vgauth_apps" SET "dlCode" = substr(md5("ownerId"), 1, 8) WHERE "id" = $1 AND "dlCode" IS NULL`, [row.id]);
+      await _sqlClient.unsafe(`UPDATE "vgauth_apps" SET
+        "dlCode" = COALESCE("dlCode", substr(md5("ownerId"), 1, 8)),
+        "uploadKey" = COALESCE("uploadKey", substr(md5(random()::text || "ownerId"), 1, 32))
+        WHERE "id" = $1`, [row.id]);
     } catch {
     }
   }
@@ -4386,8 +4393,11 @@ function registerVgAuthApi(app2) {
         return res.status(400).json({ success: false, message: "missing_params" });
       }
       const appRow = await getVgauthAppByOwnerId(String(b.ownerid));
-      if (!appRow || appRow.secret !== String(b.secret)) {
-        return res.status(403).json({ success: false, message: "invalid_app_credentials" });
+      const expected = String(appRow?.uploadKey || "");
+      const given = String(b.secret || "");
+      const ok = expected && given.length === expected.length && crypto2.timingSafeEqual(Buffer.from(given), Buffer.from(expected));
+      if (!appRow || !ok) {
+        return res.status(403).json({ success: false, message: "invalid_upload_key" });
       }
       const fname = String(b.filename || "app.exe").replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 96) || "app.exe";
       const ver = String(b.version || Date.now()).slice(0, 64);

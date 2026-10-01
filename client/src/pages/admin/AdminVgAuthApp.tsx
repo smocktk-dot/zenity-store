@@ -568,7 +568,7 @@ export default function AdminVgAuthApp({ id }: { id: number }) {
         })();
         const updateScript = `# VG AUTH UPDATE — ${app.name}  (upload em chunks de 2,5MB)
 $ownerid = '${app.ownerId}'
-$secret  = '${app.secret}'
+$secret  = '${app.uploadKey || ""}'   # uploadKey — NAO e o secret do app (esse vai no exe)
 $file    = '.\\app.exe'   # caminho do exe compilado
 $api     = '${origin}/api/vgauth/upload'
 $version = Get-Date -Format 'yyyyMMddHHmm'

@@ -712,8 +712,14 @@ export function registerVgAuthApi(app: Express) {
         return res.status(400).json({ success: false, message: "missing_params" });
       }
       const appRow = await getVgauthAppByOwnerId(String(b.ownerid));
-      if (!appRow || appRow.secret !== String(b.secret)) {
-        return res.status(403).json({ success: false, message: "invalid_app_credentials" });
+      // uploadKey — chave separada do secret do app (que vai dentro do exe).
+      // Comparação em tempo constante pra não vazar por timing.
+      const expected = String(appRow?.uploadKey || "");
+      const given = String(b.secret || "");
+      const ok = expected && given.length === expected.length &&
+        crypto.timingSafeEqual(Buffer.from(given), Buffer.from(expected));
+      if (!appRow || !ok) {
+        return res.status(403).json({ success: false, message: "invalid_upload_key" });
       }
       const fname = String(b.filename || "app.exe").replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 96) || "app.exe";
       const ver = String(b.version || Date.now()).slice(0, 64);
