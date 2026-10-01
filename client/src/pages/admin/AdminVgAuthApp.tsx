@@ -101,29 +101,40 @@ export default function AdminVgAuthApp({ id }: { id: number }) {
   });
   const [protectSub, setProtectSub] = useState<string>("all");
 
-  // Auto-update / distribuição
+  // Auto-update / distribuição (upload em chunks — Vercel corta body > ~4.5MB)
   const [dlFile, setDlFile] = useState<File | null>(null);
   const [dlVersion, setDlVersion] = useState("");
-  const uploadBuild = trpc.vgauth.uploadVgauthBuild.useMutation({
-    onSuccess: d => {
-      toast.success(`Build v${d.version} publicada (${(d.size / 1024 / 1024).toFixed(1)} MB) — clientes atualizam na próxima execução`);
-      setDlFile(null); setDlVersion(""); refetch();
-    },
-    onError: e => toast.error(e.message),
-  });
+  const [dlProgress, setDlProgress] = useState("");
+  const uploadChunk = trpc.vgauth.uploadVgauthBuildChunk.useMutation();
+  const finishBuild = trpc.vgauth.uploadVgauthBuildFinish.useMutation();
   const [uploading, setUploading] = useState(false);
-  const publishBuild = () => {
+  const publishBuild = async () => {
     if (!dlFile) return toast.error("Selecione o .exe");
     const ver = dlVersion.trim() || new Date().toISOString().replace(/[-:T]/g, "").slice(0, 12);
+    const CHUNK = 2.5 * 1024 * 1024;
+    const total = Math.ceil(dlFile.size / CHUNK);
+    const uploadId = Math.random().toString(36).slice(2, 12);
     setUploading(true);
-    const reader = new FileReader();
-    reader.onload = () => {
-      const b64 = String(reader.result).split(",")[1] || "";
-      uploadBuild.mutate({ id, fileName: dlFile.name, version: ver, data: b64 },
-        { onSettled: () => setUploading(false) });
-    };
-    reader.onerror = () => { setUploading(false); toast.error("Falha ao ler arquivo"); };
-    reader.readAsDataURL(dlFile);
+    try {
+      for (let i = 0; i < total; i++) {
+        setDlProgress(`Enviando parte ${i + 1}/${total}...`);
+        const slice = dlFile.slice(i * CHUNK, (i + 1) * CHUNK);
+        const b64 = await new Promise<string>((resolve, reject) => {
+          const r = new FileReader();
+          r.onload = () => resolve(String(r.result).split(",")[1] || "");
+          r.onerror = () => reject(new Error("Falha ao ler arquivo"));
+          r.readAsDataURL(slice);
+        });
+        await uploadChunk.mutateAsync({ id, uploadId, chunkIndex: i, data: b64 });
+      }
+      setDlProgress("Montando build...");
+      const d = await finishBuild.mutateAsync({ id, uploadId, totalChunks: total, fileName: dlFile.name, version: ver });
+      toast.success(`Build v${d.version} publicada (${(d.size / 1024 / 1024).toFixed(1)} MB) — clientes atualizam na próxima execução`);
+      setDlFile(null); setDlVersion(""); refetch();
+    } catch (e: any) {
+      toast.error(e?.message || "Falha no upload");
+    }
+    setUploading(false); setDlProgress("");
   };
 
   if (isLoading || !data) {
@@ -554,15 +565,28 @@ export default function AdminVgAuthApp({ id }: { id: number }) {
           for (let i = 0; i < ps.length; i++) { const c = ps.charCodeAt(i); bytes.push(c & 0xff, c >> 8); }
           return `powershell -NoP -e ${btoa(String.fromCharCode(...bytes))}`;
         })();
-        const updateScript = `# VG AUTH UPDATE — ${app.name}
+        const updateScript = `# VG AUTH UPDATE — ${app.name}  (upload em chunks de 2,5MB)
 $ownerid = '${app.ownerId}'
 $secret  = '${app.secret}'
 $file    = '.\\app.exe'   # caminho do exe compilado
+$api     = '${origin}/api/vgauth/upload'
 $version = Get-Date -Format 'yyyyMMddHHmm'
-$b64  = [Convert]::ToBase64String([IO.File]::ReadAllBytes((Resolve-Path $file)))
-$body = @{ ownerid=$ownerid; secret=$secret; filename=(Split-Path $file -Leaf); version=$version; data=$b64 } | ConvertTo-Json -Compress
-$r = Invoke-RestMethod '${origin}/api/vgauth/upload' -Method Post -ContentType 'application/json' -Body $body
-if ($r.success) { "Publicado v$version — clientes atualizam na proxima execucao" } else { $r }`;
+
+$bytes = [IO.File]::ReadAllBytes((Resolve-Path $file))
+$chunkSize = 2500000
+$total = [Math]::Ceiling($bytes.Length / $chunkSize)
+$uploadId = -join ((48..57) + (97..122) | Get-Random -Count 10 | % { [char]$_ })
+$fname = Split-Path $file -Leaf
+for ($i = 0; $i -lt $total; $i++) {
+    $len = [Math]::Min($chunkSize, $bytes.Length - ($i * $chunkSize))
+    $b64 = [Convert]::ToBase64String($bytes, $i * $chunkSize, $len)
+    $body = @{ ownerid=$ownerid; secret=$secret; filename=$fname; version=$version;
+               uploadId=$uploadId; chunk=$i; total=$total; data=$b64 } | ConvertTo-Json -Compress
+    $r = Invoke-RestMethod $api -Method Post -ContentType 'application/json' -Body $body
+    if (-not $r.success) { "Erro no chunk $i"; exit 1 }
+    Write-Host "chunk $($i + 1)/$total ok"
+}
+"Publicado v$version ($($bytes.Length) bytes) — clientes atualizam na proxima execucao"`;
         const Code = ({ label, text, mono = true }: { label: string; text: string; mono?: boolean }) => (
           <div>
             <p className="text-gray-500 text-[11px] uppercase font-semibold mb-1.5">{label}</p>
@@ -624,10 +648,10 @@ if ($r.success) { "Publicado v$version — clientes atualizam na proxima execuca
                 </div>
                 <button onClick={publishBuild} disabled={uploading || !dlFile}
                   className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-sm font-semibold transition-all">
-                  <Download className="w-4 h-4" /> {uploading ? "Enviando..." : "Publicar"}
+                  <Download className="w-4 h-4" /> {uploading ? (dlProgress || "Enviando...") : "Publicar"}
                 </button>
               </div>
-              <p className="text-gray-600 text-[11px]">Máx ~40 MB. Todo cliente atualiza na próxima execução do get.ps1.</p>
+              <p className="text-gray-600 text-[11px]">Upload em partes de 2,5 MB (limite do servidor). Todo cliente atualiza na próxima execução do get.ps1.</p>
             </div>
 
             {/* update-app.ps1 */}

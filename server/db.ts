@@ -2197,6 +2197,13 @@ export async function getVgauthFile(fileKey: string) {
   return row ?? null;
 }
 
+export async function deleteVgauthFile(fileKey: string) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(vgauthFiles).where(eq(vgauthFiles.fileKey, fileKey));
+}
+
 // ─── Protect Website: security events + IP bans ────────────────────────────────
 let _securitySchemaEnsured = false;
 export async function ensureSecuritySchema() {

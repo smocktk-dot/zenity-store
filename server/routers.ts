@@ -54,6 +54,7 @@ import {
   getVgauthBans, createVgauthBan, deleteVgauthBan,
   getVgauthLogs, createVgauthLog,
   getVgauthShutdowns, createVgauthShutdown, findActiveVgauthShutdown, deactivateVgauthShutdowns,
+  putVgauthFile, getVgauthFile, deleteVgauthFile,
 } from "./db";
 
 function getJwtSecret() {
@@ -2714,29 +2715,60 @@ const vgauthRouter = router({
       return { success: true };
     }),
 
-  // Upload de build pra auto-update (storage público + bump de versão)
-  uploadVgauthBuild: adminProcedure
+  // Upload de build em chunks (Vercel corta requests > ~4.5MB): um chunk por
+  // chamada, depois uploadVgauthBuildFinish monta o arquivo e bumpeia a versão.
+  uploadVgauthBuildChunk: adminProcedure
     .input(z.object({
       id: z.number(),
+      uploadId: z.string().max(64),
+      chunkIndex: z.number().int().min(0).max(200),
+      data: z.string(), // base64 do chunk (<= ~2.5MB cru)
+    }))
+    .mutation(async ({ input }) => {
+      const buf = Buffer.from(input.data, "base64");
+      if (!buf.length || buf.length > 4 * 1024 * 1024) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Chunk vazio ou grande demais" });
+      }
+      const uid = input.uploadId.replace(/[^a-zA-Z0-9_-]/g, "");
+      if (!uid) throw new TRPCError({ code: "BAD_REQUEST", message: "uploadId inválido" });
+      await putVgauthFile(`upl-${input.id}-${uid}-${input.chunkIndex}`, buf);
+      return { success: true, chunk: input.chunkIndex };
+    }),
+
+  uploadVgauthBuildFinish: adminProcedure
+    .input(z.object({
+      id: z.number(),
+      uploadId: z.string().max(64),
+      totalChunks: z.number().int().min(1).max(200),
       fileName: z.string().max(128).default("app.exe"),
       version: z.string().max(64),
-      data: z.string(), // base64
     }))
     .mutation(async ({ input }) => {
       const appRow = await getVgauthAppById(input.id);
       if (!appRow) throw new TRPCError({ code: "NOT_FOUND", message: "App não encontrado" });
-      const buf = Buffer.from(input.data, "base64");
-      if (!buf.length || buf.length > 40 * 1024 * 1024) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Arquivo vazio ou > 40MB" });
+      const uid = input.uploadId.replace(/[^a-zA-Z0-9_-]/g, "");
+      const parts: Buffer[] = [];
+      for (let i = 0; i < input.totalChunks; i++) {
+        const row = await getVgauthFile(`upl-${input.id}-${uid}-${i}`);
+        if (!row) throw new TRPCError({ code: "BAD_REQUEST", message: `Chunk ${i} não chegou — tente de novo` });
+        parts.push(Buffer.from(row.data, "base64"));
+      }
+      const final = Buffer.concat(parts);
+      if (final.length > 80 * 1024 * 1024) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Arquivo final > 80MB" });
       }
       const fname = input.fileName.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 96) || "app.exe";
-      const { url } = await storagePut(`vgauth-dl/${appRow.ownerId}/${fname}`, buf, "application/octet-stream");
+      const { key } = await putVgauthFile(`vgauth-dl/${appRow.ownerId}/${fname}`, final, "application/octet-stream");
       const version = input.version || String(Date.now());
       await updateVgauthApp(appRow.id, {
-        dlUrl: url, dlVersion: version, dlFileName: fname, dlSize: buf.length, dlUpdatedAt: new Date(),
+        dlUrl: `/api/vgauth/f/${key}`, dlVersion: version,
+        dlFileName: fname, dlSize: final.length, dlUpdatedAt: new Date(),
       });
-      await createVgauthLog({ appId: appRow.id, action: "dl.upload", detail: `${fname} v${version} (${buf.length}B)` });
-      return { success: true, version, size: buf.length };
+      for (let i = 0; i < input.totalChunks; i++) {
+        deleteVgauthFile(`upl-${input.id}-${uid}-${i}`).catch(() => {});
+      }
+      await createVgauthLog({ appId: appRow.id, action: "dl.upload", detail: `${fname} v${version} (${final.length}B)` });
+      return { success: true, version, size: final.length };
     }),
 
   // ── Protect Logs: deteccoes anti-tamper reportadas pelo cliente ────────────

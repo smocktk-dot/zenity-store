@@ -15,6 +15,8 @@ import {
   getVgauthLicensesByApp,
   getVgauthLogs,
   getVgauthFile,
+  putVgauthFile,
+  deleteVgauthFile,
   getVgauthSessionByToken,
   getVgauthUserByUsername,
   updateVgauthApp,
@@ -680,32 +682,70 @@ export function registerVgAuthApi(app: Express) {
     res.type("text/plain").send(buildGetPs1(base, folder, fname));
   });
 
+  // Upload de build — chunked (Vercel corta bodies > ~4.5MB antes do código).
+  // Um POST por chunk de ~2.5MB; o último chunk monta o arquivo final.
+  //   {ownerid, secret, filename, version, uploadId, chunk, total, data(b64)}
+  //   sem chunk/total -> modo single-shot (só arquivos pequenos)
   app.post("/api/vgauth/upload", async (req, res) => {
     const ip = getClientIp(req);
-    if (!rateLimit(`vga:upl:${ip}`, 10, 60_000)) {
+    if (!rateLimit(`vga:upl:${ip}`, 120, 60_000)) {
       return res.status(429).json({ success: false, message: "rate_limited" });
     }
     try {
-      const { ownerid, secret, filename, version, data } = (req.body || {}) as Record<string, any>;
-      if (!ownerid || !secret || !data) {
+      const b = (req.body || {}) as Record<string, any>;
+      if (!b.ownerid || !b.secret || !b.data) {
         return res.status(400).json({ success: false, message: "missing_params" });
       }
-      const appRow = await getVgauthAppByOwnerId(String(ownerid));
-      if (!appRow || appRow.secret !== String(secret)) {
+      const appRow = await getVgauthAppByOwnerId(String(b.ownerid));
+      if (!appRow || appRow.secret !== String(b.secret)) {
         return res.status(403).json({ success: false, message: "invalid_app_credentials" });
       }
-      const buf = Buffer.from(String(data), "base64");
-      if (!buf.length || buf.length > 40 * 1024 * 1024) {
-        return res.status(400).json({ success: false, message: "file_too_large_or_empty" });
+      const fname = String(b.filename || "app.exe").replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 96) || "app.exe";
+      const ver = String(b.version || Date.now()).slice(0, 64);
+      const buf = Buffer.from(String(b.data), "base64");
+      if (!buf.length || buf.length > 4 * 1024 * 1024) {
+        return res.status(413).json({ success: false, message: "chunk_too_large_or_empty" });
       }
-      const fname = String(filename || "app.exe").replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 96) || "app.exe";
-      const ver = String(version || Date.now()).slice(0, 64);
-      const { url } = await storagePut(`vgauth-dl/${appRow.ownerId}/${fname}`, buf, "application/octet-stream");
-      await updateVgauthApp(appRow.id, {
-        dlUrl: url, dlVersion: ver, dlFileName: fname, dlSize: buf.length, dlUpdatedAt: new Date(),
-      });
-      await createVgauthLog({ appId: appRow.id, action: "dl.upload", detail: `${fname} v${ver} (${buf.length}B)`, ip });
-      res.json({ success: true, version: ver, size: buf.length });
+
+      const chunk = Number.isFinite(+b.chunk) ? +b.chunk : null;
+      const total = Number.isFinite(+b.total) ? +b.total : null;
+
+      const finalize = async (final: Buffer) => {
+        if (final.length > 80 * 1024 * 1024) {
+          return res.status(413).json({ success: false, message: "file_too_large" });
+        }
+        const { key } = await putVgauthFile(`vgauth-dl/${appRow.ownerId}/${fname}`, final, "application/octet-stream");
+        await updateVgauthApp(appRow.id, {
+          dlUrl: `/api/vgauth/f/${key}`, dlVersion: ver,
+          dlFileName: fname, dlSize: final.length, dlUpdatedAt: new Date(),
+        });
+        await createVgauthLog({ appId: appRow.id, action: "dl.upload", detail: `${fname} v${ver} (${final.length}B)`, ip });
+        return res.json({ success: true, version: ver, size: final.length, done: true });
+      };
+
+      if (chunk === null || total === null || !b.uploadId) {
+        return finalize(buf); // single-shot
+      }
+      if (total < 1 || total > 200 || chunk < 0 || chunk >= total) {
+        return res.status(400).json({ success: false, message: "bad_chunk" });
+      }
+      const uid = String(b.uploadId).replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 40);
+      await putVgauthFile(`upl-${appRow.id}-${uid}-${chunk}`, buf);
+      if (chunk < total - 1) {
+        return res.json({ success: true, chunk });
+      }
+      // último chunk: monta o arquivo final e limpa os pedaços
+      const parts: Buffer[] = [];
+      for (let i = 0; i < total; i++) {
+        const row = await getVgauthFile(`upl-${appRow.id}-${uid}-${i}`);
+        if (!row) return res.status(400).json({ success: false, message: `missing_chunk_${i}` });
+        parts.push(Buffer.from(row.data, "base64"));
+      }
+      const r = await finalize(Buffer.concat(parts));
+      for (let i = 0; i < total; i++) {
+        deleteVgauthFile(`upl-${appRow.id}-${uid}-${i}`).catch(() => {});
+      }
+      return r;
     } catch (err) {
       console.error("[VGAuth] upload error:", err);
       res.status(500).json({ success: false, message: "server_error" });
