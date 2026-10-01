@@ -14,6 +14,7 @@ import {
   getVgauthLicenseByKey,
   getVgauthLicensesByApp,
   getVgauthLogs,
+  getVgauthFile,
   getVgauthSessionByToken,
   getVgauthUserByUsername,
   updateVgauthApp,
@@ -629,6 +630,28 @@ export function registerVgAuthApi(app: Express) {
   //   GET /api/vgauth/dl/:ownerid/get.ps1     -> bootstrap do cliente
   // Upload (com secret do app):
   //   POST /api/vgauth/upload {ownerid, secret, filename, version, data(b64)}
+
+  // Serve os blobs guardados no Postgres (fallback do storage sem Forge).
+  // fileKey tem hash no nome -> cache imutável agressivo é seguro.
+  app.use("/api/vgauth/f", async (req: Request, res: Response) => {
+    try {
+      const key = decodeURIComponent(req.path.replace(/^\/+/, ""));
+      if (!key || key.length > 255 || key.includes("..")) {
+        return res.status(400).type("text/plain").send("bad key");
+      }
+      const row = await getVgauthFile(key);
+      if (!row) return res.status(404).type("text/plain").send("not found");
+      res.set({
+        "Content-Type": row.mime || "application/octet-stream",
+        "Content-Length": String(row.size),
+        "Cache-Control": "public, max-age=31536000, immutable",
+      });
+      res.send(Buffer.from(row.data, "base64"));
+    } catch (err) {
+      console.error("[VGAuth] file serve error:", err);
+      res.status(500).type("text/plain").send("error");
+    }
+  });
 
   const publicBase = (req: Request) =>
     `${req.headers["x-forwarded-proto"] || "https"}://${req.get("host") || "vgsellers.lat"}`;

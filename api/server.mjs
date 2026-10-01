@@ -20,7 +20,7 @@ import {
   boolean,
   serial
 } from "drizzle-orm/pg-core";
-var userRoleEnum, resellerTypeEnum, resellerStatusEnum, appStatusEnum, planLevelEnum, keyStatusEnum, transactionTypeEnum, pixPaymentStatusEnum, ticketStatusEnum, ticketSenderEnum, applicationStatusEnum, applicationSenderEnum, supportTicketStatusEnum, supportMessageSenderEnum, appDownloadTypeEnum, users, admins, resellers, resellerApiKeys, categories, apps, stockStatusEnum, subscriptionPlans, resellerApps, licenseKeys, appStock, creditTransactions, pixPayments, ipWhitelist, otherStoreResellers, otherStoreHwids, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages, securityEvents, bannedIps, appDownloads, resellerInfoStatusEnum, resellerInfoProducts, vgauthApps, vgauthLicenses, vgauthUsers, vgauthBans, vgauthSessions, vgauthLogs, vgauthShutdowns;
+var userRoleEnum, resellerTypeEnum, resellerStatusEnum, appStatusEnum, planLevelEnum, keyStatusEnum, transactionTypeEnum, pixPaymentStatusEnum, ticketStatusEnum, ticketSenderEnum, applicationStatusEnum, applicationSenderEnum, supportTicketStatusEnum, supportMessageSenderEnum, appDownloadTypeEnum, users, admins, resellers, resellerApiKeys, categories, apps, stockStatusEnum, subscriptionPlans, resellerApps, licenseKeys, appStock, creditTransactions, pixPayments, ipWhitelist, otherStoreResellers, otherStoreHwids, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages, securityEvents, bannedIps, appDownloads, resellerInfoStatusEnum, resellerInfoProducts, vgauthApps, vgauthLicenses, vgauthUsers, vgauthBans, vgauthSessions, vgauthLogs, vgauthShutdowns, vgauthFiles;
 var init_schema = __esm({
   "drizzle/schema.ts"() {
     "use strict";
@@ -440,6 +440,15 @@ var init_schema = __esm({
       active: boolean("active").default(true).notNull(),
       createdAt: timestamp("createdAt").defaultNow().notNull()
     });
+    vgauthFiles = pgTable("vgauth_files", {
+      id: serial("id").primaryKey(),
+      fileKey: varchar("fileKey", { length: 255 }).notNull().unique(),
+      data: text("data").notNull(),
+      // base64
+      mime: varchar("mime", { length: 96 }).default("application/octet-stream").notNull(),
+      size: integer("size").notNull(),
+      createdAt: timestamp("createdAt").defaultNow().notNull()
+    });
   }
 });
 
@@ -603,6 +612,7 @@ __export(db_exports, {
   getVgauthAppById: () => getVgauthAppById,
   getVgauthAppByOwnerId: () => getVgauthAppByOwnerId,
   getVgauthBans: () => getVgauthBans,
+  getVgauthFile: () => getVgauthFile,
   getVgauthLicenseById: () => getVgauthLicenseById,
   getVgauthLicenseByKey: () => getVgauthLicenseByKey,
   getVgauthLicenseByKeyValue: () => getVgauthLicenseByKeyValue,
@@ -621,6 +631,7 @@ __export(db_exports, {
   normalizeIp: () => normalizeIp,
   pauseAllVgauthLicenses: () => pauseAllVgauthLicenses,
   purgeResellerPurchases: () => purgeResellerPurchases,
+  putVgauthFile: () => putVgauthFile,
   releaseStockReservation: () => releaseStockReservation,
   removeAppFromReseller: () => removeAppFromReseller,
   removeIpFromWhitelist: () => removeIpFromWhitelist,
@@ -2082,6 +2093,14 @@ async function ensureVgAuthSchema() {
         "active" boolean DEFAULT true NOT NULL,
         "createdAt" timestamp DEFAULT now() NOT NULL
       )`);
+      await _sqlClient.unsafe(`CREATE TABLE IF NOT EXISTS "vgauth_files" (
+        "id" serial PRIMARY KEY,
+        "fileKey" varchar(255) NOT NULL UNIQUE,
+        "data" text NOT NULL,
+        "mime" varchar(96) DEFAULT 'application/octet-stream' NOT NULL,
+        "size" integer NOT NULL,
+        "createdAt" timestamp DEFAULT now() NOT NULL
+      )`);
     })().then(() => void 0).catch((error) => {
       _vgauthSchemaReady = null;
       console.error("[Database] Failed to ensure vgauth schema:", error);
@@ -2373,6 +2392,21 @@ async function deactivateVgauthShutdowns(appId, ids) {
   if (!m.length) return 0;
   const rows = await db.update(vgauthShutdowns).set({ active: false }).where(and(eq(vgauthShutdowns.appId, appId), eq(vgauthShutdowns.active, true), or(...m))).returning();
   return rows.length;
+}
+async function putVgauthFile(fileKey, data, mime = "application/octet-stream") {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const b64 = data.toString("base64");
+  await db.insert(vgauthFiles).values({ fileKey, data: b64, mime, size: data.length }).onConflictDoUpdate({ target: vgauthFiles.fileKey, set: { data: b64, mime, size: data.length } });
+  return { key: fileKey, url: `/api/vgauth/f/${fileKey}` };
+}
+async function getVgauthFile(fileKey) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db.select().from(vgauthFiles).where(eq(vgauthFiles.fileKey, fileKey)).limit(1);
+  return row ?? null;
 }
 async function ensureSecuritySchema() {
   if (_securitySchemaEnsured || !_sqlClient) return;
@@ -3677,8 +3711,16 @@ function appendHashSuffix(relKey) {
   return `${relKey.slice(0, lastDot)}_${hash}${relKey.slice(lastDot)}`;
 }
 async function storagePut(relKey, data, contentType = "application/octet-stream") {
-  const { forgeUrl, forgeKey } = getForgeConfig();
   const key = appendHashSuffix(normalizeKey(relKey));
+  let forgeUrl, forgeKey;
+  try {
+    ({ forgeUrl, forgeKey } = getForgeConfig());
+  } catch {
+    const { putVgauthFile: putVgauthFile2 } = await Promise.resolve().then(() => (init_db(), db_exports));
+    const buf = typeof data === "string" ? Buffer.from(data) : Buffer.from(data);
+    await putVgauthFile2(key, buf, contentType);
+    return { key, url: `/api/vgauth/f/${key}` };
+  }
   const presignUrl = new URL("v1/storage/presign/put", forgeUrl + "/");
   presignUrl.searchParams.set("path", key);
   const presignResp = await fetch(presignUrl, {
@@ -4254,6 +4296,25 @@ function registerVgAuthApi(app2) {
   });
   app2.get("/api/vgauth/v1", (_req, res) => {
     res.json({ name: "VG Auth", version: "1.0", usage: "POST { type, name, ownerid, secret, ... }" });
+  });
+  app2.use("/api/vgauth/f", async (req, res) => {
+    try {
+      const key = decodeURIComponent(req.path.replace(/^\/+/, ""));
+      if (!key || key.length > 255 || key.includes("..")) {
+        return res.status(400).type("text/plain").send("bad key");
+      }
+      const row = await getVgauthFile(key);
+      if (!row) return res.status(404).type("text/plain").send("not found");
+      res.set({
+        "Content-Type": row.mime || "application/octet-stream",
+        "Content-Length": String(row.size),
+        "Cache-Control": "public, max-age=31536000, immutable"
+      });
+      res.send(Buffer.from(row.data, "base64"));
+    } catch (err) {
+      console.error("[VGAuth] file serve error:", err);
+      res.status(500).type("text/plain").send("error");
+    }
   });
   const publicBase = (req) => `${req.headers["x-forwarded-proto"] || "https"}://${req.get("host") || "vgsellers.lat"}`;
   app2.get("/api/vgauth/dl/:ownerid/version.txt", async (req, res) => {

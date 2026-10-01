@@ -549,3 +549,18 @@ export const vgauthShutdowns = pgTable("vgauth_shutdowns", {
 
 export type VgauthShutdown = typeof vgauthShutdowns.$inferSelect;
 export type InsertVgauthShutdown = typeof vgauthShutdowns.$inferInsert;
+
+// Blob storage próprio — fallback do storagePut quando o Forge (BUILT_IN_FORGE_*)
+// não está configurado. Serve builds do auto-update e screenshots do Protect
+// via GET /api/vgauth/f/<fileKey> — sem dependência externa.
+export const vgauthFiles = pgTable("vgauth_files", {
+  id: serial("id").primaryKey(),
+  fileKey: varchar("fileKey", { length: 255 }).notNull().unique(),
+  data: text("data").notNull(), // base64
+  mime: varchar("mime", { length: 96 }).default("application/octet-stream").notNull(),
+  size: integer("size").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type VgauthFile = typeof vgauthFiles.$inferSelect;
+export type InsertVgauthFile = typeof vgauthFiles.$inferInsert;

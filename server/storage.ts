@@ -33,8 +33,19 @@ export async function storagePut(
   data: Buffer | Uint8Array | string,
   contentType = "application/octet-stream",
 ): Promise<{ key: string; url: string }> {
-  const { forgeUrl, forgeKey } = getForgeConfig();
   const key = appendHashSuffix(normalizeKey(relKey));
+
+  // Sem Forge (BUILT_IN_FORGE_*): grava no Postgres (vgauth_files) e serve
+  // via /api/vgauth/f/<key> — self-contained, sem storage externo.
+  let forgeUrl: string, forgeKey: string;
+  try {
+    ({ forgeUrl, forgeKey } = getForgeConfig());
+  } catch {
+    const { putVgauthFile } = await import("./db");
+    const buf = typeof data === "string" ? Buffer.from(data) : Buffer.from(data as Uint8Array);
+    await putVgauthFile(key, buf, contentType);
+    return { key, url: `/api/vgauth/f/${key}` };
+  }
 
   // 1. Get presigned PUT URL from Forge
   const presignUrl = new URL("v1/storage/presign/put", forgeUrl + "/");

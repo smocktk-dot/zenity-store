@@ -1,7 +1,7 @@
 import { eq, and, asc, desc, sql, inArray, or, aliasedTable, ilike, lower } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { InsertUser, users, admins, resellers, resellerApiKeys, categories, apps, subscriptionPlans, resellerApps, licenseKeys, appStock, appDownloads, creditTransactions, ipWhitelist, pixPayments, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages, otherStoreResellers, otherStoreHwids, resellerInfoProducts, vgauthApps, vgauthLicenses, vgauthUsers, vgauthBans, vgauthSessions, vgauthLogs, vgauthShutdowns, securityEvents, bannedIps, InsertSecurityEvent } from "../drizzle/schema";
+import { InsertUser, users, admins, resellers, resellerApiKeys, categories, apps, subscriptionPlans, resellerApps, licenseKeys, appStock, appDownloads, creditTransactions, ipWhitelist, pixPayments, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages, otherStoreResellers, otherStoreHwids, resellerInfoProducts, vgauthApps, vgauthLicenses, vgauthUsers, vgauthBans, vgauthSessions, vgauthLogs, vgauthShutdowns, vgauthFiles, securityEvents, bannedIps, InsertSecurityEvent } from "../drizzle/schema";
 import type { InsertAdmin, InsertReseller, InsertResellerApiKey, InsertCategory, InsertApp, InsertSubscriptionPlan, InsertResellerApp, InsertLicenseKey, InsertAppStock, InsertAppDownload, InsertCreditTransaction, InsertPixPayment, InsertTicket, InsertTicketMessage, InsertResellerApplication, InsertApplicationMessage, InsertSupportTicket, InsertSupportMessage, InsertOtherStoreReseller, InsertOtherStoreHwid, InsertResellerInfoProduct, InsertVgauthApp, InsertVgauthLicense, InsertVgauthUser, InsertVgauthBan, InsertVgauthSession, InsertVgauthLog, InsertVgauthShutdown } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import { randomUUID } from "crypto";
@@ -1808,6 +1808,14 @@ export async function ensureVgAuthSchema(): Promise<void> {
         "active" boolean DEFAULT true NOT NULL,
         "createdAt" timestamp DEFAULT now() NOT NULL
       )`);
+      await _sqlClient!.unsafe(`CREATE TABLE IF NOT EXISTS "vgauth_files" (
+        "id" serial PRIMARY KEY,
+        "fileKey" varchar(255) NOT NULL UNIQUE,
+        "data" text NOT NULL,
+        "mime" varchar(96) DEFAULT 'application/octet-stream' NOT NULL,
+        "size" integer NOT NULL,
+        "createdAt" timestamp DEFAULT now() NOT NULL
+      )`);
     })().then(() => undefined).catch(error => {
       _vgauthSchemaReady = null;
       console.error("[Database] Failed to ensure vgauth schema:", error);
@@ -2167,6 +2175,26 @@ export async function deactivateVgauthShutdowns(appId: number, ids: VgauthShutdo
     .where(and(eq(vgauthShutdowns.appId, appId), eq(vgauthShutdowns.active, true), or(...m)))
     .returning();
   return rows.length;
+}
+
+// ─── Blob storage próprio (fallback do storagePut sem Forge) ─────────────────
+export async function putVgauthFile(fileKey: string, data: Buffer, mime = "application/octet-stream") {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const b64 = data.toString("base64");
+  await db.insert(vgauthFiles)
+    .values({ fileKey, data: b64, mime, size: data.length })
+    .onConflictDoUpdate({ target: vgauthFiles.fileKey, set: { data: b64, mime, size: data.length } });
+  return { key: fileKey, url: `/api/vgauth/f/${fileKey}` };
+}
+
+export async function getVgauthFile(fileKey: string) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db.select().from(vgauthFiles).where(eq(vgauthFiles.fileKey, fileKey)).limit(1);
+  return row ?? null;
 }
 
 // ─── Protect Website: security events + IP bans ────────────────────────────────
