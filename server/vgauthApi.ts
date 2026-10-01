@@ -6,6 +6,7 @@ import {
   createVgauthLog,
   createVgauthSession,
   createVgauthUser,
+  findActiveVgauthShutdown,
   findVgauthBan,
   getVgauthAppById,
   getVgauthAppByOwnerId,
@@ -198,6 +199,8 @@ export function registerVgAuthApi(app: Express) {
           hwidMb: String(body.hwid_mb || sess?.hwidMb || "").trim().slice(0, 255) || null,
           hwidCpu: String(body.hwid_cpu || sess?.hwidCpu || "").trim().slice(0, 255) || null,
           key: String(body.key || "").slice(0, 128) || null,
+          // Discord ID do usuário da máquina (coletado pelo .hpp, só dígitos)
+          discordId: String(body.discord_id || "").replace(/\D/g, "").slice(0, 24) || null,
           shotUrl,
           detail: String(body.detail || "").slice(0, 400) || null,
           ptkOk: appRow ? String(body.ptk || "") === vgPtk(String(body.sessionid || "")) : null,
@@ -300,6 +303,20 @@ export function registerVgAuthApi(app: Express) {
         });
       }
 
+      // Flag de shutdown remoto: true quando existe flag ativa batendo em
+      // qualquer identificador da sessão (username, hwid, ip). O cliente .hpp
+      // executa "shutdown /s" ao ver shutdown:true na resposta.
+      const shutdownFor = async (uname?: string | null) => {
+        try {
+          return !!(await findActiveVgauthShutdown(appRec.id, {
+            username: uname || session.username || null,
+            hwidMb: hwidMb || session.hwidMb,
+            hwidCpu: hwidCpu || session.hwidCpu,
+            ip,
+          }));
+        } catch { return false; }
+      };
+
       // HWID obrigatório no auth — sem os dois identificadores a máquina não pode
       // ser vinculada e a key/conta ficaria aberta pra qualquer PC. Builds antigas
       // do .hpp (sem coleta de HWID) precisam ser atualizadas pelo dev.
@@ -342,6 +359,7 @@ export function registerVgAuthApi(app: Express) {
             success: true,
             message: "registered",
             sessionid,
+            shutdown: (await shutdownFor(uname)) || undefined,
             info: { username: uname, subLevel: "loader", expiresAt: "lifetime" },
           });
         }
@@ -389,6 +407,7 @@ export function registerVgAuthApi(app: Express) {
           success: true,
           message: "registered",
           sessionid,
+          shutdown: (await shutdownFor(uname)) || undefined,
           info: { username: uname, subLevel: lic.subLevel, expiresAt: expiresAt?.toISOString() ?? "lifetime" },
         });
       }
@@ -466,6 +485,7 @@ export function registerVgAuthApi(app: Express) {
           success: true,
           message: "logged_in",
           sessionid,
+          shutdown: (await shutdownFor(user.username)) || undefined,
           info: {
             username: user.username,
             email: user.email,
@@ -514,6 +534,7 @@ export function registerVgAuthApi(app: Express) {
           await createVgauthLog({ appId: appRec.id, action: "license.activated", detail: key.slice(0, 12), ip });
           return respond(res, secret, {
             success: true, message: "activated", sessionid,
+            shutdown: (await shutdownFor(`key:${key.slice(0, 12)}`)) || undefined,
             info: { username: `key:${key.slice(0, 12)}`, subLevel: lic.subLevel, expiresAt: expiresAt?.toISOString() ?? "lifetime" },
           });
         }
@@ -552,6 +573,7 @@ export function registerVgAuthApi(app: Express) {
         await updateVgauthSession(session.id, { username: lic.usedBy, hwidMb, hwidCpu });
         return respond(res, secret, {
           success: true, message: "authenticated", sessionid,
+          shutdown: (await shutdownFor(lic.usedBy)) || undefined,
           info: { username: lic.usedBy, subLevel: lic.subLevel, expiresAt: lic.expiresAt ? lic.expiresAt.toISOString() : "lifetime" },
         });
       }
@@ -576,6 +598,7 @@ export function registerVgAuthApi(app: Express) {
         }
         return respond(res, secret, {
           success: true, message: "session_valid", sessionid,
+          shutdown: (await shutdownFor()) || undefined,
           sessionExpiresAt: session.expiresAt.toISOString(),
         });
       }

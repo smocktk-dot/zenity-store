@@ -3,7 +3,7 @@ import { trpc } from "@/lib/trpc";
 import { Link } from "wouter";
 import {
   ArrowLeft, Key, Users, Ban, ScrollText, Plus, Copy, Check, Trash2,
-  Pause, Play, CalendarPlus, RotateCcw, ShieldBan, ShieldCheck, Download, X, KeyRound, ShieldAlert
+  Pause, Play, CalendarPlus, RotateCcw, ShieldBan, ShieldCheck, Download, X, KeyRound, ShieldAlert, Power
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -87,6 +87,15 @@ export default function AdminVgAuthApp({ id }: { id: number }) {
   });
   const unbanProtect = trpc.vgauth.unbanProtectTarget.useMutation({
     onSuccess: d => { toast.success(`Desbanido — ${d.removed} ban(s) removido(s)`); refetch(); refetchProtect(); },
+    onError: e => toast.error(e.message),
+  });
+  const shutdownProtect = trpc.vgauth.shutdownTarget.useMutation({
+    onSuccess: (_d, vars) => {
+      toast.success(vars.active
+        ? "Shutdown marcado — o PC do alvo desliga na próxima resposta do servidor"
+        : "Shutdown cancelado");
+      refetchProtect();
+    },
     onError: e => toast.error(e.message),
   });
   const [protectSub, setProtectSub] = useState<string>("all");
@@ -388,18 +397,19 @@ export default function AdminVgAuthApp({ id }: { id: number }) {
               <table className="w-full min-w-[900px]">
                 <thead>
                   <tr className="border-b border-white/[0.04]">
-                    {["Data", "Evento", "Check", "Usuário", "Key", "HWID MB", "HWID CPU", "IP", "Print", "Detalhe", ""].map(h => <th key={h} className={th}>{h}</th>)}
+                    {["Data", "Evento", "Check", "Usuário", "Discord ID", "Key", "HWID MB", "HWID CPU", "IP", "Print", "Detalhe", ""].map(h => <th key={h} className={th}>{h}</th>)}
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.length === 0 ? (
-                    <tr><td colSpan={11} className="text-center py-10 text-gray-600">Nenhuma detecção — tudo limpo</td></tr>
+                    <tr><td colSpan={12} className="text-center py-10 text-gray-600">Nenhuma detecção — tudo limpo</td></tr>
                   ) : filtered.map((l: any) => {
                     const a = l.alert || {};
                     const isAlert = l.action === "protect.alert";
                     const isBan = ["protect.auto_ban", "protect.ban"].includes(l.action);
                     const isUnban = l.action === "protect.unban";
                     const hasIds = a.username || a.hwidMb || a.hwidCpu || a.key || l.ip;
+                    const sdOn = !!l.shutdownActive;
                     return (
                       <tr key={l.id} className="border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02]">
                         <td className={`${td} text-gray-500 text-xs font-mono whitespace-nowrap`}>{new Date(l.createdAt).toLocaleString("pt-BR")}</td>
@@ -414,6 +424,13 @@ export default function AdminVgAuthApp({ id }: { id: number }) {
                         </td>
                         <td className={`${td} text-red-300 font-mono text-xs`}>{a.check || "—"}</td>
                         <td className={`${td} text-gray-300`}>{a.username || "—"}</td>
+                        <td className={`${td} font-mono text-xs`}>
+                          {a.discordId ? (
+                            <span className="text-indigo-300 flex items-center gap-1" title="Discord ID coletado no alerta">
+                              {a.discordId} <CopyBtn text={a.discordId} />
+                            </span>
+                          ) : "—"}
+                        </td>
                         <td className={`${td} text-gray-400 font-mono text-xs`}>{a.key ? a.key.slice(0, 12) + "…" : "—"}</td>
                         <td className={`${td} text-gray-500 font-mono text-xs`}>{a.hwidMb ? a.hwidMb.slice(0, 12) + "…" : "—"}</td>
                         <td className={`${td} text-gray-500 font-mono text-xs`}>{a.hwidCpu ? a.hwidCpu.slice(0, 12) + "…" : "—"}</td>
@@ -447,6 +464,29 @@ export default function AdminVgAuthApp({ id }: { id: number }) {
                                 }}
                                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/25 hover:bg-red-500/20 transition-all">
                                 <ShieldBan className="w-3 h-3" /> Banir
+                              </button>
+                            )}
+                            {hasIds && !isUnban && (
+                              <button
+                                onClick={() => {
+                                  const msg = sdOn
+                                    ? `Cancelar shutdown de ${a.username || l.ip}? O PC para de desligar.`
+                                    : `ShutDown em ${a.username || l.ip}? Na próxima resposta do servidor (login/check) o cliente .hpp executa shutdown /s /f e desliga o PC. Requer o .hpp atualizado.`;
+                                  if (confirm(msg))
+                                    shutdownProtect.mutate({
+                                      appId: id,
+                                      username: a.username || undefined,
+                                      ip: l.ip || undefined,
+                                      hwidMb: a.hwidMb || undefined,
+                                      hwidCpu: a.hwidCpu || undefined,
+                                      active: !sdOn,
+                                    });
+                                }}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
+                                  sdOn
+                                    ? "bg-orange-500/20 text-orange-300 border-orange-500/40 hover:bg-orange-500/30"
+                                    : "bg-amber-500/10 text-amber-400 border-amber-500/25 hover:bg-amber-500/20"}`}>
+                                <Power className="w-3 h-3" /> {sdOn ? "SD ATIVO" : "ShutDown"}
                               </button>
                             )}
                             {hasIds && (

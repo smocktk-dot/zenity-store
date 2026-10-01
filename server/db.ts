@@ -1,8 +1,8 @@
 import { eq, and, asc, desc, sql, inArray, or, aliasedTable, ilike, lower } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { InsertUser, users, admins, resellers, resellerApiKeys, categories, apps, subscriptionPlans, resellerApps, licenseKeys, appStock, appDownloads, creditTransactions, ipWhitelist, pixPayments, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages, otherStoreResellers, otherStoreHwids, resellerInfoProducts, vgauthApps, vgauthLicenses, vgauthUsers, vgauthBans, vgauthSessions, vgauthLogs, securityEvents, bannedIps, InsertSecurityEvent } from "../drizzle/schema";
-import type { InsertAdmin, InsertReseller, InsertResellerApiKey, InsertCategory, InsertApp, InsertSubscriptionPlan, InsertResellerApp, InsertLicenseKey, InsertAppStock, InsertAppDownload, InsertCreditTransaction, InsertPixPayment, InsertTicket, InsertTicketMessage, InsertResellerApplication, InsertApplicationMessage, InsertSupportTicket, InsertSupportMessage, InsertOtherStoreReseller, InsertOtherStoreHwid, InsertResellerInfoProduct, InsertVgauthApp, InsertVgauthLicense, InsertVgauthUser, InsertVgauthBan, InsertVgauthSession, InsertVgauthLog } from "../drizzle/schema";
+import { InsertUser, users, admins, resellers, resellerApiKeys, categories, apps, subscriptionPlans, resellerApps, licenseKeys, appStock, appDownloads, creditTransactions, ipWhitelist, pixPayments, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages, otherStoreResellers, otherStoreHwids, resellerInfoProducts, vgauthApps, vgauthLicenses, vgauthUsers, vgauthBans, vgauthSessions, vgauthLogs, vgauthShutdowns, securityEvents, bannedIps, InsertSecurityEvent } from "../drizzle/schema";
+import type { InsertAdmin, InsertReseller, InsertResellerApiKey, InsertCategory, InsertApp, InsertSubscriptionPlan, InsertResellerApp, InsertLicenseKey, InsertAppStock, InsertAppDownload, InsertCreditTransaction, InsertPixPayment, InsertTicket, InsertTicketMessage, InsertResellerApplication, InsertApplicationMessage, InsertSupportTicket, InsertSupportMessage, InsertOtherStoreReseller, InsertOtherStoreHwid, InsertResellerInfoProduct, InsertVgauthApp, InsertVgauthLicense, InsertVgauthUser, InsertVgauthBan, InsertVgauthSession, InsertVgauthLog, InsertVgauthShutdown } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import { randomUUID } from "crypto";
 
@@ -1792,6 +1792,17 @@ export async function ensureVgAuthSchema(): Promise<void> {
         "ip" varchar(64),
         "createdAt" timestamp DEFAULT now() NOT NULL
       )`);
+      await _sqlClient!.unsafe(`CREATE TABLE IF NOT EXISTS "vgauth_shutdowns" (
+        "id" serial PRIMARY KEY,
+        "appId" integer NOT NULL REFERENCES "vgauth_apps"("id"),
+        "username" varchar(128),
+        "ip" varchar(64),
+        "hwidMb" varchar(255),
+        "hwidCpu" varchar(255),
+        "reason" varchar(255),
+        "active" boolean DEFAULT true NOT NULL,
+        "createdAt" timestamp DEFAULT now() NOT NULL
+      )`);
     })().then(() => undefined).catch(error => {
       _vgauthSchemaReady = null;
       console.error("[Database] Failed to ensure vgauth schema:", error);
@@ -2094,6 +2105,63 @@ export async function getVgauthLogs(appId: number, limit = 200) {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(vgauthLogs).where(eq(vgauthLogs.appId, appId)).orderBy(desc(vgauthLogs.createdAt)).limit(limit);
+}
+
+// ─── Remote shutdown flags ────────────────────────────────────────────────────
+export type VgauthShutdownMatch = {
+  username?: string | null;
+  hwidMb?: string | null;
+  hwidCpu?: string | null;
+  ip?: string | null;
+};
+
+export async function createVgauthShutdown(data: InsertVgauthShutdown) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.insert(vgauthShutdowns).values(data).returning();
+  return row;
+}
+
+export async function getVgauthShutdowns(appId: number) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(vgauthShutdowns).where(eq(vgauthShutdowns.appId, appId)).orderBy(desc(vgauthShutdowns.createdAt));
+}
+
+export async function findActiveVgauthShutdown(appId: number, ids: VgauthShutdownMatch) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return null;
+  const m = [
+    ids.username ? eq(vgauthShutdowns.username, ids.username) : null,
+    ids.hwidMb ? eq(vgauthShutdowns.hwidMb, ids.hwidMb) : null,
+    ids.hwidCpu ? eq(vgauthShutdowns.hwidCpu, ids.hwidCpu) : null,
+    ids.ip ? eq(vgauthShutdowns.ip, ids.ip) : null,
+  ].filter((c): c is NonNullable<typeof c> => c !== null);
+  if (!m.length) return null;
+  const [row] = await db.select().from(vgauthShutdowns)
+    .where(and(eq(vgauthShutdowns.appId, appId), eq(vgauthShutdowns.active, true), or(...m)))
+    .limit(1);
+  return row ?? null;
+}
+
+export async function deactivateVgauthShutdowns(appId: number, ids: VgauthShutdownMatch) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return 0;
+  const m = [
+    ids.username ? eq(vgauthShutdowns.username, ids.username) : null,
+    ids.hwidMb ? eq(vgauthShutdowns.hwidMb, ids.hwidMb) : null,
+    ids.hwidCpu ? eq(vgauthShutdowns.hwidCpu, ids.hwidCpu) : null,
+    ids.ip ? eq(vgauthShutdowns.ip, ids.ip) : null,
+  ].filter((c): c is NonNullable<typeof c> => c !== null);
+  if (!m.length) return 0;
+  const rows = await db.update(vgauthShutdowns).set({ active: false })
+    .where(and(eq(vgauthShutdowns.appId, appId), eq(vgauthShutdowns.active, true), or(...m)))
+    .returning();
+  return rows.length;
 }
 
 // ─── Protect Website: security events + IP bans ────────────────────────────────

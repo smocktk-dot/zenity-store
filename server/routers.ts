@@ -53,6 +53,7 @@ import {
   getVgauthUsersByApp, getVgauthUserByUsername, updateVgauthUser, deleteVgauthUser,
   getVgauthBans, createVgauthBan, deleteVgauthBan,
   getVgauthLogs, createVgauthLog,
+  getVgauthShutdowns, createVgauthShutdown, findActiveVgauthShutdown, deactivateVgauthShutdowns,
 } from "./db";
 
 function getJwtSecret() {
@@ -2717,13 +2718,22 @@ const vgauthRouter = router({
   protectLogs: adminProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
-      const logs = await getVgauthLogs(input.id, 500);
+      const [logs, shutdowns] = await Promise.all([
+        getVgauthLogs(input.id, 500),
+        getVgauthShutdowns(input.id),
+      ]);
+      const activeFlags = shutdowns.filter(s => s.active);
+      const matchesFlag = (a: any, ip?: string | null) => activeFlags.some(s =>
+        (a?.username && s.username === a.username) ||
+        (a?.hwidMb && s.hwidMb === a.hwidMb) ||
+        (a?.hwidCpu && s.hwidCpu === a.hwidCpu) ||
+        (ip && s.ip === ip));
       return logs
         .filter(l => l.action.startsWith("protect."))
         .map(l => {
           let alert: any = null;
           try { alert = l.detail ? JSON.parse(l.detail) : null; } catch { /* detalhe nao-JSON (ptk_rejected etc.) */ }
-          return { ...l, alert };
+          return { ...l, alert, shutdownActive: alert ? matchesFlag(alert, l.ip) : false };
         });
     }),
 
@@ -2812,6 +2822,41 @@ const vgauthRouter = router({
         }),
       });
       return { success: true, removed: match.length };
+    }),
+
+  // Shutdown remoto: marca/desmarca flag — na proxima resposta (check/login)
+  // o cliente .hpp do alvo recebe shutdown:true e executa "shutdown /s /f".
+  shutdownTarget: adminProcedure
+    .input(z.object({
+      appId: z.number(),
+      username: z.string().max(128).optional(),
+      ip: z.string().max(64).optional(),
+      hwidMb: z.string().max(255).optional(),
+      hwidCpu: z.string().max(255).optional(),
+      active: z.boolean().default(true),
+    }))
+    .mutation(async ({ input }) => {
+      if (!input.username && !input.ip && !input.hwidMb && !input.hwidCpu) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Sem identificadores" });
+      }
+      const ids = {
+        username: input.username || null,
+        ip: input.ip || null,
+        hwidMb: input.hwidMb || null,
+        hwidCpu: input.hwidCpu || null,
+      };
+      if (input.active) {
+        const existing = await findActiveVgauthShutdown(input.appId, ids);
+        if (!existing) await createVgauthShutdown({ appId: input.appId, ...ids, reason: "protect.shutdown" });
+      } else {
+        await deactivateVgauthShutdowns(input.appId, ids);
+      }
+      await createVgauthLog({
+        appId: input.appId,
+        action: input.active ? "protect.shutdown_on" : "protect.shutdown_off",
+        detail: JSON.stringify(ids),
+      });
+      return { success: true };
     }),
 });
 

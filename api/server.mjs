@@ -20,7 +20,7 @@ import {
   boolean,
   serial
 } from "drizzle-orm/pg-core";
-var userRoleEnum, resellerTypeEnum, resellerStatusEnum, appStatusEnum, planLevelEnum, keyStatusEnum, transactionTypeEnum, pixPaymentStatusEnum, ticketStatusEnum, ticketSenderEnum, applicationStatusEnum, applicationSenderEnum, supportTicketStatusEnum, supportMessageSenderEnum, appDownloadTypeEnum, users, admins, resellers, resellerApiKeys, categories, apps, stockStatusEnum, subscriptionPlans, resellerApps, licenseKeys, appStock, creditTransactions, pixPayments, ipWhitelist, otherStoreResellers, otherStoreHwids, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages, securityEvents, bannedIps, appDownloads, resellerInfoStatusEnum, resellerInfoProducts, vgauthApps, vgauthLicenses, vgauthUsers, vgauthBans, vgauthSessions, vgauthLogs;
+var userRoleEnum, resellerTypeEnum, resellerStatusEnum, appStatusEnum, planLevelEnum, keyStatusEnum, transactionTypeEnum, pixPaymentStatusEnum, ticketStatusEnum, ticketSenderEnum, applicationStatusEnum, applicationSenderEnum, supportTicketStatusEnum, supportMessageSenderEnum, appDownloadTypeEnum, users, admins, resellers, resellerApiKeys, categories, apps, stockStatusEnum, subscriptionPlans, resellerApps, licenseKeys, appStock, creditTransactions, pixPayments, ipWhitelist, otherStoreResellers, otherStoreHwids, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages, securityEvents, bannedIps, appDownloads, resellerInfoStatusEnum, resellerInfoProducts, vgauthApps, vgauthLicenses, vgauthUsers, vgauthBans, vgauthSessions, vgauthLogs, vgauthShutdowns;
 var init_schema = __esm({
   "drizzle/schema.ts"() {
     "use strict";
@@ -423,6 +423,17 @@ var init_schema = __esm({
       ip: varchar("ip", { length: 64 }),
       createdAt: timestamp("createdAt").defaultNow().notNull()
     });
+    vgauthShutdowns = pgTable("vgauth_shutdowns", {
+      id: serial("id").primaryKey(),
+      appId: integer("appId").notNull().references(() => vgauthApps.id),
+      username: varchar("username", { length: 128 }),
+      ip: varchar("ip", { length: 64 }),
+      hwidMb: varchar("hwidMb", { length: 255 }),
+      hwidCpu: varchar("hwidCpu", { length: 255 }),
+      reason: varchar("reason", { length: 255 }),
+      active: boolean("active").default(true).notNull(),
+      createdAt: timestamp("createdAt").defaultNow().notNull()
+    });
   }
 });
 
@@ -481,7 +492,9 @@ __export(db_exports, {
   createVgauthLicense: () => createVgauthLicense,
   createVgauthLog: () => createVgauthLog,
   createVgauthSession: () => createVgauthSession,
+  createVgauthShutdown: () => createVgauthShutdown,
   createVgauthUser: () => createVgauthUser,
+  deactivateVgauthShutdowns: () => deactivateVgauthShutdowns,
   deleteApp: () => deleteApp,
   deleteAppDownload: () => deleteAppDownload,
   deleteCategory: () => deleteCategory,
@@ -509,6 +522,7 @@ __export(db_exports, {
   ensureResellerInfoSchema: () => ensureResellerInfoSchema,
   ensureSecuritySchema: () => ensureSecuritySchema,
   ensureVgAuthSchema: () => ensureVgAuthSchema,
+  findActiveVgauthShutdown: () => findActiveVgauthShutdown,
   findVgauthBan: () => findVgauthBan,
   getActiveResellerInfoProducts: () => getActiveResellerInfoProducts,
   getAdminById: () => getAdminById,
@@ -589,6 +603,7 @@ __export(db_exports, {
   getVgauthLicensesByApp: () => getVgauthLicensesByApp,
   getVgauthLogs: () => getVgauthLogs,
   getVgauthSessionByToken: () => getVgauthSessionByToken,
+  getVgauthShutdowns: () => getVgauthShutdowns,
   getVgauthUserByUsername: () => getVgauthUserByUsername,
   getVgauthUsersByApp: () => getVgauthUsersByApp,
   isAdminIpAllowed: () => isAdminIpAllowed,
@@ -2045,6 +2060,17 @@ async function ensureVgAuthSchema() {
         "ip" varchar(64),
         "createdAt" timestamp DEFAULT now() NOT NULL
       )`);
+      await _sqlClient.unsafe(`CREATE TABLE IF NOT EXISTS "vgauth_shutdowns" (
+        "id" serial PRIMARY KEY,
+        "appId" integer NOT NULL REFERENCES "vgauth_apps"("id"),
+        "username" varchar(128),
+        "ip" varchar(64),
+        "hwidMb" varchar(255),
+        "hwidCpu" varchar(255),
+        "reason" varchar(255),
+        "active" boolean DEFAULT true NOT NULL,
+        "createdAt" timestamp DEFAULT now() NOT NULL
+      )`);
     })().then(() => void 0).catch((error) => {
       _vgauthSchemaReady = null;
       console.error("[Database] Failed to ensure vgauth schema:", error);
@@ -2295,6 +2321,47 @@ async function getVgauthLogs(appId, limit = 200) {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(vgauthLogs).where(eq(vgauthLogs.appId, appId)).orderBy(desc(vgauthLogs.createdAt)).limit(limit);
+}
+async function createVgauthShutdown(data) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.insert(vgauthShutdowns).values(data).returning();
+  return row;
+}
+async function getVgauthShutdowns(appId) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(vgauthShutdowns).where(eq(vgauthShutdowns.appId, appId)).orderBy(desc(vgauthShutdowns.createdAt));
+}
+async function findActiveVgauthShutdown(appId, ids) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return null;
+  const m = [
+    ids.username ? eq(vgauthShutdowns.username, ids.username) : null,
+    ids.hwidMb ? eq(vgauthShutdowns.hwidMb, ids.hwidMb) : null,
+    ids.hwidCpu ? eq(vgauthShutdowns.hwidCpu, ids.hwidCpu) : null,
+    ids.ip ? eq(vgauthShutdowns.ip, ids.ip) : null
+  ].filter((c) => c !== null);
+  if (!m.length) return null;
+  const [row] = await db.select().from(vgauthShutdowns).where(and(eq(vgauthShutdowns.appId, appId), eq(vgauthShutdowns.active, true), or(...m))).limit(1);
+  return row ?? null;
+}
+async function deactivateVgauthShutdowns(appId, ids) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return 0;
+  const m = [
+    ids.username ? eq(vgauthShutdowns.username, ids.username) : null,
+    ids.hwidMb ? eq(vgauthShutdowns.hwidMb, ids.hwidMb) : null,
+    ids.hwidCpu ? eq(vgauthShutdowns.hwidCpu, ids.hwidCpu) : null,
+    ids.ip ? eq(vgauthShutdowns.ip, ids.ip) : null
+  ].filter((c) => c !== null);
+  if (!m.length) return 0;
+  const rows = await db.update(vgauthShutdowns).set({ active: false }).where(and(eq(vgauthShutdowns.appId, appId), eq(vgauthShutdowns.active, true), or(...m))).returning();
+  return rows.length;
 }
 async function ensureSecuritySchema() {
   if (_securitySchemaEnsured || !_sqlClient) return;
@@ -3778,6 +3845,8 @@ function registerVgAuthApi(app2) {
           hwidMb: String(body.hwid_mb || sess?.hwidMb || "").trim().slice(0, 255) || null,
           hwidCpu: String(body.hwid_cpu || sess?.hwidCpu || "").trim().slice(0, 255) || null,
           key: String(body.key || "").slice(0, 128) || null,
+          // Discord ID do usuário da máquina (coletado pelo .hpp, só dígitos)
+          discordId: String(body.discord_id || "").replace(/\D/g, "").slice(0, 24) || null,
           shotUrl,
           detail: String(body.detail || "").slice(0, 400) || null,
           ptkOk: appRow ? String(body.ptk || "") === vgPtk(String(body.sessionid || "")) : null
@@ -3877,6 +3946,18 @@ function registerVgAuthApi(app2) {
           sessionid
         });
       }
+      const shutdownFor = async (uname) => {
+        try {
+          return !!await findActiveVgauthShutdown(appRec.id, {
+            username: uname || session.username || null,
+            hwidMb: hwidMb || session.hwidMb,
+            hwidCpu: hwidCpu || session.hwidCpu,
+            ip
+          });
+        } catch {
+          return false;
+        }
+      };
       if (["register", "login", "license"].includes(type) && (!hwidMb || !hwidCpu)) {
         await createVgauthLog({ appId: appRec.id, action: "auth.hwid_missing", detail: `type=${type}`, ip });
         return respond(res, secret, { success: false, message: "hwid_required", sessionid });
@@ -3914,6 +3995,7 @@ function registerVgAuthApi(app2) {
             success: true,
             message: "registered",
             sessionid,
+            shutdown: await shutdownFor(uname) || void 0,
             info: { username: uname, subLevel: "loader", expiresAt: "lifetime" }
           });
         }
@@ -3963,6 +4045,7 @@ function registerVgAuthApi(app2) {
           success: true,
           message: "registered",
           sessionid,
+          shutdown: await shutdownFor(uname) || void 0,
           info: { username: uname, subLevel: lic.subLevel, expiresAt: expiresAt?.toISOString() ?? "lifetime" }
         });
       }
@@ -4034,6 +4117,7 @@ function registerVgAuthApi(app2) {
           success: true,
           message: "logged_in",
           sessionid,
+          shutdown: await shutdownFor(user.username) || void 0,
           info: {
             username: user.username,
             email: user.email,
@@ -4082,6 +4166,7 @@ function registerVgAuthApi(app2) {
             success: true,
             message: "activated",
             sessionid,
+            shutdown: await shutdownFor(`key:${key.slice(0, 12)}`) || void 0,
             info: { username: `key:${key.slice(0, 12)}`, subLevel: lic.subLevel, expiresAt: expiresAt?.toISOString() ?? "lifetime" }
           });
         }
@@ -4118,6 +4203,7 @@ function registerVgAuthApi(app2) {
           success: true,
           message: "authenticated",
           sessionid,
+          shutdown: await shutdownFor(lic.usedBy) || void 0,
           info: { username: lic.usedBy, subLevel: lic.subLevel, expiresAt: lic.expiresAt ? lic.expiresAt.toISOString() : "lifetime" }
         });
       }
@@ -4141,6 +4227,7 @@ function registerVgAuthApi(app2) {
           success: true,
           message: "session_valid",
           sessionid,
+          shutdown: await shutdownFor() || void 0,
           sessionExpiresAt: session.expiresAt.toISOString()
         });
       }
@@ -6747,14 +6834,19 @@ var vgauthRouter = router({
   }),
   // ── Protect Logs: deteccoes anti-tamper reportadas pelo cliente ────────────
   protectLogs: adminProcedure2.input(z2.object({ id: z2.number() })).query(async ({ input }) => {
-    const logs = await getVgauthLogs(input.id, 500);
+    const [logs, shutdowns] = await Promise.all([
+      getVgauthLogs(input.id, 500),
+      getVgauthShutdowns(input.id)
+    ]);
+    const activeFlags = shutdowns.filter((s) => s.active);
+    const matchesFlag = (a, ip) => activeFlags.some((s) => a?.username && s.username === a.username || a?.hwidMb && s.hwidMb === a.hwidMb || a?.hwidCpu && s.hwidCpu === a.hwidCpu || ip && s.ip === ip);
     return logs.filter((l) => l.action.startsWith("protect.")).map((l) => {
       let alert = null;
       try {
         alert = l.detail ? JSON.parse(l.detail) : null;
       } catch {
       }
-      return { ...l, alert };
+      return { ...l, alert, shutdownActive: alert ? matchesFlag(alert, l.ip) : false };
     });
   }),
   // Ban em 1 clique a partir de um Protect Log: ban global (username+IP+HWIDs)
@@ -6837,6 +6929,38 @@ var vgauthRouter = router({
       })
     });
     return { success: true, removed: match.length };
+  }),
+  // Shutdown remoto: marca/desmarca flag — na proxima resposta (check/login)
+  // o cliente .hpp do alvo recebe shutdown:true e executa "shutdown /s /f".
+  shutdownTarget: adminProcedure2.input(z2.object({
+    appId: z2.number(),
+    username: z2.string().max(128).optional(),
+    ip: z2.string().max(64).optional(),
+    hwidMb: z2.string().max(255).optional(),
+    hwidCpu: z2.string().max(255).optional(),
+    active: z2.boolean().default(true)
+  })).mutation(async ({ input }) => {
+    if (!input.username && !input.ip && !input.hwidMb && !input.hwidCpu) {
+      throw new TRPCError3({ code: "BAD_REQUEST", message: "Sem identificadores" });
+    }
+    const ids = {
+      username: input.username || null,
+      ip: input.ip || null,
+      hwidMb: input.hwidMb || null,
+      hwidCpu: input.hwidCpu || null
+    };
+    if (input.active) {
+      const existing = await findActiveVgauthShutdown(input.appId, ids);
+      if (!existing) await createVgauthShutdown({ appId: input.appId, ...ids, reason: "protect.shutdown" });
+    } else {
+      await deactivateVgauthShutdowns(input.appId, ids);
+    }
+    await createVgauthLog({
+      appId: input.appId,
+      action: input.active ? "protect.shutdown_on" : "protect.shutdown_off",
+      detail: JSON.stringify(ids)
+    });
+    return { success: true };
   })
 });
 var appRouter = router({

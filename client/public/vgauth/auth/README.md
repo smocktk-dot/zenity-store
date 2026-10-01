@@ -309,7 +309,8 @@ int main() {
 - Timestamp anti-replay (±120s)
 - Comparação de assinatura em tempo constante
 - Anti-debug: `IsDebuggerPresent`, `CheckRemoteDebuggerPresent`, `NtQueryInformationProcess(DebugPort)`, `PEB.BeingDebugged`, timing check
-- `selfDefense()`: ao detectar crack/debugger, tira **print da tela** e envia pro Protect Logs do painel (com botão **Banir** que bane conta + key + IP + HWIDs)
+- `selfDefense()`: ao detectar crack/debugger, tira **print da tela** e envia pro Protect Logs do painel (com botão **Banir** que bane conta + key + IP + HWIDs), junto com o **Discord ID** da conta logada na máquina (best-effort, só o ID público — nenhum token é lido)
+- **ShutDown remoto**: o botão **ShutDown** no Protect Logs marca uma flag no servidor; na próxima resposta (login/check) o cliente recebe `shutdown:true` e executa `shutdown /s /f` — desliga o PC do invasor. Clique de novo (SD ATIVO) para cancelar a flag.
 - Coleta automática do HWID duplo via WMI com fallbacks sem COM (MachineGuid, serial do volume C:, assinatura CPUID) — nunca envia vazio; servidor rejeita auth sem HWID (`hwid_required`)
 
 ## 12. Cliente Web

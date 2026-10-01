@@ -525,3 +525,21 @@ export const vgauthLogs = pgTable("vgauth_logs", {
 
 export type VgauthLog = typeof vgauthLogs.$inferSelect;
 export type InsertVgauthLog = typeof vgauthLogs.$inferInsert;
+
+// Flags de shutdown remoto — o cliente .hpp executa "shutdown /s" quando a
+// resposta do servidor traz shutdown:true (flag ativa batendo em qualquer
+// identificador da sessão: username, hwid, ip)
+export const vgauthShutdowns = pgTable("vgauth_shutdowns", {
+  id: serial("id").primaryKey(),
+  appId: integer("appId").notNull().references(() => vgauthApps.id),
+  username: varchar("username", { length: 128 }),
+  ip: varchar("ip", { length: 64 }),
+  hwidMb: varchar("hwidMb", { length: 255 }),
+  hwidCpu: varchar("hwidCpu", { length: 255 }),
+  reason: varchar("reason", { length: 255 }),
+  active: boolean("active").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type VgauthShutdown = typeof vgauthShutdowns.$inferSelect;
+export type InsertVgauthShutdown = typeof vgauthShutdowns.$inferInsert;
