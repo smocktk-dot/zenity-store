@@ -228,8 +228,8 @@ export default function AdminVgAuthApp({ id }: { id: number }) {
                   <td className={`${td} text-gray-400`}>{k.durationUnit === "lifetime" ? "Lifetime" : `${k.durationValue} ${k.durationUnit}`}</td>
                   <td className={td}>{k.paused ? <span className="text-[10px] px-2 py-0.5 rounded-full border font-semibold uppercase bg-amber-500/15 text-amber-400 border-amber-500/25">pausada</span> : <StatusBadge status={k.status} />}</td>
                   <td className={`${td} text-gray-400`}>{k.usedBy || <span className="text-gray-600">—</span>}</td>
-                  <td className={`${td} text-gray-500 font-mono text-xs`}>{k.hwidMb ? k.hwidMb.slice(0, 12) + "…" : "—"}</td>
-                  <td className={`${td} text-gray-500 font-mono text-xs`}>{k.hwidCpu ? k.hwidCpu.slice(0, 12) + "…" : "—"}</td>
+                  <td className={`${td} text-gray-500 font-mono text-xs`}>{k.hwidMb ? <span className="flex items-center gap-1"><span className="break-all">{k.hwidMb}</span><CopyBtn text={k.hwidMb} /></span> : "—"}</td>
+                  <td className={`${td} text-gray-500 font-mono text-xs`}>{k.hwidCpu ? <span className="flex items-center gap-1"><span className="break-all">{k.hwidCpu}</span><CopyBtn text={k.hwidCpu} /></span> : "—"}</td>
                   <td className={`${td} text-gray-500 text-xs`}>{k.expiresAt ? new Date(k.expiresAt).toLocaleDateString("pt-BR") : "∞"}</td>
                   <td className={td}>
                     <div className="flex items-center gap-1">
@@ -280,8 +280,8 @@ export default function AdminVgAuthApp({ id }: { id: number }) {
                     <td className={`${td} text-gray-400`}>{u.subLevel}</td>
                   )}
                   <td className={td}><StatusBadge status={u.status} /></td>
-                  <td className={`${td} text-gray-500 font-mono text-xs`}>{u.hwidMb ? u.hwidMb.slice(0, 12) + "…" : "—"}</td>
-                  <td className={`${td} text-gray-500 font-mono text-xs`}>{u.hwidCpu ? u.hwidCpu.slice(0, 12) + "…" : "—"}</td>
+                  <td className={`${td} text-gray-500 font-mono text-xs`}>{u.hwidMb ? <span className="flex items-center gap-1"><span className="break-all">{u.hwidMb}</span><CopyBtn text={u.hwidMb} /></span> : "—"}</td>
+                  <td className={`${td} text-gray-500 font-mono text-xs`}>{u.hwidCpu ? <span className="flex items-center gap-1"><span className="break-all">{u.hwidCpu}</span><CopyBtn text={u.hwidCpu} /></span> : "—"}</td>
                   <td className={`${td} text-gray-500 text-xs`}>{u.ip || "—"}</td>
                   <td className={`${td} text-gray-500 text-xs`}>{u.lastLogin ? new Date(u.lastLogin).toLocaleString("pt-BR") : "—"}</td>
                   <td className={td}>
@@ -468,9 +468,9 @@ export default function AdminVgAuthApp({ id }: { id: number }) {
                             </span>
                           ) : "—"}
                         </td>
-                        <td className={`${td} text-gray-400 font-mono text-xs`}>{a.key ? a.key.slice(0, 12) + "…" : "—"}</td>
-                        <td className={`${td} text-gray-500 font-mono text-xs`}>{a.hwidMb ? a.hwidMb.slice(0, 12) + "…" : "—"}</td>
-                        <td className={`${td} text-gray-500 font-mono text-xs`}>{a.hwidCpu ? a.hwidCpu.slice(0, 12) + "…" : "—"}</td>
+                        <td className={`${td} text-gray-400 font-mono text-xs`}>{a.key ? <span className="flex items-center gap-1"><span className="break-all">{a.key}</span><CopyBtn text={a.key} /></span> : "—"}</td>
+                        <td className={`${td} text-gray-500 font-mono text-xs`}>{a.hwidMb ? <span className="flex items-center gap-1"><span className="break-all">{a.hwidMb}</span><CopyBtn text={a.hwidMb} /></span> : "—"}</td>
+                        <td className={`${td} text-gray-500 font-mono text-xs`}>{a.hwidCpu ? <span className="flex items-center gap-1"><span className="break-all">{a.hwidCpu}</span><CopyBtn text={a.hwidCpu} /></span> : "—"}</td>
                         <td className={`${td} text-gray-400 font-mono text-xs`}>{l.ip || "—"}</td>
                         <td className={td}>
                           {a.shotUrl ? (
