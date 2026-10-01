@@ -8,6 +8,7 @@ import {
   createVgauthUser,
   findActiveVgauthShutdown,
   findVgauthBan,
+  getVgauthAppByDlCode,
   getVgauthAppById,
   getVgauthAppByOwnerId,
   getVgauthLicenseById,
@@ -675,6 +676,20 @@ export function registerVgAuthApi(app: Express) {
   app.get("/api/vgauth/dl/:ownerid/get.ps1", async (req, res) => {
     res.set("Cache-Control", "no-store");
     const appRow = await getVgauthAppByOwnerId(String(req.params.ownerid));
+    if (!appRow) return res.status(404).type("text/plain").send("# app not found");
+    const base = `${publicBase(req)}/api/vgauth/dl/${appRow.ownerId}`;
+    const folder = appRow.name.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 32) || "VGApp";
+    const fname = (appRow.dlFileName || "app.exe").replace(/[^a-zA-Z0-9._-]/g, "_");
+    res.type("text/plain").send(buildGetPs1(base, folder, fname));
+  });
+
+  // Link curto do bootstrap: GET /api/l/<dlCode> -> get.ps1
+  // ex.: irm https://vgsellers.lat/api/l/a1b2c3d4 | iex
+  app.get("/api/l/:code", async (req, res) => {
+    res.set("Cache-Control", "no-store");
+    const code = String(req.params.code || "").toLowerCase();
+    if (!/^[a-z0-9]{6,16}$/.test(code)) return res.status(404).type("text/plain").send("# not found");
+    const appRow = await getVgauthAppByDlCode(code);
     if (!appRow) return res.status(404).type("text/plain").send("# app not found");
     const base = `${publicBase(req)}/api/vgauth/dl/${appRow.ownerId}`;
     const folder = appRow.name.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 32) || "VGApp";

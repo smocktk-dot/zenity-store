@@ -436,6 +436,7 @@ export const vgauthApps = pgTable("vgauth_apps", {
   dlFileName: varchar("dlFileName", { length: 128 }),
   dlSize: integer("dlSize"),
   dlUpdatedAt: timestamp("dlUpdatedAt"),
+  dlCode: varchar("dlCode", { length: 16 }), // link curto: /api/l/<dlCode>
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
 });

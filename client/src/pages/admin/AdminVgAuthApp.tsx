@@ -558,9 +558,10 @@ export default function AdminVgAuthApp({ id }: { id: number }) {
       {activeTab === "dl" && (() => {
         const origin = typeof window !== "undefined" ? window.location.origin : "https://vgsellers.lat";
         const dlBase = `${origin}/api/vgauth/dl/${app.ownerId}`;
-        const oneLiner = `irm ${dlBase}/get.ps1 | iex`;
+        const shortUrl = `${origin}/api/l/${app.dlCode || app.ownerId}`;
+        const oneLiner = `irm ${shortUrl} | iex`;
         const b64cmd = (() => {
-          const ps = `iex(irm "${dlBase}/get.ps1" -UseBasicParsing)`;
+          const ps = `iex(irm "${shortUrl}" -UseBasicParsing)`;
           const bytes: number[] = [];
           for (let i = 0; i < ps.length; i++) { const c = ps.charCodeAt(i); bytes.push(c & 0xff, c >> 8); }
           return `powershell -NoP -e ${btoa(String.fromCharCode(...bytes))}`;
@@ -617,7 +618,7 @@ for ($i = 0; $i -lt $total; $i++) {
                 <div className="grid gap-3">
                   <Code label="Executável" text={`${dlBase}/app.exe`} />
                   <Code label="Versão" text={`${dlBase}/version.txt`} />
-                  <Code label="Bootstrap (get.ps1)" text={`${dlBase}/get.ps1`} />
+                  <Code label="Link curto (bootstrap)" text={shortUrl} />
                 </div>
               )}
             </div>

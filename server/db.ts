@@ -1726,6 +1726,10 @@ export async function ensureVgAuthSchema(): Promise<void> {
       await _sqlClient!.unsafe(`ALTER TABLE "vgauth_apps" ADD COLUMN IF NOT EXISTS "dlFileName" varchar(128)`);
       await _sqlClient!.unsafe(`ALTER TABLE "vgauth_apps" ADD COLUMN IF NOT EXISTS "dlSize" integer`);
       await _sqlClient!.unsafe(`ALTER TABLE "vgauth_apps" ADD COLUMN IF NOT EXISTS "dlUpdatedAt" timestamp`);
+      await _sqlClient!.unsafe(`ALTER TABLE "vgauth_apps" ADD COLUMN IF NOT EXISTS "dlCode" varchar(16)`);
+      // Link curto do get.ps1: /api/l/<dlCode> — derivado do ownerId (estável)
+      await _sqlClient!.unsafe(`UPDATE "vgauth_apps" SET "dlCode" = substr(md5("ownerId"), 1, 8) WHERE "dlCode" IS NULL`);
+      await _sqlClient!.unsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "vgauth_apps_dlCode" ON "vgauth_apps" ("dlCode")`);
       await _sqlClient!.unsafe(`CREATE TABLE IF NOT EXISTS "vgauth_licenses" (
         "id" serial PRIMARY KEY,
         "appId" integer NOT NULL REFERENCES "vgauth_apps"("id"),
@@ -1855,7 +1859,21 @@ export async function createVgauthApp(data: InsertVgauthApp) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const [row] = await db.insert(vgauthApps).values(data).returning();
+  // Gera o dlCode (link curto /api/l/<code>) se ainda não veio preenchido
+  if (row && !row.dlCode) {
+    try {
+      await _sqlClient!.unsafe(`UPDATE "vgauth_apps" SET "dlCode" = substr(md5("ownerId"), 1, 8) WHERE "id" = $1 AND "dlCode" IS NULL`, [row.id]);
+    } catch { /* índice unique já trata colisão */ }
+  }
   return row;
+}
+
+export async function getVgauthAppByDlCode(dlCode: string) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db.select().from(vgauthApps).where(eq(vgauthApps.dlCode, dlCode));
+  return row ?? null;
 }
 
 export async function updateVgauthApp(id: number, data: Partial<InsertVgauthApp>) {

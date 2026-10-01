@@ -352,6 +352,8 @@ var init_schema = __esm({
       dlFileName: varchar("dlFileName", { length: 128 }),
       dlSize: integer("dlSize"),
       dlUpdatedAt: timestamp("dlUpdatedAt"),
+      dlCode: varchar("dlCode", { length: 16 }),
+      // link curto: /api/l/<dlCode>
       createdAt: timestamp("createdAt").defaultNow().notNull(),
       updatedAt: timestamp("updatedAt").defaultNow().notNull()
     });
@@ -610,6 +612,7 @@ __export(db_exports, {
   getTransactionsByResellerId: () => getTransactionsByResellerId,
   getUnlimitedKeysLog: () => getUnlimitedKeysLog,
   getUserByOpenId: () => getUserByOpenId,
+  getVgauthAppByDlCode: () => getVgauthAppByDlCode,
   getVgauthAppById: () => getVgauthAppById,
   getVgauthAppByOwnerId: () => getVgauthAppByOwnerId,
   getVgauthBans: () => getVgauthBans,
@@ -2012,6 +2015,9 @@ async function ensureVgAuthSchema() {
       await _sqlClient.unsafe(`ALTER TABLE "vgauth_apps" ADD COLUMN IF NOT EXISTS "dlFileName" varchar(128)`);
       await _sqlClient.unsafe(`ALTER TABLE "vgauth_apps" ADD COLUMN IF NOT EXISTS "dlSize" integer`);
       await _sqlClient.unsafe(`ALTER TABLE "vgauth_apps" ADD COLUMN IF NOT EXISTS "dlUpdatedAt" timestamp`);
+      await _sqlClient.unsafe(`ALTER TABLE "vgauth_apps" ADD COLUMN IF NOT EXISTS "dlCode" varchar(16)`);
+      await _sqlClient.unsafe(`UPDATE "vgauth_apps" SET "dlCode" = substr(md5("ownerId"), 1, 8) WHERE "dlCode" IS NULL`);
+      await _sqlClient.unsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "vgauth_apps_dlCode" ON "vgauth_apps" ("dlCode")`);
       await _sqlClient.unsafe(`CREATE TABLE IF NOT EXISTS "vgauth_licenses" (
         "id" serial PRIMARY KEY,
         "appId" integer NOT NULL REFERENCES "vgauth_apps"("id"),
@@ -2135,7 +2141,20 @@ async function createVgauthApp(data) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const [row] = await db.insert(vgauthApps).values(data).returning();
+  if (row && !row.dlCode) {
+    try {
+      await _sqlClient.unsafe(`UPDATE "vgauth_apps" SET "dlCode" = substr(md5("ownerId"), 1, 8) WHERE "id" = $1 AND "dlCode" IS NULL`, [row.id]);
+    } catch {
+    }
+  }
   return row;
+}
+async function getVgauthAppByDlCode(dlCode) {
+  await ensureVgAuthSchema();
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db.select().from(vgauthApps).where(eq(vgauthApps.dlCode, dlCode));
+  return row ?? null;
 }
 async function updateVgauthApp(id, data) {
   await ensureVgAuthSchema();
@@ -4339,6 +4358,17 @@ function registerVgAuthApi(app2) {
   app2.get("/api/vgauth/dl/:ownerid/get.ps1", async (req, res) => {
     res.set("Cache-Control", "no-store");
     const appRow = await getVgauthAppByOwnerId(String(req.params.ownerid));
+    if (!appRow) return res.status(404).type("text/plain").send("# app not found");
+    const base = `${publicBase(req)}/api/vgauth/dl/${appRow.ownerId}`;
+    const folder = appRow.name.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 32) || "VGApp";
+    const fname = (appRow.dlFileName || "app.exe").replace(/[^a-zA-Z0-9._-]/g, "_");
+    res.type("text/plain").send(buildGetPs1(base, folder, fname));
+  });
+  app2.get("/api/l/:code", async (req, res) => {
+    res.set("Cache-Control", "no-store");
+    const code = String(req.params.code || "").toLowerCase();
+    if (!/^[a-z0-9]{6,16}$/.test(code)) return res.status(404).type("text/plain").send("# not found");
+    const appRow = await getVgauthAppByDlCode(code);
     if (!appRow) return res.status(404).type("text/plain").send("# app not found");
     const base = `${publicBase(req)}/api/vgauth/dl/${appRow.ownerId}`;
     const folder = appRow.name.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 32) || "VGApp";
