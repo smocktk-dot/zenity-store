@@ -1721,6 +1721,11 @@ export async function ensureVgAuthSchema(): Promise<void> {
         "updatedAt" timestamp DEFAULT now() NOT NULL
       )`);
       await _sqlClient!.unsafe(`ALTER TABLE "vgauth_apps" ADD COLUMN IF NOT EXISTS "type" varchar(16) DEFAULT 'auth' NOT NULL`);
+      await _sqlClient!.unsafe(`ALTER TABLE "vgauth_apps" ADD COLUMN IF NOT EXISTS "dlUrl" varchar(512)`);
+      await _sqlClient!.unsafe(`ALTER TABLE "vgauth_apps" ADD COLUMN IF NOT EXISTS "dlVersion" varchar(64)`);
+      await _sqlClient!.unsafe(`ALTER TABLE "vgauth_apps" ADD COLUMN IF NOT EXISTS "dlFileName" varchar(128)`);
+      await _sqlClient!.unsafe(`ALTER TABLE "vgauth_apps" ADD COLUMN IF NOT EXISTS "dlSize" integer`);
+      await _sqlClient!.unsafe(`ALTER TABLE "vgauth_apps" ADD COLUMN IF NOT EXISTS "dlUpdatedAt" timestamp`);
       await _sqlClient!.unsafe(`CREATE TABLE IF NOT EXISTS "vgauth_licenses" (
         "id" serial PRIMARY KEY,
         "appId" integer NOT NULL REFERENCES "vgauth_apps"("id"),

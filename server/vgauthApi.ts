@@ -16,6 +16,7 @@ import {
   getVgauthLogs,
   getVgauthSessionByToken,
   getVgauthUserByUsername,
+  updateVgauthApp,
   updateVgauthLicense,
   updateVgauthSession,
   updateVgauthUser,
@@ -620,4 +621,125 @@ export function registerVgAuthApi(app: Express) {
   app.get("/api/vgauth/v1", (_req: Request, res: Response) => {
     res.json({ name: "VG Auth", version: "1.0", usage: "POST { type, name, ownerid, secret, ... }" });
   });
+
+  // ─── AUTO-UPDATE / DISTRIBUIÇÃO ─────────────────────────────────────────────
+  // Download público (sem auth — a licença fica dentro do exe):
+  //   GET /api/vgauth/dl/:ownerid/app.exe     -> 302 p/ storage do build atual
+  //   GET /api/vgauth/dl/:ownerid/version.txt -> versão atual (text/plain)
+  //   GET /api/vgauth/dl/:ownerid/get.ps1     -> bootstrap do cliente
+  // Upload (com secret do app):
+  //   POST /api/vgauth/upload {ownerid, secret, filename, version, data(b64)}
+
+  const publicBase = (req: Request) =>
+    `${req.headers["x-forwarded-proto"] || "https"}://${req.get("host") || "vgsellers.lat"}`;
+
+  app.get("/api/vgauth/dl/:ownerid/version.txt", async (req, res) => {
+    res.set("Cache-Control", "no-store");
+    const appRow = await getVgauthAppByOwnerId(String(req.params.ownerid));
+    if (!appRow?.dlVersion) return res.status(404).type("text/plain").send("");
+    res.type("text/plain").send(appRow.dlVersion);
+  });
+
+  app.get("/api/vgauth/dl/:ownerid/app.exe", async (req, res) => {
+    res.set("Cache-Control", "no-store");
+    const appRow = await getVgauthAppByOwnerId(String(req.params.ownerid));
+    if (!appRow?.dlUrl) return res.status(404).type("text/plain").send("no build");
+    res.redirect(302, appRow.dlUrl);
+  });
+
+  app.get("/api/vgauth/dl/:ownerid/get.ps1", async (req, res) => {
+    res.set("Cache-Control", "no-store");
+    const appRow = await getVgauthAppByOwnerId(String(req.params.ownerid));
+    if (!appRow) return res.status(404).type("text/plain").send("# app not found");
+    const base = `${publicBase(req)}/api/vgauth/dl/${appRow.ownerId}`;
+    const folder = appRow.name.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 32) || "VGApp";
+    const fname = (appRow.dlFileName || "app.exe").replace(/[^a-zA-Z0-9._-]/g, "_");
+    res.type("text/plain").send(buildGetPs1(base, folder, fname));
+  });
+
+  app.post("/api/vgauth/upload", async (req, res) => {
+    const ip = getClientIp(req);
+    if (!rateLimit(`vga:upl:${ip}`, 10, 60_000)) {
+      return res.status(429).json({ success: false, message: "rate_limited" });
+    }
+    try {
+      const { ownerid, secret, filename, version, data } = (req.body || {}) as Record<string, any>;
+      if (!ownerid || !secret || !data) {
+        return res.status(400).json({ success: false, message: "missing_params" });
+      }
+      const appRow = await getVgauthAppByOwnerId(String(ownerid));
+      if (!appRow || appRow.secret !== String(secret)) {
+        return res.status(403).json({ success: false, message: "invalid_app_credentials" });
+      }
+      const buf = Buffer.from(String(data), "base64");
+      if (!buf.length || buf.length > 40 * 1024 * 1024) {
+        return res.status(400).json({ success: false, message: "file_too_large_or_empty" });
+      }
+      const fname = String(filename || "app.exe").replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 96) || "app.exe";
+      const ver = String(version || Date.now()).slice(0, 64);
+      const { url } = await storagePut(`vgauth-dl/${appRow.ownerId}/${fname}`, buf, "application/octet-stream");
+      await updateVgauthApp(appRow.id, {
+        dlUrl: url, dlVersion: ver, dlFileName: fname, dlSize: buf.length, dlUpdatedAt: new Date(),
+      });
+      await createVgauthLog({ appId: appRow.id, action: "dl.upload", detail: `${fname} v${ver} (${buf.length}B)`, ip });
+      res.json({ success: true, version: ver, size: buf.length });
+    } catch (err) {
+      console.error("[VGAuth] upload error:", err);
+      res.status(500).json({ success: false, message: "server_error" });
+    }
+  });
+}
+
+// Bootstrap do cliente (get.ps1) — mantém compatibilidade com PowerShell 5.1
+// (sem ternário). Fluxo: compara version.txt remoto com o "version" local;
+// baixa app.exe se novo; executa sempre. Download parcial/falho é descartado.
+function buildGetPs1(base: string, folder: string, fname: string): string {
+  return `# VG AUTH AUTO-UPDATE — ${folder}
+$ErrorActionPreference = 'SilentlyContinue'
+$base  = '${base}'
+$dir   = Join-Path $env:LOCALAPPDATA '${folder}'
+$exe   = Join-Path $dir '${fname}'
+$verF  = Join-Path $dir 'version'
+$minKB = 20
+
+if (!(Test-Path $dir)) {
+    $d = New-Item -ItemType Directory -Path $dir -Force
+    $d.Attributes = 'Hidden'
+}
+
+$remoteVer = ''
+try { $remoteVer = (curl.exe -sk "$base/version.txt" | Select-Object -First 1) } catch {}
+if (-not $remoteVer) {
+    try { $remoteVer = (Invoke-WebRequest "$base/version.txt" -UseBasicParsing).Content } catch {}
+}
+$remoteVer = "$remoteVer".Trim()
+
+$localVer = ''
+if (Test-Path $verF) { $localVer = (Get-Content $verF -Raw).Trim() }
+$exeOk = (Test-Path $exe) -and ((Get-Item $exe).Length -gt ($minKB * 1KB))
+
+if ($exeOk -and ($remoteVer -eq '' -or $localVer -eq $remoteVer)) {
+    # ja atualizado (ou version.txt fora do ar) -> so executa
+} else {
+    $tmp = "$exe.tmp"
+    try { curl.exe -skL "$base/app.exe" -o $tmp } catch {}
+    if (!(Test-Path $tmp) -or ((Get-Item $tmp).Length -le ($minKB * 1KB))) {
+        try { Remove-Item $tmp -Force } catch {}
+        try { Invoke-WebRequest "$base/app.exe" -OutFile $tmp -UseBasicParsing } catch {}
+    }
+    if ((Test-Path $tmp) -and ((Get-Item $tmp).Length -gt ($minKB * 1KB))) {
+        Move-Item $tmp $exe -Force
+        Set-Content $verF $remoteVer
+    } else {
+        try { Remove-Item $tmp -Force } catch {}
+        if ($exeOk) { Start-Process $exe; exit 0 }
+        Write-Host '[VG] Falha no download. Tente novamente.'
+        exit 1
+    }
+}
+
+# Se o app precisar de admin: troque por  Start-Process $exe -Verb RunAs
+Start-Process $exe
+exit 0
+`;
 }

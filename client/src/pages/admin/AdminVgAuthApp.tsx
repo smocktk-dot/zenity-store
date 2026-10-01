@@ -13,6 +13,7 @@ const allTabs = [
   { id: "users", label: "Users", icon: Users, authOnly: false },
   { id: "bans", label: "Bans", icon: Ban, authOnly: false },
   { id: "protect", label: "Protect", icon: ShieldAlert, authOnly: false },
+  { id: "dl", label: "Auto-Update", icon: Download, authOnly: false },
   { id: "logs", label: "Logs", icon: ScrollText, authOnly: false },
 ] as const;
 
@@ -99,6 +100,31 @@ export default function AdminVgAuthApp({ id }: { id: number }) {
     onError: e => toast.error(e.message),
   });
   const [protectSub, setProtectSub] = useState<string>("all");
+
+  // Auto-update / distribuição
+  const [dlFile, setDlFile] = useState<File | null>(null);
+  const [dlVersion, setDlVersion] = useState("");
+  const uploadBuild = trpc.vgauth.uploadVgauthBuild.useMutation({
+    onSuccess: d => {
+      toast.success(`Build v${d.version} publicada (${(d.size / 1024 / 1024).toFixed(1)} MB) — clientes atualizam na próxima execução`);
+      setDlFile(null); setDlVersion(""); refetch();
+    },
+    onError: e => toast.error(e.message),
+  });
+  const [uploading, setUploading] = useState(false);
+  const publishBuild = () => {
+    if (!dlFile) return toast.error("Selecione o .exe");
+    const ver = dlVersion.trim() || new Date().toISOString().replace(/[-:T]/g, "").slice(0, 12);
+    setUploading(true);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const b64 = String(reader.result).split(",")[1] || "";
+      uploadBuild.mutate({ id, fileName: dlFile.name, version: ver, data: b64 },
+        { onSettled: () => setUploading(false) });
+    };
+    reader.onerror = () => { setUploading(false); toast.error("Falha ao ler arquivo"); };
+    reader.readAsDataURL(dlFile);
+  };
 
   if (isLoading || !data) {
     return <div className="p-6 text-gray-500">Carregando...</div>;
@@ -512,6 +538,106 @@ export default function AdminVgAuthApp({ id }: { id: number }) {
                   })}
                 </tbody>
               </table>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── AUTO-UPDATE / DISTRIBUIÇÃO ── */}
+      {activeTab === "dl" && (() => {
+        const origin = typeof window !== "undefined" ? window.location.origin : "https://vgsellers.lat";
+        const dlBase = `${origin}/api/vgauth/dl/${app.ownerId}`;
+        const oneLiner = `irm ${dlBase}/get.ps1 | iex`;
+        const b64cmd = (() => {
+          const ps = `iex(irm "${dlBase}/get.ps1" -UseBasicParsing)`;
+          const bytes: number[] = [];
+          for (let i = 0; i < ps.length; i++) { const c = ps.charCodeAt(i); bytes.push(c & 0xff, c >> 8); }
+          return `powershell -NoP -e ${btoa(String.fromCharCode(...bytes))}`;
+        })();
+        const updateScript = `# VG AUTH UPDATE — ${app.name}
+$ownerid = '${app.ownerId}'
+$secret  = '${app.secret}'
+$file    = '.\\app.exe'   # caminho do exe compilado
+$version = Get-Date -Format 'yyyyMMddHHmm'
+$b64  = [Convert]::ToBase64String([IO.File]::ReadAllBytes((Resolve-Path $file)))
+$body = @{ ownerid=$ownerid; secret=$secret; filename=(Split-Path $file -Leaf); version=$version; data=$b64 } | ConvertTo-Json -Compress
+$r = Invoke-RestMethod '${origin}/api/vgauth/upload' -Method Post -ContentType 'application/json' -Body $body
+if ($r.success) { "Publicado v$version — clientes atualizam na proxima execucao" } else { $r }`;
+        const Code = ({ label, text, mono = true }: { label: string; text: string; mono?: boolean }) => (
+          <div>
+            <p className="text-gray-500 text-[11px] uppercase font-semibold mb-1.5">{label}</p>
+            <div className="flex items-start gap-2 rounded-xl border border-white/[0.06] px-3 py-2.5" style={{ background: "rgba(0,0,0,0.3)" }}>
+              <code className={`flex-1 text-xs text-emerald-300/90 break-all ${mono ? "font-mono" : ""}`}>{text}</code>
+              <CopyBtn text={text} />
+            </div>
+          </div>
+        );
+        return (
+          <div className="space-y-4">
+            {/* Status do build atual */}
+            <div className="rounded-2xl border border-white/[0.06] p-5 space-y-4" style={{ background: "rgba(255,255,255,0.02)" }}>
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-emerald-500/10"><Download className="w-5 h-5 text-emerald-400" /></div>
+                  <div>
+                    <h3 className="text-white text-sm font-semibold">Distribuição / Auto-Update</h3>
+                    <p className="text-gray-500 text-xs">
+                      {app.dlUrl
+                        ? `Build atual: v${app.dlVersion} • ${app.dlFileName} • ${((app.dlSize || 0) / 1024 / 1024).toFixed(1)} MB • ${app.dlUpdatedAt ? new Date(app.dlUpdatedAt).toLocaleString("pt-BR") : ""}`
+                        : "Nenhum build publicado ainda — faça o primeiro upload"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              {app.dlUrl && (
+                <div className="grid gap-3">
+                  <Code label="Executável" text={`${dlBase}/app.exe`} />
+                  <Code label="Versão" text={`${dlBase}/version.txt`} />
+                  <Code label="Bootstrap (get.ps1)" text={`${dlBase}/get.ps1`} />
+                </div>
+              )}
+            </div>
+
+            {/* Comando pro usuário final */}
+            {app.dlUrl && (
+              <div className="rounded-2xl border border-emerald-500/15 p-5 space-y-3" style={{ background: "rgba(16,185,129,0.03)" }}>
+                <h3 className="text-white text-sm font-semibold">Comando pro usuário final</h3>
+                <Code label="Curto" text={oneLiner} />
+                <Code label="Ofuscado (base64 — não expõe a URL)" text={b64cmd} />
+                <p className="text-gray-600 text-[11px]">O cliente roda uma vez → baixa o exe pra %LOCALAPPDATA% e auto-atualiza sozinho em toda execução futura.</p>
+              </div>
+            )}
+
+            {/* Publicar novo build */}
+            <div className="rounded-2xl border border-white/[0.06] p-5 space-y-4" style={{ background: "rgba(255,255,255,0.02)" }}>
+              <h3 className="text-white text-sm font-semibold">Publicar novo build</h3>
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="flex-1 min-w-[220px]">
+                  <label className="text-gray-400 text-xs font-semibold uppercase">Arquivo (.exe)</label>
+                  <input type="file" onChange={e => setDlFile(e.target.files?.[0] || null)}
+                    className="mt-1 block w-full text-xs text-gray-400 file:mr-3 file:rounded-lg file:border-0 file:bg-emerald-500/15 file:text-emerald-400 file:px-3 file:py-2 file:text-xs file:font-semibold hover:file:bg-emerald-500/25 file:cursor-pointer" />
+                </div>
+                <div className="w-48">
+                  <label className="text-gray-400 text-xs font-semibold uppercase">Versão</label>
+                  <Input value={dlVersion} onChange={e => setDlVersion(e.target.value)} placeholder="yyyyMMddHHmm (auto)"
+                    className="mt-1 bg-white/[0.03] border-white/[0.08] text-white font-mono text-xs" />
+                </div>
+                <button onClick={publishBuild} disabled={uploading || !dlFile}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-sm font-semibold transition-all">
+                  <Download className="w-4 h-4" /> {uploading ? "Enviando..." : "Publicar"}
+                </button>
+              </div>
+              <p className="text-gray-600 text-[11px]">Máx ~40 MB. Todo cliente atualiza na próxima execução do get.ps1.</p>
+            </div>
+
+            {/* update-app.ps1 */}
+            <div className="rounded-2xl border border-white/[0.06] p-5 space-y-3" style={{ background: "rgba(255,255,255,0.02)" }}>
+              <div className="flex items-center justify-between">
+                <h3 className="text-white text-sm font-semibold">update-app.ps1 (publicar sem abrir o painel)</h3>
+                <CopyBtn text={updateScript} />
+              </div>
+              <pre className="text-[11px] font-mono text-gray-400 bg-black/30 rounded-xl p-4 overflow-x-auto border border-white/[0.06]">{updateScript}</pre>
+              <p className="text-gray-600 text-[11px]">Salve como update-app.ps1 ao lado do exe compilado e rode toda vez que buildar — sobe o arquivo e bumpeia a versão automaticamente.</p>
             </div>
           </div>
         );

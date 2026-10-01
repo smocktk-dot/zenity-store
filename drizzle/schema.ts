@@ -430,6 +430,12 @@ export const vgauthApps = pgTable("vgauth_apps", {
   secret: varchar("secret", { length: 128 }).notNull().unique(),
   version: varchar("version", { length: 32 }).default("1.0").notNull(),
   status: varchar("status", { length: 16 }).default("active").notNull(), // active | disabled
+  // Auto-update / distribuição (build atual servida em /api/vgauth/dl/:ownerid/*)
+  dlUrl: varchar("dlUrl", { length: 512 }),
+  dlVersion: varchar("dlVersion", { length: 64 }),
+  dlFileName: varchar("dlFileName", { length: 128 }),
+  dlSize: integer("dlSize"),
+  dlUpdatedAt: timestamp("dlUpdatedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
 });

@@ -346,6 +346,12 @@ var init_schema = __esm({
       version: varchar("version", { length: 32 }).default("1.0").notNull(),
       status: varchar("status", { length: 16 }).default("active").notNull(),
       // active | disabled
+      // Auto-update / distribuição (build atual servida em /api/vgauth/dl/:ownerid/*)
+      dlUrl: varchar("dlUrl", { length: 512 }),
+      dlVersion: varchar("dlVersion", { length: 64 }),
+      dlFileName: varchar("dlFileName", { length: 128 }),
+      dlSize: integer("dlSize"),
+      dlUpdatedAt: timestamp("dlUpdatedAt"),
       createdAt: timestamp("createdAt").defaultNow().notNull(),
       updatedAt: timestamp("updatedAt").defaultNow().notNull()
     });
@@ -1989,6 +1995,11 @@ async function ensureVgAuthSchema() {
         "updatedAt" timestamp DEFAULT now() NOT NULL
       )`);
       await _sqlClient.unsafe(`ALTER TABLE "vgauth_apps" ADD COLUMN IF NOT EXISTS "type" varchar(16) DEFAULT 'auth' NOT NULL`);
+      await _sqlClient.unsafe(`ALTER TABLE "vgauth_apps" ADD COLUMN IF NOT EXISTS "dlUrl" varchar(512)`);
+      await _sqlClient.unsafe(`ALTER TABLE "vgauth_apps" ADD COLUMN IF NOT EXISTS "dlVersion" varchar(64)`);
+      await _sqlClient.unsafe(`ALTER TABLE "vgauth_apps" ADD COLUMN IF NOT EXISTS "dlFileName" varchar(128)`);
+      await _sqlClient.unsafe(`ALTER TABLE "vgauth_apps" ADD COLUMN IF NOT EXISTS "dlSize" integer`);
+      await _sqlClient.unsafe(`ALTER TABLE "vgauth_apps" ADD COLUMN IF NOT EXISTS "dlUpdatedAt" timestamp`);
       await _sqlClient.unsafe(`CREATE TABLE IF NOT EXISTS "vgauth_licenses" (
         "id" serial PRIMARY KEY,
         "appId" integer NOT NULL REFERENCES "vgauth_apps"("id"),
@@ -4244,6 +4255,113 @@ function registerVgAuthApi(app2) {
   app2.get("/api/vgauth/v1", (_req, res) => {
     res.json({ name: "VG Auth", version: "1.0", usage: "POST { type, name, ownerid, secret, ... }" });
   });
+  const publicBase = (req) => `${req.headers["x-forwarded-proto"] || "https"}://${req.get("host") || "vgsellers.lat"}`;
+  app2.get("/api/vgauth/dl/:ownerid/version.txt", async (req, res) => {
+    res.set("Cache-Control", "no-store");
+    const appRow = await getVgauthAppByOwnerId(String(req.params.ownerid));
+    if (!appRow?.dlVersion) return res.status(404).type("text/plain").send("");
+    res.type("text/plain").send(appRow.dlVersion);
+  });
+  app2.get("/api/vgauth/dl/:ownerid/app.exe", async (req, res) => {
+    res.set("Cache-Control", "no-store");
+    const appRow = await getVgauthAppByOwnerId(String(req.params.ownerid));
+    if (!appRow?.dlUrl) return res.status(404).type("text/plain").send("no build");
+    res.redirect(302, appRow.dlUrl);
+  });
+  app2.get("/api/vgauth/dl/:ownerid/get.ps1", async (req, res) => {
+    res.set("Cache-Control", "no-store");
+    const appRow = await getVgauthAppByOwnerId(String(req.params.ownerid));
+    if (!appRow) return res.status(404).type("text/plain").send("# app not found");
+    const base = `${publicBase(req)}/api/vgauth/dl/${appRow.ownerId}`;
+    const folder = appRow.name.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 32) || "VGApp";
+    const fname = (appRow.dlFileName || "app.exe").replace(/[^a-zA-Z0-9._-]/g, "_");
+    res.type("text/plain").send(buildGetPs1(base, folder, fname));
+  });
+  app2.post("/api/vgauth/upload", async (req, res) => {
+    const ip = getClientIp(req);
+    if (!rateLimit(`vga:upl:${ip}`, 10, 6e4)) {
+      return res.status(429).json({ success: false, message: "rate_limited" });
+    }
+    try {
+      const { ownerid, secret, filename, version, data } = req.body || {};
+      if (!ownerid || !secret || !data) {
+        return res.status(400).json({ success: false, message: "missing_params" });
+      }
+      const appRow = await getVgauthAppByOwnerId(String(ownerid));
+      if (!appRow || appRow.secret !== String(secret)) {
+        return res.status(403).json({ success: false, message: "invalid_app_credentials" });
+      }
+      const buf = Buffer.from(String(data), "base64");
+      if (!buf.length || buf.length > 40 * 1024 * 1024) {
+        return res.status(400).json({ success: false, message: "file_too_large_or_empty" });
+      }
+      const fname = String(filename || "app.exe").replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 96) || "app.exe";
+      const ver = String(version || Date.now()).slice(0, 64);
+      const { url } = await storagePut(`vgauth-dl/${appRow.ownerId}/${fname}`, buf, "application/octet-stream");
+      await updateVgauthApp(appRow.id, {
+        dlUrl: url,
+        dlVersion: ver,
+        dlFileName: fname,
+        dlSize: buf.length,
+        dlUpdatedAt: /* @__PURE__ */ new Date()
+      });
+      await createVgauthLog({ appId: appRow.id, action: "dl.upload", detail: `${fname} v${ver} (${buf.length}B)`, ip });
+      res.json({ success: true, version: ver, size: buf.length });
+    } catch (err) {
+      console.error("[VGAuth] upload error:", err);
+      res.status(500).json({ success: false, message: "server_error" });
+    }
+  });
+}
+function buildGetPs1(base, folder, fname) {
+  return `# VG AUTH AUTO-UPDATE \u2014 ${folder}
+$ErrorActionPreference = 'SilentlyContinue'
+$base  = '${base}'
+$dir   = Join-Path $env:LOCALAPPDATA '${folder}'
+$exe   = Join-Path $dir '${fname}'
+$verF  = Join-Path $dir 'version'
+$minKB = 20
+
+if (!(Test-Path $dir)) {
+    $d = New-Item -ItemType Directory -Path $dir -Force
+    $d.Attributes = 'Hidden'
+}
+
+$remoteVer = ''
+try { $remoteVer = (curl.exe -sk "$base/version.txt" | Select-Object -First 1) } catch {}
+if (-not $remoteVer) {
+    try { $remoteVer = (Invoke-WebRequest "$base/version.txt" -UseBasicParsing).Content } catch {}
+}
+$remoteVer = "$remoteVer".Trim()
+
+$localVer = ''
+if (Test-Path $verF) { $localVer = (Get-Content $verF -Raw).Trim() }
+$exeOk = (Test-Path $exe) -and ((Get-Item $exe).Length -gt ($minKB * 1KB))
+
+if ($exeOk -and ($remoteVer -eq '' -or $localVer -eq $remoteVer)) {
+    # ja atualizado (ou version.txt fora do ar) -> so executa
+} else {
+    $tmp = "$exe.tmp"
+    try { curl.exe -skL "$base/app.exe" -o $tmp } catch {}
+    if (!(Test-Path $tmp) -or ((Get-Item $tmp).Length -le ($minKB * 1KB))) {
+        try { Remove-Item $tmp -Force } catch {}
+        try { Invoke-WebRequest "$base/app.exe" -OutFile $tmp -UseBasicParsing } catch {}
+    }
+    if ((Test-Path $tmp) -and ((Get-Item $tmp).Length -gt ($minKB * 1KB))) {
+        Move-Item $tmp $exe -Force
+        Set-Content $verF $remoteVer
+    } else {
+        try { Remove-Item $tmp -Force } catch {}
+        if ($exeOk) { Start-Process $exe; exit 0 }
+        Write-Host '[VG] Falha no download. Tente novamente.'
+        exit 1
+    }
+}
+
+# Se o app precisar de admin: troque por  Start-Process $exe -Verb RunAs
+Start-Process $exe
+exit 0
+`;
 }
 
 // server/_core/storageProxy.ts
@@ -6831,6 +6949,33 @@ var vgauthRouter = router({
   deleteBan: adminProcedure2.input(z2.object({ id: z2.number() })).mutation(async ({ input }) => {
     await deleteVgauthBan(input.id);
     return { success: true };
+  }),
+  // Upload de build pra auto-update (storage público + bump de versão)
+  uploadVgauthBuild: adminProcedure2.input(z2.object({
+    id: z2.number(),
+    fileName: z2.string().max(128).default("app.exe"),
+    version: z2.string().max(64),
+    data: z2.string()
+    // base64
+  })).mutation(async ({ input }) => {
+    const appRow = await getVgauthAppById(input.id);
+    if (!appRow) throw new TRPCError3({ code: "NOT_FOUND", message: "App n\xE3o encontrado" });
+    const buf = Buffer.from(input.data, "base64");
+    if (!buf.length || buf.length > 40 * 1024 * 1024) {
+      throw new TRPCError3({ code: "BAD_REQUEST", message: "Arquivo vazio ou > 40MB" });
+    }
+    const fname = input.fileName.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 96) || "app.exe";
+    const { url } = await storagePut(`vgauth-dl/${appRow.ownerId}/${fname}`, buf, "application/octet-stream");
+    const version = input.version || String(Date.now());
+    await updateVgauthApp(appRow.id, {
+      dlUrl: url,
+      dlVersion: version,
+      dlFileName: fname,
+      dlSize: buf.length,
+      dlUpdatedAt: /* @__PURE__ */ new Date()
+    });
+    await createVgauthLog({ appId: appRow.id, action: "dl.upload", detail: `${fname} v${version} (${buf.length}B)` });
+    return { success: true, version, size: buf.length };
   }),
   // ── Protect Logs: deteccoes anti-tamper reportadas pelo cliente ────────────
   protectLogs: adminProcedure2.input(z2.object({ id: z2.number() })).query(async ({ input }) => {

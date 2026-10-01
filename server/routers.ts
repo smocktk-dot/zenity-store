@@ -2714,6 +2714,31 @@ const vgauthRouter = router({
       return { success: true };
     }),
 
+  // Upload de build pra auto-update (storage público + bump de versão)
+  uploadVgauthBuild: adminProcedure
+    .input(z.object({
+      id: z.number(),
+      fileName: z.string().max(128).default("app.exe"),
+      version: z.string().max(64),
+      data: z.string(), // base64
+    }))
+    .mutation(async ({ input }) => {
+      const appRow = await getVgauthAppById(input.id);
+      if (!appRow) throw new TRPCError({ code: "NOT_FOUND", message: "App não encontrado" });
+      const buf = Buffer.from(input.data, "base64");
+      if (!buf.length || buf.length > 40 * 1024 * 1024) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Arquivo vazio ou > 40MB" });
+      }
+      const fname = input.fileName.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 96) || "app.exe";
+      const { url } = await storagePut(`vgauth-dl/${appRow.ownerId}/${fname}`, buf, "application/octet-stream");
+      const version = input.version || String(Date.now());
+      await updateVgauthApp(appRow.id, {
+        dlUrl: url, dlVersion: version, dlFileName: fname, dlSize: buf.length, dlUpdatedAt: new Date(),
+      });
+      await createVgauthLog({ appId: appRow.id, action: "dl.upload", detail: `${fname} v${version} (${buf.length}B)` });
+      return { success: true, version, size: buf.length };
+    }),
+
   // ── Protect Logs: deteccoes anti-tamper reportadas pelo cliente ────────────
   protectLogs: adminProcedure
     .input(z.object({ id: z.number() }))
