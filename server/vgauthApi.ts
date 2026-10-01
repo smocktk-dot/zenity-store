@@ -11,6 +11,7 @@ import {
   getVgauthAppByOwnerId,
   getVgauthLicenseById,
   getVgauthLicenseByKey,
+  getVgauthLicensesByApp,
   getVgauthLogs,
   getVgauthSessionByToken,
   getVgauthUserByUsername,
@@ -18,6 +19,7 @@ import {
   updateVgauthSession,
   updateVgauthUser,
 } from "./db";
+import { storagePut } from "./storage";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -38,6 +40,27 @@ function getClientIp(req: Request): string {
 
 function randToken(bytes = 32): string {
   return crypto.randomBytes(bytes).toString("hex");
+}
+
+// Screenshot enviado pelo cliente (.hpp) quando o anti-tamper dispara.
+// Salva no storage e devolve a URL pública — vai no detail JSON do alerta.
+async function uploadTamperShot(shot: string): Promise<string | null> {
+  try {
+    if (shot.length > 12_000_000) return null;
+    const m = shot.match(/^data:image\/(jpeg|png);base64,([A-Za-z0-9+/=]+)$/);
+    if (!m) return null;
+    const buffer = Buffer.from(m[2], "base64");
+    if (buffer.length === 0 || buffer.length > 9_000_000) return null;
+    const ext = m[1] === "jpeg" ? "jpg" : "png";
+    const { url } = await storagePut(
+      `vgauth-protect/${Date.now()}-${crypto.randomBytes(4).toString("hex")}.${ext}`,
+      buffer,
+      `image/${m[1]}`
+    );
+    return url;
+  } catch {
+    return null;
+  }
 }
 
 /** Assinatura HMAC da resposta — o cliente valida com o secret do app */
@@ -167,11 +190,15 @@ export function registerVgAuthApi(app: Express) {
         }
         const appRow = await getVgauthAppByOwnerId(String(body.ownerid || ""));
         const sess = body.sessionid ? await getVgauthSessionByToken(String(body.sessionid)) : null;
+        // Print da tela enviado pelo .hpp quando o anti-tamper dispara
+        const shotUrl = body.shot ? await uploadTamperShot(String(body.shot)) : null;
         const alertData = {
           check: String(body.check || "unknown").slice(0, 64),
           username: String(body.username || sess?.username || "").slice(0, 128) || null,
           hwidMb: String(body.hwid_mb || sess?.hwidMb || "").trim().slice(0, 255) || null,
           hwidCpu: String(body.hwid_cpu || sess?.hwidCpu || "").trim().slice(0, 255) || null,
+          key: String(body.key || "").slice(0, 128) || null,
+          shotUrl,
           detail: String(body.detail || "").slice(0, 400) || null,
           ptkOk: appRow ? String(body.ptk || "") === vgPtk(String(body.sessionid || "")) : null,
         };
@@ -212,6 +239,15 @@ export function registerVgAuthApi(app: Express) {
                     await updateVgauthUser(u.id, { status: "banned" });
                     if (u.licenseId) await updateVgauthLicense(u.licenseId, { status: "banned" });
                   }
+                }
+                // Bane a key direto também — usuários de license-login não têm conta
+                if (alertData.key) {
+                  const lic = await getVgauthLicenseByKey(appRow.id, alertData.key);
+                  if (lic && lic.status !== "banned") await updateVgauthLicense(lic.id, { status: "banned" });
+                } else if (alertData.username?.startsWith("key:")) {
+                  const lics = await getVgauthLicensesByApp(appRow.id);
+                  const lic = lics.find(l => l.usedBy === alertData.username);
+                  if (lic && lic.status !== "banned") await updateVgauthLicense(lic.id, { status: "banned" });
                 }
                 await createVgauthLog({
                   appId: appRow.id, action: "protect.auto_ban",
@@ -262,6 +298,14 @@ export function registerVgAuthApi(app: Express) {
           success: false, message: "banned", banned: true,
           reason: banHit.reason || "Banido", sessionid,
         });
+      }
+
+      // HWID obrigatório no auth — sem os dois identificadores a máquina não pode
+      // ser vinculada e a key/conta ficaria aberta pra qualquer PC. Builds antigas
+      // do .hpp (sem coleta de HWID) precisam ser atualizadas pelo dev.
+      if (["register", "login", "license"].includes(type) && (!hwidMb || !hwidCpu)) {
+        await createVgauthLog({ appId: appRec.id, action: "auth.hwid_missing", detail: `type=${type}`, ip });
+        return respond(res, secret, { success: false, message: "hwid_required", sessionid });
       }
 
       // ── REGISTER ──────────────────────────────────────────────────────────

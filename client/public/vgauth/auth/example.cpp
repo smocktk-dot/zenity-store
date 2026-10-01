@@ -6,10 +6,7 @@
 #include "VgAuth.hpp"
 
 int main() {
-    // 1) Anti-debug na entrada (em produção, também numa thread periódica)
-    VgAuth::Security::KillIfDebugged();
-
-    // 2) Credenciais do app — copie do painel admin → VG Auth → seu app
+    // Credenciais do app — copie do painel admin → VG Auth → seu app
     VgAuth::api auth(
         "MeuApp",                                   // name
         "OWNER_ID_AQUI",                            // ownerid
@@ -64,7 +61,7 @@ int main() {
     // 3) Heartbeat — revalida com o servidor periodicamente.
     //    Se a key for banida/pausada no painel, check() retorna false.
     while (true) {
-        VgAuth::Security::KillIfDebugged();
+        auth.selfDefense(); // anti-debug + screenshot + reporta pro painel
         if (!auth.check()) {
             std::cerr << "Sessao invalidada: " << auth.errorText() << "\n";
             return 1;

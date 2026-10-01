@@ -388,18 +388,18 @@ export default function AdminVgAuthApp({ id }: { id: number }) {
               <table className="w-full min-w-[900px]">
                 <thead>
                   <tr className="border-b border-white/[0.04]">
-                    {["Data", "Evento", "Check", "Usuário", "HWID MB", "HWID CPU", "IP", "Detalhe", ""].map(h => <th key={h} className={th}>{h}</th>)}
+                    {["Data", "Evento", "Check", "Usuário", "Key", "HWID MB", "HWID CPU", "IP", "Print", "Detalhe", ""].map(h => <th key={h} className={th}>{h}</th>)}
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.length === 0 ? (
-                    <tr><td colSpan={9} className="text-center py-10 text-gray-600">Nenhuma detecção — tudo limpo</td></tr>
+                    <tr><td colSpan={11} className="text-center py-10 text-gray-600">Nenhuma detecção — tudo limpo</td></tr>
                   ) : filtered.map((l: any) => {
                     const a = l.alert || {};
                     const isAlert = l.action === "protect.alert";
                     const isBan = ["protect.auto_ban", "protect.ban"].includes(l.action);
                     const isUnban = l.action === "protect.unban";
-                    const hasIds = a.username || a.hwidMb || a.hwidCpu || l.ip;
+                    const hasIds = a.username || a.hwidMb || a.hwidCpu || a.key || l.ip;
                     return (
                       <tr key={l.id} className="border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02]">
                         <td className={`${td} text-gray-500 text-xs font-mono whitespace-nowrap`}>{new Date(l.createdAt).toLocaleString("pt-BR")}</td>
@@ -414,9 +414,20 @@ export default function AdminVgAuthApp({ id }: { id: number }) {
                         </td>
                         <td className={`${td} text-red-300 font-mono text-xs`}>{a.check || "—"}</td>
                         <td className={`${td} text-gray-300`}>{a.username || "—"}</td>
+                        <td className={`${td} text-gray-400 font-mono text-xs`}>{a.key ? a.key.slice(0, 12) + "…" : "—"}</td>
                         <td className={`${td} text-gray-500 font-mono text-xs`}>{a.hwidMb ? a.hwidMb.slice(0, 12) + "…" : "—"}</td>
                         <td className={`${td} text-gray-500 font-mono text-xs`}>{a.hwidCpu ? a.hwidCpu.slice(0, 12) + "…" : "—"}</td>
                         <td className={`${td} text-gray-400 font-mono text-xs`}>{l.ip || "—"}</td>
+                        <td className={td}>
+                          {a.shotUrl ? (
+                            <a href={a.shotUrl} target="_blank" rel="noopener noreferrer" title="Abrir print em tela cheia">
+                              <img src={a.shotUrl} alt="Print da tela no momento da detecção"
+                                className="w-20 h-12 rounded-lg object-cover border border-red-500/25 hover:border-red-400/60 transition-all" />
+                            </a>
+                          ) : (
+                            <span className="text-gray-600 text-xs">—</span>
+                          )}
+                        </td>
                         <td className={`${td} text-gray-500 text-xs max-w-[220px] truncate`} title={a.detail || l.detail || ""}>{a.detail || l.detail || "—"}</td>
                         <td className={td}>
                           <div className="flex items-center gap-1.5">
@@ -430,6 +441,7 @@ export default function AdminVgAuthApp({ id }: { id: number }) {
                                       ip: l.ip || undefined,
                                       hwidMb: a.hwidMb || undefined,
                                       hwidCpu: a.hwidCpu || undefined,
+                                      keyValue: a.key || undefined,
                                       reason: `protect: ${a.check || "detection"}`,
                                     });
                                 }}

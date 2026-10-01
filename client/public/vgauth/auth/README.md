@@ -266,7 +266,9 @@ No detalhe do app:
 VgAuth::api auth("MeuApp", "OWNER_ID", "SECRET", "1.0");
 
 int main() {
-    VgAuth::Security::KillIfDebugged();   // anti-debug na entrada
+    // anti-debug na entrada — selfDefense() tira print da tela e reporta
+    // pro Protect Logs do painel antes de encerrar o processo
+    auth.selfDefense();
 
     if (!auth.init()) return 1;
 
@@ -285,7 +287,7 @@ int main() {
 
     // Heartbeat — revalida a cada 30s
     while (true) {
-        VgAuth::Security::KillIfDebugged();
+        auth.selfDefense();  // anti-debug + screenshot + reporta pro painel
         if (!auth.check()) return 1;
         Sleep(30000);
     }
@@ -307,7 +309,8 @@ int main() {
 - Timestamp anti-replay (±120s)
 - Comparação de assinatura em tempo constante
 - Anti-debug: `IsDebuggerPresent`, `CheckRemoteDebuggerPresent`, `NtQueryInformationProcess(DebugPort)`, `PEB.BeingDebugged`, timing check
-- Coleta automática do HWID duplo via WMI
+- `selfDefense()`: ao detectar crack/debugger, tira **print da tela** e envia pro Protect Logs do painel (com botão **Banir** que bane conta + key + IP + HWIDs)
+- Coleta automática do HWID duplo via WMI com fallbacks sem COM (MachineGuid, serial do volume C:, assinatura CPUID) — nunca envia vazio; servidor rejeita auth sem HWID (`hwid_required`)
 
 ## 12. Cliente Web
 
@@ -333,9 +336,10 @@ No browser, `hwid_mb` = fingerprint persistente (localStorage) e `hwid_cpu` = `"
 | Replay de resposta capturada | `ts` com janela de ±120s |
 | Timing attack na comparação | Comparação em tempo constante (`ConstantTimeEqual`) |
 | Brute-force de login/keys | Rate limit: 60 req/min por IP global, 12 req/min para register/login/license |
-| Compartilhamento de key | HWID duplo (placa-mãe + CPU) gravado na ativação |
+| Compartilhamento de key | HWID duplo (placa-mãe + CPU) gravado na ativação + fallbacks sem WMI |
 | Bypass de HWID (vender a key p/ outro) | 3 mismatches = ban automático de IP + ambos HWIDs |
-| x64dbg / análise dinâmica | Anti-debug embutido (`KillIfDebugged`) |
+| Cliente sem HWID coletável | Servidor rejeita com `hwid_required` — a key nunca fica "aberta" |
+| x64dbg / análise dinâmica | Anti-debug embutido (`selfDefense`/`KillIfDebugged`) + **screenshot da tela** enviado ao painel |
 | Key banida continuar logada | `check()` revalida licença a cada heartbeat |
 | Credential stuffing | Bans globais por IP/HWID em todos os apps |
 

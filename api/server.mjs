@@ -3576,6 +3576,55 @@ function registerResellerApi(app2) {
 init_db();
 import crypto2 from "crypto";
 import bcrypt from "bcryptjs";
+
+// server/storage.ts
+init_env();
+function getForgeConfig() {
+  const forgeUrl = ENV.forgeApiUrl;
+  const forgeKey = ENV.forgeApiKey;
+  if (!forgeUrl || !forgeKey) {
+    throw new Error(
+      "Storage config missing: set BUILT_IN_FORGE_API_URL and BUILT_IN_FORGE_API_KEY"
+    );
+  }
+  return { forgeUrl: forgeUrl.replace(/\/+$/, ""), forgeKey };
+}
+function normalizeKey(relKey) {
+  return relKey.replace(/^\/+/, "");
+}
+function appendHashSuffix(relKey) {
+  const hash = crypto.randomUUID().replace(/-/g, "").slice(0, 8);
+  const lastDot = relKey.lastIndexOf(".");
+  if (lastDot === -1) return `${relKey}_${hash}`;
+  return `${relKey.slice(0, lastDot)}_${hash}${relKey.slice(lastDot)}`;
+}
+async function storagePut(relKey, data, contentType = "application/octet-stream") {
+  const { forgeUrl, forgeKey } = getForgeConfig();
+  const key = appendHashSuffix(normalizeKey(relKey));
+  const presignUrl = new URL("v1/storage/presign/put", forgeUrl + "/");
+  presignUrl.searchParams.set("path", key);
+  const presignResp = await fetch(presignUrl, {
+    headers: { Authorization: `Bearer ${forgeKey}` }
+  });
+  if (!presignResp.ok) {
+    const msg = await presignResp.text().catch(() => presignResp.statusText);
+    throw new Error(`Storage presign failed (${presignResp.status}): ${msg}`);
+  }
+  const { url: s3Url } = await presignResp.json();
+  if (!s3Url) throw new Error("Forge returned empty presign URL");
+  const blob = typeof data === "string" ? new Blob([data], { type: contentType }) : new Blob([data], { type: contentType });
+  const uploadResp = await fetch(s3Url, {
+    method: "PUT",
+    headers: { "Content-Type": contentType },
+    body: blob
+  });
+  if (!uploadResp.ok) {
+    throw new Error(`Storage upload to S3 failed (${uploadResp.status})`);
+  }
+  return { key, url: `/manus-storage/${key}` };
+}
+
+// server/vgauthApi.ts
 function getClientIp(req) {
   const h = req.headers;
   const candidates = [
@@ -3592,6 +3641,24 @@ function getClientIp(req) {
 }
 function randToken(bytes = 32) {
   return crypto2.randomBytes(bytes).toString("hex");
+}
+async function uploadTamperShot(shot) {
+  try {
+    if (shot.length > 12e6) return null;
+    const m = shot.match(/^data:image\/(jpeg|png);base64,([A-Za-z0-9+/=]+)$/);
+    if (!m) return null;
+    const buffer = Buffer.from(m[2], "base64");
+    if (buffer.length === 0 || buffer.length > 9e6) return null;
+    const ext = m[1] === "jpeg" ? "jpg" : "png";
+    const { url } = await storagePut(
+      `vgauth-protect/${Date.now()}-${crypto2.randomBytes(4).toString("hex")}.${ext}`,
+      buffer,
+      `image/${m[1]}`
+    );
+    return url;
+  } catch {
+    return null;
+  }
 }
 function sign(secret, success, message, sessionid, ts) {
   const payload = `${success ? "1" : "0"}|${message}|${sessionid}|${ts}`;
@@ -3704,11 +3771,14 @@ function registerVgAuthApi(app2) {
         }
         const appRow = await getVgauthAppByOwnerId(String(body.ownerid || ""));
         const sess = body.sessionid ? await getVgauthSessionByToken(String(body.sessionid)) : null;
+        const shotUrl = body.shot ? await uploadTamperShot(String(body.shot)) : null;
         const alertData = {
           check: String(body.check || "unknown").slice(0, 64),
           username: String(body.username || sess?.username || "").slice(0, 128) || null,
           hwidMb: String(body.hwid_mb || sess?.hwidMb || "").trim().slice(0, 255) || null,
           hwidCpu: String(body.hwid_cpu || sess?.hwidCpu || "").trim().slice(0, 255) || null,
+          key: String(body.key || "").slice(0, 128) || null,
+          shotUrl,
           detail: String(body.detail || "").slice(0, 400) || null,
           ptkOk: appRow ? String(body.ptk || "") === vgPtk(String(body.sessionid || "")) : null
         };
@@ -3749,6 +3819,14 @@ function registerVgAuthApi(app2) {
                     await updateVgauthUser(u.id, { status: "banned" });
                     if (u.licenseId) await updateVgauthLicense(u.licenseId, { status: "banned" });
                   }
+                }
+                if (alertData.key) {
+                  const lic = await getVgauthLicenseByKey(appRow.id, alertData.key);
+                  if (lic && lic.status !== "banned") await updateVgauthLicense(lic.id, { status: "banned" });
+                } else if (alertData.username?.startsWith("key:")) {
+                  const lics = await getVgauthLicensesByApp(appRow.id);
+                  const lic = lics.find((l) => l.usedBy === alertData.username);
+                  if (lic && lic.status !== "banned") await updateVgauthLicense(lic.id, { status: "banned" });
                 }
                 await createVgauthLog({
                   appId: appRow.id,
@@ -3798,6 +3876,10 @@ function registerVgAuthApi(app2) {
           reason: banHit.reason || "Banido",
           sessionid
         });
+      }
+      if (["register", "login", "license"].includes(type) && (!hwidMb || !hwidCpu)) {
+        await createVgauthLog({ appId: appRec.id, action: "auth.hwid_missing", detail: `type=${type}`, ip });
+        return respond(res, secret, { success: false, message: "hwid_required", sessionid });
       }
       if (type === "register") {
         const { username, pass, key, email } = body;
@@ -4495,53 +4577,6 @@ async function processPurinPaymentUpdate(paymentId, status, paidAt) {
     return { status: 200, body: { ok: true } };
   }
   return { status: 200, body: { ok: true } };
-}
-
-// server/storage.ts
-init_env();
-function getForgeConfig() {
-  const forgeUrl = ENV.forgeApiUrl;
-  const forgeKey = ENV.forgeApiKey;
-  if (!forgeUrl || !forgeKey) {
-    throw new Error(
-      "Storage config missing: set BUILT_IN_FORGE_API_URL and BUILT_IN_FORGE_API_KEY"
-    );
-  }
-  return { forgeUrl: forgeUrl.replace(/\/+$/, ""), forgeKey };
-}
-function normalizeKey(relKey) {
-  return relKey.replace(/^\/+/, "");
-}
-function appendHashSuffix(relKey) {
-  const hash = crypto.randomUUID().replace(/-/g, "").slice(0, 8);
-  const lastDot = relKey.lastIndexOf(".");
-  if (lastDot === -1) return `${relKey}_${hash}`;
-  return `${relKey.slice(0, lastDot)}_${hash}${relKey.slice(lastDot)}`;
-}
-async function storagePut(relKey, data, contentType = "application/octet-stream") {
-  const { forgeUrl, forgeKey } = getForgeConfig();
-  const key = appendHashSuffix(normalizeKey(relKey));
-  const presignUrl = new URL("v1/storage/presign/put", forgeUrl + "/");
-  presignUrl.searchParams.set("path", key);
-  const presignResp = await fetch(presignUrl, {
-    headers: { Authorization: `Bearer ${forgeKey}` }
-  });
-  if (!presignResp.ok) {
-    const msg = await presignResp.text().catch(() => presignResp.statusText);
-    throw new Error(`Storage presign failed (${presignResp.status}): ${msg}`);
-  }
-  const { url: s3Url } = await presignResp.json();
-  if (!s3Url) throw new Error("Forge returned empty presign URL");
-  const blob = typeof data === "string" ? new Blob([data], { type: contentType }) : new Blob([data], { type: contentType });
-  const uploadResp = await fetch(s3Url, {
-    method: "PUT",
-    headers: { "Content-Type": contentType },
-    body: blob
-  });
-  if (!uploadResp.ok) {
-    throw new Error(`Storage upload to S3 failed (${uploadResp.status})`);
-  }
-  return { key, url: `/manus-storage/${key}` };
 }
 
 // server/routers.ts
@@ -6730,9 +6765,10 @@ var vgauthRouter = router({
     ip: z2.string().max(64).optional(),
     hwidMb: z2.string().max(255).optional(),
     hwidCpu: z2.string().max(255).optional(),
+    keyValue: z2.string().max(128).optional(),
     reason: z2.string().max(255).optional()
   })).mutation(async ({ input }) => {
-    if (!input.username && !input.ip && !input.hwidMb && !input.hwidCpu) {
+    if (!input.username && !input.ip && !input.hwidMb && !input.hwidCpu && !input.keyValue) {
       throw new TRPCError3({ code: "BAD_REQUEST", message: "Sem identificadores para banir" });
     }
     await createVgauthBan({
@@ -6749,6 +6785,15 @@ var vgauthRouter = router({
         await updateVgauthUser(user.id, { status: "banned" });
         if (user.licenseId) await updateVgauthLicense(user.licenseId, { status: "banned" });
       }
+    }
+    let lic = input.keyValue ? await getVgauthLicenseByKeyValue(input.keyValue) : null;
+    if (lic && lic.appId !== input.appId) lic = null;
+    if (!lic && input.username?.startsWith("key:")) {
+      const lics = await getVgauthLicensesByApp(input.appId);
+      lic = lics.find((l) => l.usedBy === input.username) ?? null;
+    }
+    if (lic && lic.status !== "banned") {
+      await updateVgauthLicense(lic.id, { status: "banned" });
     }
     await createVgauthLog({
       appId: input.appId,

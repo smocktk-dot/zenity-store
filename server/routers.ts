@@ -2736,10 +2736,11 @@ const vgauthRouter = router({
       ip: z.string().max(64).optional(),
       hwidMb: z.string().max(255).optional(),
       hwidCpu: z.string().max(255).optional(),
+      keyValue: z.string().max(128).optional(),
       reason: z.string().max(255).optional(),
     }))
     .mutation(async ({ input }) => {
-      if (!input.username && !input.ip && !input.hwidMb && !input.hwidCpu) {
+      if (!input.username && !input.ip && !input.hwidMb && !input.hwidCpu && !input.keyValue) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Sem identificadores para banir" });
       }
       await createVgauthBan({
@@ -2756,6 +2757,17 @@ const vgauthRouter = router({
           await updateVgauthUser(user.id, { status: "banned" });
           if (user.licenseId) await updateVgauthLicense(user.licenseId, { status: "banned" });
         }
+      }
+      // Bane a key mesmo sem conta — usuários de license-login não têm user row.
+      // Fallback: license cujo usedBy é "key:XXXX" bate no username da sessão.
+      let lic = input.keyValue ? await getVgauthLicenseByKeyValue(input.keyValue) : null;
+      if (lic && lic.appId !== input.appId) lic = null;
+      if (!lic && input.username?.startsWith("key:")) {
+        const lics = await getVgauthLicensesByApp(input.appId);
+        lic = lics.find(l => l.usedBy === input.username) ?? null;
+      }
+      if (lic && lic.status !== "banned") {
+        await updateVgauthLicense(lic.id, { status: "banned" });
       }
       await createVgauthLog({
         appId: input.appId, action: "protect.ban",

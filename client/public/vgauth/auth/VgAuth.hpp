@@ -2,16 +2,20 @@
 //  VG AUTH — Cliente C++ (single-header, Windows / C++17)
 //  Endpoint: POST https://vgsellers.lat/api/vgauth/v1
 //
-//  Dependências: WinHTTP (winhttp.lib) + BCrypt (bcrypt.lib) + COM (WMI)
-//  Link: #pragma comment(lib, "winhttp.lib") / "bcrypt.lib" / "wbemuuid.lib" / "ole32.lib" / "oleaut32.lib"
+//  Dependências: WinHTTP (winhttp.lib) + BCrypt (bcrypt.lib) + COM (WMI) + GDI+
+//  Link: #pragma comment(lib, "winhttp.lib") / "bcrypt.lib" / "wbemuuid.lib" / "ole32.lib" / "oleaut32.lib" / "gdiplus.lib"
 //
 //  PROTEÇÕES INCLUÍDAS:
 //   - Verificação de assinatura HMAC-SHA256 de cada resposta (anti server-emulator)
 //   - Timestamp anti-replay (resposta expira em 120s)
 //   - Comparação de assinatura em tempo constante (anti timing-attack)
-//   - HWID duplo: serial da placa-mãe (Win32_BaseBoard) + ProcessorId (Win32_Processor)
+//   - HWID duplo com fallbacks: serial da placa-mãe (Win32_BaseBoard) +
+//     ProcessorId (Win32_Processor) -> UUID SMBIOS -> registro BIOS ->
+//     MachineGuid + serial do volume / assinatura CPUID (nunca envia vazio)
 //   - Anti-debugging: IsDebuggerPresent, CheckRemoteDebuggerPresent,
 //     NtQueryInformationProcess(DebugPort), PEB.BeingDebugged, timing check
+//   - Screenshot automático da tela quando o anti-debug dispara (prova no
+//     painel Protect Logs, com botão Banir que bane conta + key + IP + HWIDs)
 //   - Validação periódica de sessão (check()) — se o servidor banir/pausar,
 //     o cliente é derrubado na próxima chamada
 //
@@ -33,8 +37,10 @@
 #include <bcrypt.h>
 #include <wbemidl.h>
 #include <comdef.h>
+#include <gdiplus.h>
 #include <intrin.h>
 #include <stdlib.h>
+#include <ctype.h>
 #include <string>
 #include <vector>
 #include <sstream>
@@ -49,6 +55,7 @@
 #pragma comment(lib, "wbemuuid.lib")
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "oleaut32.lib")
+#pragma comment(lib, "gdiplus.lib")
 
 // integração opcional com MegaProtect (strings criptografadas + resolução
 // dinâmica de API — mantém nomes de endpoints/imports fora do binário)
@@ -153,23 +160,118 @@ namespace Security {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HWID — serial da placa-mãe + ProcessorId via WMI
+// HWID — serial da placa-mãe + ProcessorId
+//  WMI primeiro; se falhar/vier placeholder (OEM genérico, VM mal configurada,
+//  COM já inicializado pelo processo host), cai nos fallbacks sem COM:
+//  registro (MachineGuid / BIOS table), serial do volume C: e assinatura CPUID.
+//  Objetivo: NUNCA enviar vazio — key sem HWID fica aberta pra qualquer PC.
 // ─────────────────────────────────────────────────────────────────────────────
 namespace Hwid {
 
+    inline std::string Trim(std::string s) {
+        while (!s.empty() && (s.back() == ' ' || s.back() == '\t' || s.back() == '\0' || s.back() == '\r' || s.back() == '\n')) s.pop_back();
+        size_t i = 0;
+        while (i < s.size() && (s[i] == ' ' || s[i] == '\t')) i++;
+        return s.substr(i);
+    }
+
+    // Seriais genéricos de fábrica/VM — não identificam máquina nenhuma
+    inline bool IsPlaceholder(const std::string& raw) {
+        std::string s = Trim(raw);
+        if (s.size() < 4) return true;
+        std::string low;
+        for (char c : s) low += (char)tolower((unsigned char)c);
+        const char* bad[] = {
+            "to be filled", "default string", "none", "unknown", "not specified",
+            "not applicable", "system serial", "base board", "chassis serial",
+            "serial number", "default", "o.e.m.", "0000", "xxxxxxxxxxxx",
+            "00000000-0000-0000-0000-000000000000",
+            "ffffffff-ffff-ffff-ffff-ffffffffffff",
+            "03000200-0400-0500-0006-000700080009",
+        };
+        for (auto* b : bad) {
+            std::string bb = b;
+            if (low == bb || low.find("to be filled") != std::string::npos ||
+                (bb.size() >= 8 && low.find(bb) != std::string::npos)) return true;
+        }
+        bool allZero = true;
+        for (char c : low) if (c != '0' && c != '-' && c != ' ') { allZero = false; break; }
+        return allZero;
+    }
+
+    // FNV-1a 32 bits em hex — identificador estável (não é crypto, é fingerprint)
+    inline std::string FnvHex(const std::string& s) {
+        unsigned int h = 2166136261u;
+        for (unsigned char c : s) { h ^= c; h *= 16777619u; }
+        char b[16]; sprintf_s(b, "%08X", h);
+        return b;
+    }
+
+    inline std::string RegRead(HKEY root, const char* path, const char* value) {
+        HKEY k = nullptr;
+        if (RegOpenKeyExA(root, path, 0, KEY_READ | KEY_WOW64_64KEY, &k) != ERROR_SUCCESS) return "";
+        char buf[512] = { 0 };
+        DWORD sz = sizeof(buf), type = 0;
+        LSTATUS ok = RegQueryValueExA(k, value, nullptr, &type, (LPBYTE)buf, &sz);
+        RegCloseKey(k);
+        if (ok != ERROR_SUCCESS || (type != REG_SZ && type != REG_EXPAND_SZ)) return "";
+        return std::string(buf);
+    }
+
+    // MachineGuid — único por instalação do Windows, sem COM
+    inline std::string MachineGuid() {
+        return RegRead(HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Cryptography", "MachineGuid");
+    }
+
+    // Serial do volume C: — sem COM, muda só se formatar
+    inline std::string VolumeSerial() {
+        DWORD vsn = 0;
+        if (!GetVolumeInformationA("C:\\", nullptr, 0, &vsn, nullptr, nullptr, nullptr, 0) || !vsn) return "";
+        char b[16]; sprintf_s(b, "%08X", vsn);
+        return b;
+    }
+
+    // Tabela BIOS no registro — serial da placa-mãe sem WMI (nem toda placa expõe)
+    inline std::string BiosRegSerial() {
+        std::string s = RegRead(HKEY_LOCAL_MACHINE, "HARDWARE\\DESCRIPTION\\System\\BIOS", "BaseBoardSerialNumber");
+        if (IsPlaceholder(s)) s = RegRead(HKEY_LOCAL_MACHINE, "HARDWARE\\DESCRIPTION\\System\\BIOS", "SystemSerialNumber");
+        return Trim(s);
+    }
+
+    // Assinatura CPUID — vendor + family/model/stepping + features (sem WMI)
+    inline std::string CpuIdSig() {
+        int r[4] = { 0 };
+        __cpuid(r, 0);
+        int maxLeaf = r[0];
+        unsigned long long sig = ((unsigned long long)(unsigned)r[1] << 32) | (unsigned)r[3];
+        if (maxLeaf >= 1) {
+            int f[4] = { 0 };
+            __cpuid(f, 1);
+            sig ^= ((unsigned long long)(unsigned)f[0] << 1) ^ (unsigned)f[3];
+        }
+        char b[32]; sprintf_s(b, "%016llX", sig);
+        return b;
+    }
+
     inline std::string WmiQuery(const wchar_t* wmiClass, const wchar_t* field) {
         std::string result;
+        // Se o processo já inicializou COM (ex.: host em STA) retorna
+        // RPC_E_CHANGED_MODE — continua assim mesmo, WMI funciona no
+        // apartment existente. Só desinicializa se FOI este código quem iniciou.
         HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-        bool comStarted = SUCCEEDED(hr);
+        bool comStarted = (hr == S_OK || hr == S_FALSE);
+        if (FAILED(hr) && hr != RPC_E_CHANGED_MODE) return result;
 
         IWbemLocator* loc = nullptr;
         IWbemServices* svc = nullptr;
         IEnumWbemClassObject* en = nullptr;
 
         do {
-            if (FAILED(CoInitializeSecurity(nullptr, -1, nullptr, nullptr,
+            // RPC_E_TOO_LATE = segurança já configurada pelo host — segue normal
+            HRESULT sec = CoInitializeSecurity(nullptr, -1, nullptr, nullptr,
                 RPC_C_AUTHN_LEVEL_DEFAULT, RPC_C_IMP_LEVEL_IMPERSONATE,
-                nullptr, EOAC_NONE, nullptr))) break;
+                nullptr, EOAC_NONE, nullptr);
+            if (FAILED(sec) && sec != RPC_E_TOO_LATE) break;
 
             if (FAILED(CoCreateInstance(CLSID_WbemLocator, nullptr, CLSCTX_INPROC_SERVER,
                 IID_IWbemLocator, (LPVOID*)&loc))) break;
@@ -208,14 +310,18 @@ namespace Hwid {
 
     inline std::string Motherboard() {
         std::string s = WmiQuery(L"Win32_BaseBoard", L"SerialNumber");
-        if (s.empty()) s = WmiQuery(L"Win32_ComputerSystemProduct", L"UUID");
-        // trim espaços
-        while (!s.empty() && (s.back() == ' ' || s.back() == '\t')) s.pop_back();
-        return s;
+        if (IsPlaceholder(s)) s = WmiQuery(L"Win32_ComputerSystemProduct", L"UUID");
+        if (IsPlaceholder(s)) s = BiosRegSerial();
+        // Último recurso: hash estável de MachineGuid + serial do volume
+        if (IsPlaceholder(s)) s = "MB-" + FnvHex(MachineGuid() + "|" + VolumeSerial());
+        return Trim(s);
     }
 
     inline std::string Cpu() {
-        return WmiQuery(L"Win32_Processor", L"ProcessorId");
+        std::string s = WmiQuery(L"Win32_Processor", L"ProcessorId");
+        if (IsPlaceholder(s)) s = "CPU-" + CpuIdSig();
+        if (IsPlaceholder(s)) s = "CPU-" + FnvHex(MachineGuid() + "|cpu|" + VolumeSerial());
+        return Trim(s);
     }
 }
 
@@ -330,6 +436,111 @@ namespace Internal {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Screenshot — captura a tela inteira em JPEG (prova de tamper no Protect Logs)
+// ─────────────────────────────────────────────────────────────────────────────
+namespace Shot {
+
+    inline ULONG_PTR GdipToken() {
+        static ULONG_PTR tok = 0;
+        static bool tried = false;
+        if (!tried) {
+            tried = true;
+            Gdiplus::GdiplusStartupInput in;
+            if (Gdiplus::GdiplusStartup(&tok, &in, nullptr) != Gdiplus::Ok) tok = 0;
+        }
+        return tok;
+    }
+
+    inline int EncoderClsid(const wchar_t* format, CLSID* out) {
+        UINT num = 0, size = 0;
+        if (Gdiplus::GetImageEncodersSize(&num, &size) != Gdiplus::Ok || size == 0) return -1;
+        std::vector<BYTE> buf(size);
+        auto* info = reinterpret_cast<Gdiplus::ImageCodecInfo*>(buf.data());
+        if (Gdiplus::GetImageEncoders(num, size, info) != Gdiplus::Ok) return -1;
+        for (UINT i = 0; i < num; i++) {
+            if (wcscmp(info[i].MimeType, format) == 0) { *out = info[i].Clsid; return (int)i; }
+        }
+        return -1;
+    }
+
+    // Tela inteira reduzida para <= maxW de largura -> JPEG em memória
+    inline std::vector<BYTE> CaptureJpeg(int maxW = 960, ULONG quality = 45) {
+        std::vector<BYTE> out;
+        if (!GdipToken()) return out;
+
+        HDC screen = GetDC(nullptr);
+        if (!screen) return out;
+        int sw = GetSystemMetrics(SM_CXSCREEN), sh = GetSystemMetrics(SM_CYSCREEN);
+        if (sw <= 0 || sh <= 0) { ReleaseDC(nullptr, screen); return out; }
+        int dw = sw > maxW ? maxW : sw;
+        int dh = (int)((long long)sh * dw / sw);
+
+        HDC mem = CreateCompatibleDC(screen);
+        HBITMAP bmp = CreateCompatibleBitmap(screen, dw, dh);
+        if (!mem || !bmp) {
+            if (bmp) DeleteObject(bmp);
+            if (mem) DeleteDC(mem);
+            ReleaseDC(nullptr, screen);
+            return out;
+        }
+        HBITMAP old = (HBITMAP)SelectObject(mem, bmp);
+        SetStretchBltMode(mem, HALFTONE);
+        StretchBlt(mem, 0, 0, dw, dh, screen, 0, 0, sw, sh, SRCCOPY);
+        SelectObject(mem, old);
+        ReleaseDC(nullptr, screen);
+
+        CLSID cls;
+        if (EncoderClsid(L"image/jpeg", &cls) < 0) { DeleteObject(bmp); DeleteDC(mem); return out; }
+        Gdiplus::Bitmap gbmp(bmp, nullptr);
+        DeleteObject(bmp);
+        DeleteDC(mem);
+
+        IStream* stm = nullptr;
+        if (FAILED(CreateStreamOnHGlobal(nullptr, TRUE, &stm)) || !stm) return out;
+        Gdiplus::EncoderParameters params;
+        params.Count = 1;
+        params.Parameter[0].Guid = Gdiplus::EncoderQuality;
+        params.Parameter[0].Type = Gdiplus::EncoderParameterValueTypeLong;
+        params.Parameter[0].NumberOfValues = 1;
+        params.Parameter[0].Value = &quality;
+        if (gbmp.Save(stm, &cls, &params) == Gdiplus::Ok) {
+            STATSTG st{};
+            if (SUCCEEDED(stm->Stat(&st, STATFLAG_NONAME)) && st.cbSize.QuadPart > 0 && st.cbSize.QuadPart < 8LL * 1024 * 1024) {
+                out.resize((size_t)st.cbSize.QuadPart);
+                LARGE_INTEGER zero{};
+                stm->Seek(zero, STREAM_SEEK_SET, nullptr);
+                ULONG rd = 0;
+                stm->Read(out.data(), (ULONG)out.size(), &rd);
+                out.resize(rd);
+            }
+        }
+        stm->Release();
+        return out;
+    }
+
+    inline std::string B64(const BYTE* d, size_t n) {
+        static const char* t = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        std::string s;
+        s.reserve(n * 4 / 3 + 4);
+        for (size_t i = 0; i < n; i += 3) {
+            unsigned v = (unsigned)d[i] << 16 | (i + 1 < n ? (unsigned)d[i + 1] << 8 : 0) | (i + 2 < n ? (unsigned)d[i + 2] : 0);
+            s += t[(v >> 18) & 63];
+            s += t[(v >> 12) & 63];
+            s += i + 1 < n ? t[(v >> 6) & 63] : '=';
+            s += i + 2 < n ? t[v & 63] : '=';
+        }
+        return s;
+    }
+
+    // "data:image/jpeg;base64,..." pronto pra ir no JSON ("" se falhar)
+    inline std::string CaptureB64() {
+        auto jpg = CaptureJpeg();
+        if (jpg.empty()) return "";
+        return std::string("data:image/jpeg;base64,") + B64(jpg.data(), jpg.size());
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // API principal
 // ─────────────────────────────────────────────────────────────────────────────
 class api {
@@ -345,6 +556,7 @@ public:
 
     // dados do usuário após login/register/license
     std::string username, email, subLevel, expiresAt, message;
+    std::string lastKey; // última key usada — vai junto no alerta de tamper
     bool success = false;
 
     // ban: preenchidos quando o servidor responde "banned"
@@ -360,7 +572,7 @@ public:
 
     // ── init: obrigatório antes de qualquer chamada ─────────────────────────
     bool init() {
-        Security::KillIfDebugged();
+        selfDefense();
         std::ostringstream j;
         j << "{\"type\":\"init\",\"name\":\"" << Internal::JsonEscape(name)
           << "\",\"ownerid\":\"" << Internal::JsonEscape(ownerid)
@@ -399,7 +611,7 @@ public:
     // ── check: heartbeat — revalida licença/ban no servidor ────────────────
     bool check() {
         if (!initialized) return false;
-        Security::KillIfDebugged();
+        selfDefense();
         std::string r = call("check", "");
         lastRaw = r;
         if (!verify(r)) { loggedIn = false; return fail("signature_mismatch"); }
@@ -431,6 +643,7 @@ public:
         if (message == "subscription_expired") return "Sua assinatura expirou.";
         if (message == "subscription_invalid") return "Sua assinatura nao e mais valida.";
         if (message == "hwid_mismatch") return "Esta key esta vinculada a outro computador.";
+        if (message == "hwid_required") return "HWID nao detectado. Atualize o loader.";
         if (message == "rate_limited") return "Muitas tentativas. Aguarde 1 minuto.";
         if (message == "app_disabled") return "Aplicacao desativada.";
         if (message == "invalid_session" || message == "missing_session") return "Sessao invalida. Reinicie o programa.";
@@ -443,7 +656,7 @@ private:
     bool auth(const char* type, const std::string& user, const std::string& pass,
               const std::string& key, const std::string& mail) {
         if (!initialized) return fail("not_initialized");
-        Security::KillIfDebugged();
+        selfDefense();
 
         // Coleta HWID duplo — enviado em TODA chamada de auth
         std::string hwidMb = Hwid::Motherboard();
@@ -457,6 +670,7 @@ private:
         if (!key.empty()) extra << ",\"key\":\"" << Internal::JsonEscape(key) << "\"";
         if (!mail.empty()) extra << ",\"email\":\"" << Internal::JsonEscape(mail) << "\"";
 
+        if (!key.empty()) lastKey = key;
         std::string r = call(type, extra.str());
         lastRaw = r;
         if (!verify(r)) return fail("signature_mismatch");
@@ -482,10 +696,23 @@ private:
     }
 
 public:
+    // Roda antes de cada operação sensível (init/login/check). Se detectar
+    // debugger/crack: tira PRINT DA TELA, reporta pro painel (Protect Logs)
+    // e encerra — o admin vê o print + key + hwid e bane com 1 clique.
+    void selfDefense() {
+        if (!Security::Detected()) return;
+#if VGAUTH_WITH_MP
+        mp::respond("vgauth_debugger");
+#endif
+        alert("debugger_detected", "anti-debug disparou no cliente");
+        ExitProcess(0xDEAD);
+    }
+
     // Reporta uma deteccao de protecao pro painel (canal Protect Logs).
     // Fire-and-forget — chamado pelo hook mp::on_detect logo antes do encerramento.
-    // Envia app name + ownerid (resolve o app mesmo sem sessao) + HWIDs.
-    bool alert(const std::string& check, const std::string& detail = "") {
+    // Envia app name + ownerid (resolve o app mesmo sem sessao) + HWIDs + key +
+    // screenshot JPEG da tela (prova visual do que a pessoa estava fazendo).
+    bool alert(const std::string& check, const std::string& detail = "", bool includeShot = true) {
         std::ostringstream j;
         j << "{\"type\":\"protect_alert\""
           << ",\"name\":\"" << Internal::JsonEscape(name)
@@ -495,7 +722,12 @@ public:
           << "\",\"hwid_mb\":\"" << Internal::JsonEscape(Hwid::Motherboard())
           << "\",\"hwid_cpu\":\"" << Internal::JsonEscape(Hwid::Cpu()) << "\"";
         if (!username.empty()) j << ",\"username\":\"" << Internal::JsonEscape(username) << "\"";
+        if (!lastKey.empty())  j << ",\"key\":\""      << Internal::JsonEscape(lastKey)  << "\"";
         if (!detail.empty())   j << ",\"detail\":\""   << Internal::JsonEscape(detail)   << "\"";
+        if (includeShot) {
+            std::string shot = Shot::CaptureB64();
+            if (!shot.empty()) j << ",\"shot\":\"" << shot << "\"";
+        }
         j << "}";
         std::string r = Internal::HttpPost(Internal::Widen(host).c_str(), Internal::Widen(path).c_str(), j.str());
         return !r.empty();
