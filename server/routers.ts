@@ -349,6 +349,7 @@ const authRouter = router({
       }
       const token = await signCustomJwt({ sub: String(admin.id), role: "admin", adminRole: admin.role || "full", username: admin.username });
       ctx.res.cookie(CUSTOM_COOKIE, token, { ...getSessionCookieOptions(ctx.req), maxAge: 7 * 24 * 3600 * 1000 });
+      await logSecurityEvent({ req: ctx.req, eventType: "admin_login", label: "Login admin bem-sucedido", identifier: input.username });
       return { success: true, role: "admin" as const, adminRole: admin.role || "full", username: admin.username };
     }),
 
@@ -378,6 +379,7 @@ const authRouter = router({
           const token = await signCustomJwt({ sub: String(admin.id), role: "admin", adminRole: admin.role || "full", username: admin.username });
           const maxAge = (input.remember ? 30 * 24 * 3600 : 7 * 24 * 3600) * 1000;
           ctx.res.cookie(CUSTOM_COOKIE, token, { ...getSessionCookieOptions(ctx.req), maxAge });
+          await logSecurityEvent({ req: ctx.req, eventType: "admin_login", label: "Login admin bem-sucedido (form reseller)", identifier: input.username });
           return { success: true, role: "admin" as const, adminRole: admin.role || "full", username: admin.username };
         }
       }
@@ -2748,7 +2750,7 @@ const vgauthRouter = router({
       extraTotalChunks: z.number().int().min(1).max(200).optional(),
       extraFileName: z.string().max(128).optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const appRow = await getVgauthAppById(input.id);
       if (!appRow) throw new TRPCError({ code: "NOT_FOUND", message: "App não encontrado" });
 
@@ -2789,7 +2791,7 @@ const vgauthRouter = router({
         }
       }
 
-      await createVgauthLog({ appId: appRow.id, action: "dl.upload", detail: `${fname} v${version} (${final.length}B)` });
+      await createVgauthLog({ appId: appRow.id, action: "dl.upload", detail: `${fname} v${version} (${final.length}B) — admin #${ctx.adminId}`, ip: getClientIp(ctx.req) });
       return { success: true, version, size: final.length };
     }),
 

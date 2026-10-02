@@ -5187,6 +5187,7 @@ var authRouter = router({
     }
     const token = await signCustomJwt({ sub: String(admin.id), role: "admin", adminRole: admin.role || "full", username: admin.username });
     ctx.res.cookie(CUSTOM_COOKIE, token, { ...getSessionCookieOptions(ctx.req), maxAge: 7 * 24 * 3600 * 1e3 });
+    await logSecurityEvent({ req: ctx.req, eventType: "admin_login", label: "Login admin bem-sucedido", identifier: input.username });
     return { success: true, role: "admin", adminRole: admin.role || "full", username: admin.username };
   }),
   resellerLogin: publicProcedure.input(z2.object({
@@ -5211,6 +5212,7 @@ var authRouter = router({
         const token2 = await signCustomJwt({ sub: String(admin.id), role: "admin", adminRole: admin.role || "full", username: admin.username });
         const maxAge2 = (input.remember ? 30 * 24 * 3600 : 7 * 24 * 3600) * 1e3;
         ctx.res.cookie(CUSTOM_COOKIE, token2, { ...getSessionCookieOptions(ctx.req), maxAge: maxAge2 });
+        await logSecurityEvent({ req: ctx.req, eventType: "admin_login", label: "Login admin bem-sucedido (form reseller)", identifier: input.username });
         return { success: true, role: "admin", adminRole: admin.role || "full", username: admin.username };
       }
     }
@@ -7162,7 +7164,7 @@ var vgauthRouter = router({
     extraUploadId: z2.string().max(64).optional(),
     extraTotalChunks: z2.number().int().min(1).max(200).optional(),
     extraFileName: z2.string().max(128).optional()
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     const appRow = await getVgauthAppById(input.id);
     if (!appRow) throw new TRPCError3({ code: "NOT_FOUND", message: "App n\xE3o encontrado" });
     const assemble = async (uidRaw, total, tag) => {
@@ -7202,7 +7204,7 @@ var vgauthRouter = router({
         await updateVgauthApp(appRow.id, { dlExtraUrl: `/api/vgauth/f/${exKey}`, dlExtraName: exName, dlExtraSize: exBuf.length });
       }
     }
-    await createVgauthLog({ appId: appRow.id, action: "dl.upload", detail: `${fname} v${version} (${final.length}B)` });
+    await createVgauthLog({ appId: appRow.id, action: "dl.upload", detail: `${fname} v${version} (${final.length}B) \u2014 admin #${ctx.adminId}`, ip: getClientIp2(ctx.req) });
     return { success: true, version, size: final.length };
   }),
   // ── Protect Logs: deteccoes anti-tamper reportadas pelo cliente ────────────
