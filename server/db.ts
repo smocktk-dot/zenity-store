@@ -1,4 +1,4 @@
-import { eq, and, asc, desc, sql, inArray, or, aliasedTable, ilike, lower } from "drizzle-orm";
+import { eq, and, asc, desc, sql, inArray, or, aliasedTable, ilike } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { InsertUser, users, admins, resellers, resellerApiKeys, categories, apps, subscriptionPlans, resellerApps, licenseKeys, appStock, appDownloads, creditTransactions, ipWhitelist, pixPayments, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages, otherStoreResellers, otherStoreHwids, resellerInfoProducts, vgauthApps, vgauthLicenses, vgauthUsers, vgauthBans, vgauthSessions, vgauthLogs, vgauthShutdowns, vgauthFiles, securityEvents, bannedIps, InsertSecurityEvent } from "../drizzle/schema";
@@ -371,6 +371,26 @@ export async function getResellerByUsername(username: string) {
   if (!db) return undefined;
   const result = await db.select().from(resellers).where(eq(resellers.username, username)).limit(1);
   return result.length > 0 ? result[0] : undefined;
+}
+
+// Login/duplicidade: aceita username (case-insensitive) OU e-mail, ignorando espaços.
+// Tenta match exato de username primeiro para não confundir contas tipo "Joao"/"joao".
+export async function getResellerByIdentifier(identifier: string) {
+  await ensureResellerColumns();
+  const db = await getDb();
+  if (!db) return undefined;
+  const ident = identifier.trim();
+  if (!ident) return undefined;
+  const exact = await db.select().from(resellers).where(eq(resellers.username, ident)).limit(1);
+  if (exact.length) return exact[0];
+  const lowered = ident.toLowerCase();
+  const rows = await db.select().from(resellers).where(
+    or(
+      sql`lower(${resellers.username}) = ${lowered}`,
+      sql`lower(${resellers.email}) = ${lowered}`
+    )
+  ).orderBy(asc(resellers.id)).limit(1);
+  return rows.length > 0 ? rows[0] : undefined;
 }
 
 export async function getResellerById(id: number) {

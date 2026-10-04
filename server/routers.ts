@@ -14,7 +14,7 @@ import { checkPurinPaymentStatus, processPurinPaymentUpdate } from "./purinCashW
 import { storagePut } from "./storage";
 import {
   getAdminByUsername, getAdminById, createAdmin,
-  getResellerByUsername, getResellerById, getAllResellers, createReseller, updateReseller, updateResellerCredits, deleteResellerById, getResellersByParentId, purgeResellerPurchases,
+  getResellerByUsername, getResellerByIdentifier, getResellerById, getAllResellers, createReseller, updateReseller, updateResellerCredits, deleteResellerById, getResellersByParentId, purgeResellerPurchases,
   getSubResellerKeyStats, getSubResellerKeyLogs, getResellerKeyStatsByType,
   getAllCategories, createCategory, updateCategory, deleteCategory,
   getAllApps, getAppById, getAppByName, getAppByNameLike, createApp, updateApp, deleteApp,
@@ -205,8 +205,12 @@ async function resellerOwnsKey(resellerId: number, key: { resellerId: number }):
 // mesmo que não exista no banco local (vendida fora do painel, etc)
 async function resetPubEmuHwidExternal(keyValue: string) {
   const PUB_EMU_API_URL = "https://resellers.axovgc.site/api/v1/reset";
-  // Tenta a env primeiro; se estiver inválida (401), usa a chave fallback
-  const apiKeys = [...new Set([ENV.pubEmuApiKey, "axo_02e54e5771b3207c97cf6874258ad0e1957a7e6b89824df9"].filter(Boolean))] as string[];
+  // Chave vem apenas da env — nunca hardcoded no repositório
+  const apiKeys = [...new Set([ENV.pubEmuApiKey].filter(Boolean))] as string[];
+  if (!apiKeys.length) {
+    console.warn("[PUB EMU HWID Reset] ENV.pubEmuApiKey não configurada — reset externo ignorado");
+    return;
+  }
   let lastError = "";
   for (const apiKey of apiKeys) {
     try {
@@ -328,7 +332,7 @@ const authRouter = router({
   me: publicProcedure.query(opts => opts.ctx.user),
 
   adminLogin: publicProcedure
-    .input(z.object({ username: z.string(), password: z.string() }))
+    .input(z.object({ username: z.string().trim(), password: z.string() }))
     .mutation(async ({ input, ctx }) => {
       const clientIp = getClientIp(ctx.req);
       if (!checkLoginRateLimit(clientIp)) {
@@ -355,7 +359,7 @@ const authRouter = router({
 
   resellerLogin: publicProcedure
     .input(z.object({
-      username: z.string(),
+      username: z.string().trim(),
       password: z.string(),
       remember: z.boolean().default(false),
     }))
@@ -383,8 +387,8 @@ const authRouter = router({
           return { success: true, role: "admin" as const, adminRole: admin.role || "full", username: admin.username };
         }
       }
-      // Otherwise try reseller login
-      const reseller = await getResellerByUsername(input.username);
+      // Otherwise try reseller login (username ou e-mail, case-insensitive)
+      const reseller = await getResellerByIdentifier(input.username);
       if (!reseller) {
         await logSecurityEvent({ req: ctx.req, eventType: "bruteforce", label: "Login reseller com usuário inexistente", identifier: input.username });
         throw new TRPCError({ code: "UNAUTHORIZED", message: "Credenciais inválidas" });
@@ -459,7 +463,7 @@ const authRouter = router({
 
   // Bootstrap: create first admin if none exists
   setupAdmin: publicProcedure
-    .input(z.object({ username: z.string().min(3), password: z.string().min(6), setupKey: z.string() }))
+    .input(z.object({ username: z.string().trim().min(3), password: z.string().min(6), setupKey: z.string() }))
     .mutation(async ({ input }) => {
       if (!ENV.adminSetupKey || input.setupKey !== ENV.adminSetupKey) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Chave de setup inválida" });
@@ -720,16 +724,16 @@ const adminRouter = router({
 
   createReseller: adminProcedure
     .input(z.object({
-      username: z.string().min(3).max(64),
+      username: z.string().trim().min(3).max(64),
       password: z.string().min(6),
-      email: z.string().email().optional(),
+      email: z.string().trim().email().optional(),
       location: z.string().optional(),
       resellerType: z.enum(["credits", "percentage", "other", "unlimited"]).default("credits"),
       canCreateSubResellers: z.boolean().default(false),
       subscriptionMonths: z.number().min(1).max(24).default(1),
     }))
     .mutation(async ({ input }) => {
-      const existing = await getResellerByUsername(input.username);
+      const existing = await getResellerByIdentifier(input.username);
       if (existing) throw new TRPCError({ code: "CONFLICT", message: "Username já existe" });
       const passwordHash = await bcrypt.hash(input.password, 10);
       const data: Record<string, unknown> = {
@@ -752,7 +756,7 @@ const adminRouter = router({
   updateReseller: adminProcedure
     .input(z.object({
       id: z.number(),
-      email: z.string().email().optional().nullable(),
+      email: z.string().trim().email().optional().nullable(),
       location: z.string().optional().nullable(),
       status: z.enum(["active", "inactive", "banned"]).optional(),
       password: z.string().min(6).optional(),
@@ -2445,14 +2449,14 @@ const resellerRouter = router({
 
   createSubReseller: resellerProcedure
     .input(z.object({
-      username: z.string().min(3).max(32),
+      username: z.string().trim().min(3).max(32),
       password: z.string().min(6),
-      email: z.string().email().optional(),
+      email: z.string().trim().email().optional(),
       discountPercent: z.enum(["35", "40", "50"]).default("35"),
     }))
     .mutation(async ({ ctx, input }) => {
       if (!ctx.reseller.canCreateSubResellers) throw new TRPCError({ code: "FORBIDDEN", message: "Sem permissao para criar resellers" });
-      const existing = await getResellerByUsername(input.username);
+      const existing = await getResellerByIdentifier(input.username);
       if (existing) throw new TRPCError({ code: "CONFLICT", message: "Username ja existe" });
       const passwordHash = await bcrypt.hash(input.password, 10);
       await createReseller({

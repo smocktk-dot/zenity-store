@@ -23,6 +23,7 @@ vi.mock("./db", async () => {
       return undefined;
     }),
     getResellerByUsername: vi.fn(async () => undefined),
+    getResellerByIdentifier: vi.fn(async () => undefined),
     getResellerById: vi.fn(async () => undefined),
     upsertUser: vi.fn(async () => {}),
     getUserByOpenId: vi.fn(async () => undefined),

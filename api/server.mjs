@@ -597,6 +597,7 @@ __export(db_exports, {
   getResellerApplicationById: () => getResellerApplicationById,
   getResellerByApiKey: () => getResellerByApiKey,
   getResellerById: () => getResellerById,
+  getResellerByIdentifier: () => getResellerByIdentifier,
   getResellerByUsername: () => getResellerByUsername,
   getResellerInfoProductById: () => getResellerInfoProductById,
   getResellerKeyStatsByType: () => getResellerKeyStatsByType,
@@ -997,6 +998,23 @@ async function getResellerByUsername(username) {
   if (!db) return void 0;
   const result = await db.select().from(resellers).where(eq(resellers.username, username)).limit(1);
   return result.length > 0 ? result[0] : void 0;
+}
+async function getResellerByIdentifier(identifier) {
+  await ensureResellerColumns();
+  const db = await getDb();
+  if (!db) return void 0;
+  const ident = identifier.trim();
+  if (!ident) return void 0;
+  const exact = await db.select().from(resellers).where(eq(resellers.username, ident)).limit(1);
+  if (exact.length) return exact[0];
+  const lowered = ident.toLowerCase();
+  const rows = await db.select().from(resellers).where(
+    or(
+      sql`lower(${resellers.username}) = ${lowered}`,
+      sql`lower(${resellers.email}) = ${lowered}`
+    )
+  ).orderBy(asc(resellers.id)).limit(1);
+  return rows.length > 0 ? rows[0] : void 0;
 }
 async function getResellerById(id) {
   await ensureResellerColumns();
@@ -5067,7 +5085,11 @@ async function resellerOwnsKey(resellerId, key) {
 }
 async function resetPubEmuHwidExternal(keyValue) {
   const PUB_EMU_API_URL = "https://resellers.axovgc.site/api/v1/reset";
-  const apiKeys = [...new Set([ENV.pubEmuApiKey, "axo_02e54e5771b3207c97cf6874258ad0e1957a7e6b89824df9"].filter(Boolean))];
+  const apiKeys = [...new Set([ENV.pubEmuApiKey].filter(Boolean))];
+  if (!apiKeys.length) {
+    console.warn("[PUB EMU HWID Reset] ENV.pubEmuApiKey n\xE3o configurada \u2014 reset externo ignorado");
+    return;
+  }
   let lastError = "";
   for (const apiKey of apiKeys) {
     try {
@@ -5168,7 +5190,7 @@ function checkLoginRateLimit(ip) {
 }
 var authRouter = router({
   me: publicProcedure.query((opts) => opts.ctx.user),
-  adminLogin: publicProcedure.input(z2.object({ username: z2.string(), password: z2.string() })).mutation(async ({ input, ctx }) => {
+  adminLogin: publicProcedure.input(z2.object({ username: z2.string().trim(), password: z2.string() })).mutation(async ({ input, ctx }) => {
     const clientIp = getClientIp2(ctx.req);
     if (!checkLoginRateLimit(clientIp)) {
       throw new TRPCError3({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Tente novamente em 15 minutos." });
@@ -5191,7 +5213,7 @@ var authRouter = router({
     return { success: true, role: "admin", adminRole: admin.role || "full", username: admin.username };
   }),
   resellerLogin: publicProcedure.input(z2.object({
-    username: z2.string(),
+    username: z2.string().trim(),
     password: z2.string(),
     remember: z2.boolean().default(false)
   })).mutation(async ({ input, ctx }) => {
@@ -5216,7 +5238,7 @@ var authRouter = router({
         return { success: true, role: "admin", adminRole: admin.role || "full", username: admin.username };
       }
     }
-    const reseller = await getResellerByUsername(input.username);
+    const reseller = await getResellerByIdentifier(input.username);
     if (!reseller) {
       await logSecurityEvent({ req: ctx.req, eventType: "bruteforce", label: "Login reseller com usu\xE1rio inexistente", identifier: input.username });
       throw new TRPCError3({ code: "UNAUTHORIZED", message: "Credenciais inv\xE1lidas" });
@@ -5289,7 +5311,7 @@ var authRouter = router({
     return { success: true };
   }),
   // Bootstrap: create first admin if none exists
-  setupAdmin: publicProcedure.input(z2.object({ username: z2.string().min(3), password: z2.string().min(6), setupKey: z2.string() })).mutation(async ({ input }) => {
+  setupAdmin: publicProcedure.input(z2.object({ username: z2.string().trim().min(3), password: z2.string().min(6), setupKey: z2.string() })).mutation(async ({ input }) => {
     if (!ENV.adminSetupKey || input.setupKey !== ENV.adminSetupKey) {
       throw new TRPCError3({ code: "FORBIDDEN", message: "Chave de setup inv\xE1lida" });
     }
@@ -5507,15 +5529,15 @@ var adminRouter = router({
     };
   }),
   createReseller: adminProcedure2.input(z2.object({
-    username: z2.string().min(3).max(64),
+    username: z2.string().trim().min(3).max(64),
     password: z2.string().min(6),
-    email: z2.string().email().optional(),
+    email: z2.string().trim().email().optional(),
     location: z2.string().optional(),
     resellerType: z2.enum(["credits", "percentage", "other", "unlimited"]).default("credits"),
     canCreateSubResellers: z2.boolean().default(false),
     subscriptionMonths: z2.number().min(1).max(24).default(1)
   })).mutation(async ({ input }) => {
-    const existing = await getResellerByUsername(input.username);
+    const existing = await getResellerByIdentifier(input.username);
     if (existing) throw new TRPCError3({ code: "CONFLICT", message: "Username j\xE1 existe" });
     const passwordHash = await bcrypt2.hash(input.password, 10);
     const data = {
@@ -5536,7 +5558,7 @@ var adminRouter = router({
   }),
   updateReseller: adminProcedure2.input(z2.object({
     id: z2.number(),
-    email: z2.string().email().optional().nullable(),
+    email: z2.string().trim().email().optional().nullable(),
     location: z2.string().optional().nullable(),
     status: z2.enum(["active", "inactive", "banned"]).optional(),
     password: z2.string().min(6).optional(),
@@ -6919,13 +6941,13 @@ var resellerRouter = router({
     return { stats, logs };
   }),
   createSubReseller: resellerProcedure.input(z2.object({
-    username: z2.string().min(3).max(32),
+    username: z2.string().trim().min(3).max(32),
     password: z2.string().min(6),
-    email: z2.string().email().optional(),
+    email: z2.string().trim().email().optional(),
     discountPercent: z2.enum(["35", "40", "50"]).default("35")
   })).mutation(async ({ ctx, input }) => {
     if (!ctx.reseller.canCreateSubResellers) throw new TRPCError3({ code: "FORBIDDEN", message: "Sem permissao para criar resellers" });
-    const existing = await getResellerByUsername(input.username);
+    const existing = await getResellerByIdentifier(input.username);
     if (existing) throw new TRPCError3({ code: "CONFLICT", message: "Username ja existe" });
     const passwordHash = await bcrypt2.hash(input.password, 10);
     await createReseller({
