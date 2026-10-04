@@ -921,9 +921,11 @@ const adminRouter = router({
       canCreateSubResellers: z.boolean().optional(),
       // Renova/define a assinatura do reseller unlimited (+N meses a partir de agora ou da expiração atual)
       renewMonths: z.number().min(1).max(24).optional(),
+      // Define uma data de expiração exata da assinatura (ISO) — sobrescreve renewMonths
+      subscriptionExpiresAt: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
-      const { id, password, discountPercent, renewMonths, ...rest } = input;
+      const { id, password, discountPercent, renewMonths, subscriptionExpiresAt, ...rest } = input;
       const data: Record<string, unknown> = { ...rest };
       if (password) data.passwordHash = await bcrypt.hash(password, 10);
       if (discountPercent !== undefined) data.discountPercent = discountPercent.toFixed(2);
@@ -935,6 +937,11 @@ const adminRouter = router({
         const base = current && current > now ? current : now;
         base.setMonth(base.getMonth() + renewMonths);
         data.subscriptionExpiresAt = base;
+      }
+      if (subscriptionExpiresAt !== undefined) {
+        const d = new Date(subscriptionExpiresAt);
+        if (isNaN(d.getTime())) throw new TRPCError({ code: "BAD_REQUEST", message: "Data de expiração inválida" });
+        data.subscriptionExpiresAt = d;
       }
       await updateReseller(id, data as any);
       return { success: true };

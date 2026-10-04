@@ -63,7 +63,15 @@ function TypeBadge({ type }: { type: string }) {
 }
 
 const emptyCreate = { username: "", password: "", email: "", location: "", resellerType: "credits" as "credits" | "percentage" | "other" | "unlimited", canCreateSubResellers: false, subscriptionMonths: "1" };
-const emptyEdit = { email: "", location: "", status: "active" as string, password: "", resellerType: "credits" as "credits" | "percentage" | "other" | "unlimited", discountPercent: "0", canCreateSubResellers: false, renewMonths: "1" };
+const emptyEdit = { email: "", location: "", status: "active" as string, password: "", resellerType: "credits" as "credits" | "percentage" | "other" | "unlimited", discountPercent: "0", canCreateSubResellers: false, renewMonths: "1", subExpires: "" };
+
+const toLocalInput = (d: string | Date | null | undefined) => {
+  if (!d) return "";
+  const dt = new Date(d);
+  if (isNaN(dt.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+};
 
 export default function AdminResellers() {
   const [, navigate] = useLocation();
@@ -132,6 +140,7 @@ export default function AdminResellers() {
       discountPercent: String(parseFloat(String(r.discountPercent ?? 0))),
       canCreateSubResellers: (r as any).canCreateSubResellers === true,
       renewMonths: "1",
+      subExpires: toLocalInput(r.subscriptionExpiresAt),
     });
   };
 
@@ -551,7 +560,8 @@ export default function AdminResellers() {
                 resellerType: ef.resellerType,
                 discountPercent: !isNaN(discount) && discount >= 0 && discount <= 100 ? discount : undefined,
                 canCreateSubResellers: ef.canCreateSubResellers,
-                renewMonths: ef.resellerType === "unlimited" && parseInt(ef.renewMonths) > 0 ? parseInt(ef.renewMonths) : undefined,
+                renewMonths: ef.resellerType === "unlimited" && !ef.subExpires && parseInt(ef.renewMonths) > 0 ? parseInt(ef.renewMonths) : undefined,
+                subscriptionExpiresAt: ef.resellerType === "unlimited" && ef.subExpires ? new Date(ef.subExpires).toISOString() : undefined,
               });
             }
           }} className="space-y-4">
@@ -623,6 +633,25 @@ export default function AdminResellers() {
                     : "Sem assinatura ativa — definir meses ativa o login."}
                   {" "}0 = não renovar agora.
                 </p>
+                <Label className="text-violet-300 text-xs font-medium block pt-1">Ou definir data exata de expiração</Label>
+                <div className="flex gap-2">
+                  <Input
+                    type="datetime-local"
+                    value={ef.subExpires}
+                    onChange={e => setEf(f => ({ ...f, subExpires: e.target.value }))}
+                    className="bg-black/30 border-white/[0.1] text-white rounded-lg h-9 text-xs [color-scheme:dark]"
+                  />
+                  {ef.subExpires && (
+                    <Button
+                      type="button"
+                      onClick={() => setEf(f => ({ ...f, subExpires: "" }))}
+                      className="h-9 px-3 rounded-lg border-white/[0.1] bg-white/[0.02] text-gray-300 hover:text-white text-xs"
+                    >
+                      Limpar
+                    </Button>
+                  )}
+                </div>
+                <p className="text-[10px] text-gray-500">Se preenchida, a data exata é usada no lugar da renovação por meses.</p>
               </div>
             )}
 

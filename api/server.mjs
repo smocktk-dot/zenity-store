@@ -5776,9 +5776,11 @@ var adminRouter = router({
     discountPercent: z2.number().min(0).max(100).optional(),
     canCreateSubResellers: z2.boolean().optional(),
     // Renova/define a assinatura do reseller unlimited (+N meses a partir de agora ou da expiração atual)
-    renewMonths: z2.number().min(1).max(24).optional()
+    renewMonths: z2.number().min(1).max(24).optional(),
+    // Define uma data de expiração exata da assinatura (ISO) — sobrescreve renewMonths
+    subscriptionExpiresAt: z2.string().optional()
   })).mutation(async ({ input }) => {
-    const { id, password, discountPercent, renewMonths, ...rest } = input;
+    const { id, password, discountPercent, renewMonths, subscriptionExpiresAt, ...rest } = input;
     const data = { ...rest };
     if (password) data.passwordHash = await bcrypt2.hash(password, 10);
     if (discountPercent !== void 0) data.discountPercent = discountPercent.toFixed(2);
@@ -5790,6 +5792,11 @@ var adminRouter = router({
       const base = current && current > now ? current : now;
       base.setMonth(base.getMonth() + renewMonths);
       data.subscriptionExpiresAt = base;
+    }
+    if (subscriptionExpiresAt !== void 0) {
+      const d = new Date(subscriptionExpiresAt);
+      if (isNaN(d.getTime())) throw new TRPCError3({ code: "BAD_REQUEST", message: "Data de expira\xE7\xE3o inv\xE1lida" });
+      data.subscriptionExpiresAt = d;
     }
     await updateReseller(id, data);
     return { success: true };
