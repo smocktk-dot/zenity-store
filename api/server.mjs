@@ -20,7 +20,7 @@ import {
   boolean,
   serial
 } from "drizzle-orm/pg-core";
-var userRoleEnum, resellerTypeEnum, resellerStatusEnum, appStatusEnum, planLevelEnum, keyStatusEnum, transactionTypeEnum, pixPaymentStatusEnum, ticketStatusEnum, ticketSenderEnum, applicationStatusEnum, applicationSenderEnum, supportTicketStatusEnum, supportMessageSenderEnum, appDownloadTypeEnum, users, admins, resellers, resellerApiKeys, categories, apps, stockStatusEnum, subscriptionPlans, resellerApps, licenseKeys, appStock, creditTransactions, pixPayments, ipWhitelist, otherStoreResellers, otherStoreHwids, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages, securityEvents, bannedIps, appDownloads, resellerInfoStatusEnum, resellerInfoProducts, vgauthApps, vgauthLicenses, vgauthUsers, vgauthBans, vgauthSessions, vgauthLogs, vgauthShutdowns, vgauthFiles;
+var userRoleEnum, resellerTypeEnum, resellerStatusEnum, appStatusEnum, planLevelEnum, keyStatusEnum, transactionTypeEnum, pixPaymentStatusEnum, ticketStatusEnum, ticketSenderEnum, applicationStatusEnum, applicationSenderEnum, supportTicketStatusEnum, supportMessageSenderEnum, appDownloadTypeEnum, users, admins, resellers, resellerApiKeys, categories, apps, stockStatusEnum, subscriptionPlans, resellerApps, licenseKeys, appStock, creditTransactions, pixPayments, ipWhitelist, otherStoreResellers, otherStoreHwids, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages, recoveryCodes, securityEvents, bannedIps, appDownloads, resellerInfoStatusEnum, resellerInfoProducts, vgauthApps, vgauthLicenses, vgauthUsers, vgauthBans, vgauthSessions, vgauthLogs, vgauthShutdowns, vgauthFiles;
 var init_schema = __esm({
   "drizzle/schema.ts"() {
     "use strict";
@@ -278,6 +278,18 @@ var init_schema = __esm({
       message: text("message").notNull(),
       createdAt: timestamp("createdAt").defaultNow().notNull()
     });
+    recoveryCodes = pgTable("recovery_codes", {
+      id: serial("id").primaryKey(),
+      kind: varchar("kind", { length: 16 }).notNull(),
+      // application | ticket
+      refId: integer("refId").notNull(),
+      email: varchar("email", { length: 320 }).notNull(),
+      codeHash: varchar("codeHash", { length: 128 }).notNull(),
+      // sha256(kind:refId:code)
+      attempts: integer("attempts").default(0).notNull(),
+      expiresAt: timestamp("expiresAt").notNull(),
+      createdAt: timestamp("createdAt").defaultNow().notNull()
+    });
     securityEvents = pgTable("security_events", {
       id: serial("id").primaryKey(),
       eventType: varchar("eventType", { length: 32 }).notNull(),
@@ -476,7 +488,9 @@ var init_env = __esm({
       forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
       keyauthSellerKey: process.env.KEYAUTH_SELLER_KEY,
       pubEmuApiKey: process.env.PUB_EMU_API_KEY,
-      adminSetupKey: process.env.ADMIN_SETUP_KEY
+      adminSetupKey: process.env.ADMIN_SETUP_KEY,
+      resendApiKey: process.env.RESEND_API_KEY,
+      resendFrom: process.env.RESEND_FROM
     };
   }
 });
@@ -501,6 +515,7 @@ __export(db_exports, {
   createOtherStoreReseller: () => createOtherStoreReseller,
   createPixPayment: () => createPixPayment,
   createPlan: () => createPlan,
+  createRecoveryCode: () => createRecoveryCode,
   createReseller: () => createReseller,
   createResellerApiKey: () => createResellerApiKey,
   createResellerApplication: () => createResellerApplication,
@@ -525,6 +540,7 @@ __export(db_exports, {
   deleteOtherStoreHwid: () => deleteOtherStoreHwid,
   deleteOtherStoreReseller: () => deleteOtherStoreReseller,
   deletePlan: () => deletePlan,
+  deleteRecoveryCodes: () => deleteRecoveryCodes,
   deleteResellerApplication: () => deleteResellerApplication,
   deleteResellerById: () => deleteResellerById,
   deleteResellerInfoProduct: () => deleteResellerInfoProduct,
@@ -542,6 +558,7 @@ __export(db_exports, {
   ensureLicenseKeysSchema: () => ensureLicenseKeysSchema,
   ensureOtherStoreSchema: () => ensureOtherStoreSchema,
   ensurePixPaymentSchema: () => ensurePixPaymentSchema,
+  ensureRecoveryCodesSchema: () => ensureRecoveryCodesSchema,
   ensureResellerApiKeySchema: () => ensureResellerApiKeySchema,
   ensureResellerInfoSchema: () => ensureResellerInfoSchema,
   ensureSecuritySchema: () => ensureSecuritySchema,
@@ -580,6 +597,7 @@ __export(db_exports, {
   getKeysByPaymentId: () => getKeysByPaymentId,
   getKeysByResellerId: () => getKeysByResellerId,
   getKeysByResellerIdWithApp: () => getKeysByResellerIdWithApp,
+  getLatestRecoveryCode: () => getLatestRecoveryCode,
   getOtherStoreHwidsByResellerId: () => getOtherStoreHwidsByResellerId,
   getOtherStoreResellerByDiscordId: () => getOtherStoreResellerByDiscordId,
   getOtherStoreResellerByHwid: () => getOtherStoreResellerByHwid,
@@ -633,6 +651,7 @@ __export(db_exports, {
   getVgauthShutdowns: () => getVgauthShutdowns,
   getVgauthUserByUsername: () => getVgauthUserByUsername,
   getVgauthUsersByApp: () => getVgauthUsersByApp,
+  incrementRecoveryCodeAttempts: () => incrementRecoveryCodeAttempts,
   isAdminIpAllowed: () => isAdminIpAllowed,
   isIpBanned: () => isIpBanned,
   isIpInAdminWhitelist: () => isIpInAdminWhitelist,
@@ -649,6 +668,8 @@ __export(db_exports, {
   reserveStockForReseller: () => reserveStockForReseller,
   resumeAllVgauthLicenses: () => resumeAllVgauthLicenses,
   revokeResellerApiKey: () => revokeResellerApiKey,
+  setApplicationAccessToken: () => setApplicationAccessToken,
+  setSupportTicketAccessToken: () => setSupportTicketAccessToken,
   transferResellerKeys: () => transferResellerKeys,
   unbanIpAddress: () => unbanIpAddress,
   updateAdminPassword: () => updateAdminPassword,
@@ -1694,6 +1715,11 @@ async function updateResellerApplicationTimestamp(id) {
   if (!db) throw new Error("DB not available");
   await db.update(resellerApplications).set({ updatedAt: /* @__PURE__ */ new Date() }).where(eq(resellerApplications.id, id));
 }
+async function setApplicationAccessToken(id, accessToken) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(resellerApplications).set({ accessToken }).where(eq(resellerApplications.id, id));
+}
 async function deleteResellerApplication(id) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
@@ -1747,6 +1773,54 @@ async function updateSupportTicketTimestamp(id) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   await db.update(supportTickets).set({ updatedAt: /* @__PURE__ */ new Date() }).where(eq(supportTickets.id, id));
+}
+async function setSupportTicketAccessToken(id, accessToken) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(supportTickets).set({ accessToken }).where(eq(supportTickets.id, id));
+}
+async function ensureRecoveryCodesSchema() {
+  await getDb();
+  if (!_sqlClient) throw new Error("DB not available");
+  if (!_recoveryCodesReady) {
+    _recoveryCodesReady = _sqlClient.unsafe(`CREATE TABLE IF NOT EXISTS "recovery_codes" (
+      "id" serial PRIMARY KEY,
+      "kind" varchar(16) NOT NULL,
+      "refId" integer NOT NULL,
+      "email" varchar(320) NOT NULL,
+      "codeHash" varchar(128) NOT NULL,
+      "attempts" integer DEFAULT 0 NOT NULL,
+      "expiresAt" timestamp NOT NULL,
+      "createdAt" timestamp DEFAULT now() NOT NULL
+    )`).then(() => void 0).catch(() => {
+      _recoveryCodesReady = null;
+    });
+  }
+  return _recoveryCodesReady;
+}
+async function createRecoveryCode(data) {
+  await ensureRecoveryCodesSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.insert(recoveryCodes).values(data).returning();
+  return row;
+}
+async function getLatestRecoveryCode(kind, refId) {
+  await ensureRecoveryCodesSchema();
+  const db = await getDb();
+  if (!db) return void 0;
+  const rows = await db.select().from(recoveryCodes).where(and(eq(recoveryCodes.kind, kind), eq(recoveryCodes.refId, refId))).orderBy(desc(recoveryCodes.createdAt)).limit(1);
+  return rows[0];
+}
+async function incrementRecoveryCodeAttempts(id) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(recoveryCodes).set({ attempts: sql`${recoveryCodes.attempts} + 1` }).where(eq(recoveryCodes.id, id));
+}
+async function deleteRecoveryCodes(kind, refId) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(recoveryCodes).where(and(eq(recoveryCodes.kind, kind), eq(recoveryCodes.refId, refId)));
 }
 async function deleteSupportTicket(id) {
   const db = await getDb();
@@ -2532,7 +2606,7 @@ async function isIpBanned(ip) {
   }
   return _bannedIpCache.set.has(ip);
 }
-var _db, _sqlClient, _pixPaymentSchemaReady, _appStockSchemaReady, _licenseKeysSchemaReady, _appsSchemaReady, _appDownloadsSchemaReady, _resellerApiKeysSchemaReady, _otherStoreSchemaReady, _adminRoleSchemaReady, _accessTokensEnsured, _resellerInfoSchemaReady, _vgauthSchemaReady, _securitySchemaEnsured, _bannedIpCache;
+var _db, _sqlClient, _pixPaymentSchemaReady, _appStockSchemaReady, _licenseKeysSchemaReady, _appsSchemaReady, _appDownloadsSchemaReady, _resellerApiKeysSchemaReady, _otherStoreSchemaReady, _adminRoleSchemaReady, _accessTokensEnsured, _recoveryCodesReady, _resellerInfoSchemaReady, _vgauthSchemaReady, _securitySchemaEnsured, _bannedIpCache;
 var init_db = __esm({
   "server/db.ts"() {
     "use strict";
@@ -2549,6 +2623,7 @@ var init_db = __esm({
     _otherStoreSchemaReady = null;
     _adminRoleSchemaReady = null;
     _accessTokensEnsured = false;
+    _recoveryCodesReady = null;
     _resellerInfoSchemaReady = null;
     _vgauthSchemaReady = null;
     _securitySchemaEnsured = false;
@@ -5026,6 +5101,83 @@ async function verifyAccessToken(stored, provided) {
   const b = createHash("sha256").update(stored).digest();
   return timingSafeEqual(a, b);
 }
+function emailConfigured() {
+  return !!ENV.resendApiKey;
+}
+async function sendEmail(opts) {
+  if (!ENV.resendApiKey) return false;
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${ENV.resendApiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        from: ENV.resendFrom || "VG Sellers <onboarding@resend.dev>",
+        to: opts.to,
+        subject: opts.subject,
+        html: opts.html
+      })
+    });
+    if (!res.ok) {
+      console.warn("[Email] Resend falhou:", res.status, await res.text().catch(() => ""));
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn("[Email] Erro ao enviar:", err);
+    return false;
+  }
+}
+var RECOVERY_CODE_TTL_MS = 10 * 60 * 1e3;
+var RECOVERY_CODE_MAX_ATTEMPTS = 5;
+async function recoveryCodeHash(kind, refId, code) {
+  const { createHash } = await import("crypto");
+  return createHash("sha256").update(`${kind}:${refId}:${code}`).digest("hex");
+}
+async function issueRecoveryCode(opts) {
+  const { randomInt } = await import("crypto");
+  const code = String(randomInt(0, 1e6)).padStart(6, "0");
+  await deleteRecoveryCodes(opts.kind, opts.refId);
+  await createRecoveryCode({
+    kind: opts.kind,
+    refId: opts.refId,
+    email: opts.email,
+    codeHash: await recoveryCodeHash(opts.kind, opts.refId, code),
+    expiresAt: new Date(Date.now() + RECOVERY_CODE_TTL_MS)
+  });
+  const sent = await sendEmail({
+    to: opts.email,
+    subject: "Seu c\xF3digo de acesso \u2014 VG Sellers",
+    html: `<div style="font-family:sans-serif;max-width:420px;margin:auto">
+      <h2 style="color:#7c3aed">Verifica\xE7\xE3o de acesso</h2>
+      <p>Use o c\xF3digo abaixo para recuperar o acesso ao seu atendimento:</p>
+      <p style="font-size:32px;font-weight:bold;letter-spacing:8px;text-align:center;background:#f4f4f5;padding:16px;border-radius:12px">${code}</p>
+      <p style="color:#71717a;font-size:12px">V\xE1lido por 10 minutos. Se voc\xEA n\xE3o solicitou, ignore este e-mail.</p>
+    </div>`
+  });
+  if (!sent) {
+    await deleteRecoveryCodes(opts.kind, opts.refId);
+    throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: "Falha ao enviar o e-mail de verifica\xE7\xE3o. Tente novamente ou contate o suporte." });
+  }
+}
+async function verifyRecoveryCode(kind, refId, code) {
+  if (!code) return false;
+  const rec = await getLatestRecoveryCode(kind, refId);
+  if (!rec) return false;
+  if (new Date(rec.expiresAt) < /* @__PURE__ */ new Date() || rec.attempts >= RECOVERY_CODE_MAX_ATTEMPTS) return false;
+  const { createHash, timingSafeEqual } = await import("crypto");
+  const provided = createHash("sha256").update(`${kind}:${refId}:${code}`).digest();
+  const stored = Buffer.from(rec.codeHash, "hex");
+  const ok = provided.length === stored.length && timingSafeEqual(provided, stored);
+  if (ok) {
+    await deleteRecoveryCodes(kind, refId);
+  } else {
+    await incrementRecoveryCodeAttempts(rec.id);
+  }
+  return ok;
+}
 var ATTACK_PATTERNS = [
   { type: "xss", label: "Inje\xE7\xE3o XSS (script/HTML malicioso)", re: /<\s*(script|img|svg|iframe|object|embed|video|audio)\b|on\w+\s*=\s*["'`]?|javascript\s*:|eval\s*\(|atob\s*\(|alert\s*\(|document\.cookie|localStorage|sessionStorage|String\.fromCharCode/i },
   { type: "sqli", label: "Inje\xE7\xE3o SQL", re: /union\s+(all\s+)?select|or\s+\d+\s*=\s*\d+|'\s*or\s*'|drop\s+table|insert\s+into|update\s+\w+\s+set|select\s+.*\s+from\s+information_schema|sleep\s*\(\s*\d/i },
@@ -5085,7 +5237,7 @@ async function resellerOwnsKey(resellerId, key) {
 }
 async function resetPubEmuHwidExternal(keyValue) {
   const PUB_EMU_API_URL = "https://resellers.axovgc.site/api/v1/reset";
-  const apiKeys = [...new Set([ENV.pubEmuApiKey].filter(Boolean))];
+  const apiKeys = Array.from(new Set([ENV.pubEmuApiKey].filter(Boolean)));
   if (!apiKeys.length) {
     console.warn("[PUB EMU HWID Reset] ENV.pubEmuApiKey n\xE3o configurada \u2014 reset externo ignorado");
     return;
@@ -5348,10 +5500,20 @@ var authRouter = router({
     return { id: row.id, status: row.status, token: row.accessToken };
   }),
   // Recupera acesso à aplicação pelo e-mail (novo dispositivo / storage limpo)
-  recoverApplication: publicProcedure.input(z2.object({ email: z2.string().email() })).mutation(async ({ input }) => {
+  // Nunca devolve o accessToken direto: exige verificação por código de e-mail
+  // (quando RESEND_API_KEY configurada) ou prova de conhecimento (ID do Discord).
+  recoverApplication: publicProcedure.input(z2.object({ email: z2.string().email() })).mutation(async ({ input, ctx }) => {
+    const clientIp = getClientIp2(ctx.req);
+    if (!checkLoginRateLimit(clientIp)) {
+      throw new TRPCError3({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Tente novamente em 15 minutos." });
+    }
     const app2 = await getResellerApplicationByEmail(input.email.trim().toLowerCase());
     if (!app2 || !app2.accessToken) return null;
-    return { id: app2.id, token: app2.accessToken };
+    if (emailConfigured()) {
+      await issueRecoveryCode({ kind: "application", refId: app2.id, email: app2.email });
+      return { id: app2.id, method: "email" };
+    }
+    return { id: app2.id, method: "proof" };
   }),
   getMyApplication: publicProcedure.input(z2.object({ id: z2.number(), token: z2.string().max(128).optional() })).query(async ({ input, ctx }) => {
     const app2 = await getResellerApplicationById(input.id);
@@ -5412,10 +5574,58 @@ var authRouter = router({
     return { id: row.id, status: row.status, token: row.accessToken };
   }),
   // Recupera acesso ao ticket pelo e-mail (novo dispositivo / storage limpo)
-  recoverSupportTicket: publicProcedure.input(z2.object({ email: z2.string().email() })).mutation(async ({ input }) => {
+  recoverSupportTicket: publicProcedure.input(z2.object({ email: z2.string().email() })).mutation(async ({ input, ctx }) => {
+    const clientIp = getClientIp2(ctx.req);
+    if (!checkLoginRateLimit(clientIp)) {
+      throw new TRPCError3({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Tente novamente em 15 minutos." });
+    }
     const ticket = await getSupportTicketByEmail(input.email.trim().toLowerCase());
     if (!ticket || !ticket.accessToken) return null;
-    return { id: ticket.id, token: ticket.accessToken };
+    if (emailConfigured()) {
+      await issueRecoveryCode({ kind: "ticket", refId: ticket.id, email: ticket.email });
+      return { id: ticket.id, method: "email" };
+    }
+    return { id: ticket.id, method: "proof" };
+  }),
+  // Confirma a recuperação: código de e-mail OU prova de conhecimento
+  // (ID do Discord p/ candidatura, assunto p/ ticket), e só então devolve o token.
+  confirmRecovery: publicProcedure.input(z2.object({
+    kind: z2.enum(["application", "ticket"]),
+    id: z2.number(),
+    code: z2.string().trim().max(16).optional(),
+    proof: z2.string().trim().max(300).optional()
+  })).mutation(async ({ input, ctx }) => {
+    const clientIp = getClientIp2(ctx.req);
+    if (!checkLoginRateLimit(clientIp)) {
+      throw new TRPCError3({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Tente novamente em 15 minutos." });
+    }
+    const record = input.kind === "application" ? await getResellerApplicationById(input.id) : await getSupportTicketById(input.id);
+    if (!record) throw new TRPCError3({ code: "NOT_FOUND", message: "Registro n\xE3o encontrado" });
+    if (emailConfigured()) {
+      const ok = await verifyRecoveryCode(input.kind, input.id, input.code || "");
+      if (!ok) {
+        await logSecurityEvent({ req: ctx.req, eventType: "bruteforce", label: `C\xF3digo de recupera\xE7\xE3o inv\xE1lido (${input.kind})`, detail: `id=${input.id}` });
+        throw new TRPCError3({ code: "UNAUTHORIZED", message: "C\xF3digo inv\xE1lido ou expirado" });
+      }
+    } else {
+      const proof = (input.proof || "").trim().toLowerCase();
+      const expected = (input.kind === "application" ? String(record.discordId || "") : String(record.subject || "")).trim().toLowerCase();
+      if (!proof || !expected || proof !== expected) {
+        await logSecurityEvent({ req: ctx.req, eventType: "bruteforce", label: `Recupera\xE7\xE3o ${input.kind} com prova incorreta`, detail: `id=${input.id}` });
+        throw new TRPCError3({
+          code: "UNAUTHORIZED",
+          message: input.kind === "application" ? "ID do Discord incorreto" : "Assunto incorreto"
+        });
+      }
+    }
+    let token = record.accessToken;
+    if (!token) {
+      const { randomBytes } = await import("crypto");
+      token = randomBytes(24).toString("hex");
+      if (input.kind === "application") await setApplicationAccessToken(input.id, token);
+      else await setSupportTicketAccessToken(input.id, token);
+    }
+    return { id: input.id, token };
   }),
   getMySupportTicket: publicProcedure.input(z2.object({ id: z2.number(), token: z2.string().max(128).optional() })).query(async ({ input, ctx }) => {
     const ticket = await getSupportTicketById(input.id);

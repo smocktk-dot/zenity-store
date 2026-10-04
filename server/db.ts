@@ -1,8 +1,8 @@
 import { eq, and, asc, desc, sql, inArray, or, aliasedTable, ilike } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { InsertUser, users, admins, resellers, resellerApiKeys, categories, apps, subscriptionPlans, resellerApps, licenseKeys, appStock, appDownloads, creditTransactions, ipWhitelist, pixPayments, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages, otherStoreResellers, otherStoreHwids, resellerInfoProducts, vgauthApps, vgauthLicenses, vgauthUsers, vgauthBans, vgauthSessions, vgauthLogs, vgauthShutdowns, vgauthFiles, securityEvents, bannedIps, InsertSecurityEvent } from "../drizzle/schema";
-import type { InsertAdmin, InsertReseller, InsertResellerApiKey, InsertCategory, InsertApp, InsertSubscriptionPlan, InsertResellerApp, InsertLicenseKey, InsertAppStock, InsertAppDownload, InsertCreditTransaction, InsertPixPayment, InsertTicket, InsertTicketMessage, InsertResellerApplication, InsertApplicationMessage, InsertSupportTicket, InsertSupportMessage, InsertOtherStoreReseller, InsertOtherStoreHwid, InsertResellerInfoProduct, InsertVgauthApp, InsertVgauthLicense, InsertVgauthUser, InsertVgauthBan, InsertVgauthSession, InsertVgauthLog, InsertVgauthShutdown } from "../drizzle/schema";
+import { InsertUser, users, admins, resellers, resellerApiKeys, categories, apps, subscriptionPlans, resellerApps, licenseKeys, appStock, appDownloads, creditTransactions, ipWhitelist, pixPayments, tickets, ticketMessages, resellerApplications, applicationMessages, supportTickets, supportMessages, recoveryCodes, otherStoreResellers, otherStoreHwids, resellerInfoProducts, vgauthApps, vgauthLicenses, vgauthUsers, vgauthBans, vgauthSessions, vgauthLogs, vgauthShutdowns, vgauthFiles, securityEvents, bannedIps, InsertSecurityEvent } from "../drizzle/schema";
+import type { InsertAdmin, InsertReseller, InsertResellerApiKey, InsertCategory, InsertApp, InsertSubscriptionPlan, InsertResellerApp, InsertLicenseKey, InsertAppStock, InsertAppDownload, InsertCreditTransaction, InsertPixPayment, InsertTicket, InsertTicketMessage, InsertResellerApplication, InsertApplicationMessage, InsertSupportTicket, InsertSupportMessage, InsertRecoveryCode, InsertOtherStoreReseller, InsertOtherStoreHwid, InsertResellerInfoProduct, InsertVgauthApp, InsertVgauthLicense, InsertVgauthUser, InsertVgauthBan, InsertVgauthSession, InsertVgauthLog, InsertVgauthShutdown } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import { randomUUID } from "crypto";
 
@@ -1326,6 +1326,12 @@ export async function updateResellerApplicationTimestamp(id: number) {
   await db.update(resellerApplications).set({ updatedAt: new Date() }).where(eq(resellerApplications.id, id));
 }
 
+export async function setApplicationAccessToken(id: number, accessToken: string) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(resellerApplications).set({ accessToken }).where(eq(resellerApplications.id, id));
+}
+
 export async function deleteResellerApplication(id: number) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
@@ -1390,6 +1396,62 @@ export async function updateSupportTicketTimestamp(id: number) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   await db.update(supportTickets).set({ updatedAt: new Date() }).where(eq(supportTickets.id, id));
+}
+
+export async function setSupportTicketAccessToken(id: number, accessToken: string) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(supportTickets).set({ accessToken }).where(eq(supportTickets.id, id));
+}
+
+// ─── Recovery Codes (verificação por e-mail) ───────────────────────────────────
+let _recoveryCodesReady: Promise<void> | null = null;
+export async function ensureRecoveryCodesSchema(): Promise<void> {
+  await getDb();
+  if (!_sqlClient) throw new Error("DB not available");
+  if (!_recoveryCodesReady) {
+    _recoveryCodesReady = _sqlClient.unsafe(`CREATE TABLE IF NOT EXISTS "recovery_codes" (
+      "id" serial PRIMARY KEY,
+      "kind" varchar(16) NOT NULL,
+      "refId" integer NOT NULL,
+      "email" varchar(320) NOT NULL,
+      "codeHash" varchar(128) NOT NULL,
+      "attempts" integer DEFAULT 0 NOT NULL,
+      "expiresAt" timestamp NOT NULL,
+      "createdAt" timestamp DEFAULT now() NOT NULL
+    )`).then(() => undefined).catch(() => { _recoveryCodesReady = null; });
+  }
+  return _recoveryCodesReady;
+}
+
+export async function createRecoveryCode(data: InsertRecoveryCode) {
+  await ensureRecoveryCodesSchema();
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [row] = await db.insert(recoveryCodes).values(data).returning();
+  return row;
+}
+
+export async function getLatestRecoveryCode(kind: string, refId: number) {
+  await ensureRecoveryCodesSchema();
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db.select().from(recoveryCodes)
+    .where(and(eq(recoveryCodes.kind, kind), eq(recoveryCodes.refId, refId)))
+    .orderBy(desc(recoveryCodes.createdAt)).limit(1);
+  return rows[0];
+}
+
+export async function incrementRecoveryCodeAttempts(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(recoveryCodes).set({ attempts: sql`${recoveryCodes.attempts} + 1` }).where(eq(recoveryCodes.id, id));
+}
+
+export async function deleteRecoveryCodes(kind: string, refId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(recoveryCodes).where(and(eq(recoveryCodes.kind, kind), eq(recoveryCodes.refId, refId)));
 }
 
 export async function deleteSupportTicket(id: number) {

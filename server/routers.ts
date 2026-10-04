@@ -38,10 +38,11 @@ import {
   getResellerKeysByMonth, getResellerKeysByApp,
   createResellerApplication, getResellerApplicationById, getResellerApplicationByEmail, getAllResellerApplications,
   createSecurityEvent, getSecurityEvents, banIpAddress, unbanIpAddress, getBannedIps, isIpInAdminWhitelist,
-  updateResellerApplicationStatus, updateResellerApplicationTimestamp, deleteResellerApplication,
+  updateResellerApplicationStatus, updateResellerApplicationTimestamp, deleteResellerApplication, setApplicationAccessToken,
+  createRecoveryCode, getLatestRecoveryCode, incrementRecoveryCodeAttempts, deleteRecoveryCodes,
   getApplicationMessages, createApplicationMessage,
   createSupportTicket, getSupportTicketById, getSupportTicketByEmail, getAllSupportTickets,
-  updateSupportTicketStatus, updateSupportTicketTimestamp, deleteSupportTicket,
+  updateSupportTicketStatus, updateSupportTicketTimestamp, deleteSupportTicket, setSupportTicketAccessToken,
   getSupportMessages, createSupportMessage,
   getOtherStoreResellers, createOtherStoreReseller, updateOtherStoreReseller, deleteOtherStoreReseller,
   getOtherStoreResellerById, getOtherStoreResellerByResellerId, getOtherStoreResellerByOwnerResellerId, getOtherStoreHwidsByResellerId,
@@ -120,6 +121,95 @@ async function verifyAccessToken(stored: string | null | undefined, provided: st
   const a = createHash("sha256").update(provided).digest();
   const b = createHash("sha256").update(stored).digest();
   return timingSafeEqual(a, b);
+}
+
+// ─── Recuperação de acesso: verificação por e-mail ────────────────────────────
+// Quando RESEND_API_KEY está configurada, o accessToken de candidaturas/tickets
+// só é liberado após confirmar um código de 6 dígitos enviado por e-mail.
+// Sem e-mail configurado, o fallback exige um dado que só o autor conhece
+// (ID do Discord p/ candidatura, assunto p/ ticket) — nunca devolve o token
+// só por saber o e-mail.
+function emailConfigured() {
+  return !!ENV.resendApiKey;
+}
+
+async function sendEmail(opts: { to: string; subject: string; html: string }): Promise<boolean> {
+  if (!ENV.resendApiKey) return false;
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${ENV.resendApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: ENV.resendFrom || "VG Sellers <onboarding@resend.dev>",
+        to: opts.to,
+        subject: opts.subject,
+        html: opts.html,
+      }),
+    });
+    if (!res.ok) {
+      console.warn("[Email] Resend falhou:", res.status, await res.text().catch(() => ""));
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn("[Email] Erro ao enviar:", err);
+    return false;
+  }
+}
+
+const RECOVERY_CODE_TTL_MS = 10 * 60 * 1000;
+const RECOVERY_CODE_MAX_ATTEMPTS = 5;
+
+async function recoveryCodeHash(kind: string, refId: number, code: string) {
+  const { createHash } = await import("crypto");
+  return createHash("sha256").update(`${kind}:${refId}:${code}`).digest("hex");
+}
+
+async function issueRecoveryCode(opts: { kind: "application" | "ticket"; refId: number; email: string }) {
+  const { randomInt } = await import("crypto");
+  const code = String(randomInt(0, 1000000)).padStart(6, "0");
+  await deleteRecoveryCodes(opts.kind, opts.refId);
+  await createRecoveryCode({
+    kind: opts.kind,
+    refId: opts.refId,
+    email: opts.email,
+    codeHash: await recoveryCodeHash(opts.kind, opts.refId, code),
+    expiresAt: new Date(Date.now() + RECOVERY_CODE_TTL_MS),
+  });
+  const sent = await sendEmail({
+    to: opts.email,
+    subject: "Seu código de acesso — VG Sellers",
+    html: `<div style="font-family:sans-serif;max-width:420px;margin:auto">
+      <h2 style="color:#7c3aed">Verificação de acesso</h2>
+      <p>Use o código abaixo para recuperar o acesso ao seu atendimento:</p>
+      <p style="font-size:32px;font-weight:bold;letter-spacing:8px;text-align:center;background:#f4f4f5;padding:16px;border-radius:12px">${code}</p>
+      <p style="color:#71717a;font-size:12px">Válido por 10 minutos. Se você não solicitou, ignore este e-mail.</p>
+    </div>`,
+  });
+  if (!sent) {
+    await deleteRecoveryCodes(opts.kind, opts.refId);
+    throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Falha ao enviar o e-mail de verificação. Tente novamente ou contate o suporte." });
+  }
+}
+
+async function verifyRecoveryCode(kind: "application" | "ticket", refId: number, code: string): Promise<boolean> {
+  if (!code) return false;
+  const rec = await getLatestRecoveryCode(kind, refId);
+  if (!rec) return false;
+  if (new Date(rec.expiresAt) < new Date() || rec.attempts >= RECOVERY_CODE_MAX_ATTEMPTS) return false;
+  const { createHash, timingSafeEqual } = await import("crypto");
+  const provided = createHash("sha256").update(`${kind}:${refId}:${code}`).digest();
+  const stored = Buffer.from(rec.codeHash, "hex");
+  const ok = provided.length === stored.length && timingSafeEqual(provided, stored);
+  if (ok) {
+    await deleteRecoveryCodes(kind, refId);
+  } else {
+    await incrementRecoveryCodeAttempts(rec.id);
+  }
+  return ok;
 }
 
 // ─── Protect Website: detecção de payloads maliciosos ──────────────────────────
@@ -206,7 +296,7 @@ async function resellerOwnsKey(resellerId: number, key: { resellerId: number }):
 async function resetPubEmuHwidExternal(keyValue: string) {
   const PUB_EMU_API_URL = "https://resellers.axovgc.site/api/v1/reset";
   // Chave vem apenas da env — nunca hardcoded no repositório
-  const apiKeys = [...new Set([ENV.pubEmuApiKey].filter(Boolean))] as string[];
+  const apiKeys = Array.from(new Set([ENV.pubEmuApiKey].filter(Boolean) as string[]));
   if (!apiKeys.length) {
     console.warn("[PUB EMU HWID Reset] ENV.pubEmuApiKey não configurada — reset externo ignorado");
     return;
@@ -505,12 +595,22 @@ const authRouter = router({
     }),
 
   // Recupera acesso à aplicação pelo e-mail (novo dispositivo / storage limpo)
+  // Nunca devolve o accessToken direto: exige verificação por código de e-mail
+  // (quando RESEND_API_KEY configurada) ou prova de conhecimento (ID do Discord).
   recoverApplication: publicProcedure
     .input(z.object({ email: z.string().email() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      const clientIp = getClientIp(ctx.req);
+      if (!checkLoginRateLimit(clientIp)) {
+        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Tente novamente em 15 minutos." });
+      }
       const app = await getResellerApplicationByEmail(input.email.trim().toLowerCase());
       if (!app || !app.accessToken) return null;
-      return { id: app.id, token: app.accessToken };
+      if (emailConfigured()) {
+        await issueRecoveryCode({ kind: "application", refId: app.id, email: app.email });
+        return { id: app.id, method: "email" as const };
+      }
+      return { id: app.id, method: "proof" as const };
     }),
 
   getMyApplication: publicProcedure
@@ -583,10 +683,66 @@ const authRouter = router({
   // Recupera acesso ao ticket pelo e-mail (novo dispositivo / storage limpo)
   recoverSupportTicket: publicProcedure
     .input(z.object({ email: z.string().email() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      const clientIp = getClientIp(ctx.req);
+      if (!checkLoginRateLimit(clientIp)) {
+        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Tente novamente em 15 minutos." });
+      }
       const ticket = await getSupportTicketByEmail(input.email.trim().toLowerCase());
       if (!ticket || !ticket.accessToken) return null;
-      return { id: ticket.id, token: ticket.accessToken };
+      if (emailConfigured()) {
+        await issueRecoveryCode({ kind: "ticket", refId: ticket.id, email: ticket.email });
+        return { id: ticket.id, method: "email" as const };
+      }
+      return { id: ticket.id, method: "proof" as const };
+    }),
+
+  // Confirma a recuperação: código de e-mail OU prova de conhecimento
+  // (ID do Discord p/ candidatura, assunto p/ ticket), e só então devolve o token.
+  confirmRecovery: publicProcedure
+    .input(z.object({
+      kind: z.enum(["application", "ticket"]),
+      id: z.number(),
+      code: z.string().trim().max(16).optional(),
+      proof: z.string().trim().max(300).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const clientIp = getClientIp(ctx.req);
+      if (!checkLoginRateLimit(clientIp)) {
+        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Tente novamente em 15 minutos." });
+      }
+      const record = input.kind === "application"
+        ? await getResellerApplicationById(input.id)
+        : await getSupportTicketById(input.id);
+      if (!record) throw new TRPCError({ code: "NOT_FOUND", message: "Registro não encontrado" });
+      if (emailConfigured()) {
+        const ok = await verifyRecoveryCode(input.kind, input.id, input.code || "");
+        if (!ok) {
+          await logSecurityEvent({ req: ctx.req, eventType: "bruteforce", label: `Código de recuperação inválido (${input.kind})`, detail: `id=${input.id}` });
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "Código inválido ou expirado" });
+        }
+      } else {
+        const proof = (input.proof || "").trim().toLowerCase();
+        const expected = (input.kind === "application"
+          ? String((record as { discordId?: string }).discordId || "")
+          : String((record as { subject?: string }).subject || "")
+        ).trim().toLowerCase();
+        if (!proof || !expected || proof !== expected) {
+          await logSecurityEvent({ req: ctx.req, eventType: "bruteforce", label: `Recuperação ${input.kind} com prova incorreta`, detail: `id=${input.id}` });
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: input.kind === "application" ? "ID do Discord incorreto" : "Assunto incorreto",
+          });
+        }
+      }
+      let token = record.accessToken;
+      if (!token) {
+        const { randomBytes } = await import("crypto");
+        token = randomBytes(24).toString("hex");
+        if (input.kind === "application") await setApplicationAccessToken(input.id, token);
+        else await setSupportTicketAccessToken(input.id, token);
+      }
+      return { id: input.id, token };
     }),
 
   getMySupportTicket: publicProcedure

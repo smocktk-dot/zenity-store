@@ -10,4 +10,6 @@ export const ENV = {
   keyauthSellerKey: process.env.KEYAUTH_SELLER_KEY,
   pubEmuApiKey: process.env.PUB_EMU_API_KEY,
   adminSetupKey: process.env.ADMIN_SETUP_KEY,
+  resendApiKey: process.env.RESEND_API_KEY,
+  resendFrom: process.env.RESEND_FROM,
 };

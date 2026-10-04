@@ -40,6 +40,8 @@ export default function LoginPage() {
   const [appChatText, setAppChatText] = useState("");
   const [recoverEmail, setRecoverEmail] = useState("");
   const [showRecover, setShowRecover] = useState(false);
+  const [recoverStep, setRecoverStep] = useState<{ id: number; method: "email" | "proof" } | null>(null);
+  const [recoverInput, setRecoverInput] = useState("");
   const [form, setForm] = useState({
     discordLink: "",
     discordId: "",
@@ -56,6 +58,8 @@ export default function LoginPage() {
   const [supportChatText, setSupportChatText] = useState("");
   const [supportRecoverEmail, setSupportRecoverEmail] = useState("");
   const [showSupportRecover, setShowSupportRecover] = useState(false);
+  const [supportRecoverStep, setSupportRecoverStep] = useState<{ id: number; method: "email" | "proof" } | null>(null);
+  const [supportRecoverInput, setSupportRecoverInput] = useState("");
   const [supportForm, setSupportForm] = useState({
     name: "",
     email: "",
@@ -143,14 +147,38 @@ export default function LoginPage() {
   const recoverApp = trpc.auth.recoverApplication.useMutation({
     onSuccess: (data) => {
       if (!data) { toast.error("Nenhuma aplicação encontrada para esse e-mail"); return; }
-      localStorage.setItem(APP_STORAGE_KEY, String(data.id));
-      localStorage.setItem(APP_TOKEN_KEY, data.token);
-      setApplicationId(data.id);
-      setApplicationToken(data.token);
-      setShowApply(false);
-      setShowAppChat(true);
-      setShowRecover(false);
-      setRecoverEmail("");
+      setRecoverStep({ id: data.id, method: data.method });
+      setRecoverInput("");
+      if (data.method === "email") toast.success("Código de verificação enviado para seu e-mail");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const confirmRecover = trpc.auth.confirmRecovery.useMutation({
+    onSuccess: (data, vars) => {
+      if (vars.kind === "application") {
+        localStorage.setItem(APP_STORAGE_KEY, String(data.id));
+        localStorage.setItem(APP_TOKEN_KEY, data.token);
+        setApplicationId(data.id);
+        setApplicationToken(data.token);
+        setShowApply(false);
+        setShowAppChat(true);
+        setShowRecover(false);
+        setRecoverStep(null);
+        setRecoverEmail("");
+        setRecoverInput("");
+      } else {
+        localStorage.setItem(SUPPORT_STORAGE_KEY, String(data.id));
+        localStorage.setItem(SUPPORT_TOKEN_KEY, data.token);
+        setSupportId(data.id);
+        setSupportToken(data.token);
+        setShowSupport(false);
+        setShowSupportChat(true);
+        setShowSupportRecover(false);
+        setSupportRecoverStep(null);
+        setSupportRecoverEmail("");
+        setSupportRecoverInput("");
+      }
       toast.success("Acesso recuperado!");
     },
     onError: (e) => toast.error(e.message),
@@ -181,15 +209,9 @@ export default function LoginPage() {
   const recoverTicket = trpc.auth.recoverSupportTicket.useMutation({
     onSuccess: (data) => {
       if (!data) { toast.error("Nenhuma dúvida encontrada para esse e-mail"); return; }
-      localStorage.setItem(SUPPORT_STORAGE_KEY, String(data.id));
-      localStorage.setItem(SUPPORT_TOKEN_KEY, data.token);
-      setSupportId(data.id);
-      setSupportToken(data.token);
-      setShowSupport(false);
-      setShowSupportChat(true);
-      setShowSupportRecover(false);
-      setSupportRecoverEmail("");
-      toast.success("Acesso recuperado!");
+      setSupportRecoverStep({ id: data.id, method: data.method });
+      setSupportRecoverInput("");
+      if (data.method === "email") toast.success("Código de verificação enviado para seu e-mail");
     },
     onError: (e) => toast.error(e.message),
   });
@@ -621,7 +643,7 @@ export default function LoginPage() {
               >
                 Já enviou uma candidatura? Acompanhar pelo e-mail
               </button>
-            ) : (
+            ) : !recoverStep ? (
               <div className="flex gap-2">
                 <Input
                   type="email"
@@ -636,7 +658,46 @@ export default function LoginPage() {
                   disabled={recoverApp.isPending || !recoverEmail.trim()}
                   className="h-9 px-3 rounded-lg bg-white/10 text-[11px] font-semibold text-white hover:bg-white/15 transition-all disabled:opacity-50"
                 >
-                  {recoverApp.isPending ? "..." : "Acessar"}
+                  {recoverApp.isPending ? "..." : "Continuar"}
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-[11px] text-zinc-500">
+                  {recoverStep.method === "email"
+                    ? "Enviamos um código de 6 dígitos para seu e-mail. Digite-o abaixo."
+                    : "Confirme sua identidade digitando o ID do Discord da candidatura."}
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    value={recoverInput}
+                    onChange={(e) => setRecoverInput(e.target.value)}
+                    placeholder={recoverStep.method === "email" ? "Código de 6 dígitos" : "Seu ID do Discord"}
+                    className="h-9 flex-1 text-[12px] text-white bg-[#07080b] border border-white/10 rounded-lg placeholder:text-zinc-600 focus:outline-none focus:border-white/30"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const v = recoverInput.trim();
+                      if (!v || !recoverStep) return;
+                      confirmRecover.mutate(
+                        recoverStep.method === "email"
+                          ? { kind: "application", id: recoverStep.id, code: v }
+                          : { kind: "application", id: recoverStep.id, proof: v }
+                      );
+                    }}
+                    disabled={confirmRecover.isPending || !recoverInput.trim()}
+                    className="h-9 px-3 rounded-lg bg-white/10 text-[11px] font-semibold text-white hover:bg-white/15 transition-all disabled:opacity-50"
+                  >
+                    {confirmRecover.isPending ? "..." : "Verificar"}
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setRecoverStep(null); setRecoverInput(""); }}
+                  className="text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors"
+                >
+                  Voltar / usar outro e-mail
                 </button>
               </div>
             )}
@@ -737,7 +798,7 @@ export default function LoginPage() {
               >
                 Já abriu um ticket? Acompanhar pelo e-mail
               </button>
-            ) : (
+            ) : !supportRecoverStep ? (
               <div className="flex gap-2">
                 <Input
                   type="email"
@@ -752,7 +813,46 @@ export default function LoginPage() {
                   disabled={recoverTicket.isPending || !supportRecoverEmail.trim()}
                   className="h-9 px-3 rounded-lg bg-white/10 text-[11px] font-semibold text-white hover:bg-white/15 transition-all disabled:opacity-50"
                 >
-                  {recoverTicket.isPending ? "..." : "Acessar"}
+                  {recoverTicket.isPending ? "..." : "Continuar"}
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-[11px] text-zinc-500">
+                  {supportRecoverStep.method === "email"
+                    ? "Enviamos um código de 6 dígitos para seu e-mail. Digite-o abaixo."
+                    : "Confirme sua identidade digitando o assunto do seu ticket."}
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    value={supportRecoverInput}
+                    onChange={(e) => setSupportRecoverInput(e.target.value)}
+                    placeholder={supportRecoverStep.method === "email" ? "Código de 6 dígitos" : "Assunto do seu ticket"}
+                    className="h-9 flex-1 text-[12px] text-white bg-[#07080b] border border-white/10 rounded-lg placeholder:text-zinc-600 focus:outline-none focus:border-white/30"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const v = supportRecoverInput.trim();
+                      if (!v || !supportRecoverStep) return;
+                      confirmRecover.mutate(
+                        supportRecoverStep.method === "email"
+                          ? { kind: "ticket", id: supportRecoverStep.id, code: v }
+                          : { kind: "ticket", id: supportRecoverStep.id, proof: v }
+                      );
+                    }}
+                    disabled={confirmRecover.isPending || !supportRecoverInput.trim()}
+                    className="h-9 px-3 rounded-lg bg-white/10 text-[11px] font-semibold text-white hover:bg-white/15 transition-all disabled:opacity-50"
+                  >
+                    {confirmRecover.isPending ? "..." : "Verificar"}
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setSupportRecoverStep(null); setSupportRecoverInput(""); }}
+                  className="text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors"
+                >
+                  Voltar / usar outro e-mail
                 </button>
               </div>
             )}

@@ -355,6 +355,23 @@ export const supportMessages = pgTable("support_messages", {
 export type SupportMessage = typeof supportMessages.$inferSelect;
 export type InsertSupportMessage = typeof supportMessages.$inferInsert;
 
+// ─── Códigos de verificação de recuperação (e-mail) ────────────────────────────
+// Recuperar acesso a candidatura/ticket exige provar posse do e-mail:
+// o accessToken só é devolvido após confirmar o código enviado.
+export const recoveryCodes = pgTable("recovery_codes", {
+  id: serial("id").primaryKey(),
+  kind: varchar("kind", { length: 16 }).notNull(), // application | ticket
+  refId: integer("refId").notNull(),
+  email: varchar("email", { length: 320 }).notNull(),
+  codeHash: varchar("codeHash", { length: 128 }).notNull(), // sha256(kind:refId:code)
+  attempts: integer("attempts").default(0).notNull(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type RecoveryCode = typeof recoveryCodes.$inferSelect;
+export type InsertRecoveryCode = typeof recoveryCodes.$inferInsert;
+
 // ─── Protect Website: log de tentativas de ataque + IPs banidos ────────────────
 export const securityEvents = pgTable("security_events", {
   id: serial("id").primaryKey(),
