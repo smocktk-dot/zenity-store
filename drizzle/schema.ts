@@ -68,6 +68,8 @@ export const resellers = pgTable("resellers", {
   resellerType: resellerTypeEnum("resellerType").default("credits").notNull(),
   parentResellerId: integer("parentResellerId"),
   canCreateSubResellers: boolean("canCreateSubResellers").default(false).notNull(),
+  // Reseller "percentage": admin libera ban/delete das próprias keys no painel
+  canBanDeleteKeys: boolean("canBanDeleteKeys").default(false).notNull(),
   status: resellerStatusEnum("status").default("active").notNull(),
   location: varchar("location", { length: 255 }),
   // Reseller "unlimited": assinatura mensal — expira aqui, login bloqueado até renovar

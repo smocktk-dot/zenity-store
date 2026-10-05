@@ -62,8 +62,8 @@ function TypeBadge({ type }: { type: string }) {
   );
 }
 
-const emptyCreate = { username: "", password: "", email: "", location: "", resellerType: "credits" as "credits" | "percentage" | "other" | "unlimited", canCreateSubResellers: false, subscriptionMonths: "1" };
-const emptyEdit = { email: "", location: "", status: "active" as string, password: "", resellerType: "credits" as "credits" | "percentage" | "other" | "unlimited", discountPercent: "0", canCreateSubResellers: false, renewMonths: "1", subExpires: "" };
+const emptyCreate = { username: "", password: "", email: "", location: "", resellerType: "credits" as "credits" | "percentage" | "other" | "unlimited", canCreateSubResellers: false, canBanDeleteKeys: false, subscriptionMonths: "1" };
+const emptyEdit = { email: "", location: "", status: "active" as string, password: "", resellerType: "credits" as "credits" | "percentage" | "other" | "unlimited", discountPercent: "0", canCreateSubResellers: false, canBanDeleteKeys: false, renewMonths: "1", subExpires: "" };
 
 const toLocalInput = (d: string | Date | null | undefined) => {
   if (!d) return "";
@@ -139,6 +139,7 @@ export default function AdminResellers() {
       resellerType: (r.resellerType as "credits" | "percentage" | "other" | "unlimited") || "credits",
       discountPercent: String(parseFloat(String(r.discountPercent ?? 0))),
       canCreateSubResellers: (r as any).canCreateSubResellers === true,
+      canBanDeleteKeys: (r as any).canBanDeleteKeys === true,
       renewMonths: "1",
       subExpires: toLocalInput(r.subscriptionExpiresAt),
     });
@@ -519,6 +520,21 @@ export default function AdminResellers() {
               </label>
             </div>
 
+            {cf.resellerType === "percentage" && (
+              <div className="flex items-center gap-2.5 pt-1">
+                <input
+                  id="canBanDeleteKeys"
+                  type="checkbox"
+                  checked={cf.canBanDeleteKeys}
+                  onChange={e => setCf(f => ({ ...f, canBanDeleteKeys: e.target.checked }))}
+                  className="w-4 h-4 accent-emerald-500 rounded cursor-pointer"
+                />
+                <label htmlFor="canBanDeleteKeys" className="text-gray-300 text-xs cursor-pointer select-none">
+                  Permitir banir/deletar as keys do próprio painel (PUB EMU incluso)
+                </label>
+              </div>
+            )}
+
             <div className="flex gap-2.5 pt-2">
               <Button
                 type="button"
@@ -560,6 +576,7 @@ export default function AdminResellers() {
                 resellerType: ef.resellerType,
                 discountPercent: !isNaN(discount) && discount >= 0 && discount <= 100 ? discount : undefined,
                 canCreateSubResellers: ef.canCreateSubResellers,
+                canBanDeleteKeys: ef.canBanDeleteKeys,
                 renewMonths: ef.resellerType === "unlimited" && !ef.subExpires && parseInt(ef.renewMonths) > 0 ? parseInt(ef.renewMonths) : undefined,
                 subscriptionExpiresAt: ef.resellerType === "unlimited" && ef.subExpires ? new Date(ef.subExpires).toISOString() : undefined,
               });
@@ -678,6 +695,21 @@ export default function AdminResellers() {
                 Permitir que este reseller crie sub-resellers
               </label>
             </div>
+
+            {ef.resellerType === "percentage" && (
+              <div className="flex items-center gap-2.5 pt-1">
+                <input
+                  id="editCanBanDeleteKeys"
+                  type="checkbox"
+                  checked={ef.canBanDeleteKeys}
+                  onChange={e => setEf(f => ({ ...f, canBanDeleteKeys: e.target.checked }))}
+                  className="w-4 h-4 accent-emerald-500 rounded cursor-pointer"
+                />
+                <label htmlFor="editCanBanDeleteKeys" className="text-gray-300 text-xs cursor-pointer select-none">
+                  Permitir banir/deletar as keys do próprio painel (PUB EMU incluso)
+                </label>
+              </div>
+            )}
 
             <div className="flex gap-2.5 pt-2">
               <Button

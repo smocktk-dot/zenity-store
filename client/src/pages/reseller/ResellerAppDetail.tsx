@@ -6,7 +6,7 @@ import {
   ArrowLeft, Key, Clock, Star, ShoppingCart, CreditCard,
   Percent, CheckCircle, QrCode, Copy, CheckCircle2, Loader2, X,
   Bitcoin, Wallet, Download, Film, ShieldCheck, Tag,
-  LayoutGrid, List, Check, Zap, ExternalLink, RefreshCw, XCircle
+  LayoutGrid, List, Check, Zap, ExternalLink, RefreshCw, XCircle, Ban, Trash2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1233,6 +1233,8 @@ function ResellerDownloads({ appId }: { appId: number }) {
 function AppKeysPanel({ appId }: { appId: number }) {
   const utils = trpc.useUtils();
   const { data: keys = [], isLoading } = trpc.reseller.myKeysByApp.useQuery({ appId });
+  const { data: profile } = trpc.reseller.profile.useQuery();
+  const canBanDelete = profile?.resellerType === "percentage" && (profile as any)?.canBanDeleteKeys === true;
   const [copied, setCopied] = useState<number | null>(null);
 
   const resetHwid = trpc.reseller.resetHwid.useMutation({
@@ -1246,6 +1248,22 @@ function AppKeysPanel({ appId }: { appId: number }) {
   const revokeKey = trpc.reseller.revokeKey.useMutation({
     onSuccess: () => {
       toast.success("Key revogada!");
+      utils.reseller.myKeysByApp.invalidate({ appId });
+    },
+    onError: e => toast.error(e.message),
+  });
+
+  const banKey = trpc.reseller.banKey.useMutation({
+    onSuccess: () => {
+      toast.success("Key banida!");
+      utils.reseller.myKeysByApp.invalidate({ appId });
+    },
+    onError: e => toast.error(e.message),
+  });
+
+  const deleteKey = trpc.reseller.deleteKey.useMutation({
+    onSuccess: () => {
+      toast.success("Key deletada!");
       utils.reseller.myKeysByApp.invalidate({ appId });
     },
     onError: e => toast.error(e.message),
@@ -1338,6 +1356,29 @@ function AppKeysPanel({ appId }: { appId: number }) {
                       >
                         <XCircle className="w-3.5 h-3.5" />
                       </button>
+                    )}
+                    {canBanDelete && (
+                      <>
+                        <button
+                          onClick={() => {
+                            const reason = prompt("Motivo do ban (opcional):", "Banned by reseller");
+                            if (reason !== null) banKey.mutate({ keyId: k.id, reason: reason || undefined });
+                          }}
+                          disabled={banKey.isPending}
+                          title="Banir key"
+                          className="p-1.5 rounded-lg text-gray-500 hover:text-orange-400 hover:bg-orange-500/10 transition-all disabled:opacity-40"
+                        >
+                          <Ban className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => { if (confirm("Deletar esta key? Esta ação não pode ser desfeita.")) deleteKey.mutate({ keyId: k.id }); }}
+                          disabled={deleteKey.isPending}
+                          title="Deletar key"
+                          className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-all disabled:opacity-40"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </>
                     )}
                   </div>
                 </td>

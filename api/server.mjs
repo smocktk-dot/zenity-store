@@ -70,6 +70,8 @@ var init_schema = __esm({
       resellerType: resellerTypeEnum("resellerType").default("credits").notNull(),
       parentResellerId: integer("parentResellerId"),
       canCreateSubResellers: boolean("canCreateSubResellers").default(false).notNull(),
+      // Reseller "percentage": admin libera ban/delete das próprias keys no painel
+      canBanDeleteKeys: boolean("canBanDeleteKeys").default(false).notNull(),
       status: resellerStatusEnum("status").default("active").notNull(),
       location: varchar("location", { length: 255 }),
       // Reseller "unlimited": assinatura mensal — expira aqui, login bloqueado até renovar
@@ -1007,6 +1009,8 @@ async function ensureResellerColumns() {
   await _sqlClient.unsafe(`ALTER TABLE "resellers" ADD COLUMN IF NOT EXISTS "parentResellerId" integer`).catch(() => {
   });
   await _sqlClient.unsafe(`ALTER TABLE "resellers" ADD COLUMN IF NOT EXISTS "canCreateSubResellers" boolean DEFAULT false`).catch(() => {
+  });
+  await _sqlClient.unsafe(`ALTER TABLE "resellers" ADD COLUMN IF NOT EXISTS "canBanDeleteKeys" boolean DEFAULT false`).catch(() => {
   });
   await _sqlClient.unsafe(`ALTER TYPE "reseller_type" ADD VALUE IF NOT EXISTS 'unlimited'`).catch(() => {
   });
@@ -5480,6 +5484,7 @@ var authRouter = router({
         status: reseller.status,
         resellerType: reseller.resellerType,
         canCreateSubResellers: reseller.canCreateSubResellers,
+        canBanDeleteKeys: reseller.canBanDeleteKeys,
         otherStore: otherStore ? {
           id: otherStore.id,
           label: otherStore.label,
@@ -5777,6 +5782,7 @@ var adminRouter = router({
     location: z2.string().optional(),
     resellerType: z2.enum(["credits", "percentage", "other", "unlimited"]).default("credits"),
     canCreateSubResellers: z2.boolean().default(false),
+    canBanDeleteKeys: z2.boolean().default(false),
     subscriptionMonths: z2.number().min(1).max(24).default(1)
   })).mutation(async ({ input }) => {
     const existing = await getResellerByIdentifier(input.username);
@@ -5788,7 +5794,8 @@ var adminRouter = router({
       email: input.email,
       location: input.location,
       resellerType: input.resellerType,
-      canCreateSubResellers: input.canCreateSubResellers
+      canCreateSubResellers: input.canCreateSubResellers,
+      canBanDeleteKeys: input.canBanDeleteKeys
     };
     if (input.resellerType === "unlimited") {
       const exp = /* @__PURE__ */ new Date();
@@ -5807,6 +5814,7 @@ var adminRouter = router({
     resellerType: z2.enum(["credits", "percentage", "other", "unlimited"]).optional(),
     discountPercent: z2.number().min(0).max(100).optional(),
     canCreateSubResellers: z2.boolean().optional(),
+    canBanDeleteKeys: z2.boolean().optional(),
     // Renova/define a assinatura do reseller unlimited (+N meses a partir de agora ou da expiração atual)
     renewMonths: z2.number().min(1).max(24).optional(),
     // Define uma data de expiração exata da assinatura (ISO) — sobrescreve renewMonths
@@ -6516,6 +6524,7 @@ var resellerRouter = router({
       resellerType: r.resellerType,
       subscriptionExpiresAt: r.subscriptionExpiresAt,
       canCreateSubResellers: r.canCreateSubResellers,
+      canBanDeleteKeys: r.canBanDeleteKeys,
       status: r.status,
       createdAt: r.createdAt,
       lastLoginAt: r.lastLoginAt,
@@ -6710,6 +6719,37 @@ var resellerRouter = router({
     if (!key || key.resellerId !== ctx.resellerId) throw new TRPCError3({ code: "FORBIDDEN" });
     if (key.status === "used") throw new TRPCError3({ code: "BAD_REQUEST", message: "Key j\xE1 utilizada n\xE3o pode ser revogada" });
     await updateLicenseKey(input.keyId, { status: "revoked" });
+    return { success: true };
+  }),
+  // Reseller de porcentagem com permissão liberada pelo admin (canBanDeleteKeys)
+  // pode banir/deletar as keys do próprio painel (dele e de sub-resellers dele).
+  // Keys do PUB EMU também são banidas/deletadas na API Axo.
+  banKey: resellerProcedure.input(z2.object({ keyId: z2.number(), reason: z2.string().max(200).optional() })).mutation(async ({ ctx, input }) => {
+    const r = ctx.reseller;
+    if (r.resellerType !== "percentage" || !r.canBanDeleteKeys) {
+      throw new TRPCError3({ code: "FORBIDDEN", message: "Sem permiss\xE3o para banir keys" });
+    }
+    const key = await getKeyById(input.keyId);
+    if (!key || !await resellerOwnsKey(ctx.resellerId, key)) throw new TRPCError3({ code: "FORBIDDEN" });
+    const app2 = await getAppById(key.appId);
+    if (isPubEmuAppName(app2?.name)) {
+      await pubEmuApiPost("ban", { key: key.keyValue, reason: input.reason || `Banned by ${r.username}` });
+    }
+    await updateLicenseKey(key.id, { status: "revoked" });
+    return { success: true };
+  }),
+  deleteKey: resellerProcedure.input(z2.object({ keyId: z2.number() })).mutation(async ({ ctx, input }) => {
+    const r = ctx.reseller;
+    if (r.resellerType !== "percentage" || !r.canBanDeleteKeys) {
+      throw new TRPCError3({ code: "FORBIDDEN", message: "Sem permiss\xE3o para deletar keys" });
+    }
+    const key = await getKeyById(input.keyId);
+    if (!key || !await resellerOwnsKey(ctx.resellerId, key)) throw new TRPCError3({ code: "FORBIDDEN" });
+    const app2 = await getAppById(key.appId);
+    if (isPubEmuAppName(app2?.name)) {
+      await pubEmuApiPost("delete", { key: key.keyValue });
+    }
+    await deleteLicenseKeysByValues([key.keyValue]);
     return { success: true };
   }),
   // ─── Other Store (split) ─────────────────────────────────────────────────────

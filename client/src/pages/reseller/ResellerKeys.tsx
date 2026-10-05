@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Key, Search, Copy, Check, RefreshCw, XCircle, Eye, MonitorSmartphone, ShieldCheck } from "lucide-react";
+import { Key, Search, Copy, Check, RefreshCw, XCircle, Eye, MonitorSmartphone, ShieldCheck, Ban, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -22,6 +22,8 @@ export default function ResellerKeys() {
   const { fmt } = useCurrency();
   const utils = trpc.useUtils();
   const { data: keys = [], isLoading } = trpc.reseller.myKeys.useQuery();
+  const { data: profile } = trpc.reseller.profile.useQuery();
+  const canBanDelete = profile?.resellerType === "percentage" && (profile as any)?.canBanDeleteKeys === true;
   const [viewKeyId, setViewKeyId] = useState<number | null>(null);
   const { data: keyInfo } = trpc.reseller.keyInfo.useQuery(
     { keyId: viewKeyId ?? 0 },
@@ -50,6 +52,24 @@ export default function ResellerKeys() {
     onSuccess: () => {
       toast.success(language === "en" ? "HWID reset successfully!" : "HWID resetado com sucesso!");
       utils.reseller.myKeys.invalidate();
+    },
+    onError: e => toast.error(e.message),
+  });
+
+  const banKey = trpc.reseller.banKey.useMutation({
+    onSuccess: () => {
+      toast.success(language === "en" ? "Key banned!" : "Key banida!");
+      utils.reseller.myKeys.invalidate();
+    },
+    onError: e => toast.error(e.message),
+  });
+
+  const deleteKey = trpc.reseller.deleteKey.useMutation({
+    onSuccess: () => {
+      toast.success(language === "en" ? "Key deleted!" : "Key deletada!");
+      utils.reseller.myKeys.invalidate();
+      setViewKey(null);
+      setViewKeyId(null);
     },
     onError: e => toast.error(e.message),
   });
@@ -239,6 +259,29 @@ export default function ResellerKeys() {
                         <XCircle className="w-3.5 h-3.5" />
                       </button>
                     )}
+                    {canBanDelete && (
+                      <>
+                        <button
+                          onClick={() => {
+                            const reason = prompt(language === "en" ? "Ban reason (optional):" : "Motivo do ban (opcional):", "Banned by reseller");
+                            if (reason !== null) banKey.mutate({ keyId: k.id, reason: reason || undefined });
+                          }}
+                          disabled={banKey.isPending}
+                          title={language === "en" ? "Ban key" : "Banir key"}
+                          className="p-2 rounded-xl text-gray-500 hover:text-orange-400 hover:bg-orange-500/10 transition-all disabled:opacity-40"
+                        >
+                          <Ban className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => { if (confirm(language === "en" ? "Delete this key? This action cannot be undone." : "Deletar esta key? Esta ação não pode ser desfeita.")) deleteKey.mutate({ keyId: k.id }); }}
+                          disabled={deleteKey.isPending}
+                          title={language === "en" ? "Delete key" : "Deletar key"}
+                          className="p-2 rounded-xl text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-all disabled:opacity-40"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -365,6 +408,27 @@ export default function ResellerKeys() {
                     </button>
                   )}
                 </div>
+                {canBanDelete && (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        const reason = prompt(language === "en" ? "Ban reason (optional):" : "Motivo do ban (opcional):", "Banned by reseller");
+                        if (reason !== null) banKey.mutate({ keyId: viewKey.id, reason: reason || undefined });
+                      }}
+                      disabled={banKey.isPending}
+                      className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 text-sm transition-all border border-orange-500/20"
+                    >
+                      <Ban className="w-3.5 h-3.5" /> {language === "en" ? "Ban" : "Banir"}
+                    </button>
+                    <button
+                      onClick={() => { if (confirm(language === "en" ? "Delete this key? This action cannot be undone." : "Deletar esta key? Esta ação não pode ser desfeita.")) deleteKey.mutate({ keyId: viewKey.id }); }}
+                      disabled={deleteKey.isPending}
+                      className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-400 text-sm transition-all border border-red-500/20"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /> {language === "en" ? "Delete" : "Deletar"}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>

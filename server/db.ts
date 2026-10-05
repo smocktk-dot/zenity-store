@@ -361,6 +361,7 @@ async function ensureResellerColumns() {
   if (!_sqlClient) return;
   await _sqlClient.unsafe(`ALTER TABLE "resellers" ADD COLUMN IF NOT EXISTS "parentResellerId" integer`).catch(() => {});
   await _sqlClient.unsafe(`ALTER TABLE "resellers" ADD COLUMN IF NOT EXISTS "canCreateSubResellers" boolean DEFAULT false`).catch(() => {});
+  await _sqlClient.unsafe(`ALTER TABLE "resellers" ADD COLUMN IF NOT EXISTS "canBanDeleteKeys" boolean DEFAULT false`).catch(() => {});
   await _sqlClient.unsafe(`ALTER TYPE "reseller_type" ADD VALUE IF NOT EXISTS 'unlimited'`).catch(() => {});
   await _sqlClient.unsafe(`ALTER TABLE "resellers" ADD COLUMN IF NOT EXISTS "subscriptionExpiresAt" timestamp`).catch(() => {});
 }

@@ -543,6 +543,7 @@ const authRouter = router({
         totalPurchases: reseller.totalPurchases, status: reseller.status,
         resellerType: reseller.resellerType,
         canCreateSubResellers: reseller.canCreateSubResellers,
+        canBanDeleteKeys: reseller.canBanDeleteKeys,
         otherStore: otherStore ? {
           id: otherStore.id,
           label: otherStore.label,
@@ -894,6 +895,7 @@ const adminRouter = router({
       location: z.string().optional(),
       resellerType: z.enum(["credits", "percentage", "other", "unlimited"]).default("credits"),
       canCreateSubResellers: z.boolean().default(false),
+      canBanDeleteKeys: z.boolean().default(false),
       subscriptionMonths: z.number().min(1).max(24).default(1),
     }))
     .mutation(async ({ input }) => {
@@ -907,6 +909,7 @@ const adminRouter = router({
         location: input.location,
         resellerType: input.resellerType,
         canCreateSubResellers: input.canCreateSubResellers,
+        canBanDeleteKeys: input.canBanDeleteKeys,
       };
       if (input.resellerType === "unlimited") {
         const exp = new Date();
@@ -927,6 +930,7 @@ const adminRouter = router({
       resellerType: z.enum(["credits", "percentage", "other", "unlimited"]).optional(),
       discountPercent: z.number().min(0).max(100).optional(),
       canCreateSubResellers: z.boolean().optional(),
+      canBanDeleteKeys: z.boolean().optional(),
       // Renova/define a assinatura do reseller unlimited (+N meses a partir de agora ou da expiração atual)
       renewMonths: z.number().min(1).max(24).optional(),
       // Define uma data de expiração exata da assinatura (ISO) — sobrescreve renewMonths
@@ -1797,6 +1801,7 @@ const resellerRouter = router({
       resellerType: r.resellerType,
       subscriptionExpiresAt: r.subscriptionExpiresAt,
       canCreateSubResellers: r.canCreateSubResellers,
+      canBanDeleteKeys: r.canBanDeleteKeys,
       status: r.status, createdAt: r.createdAt, lastLoginAt: r.lastLoginAt,
       nextLevel, transactions,
     };
@@ -2031,6 +2036,43 @@ const resellerRouter = router({
       if (!key || key.resellerId !== ctx.resellerId) throw new TRPCError({ code: "FORBIDDEN" });
       if (key.status === "used") throw new TRPCError({ code: "BAD_REQUEST", message: "Key já utilizada não pode ser revogada" });
       await updateLicenseKey(input.keyId, { status: "revoked" });
+      return { success: true };
+    }),
+
+  // Reseller de porcentagem com permissão liberada pelo admin (canBanDeleteKeys)
+  // pode banir/deletar as keys do próprio painel (dele e de sub-resellers dele).
+  // Keys do PUB EMU também são banidas/deletadas na API Axo.
+  banKey: resellerProcedure
+    .input(z.object({ keyId: z.number(), reason: z.string().max(200).optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const r = ctx.reseller;
+      if (r.resellerType !== "percentage" || !r.canBanDeleteKeys) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Sem permissão para banir keys" });
+      }
+      const key = await getKeyById(input.keyId);
+      if (!key || !(await resellerOwnsKey(ctx.resellerId, key))) throw new TRPCError({ code: "FORBIDDEN" });
+      const app = await getAppById(key.appId);
+      if (isPubEmuAppName(app?.name)) {
+        await pubEmuApiPost("ban", { key: key.keyValue, reason: input.reason || `Banned by ${r.username}` });
+      }
+      await updateLicenseKey(key.id, { status: "revoked" });
+      return { success: true };
+    }),
+
+  deleteKey: resellerProcedure
+    .input(z.object({ keyId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const r = ctx.reseller;
+      if (r.resellerType !== "percentage" || !r.canBanDeleteKeys) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Sem permissão para deletar keys" });
+      }
+      const key = await getKeyById(input.keyId);
+      if (!key || !(await resellerOwnsKey(ctx.resellerId, key))) throw new TRPCError({ code: "FORBIDDEN" });
+      const app = await getAppById(key.appId);
+      if (isPubEmuAppName(app?.name)) {
+        await pubEmuApiPost("delete", { key: key.keyValue });
+      }
+      await deleteLicenseKeysByValues([key.keyValue]);
       return { success: true };
     }),
 
