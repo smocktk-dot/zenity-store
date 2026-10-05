@@ -710,14 +710,17 @@ export async function getAllKeysWithReseller() {
     reseller: resellers,
     parent: parentResellers,
     plan: subscriptionPlans,
+    app: apps,
   })
     .from(licenseKeys)
     .leftJoin(resellers, eq(licenseKeys.resellerId, resellers.id))
     .leftJoin(parentResellers, eq(resellers.parentResellerId, parentResellers.id))
     .leftJoin(subscriptionPlans, eq(licenseKeys.planId, subscriptionPlans.id))
+    .leftJoin(apps, eq(licenseKeys.appId, apps.id))
     .orderBy(desc(licenseKeys.createdAt));
   return rows.map(r => ({
     ...r.key,
+    appName: r.app?.name,
     resellerName: r.reseller?.username ?? "—",
     parentResellerName: r.parent?.username,
     resellerType: r.reseller?.resellerType ?? "credits",
@@ -734,13 +737,14 @@ export async function getUnlimitedKeysLog(limit = 500) {
   await ensureResellerColumns();
   const db = await getDb();
   if (!db) return [];
-  const rows = await db.select({ key: licenseKeys, reseller: resellers })
+  const rows = await db.select({ key: licenseKeys, reseller: resellers, app: apps })
     .from(licenseKeys)
     .leftJoin(resellers, eq(licenseKeys.resellerId, resellers.id))
+    .leftJoin(apps, eq(licenseKeys.appId, apps.id))
     .where(eq(licenseKeys.source, "unlimited"))
     .orderBy(desc(licenseKeys.createdAt))
     .limit(limit);
-  return rows.map(r => ({ ...r.key, resellerName: r.reseller?.username ?? "—" }));
+  return rows.map(r => ({ ...r.key, appName: r.app?.name, resellerName: r.reseller?.username ?? "—" }));
 }
 
 export async function countKeysByReseller(resellerId: number, status?: "active" | "used" | "revoked" | "expired") {

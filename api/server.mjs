@@ -1286,10 +1286,12 @@ async function getAllKeysWithReseller() {
     key: licenseKeys,
     reseller: resellers,
     parent: parentResellers,
-    plan: subscriptionPlans
-  }).from(licenseKeys).leftJoin(resellers, eq(licenseKeys.resellerId, resellers.id)).leftJoin(parentResellers, eq(resellers.parentResellerId, parentResellers.id)).leftJoin(subscriptionPlans, eq(licenseKeys.planId, subscriptionPlans.id)).orderBy(desc(licenseKeys.createdAt));
+    plan: subscriptionPlans,
+    app: apps
+  }).from(licenseKeys).leftJoin(resellers, eq(licenseKeys.resellerId, resellers.id)).leftJoin(parentResellers, eq(resellers.parentResellerId, parentResellers.id)).leftJoin(subscriptionPlans, eq(licenseKeys.planId, subscriptionPlans.id)).leftJoin(apps, eq(licenseKeys.appId, apps.id)).orderBy(desc(licenseKeys.createdAt));
   return rows.map((r) => ({
     ...r.key,
+    appName: r.app?.name,
     resellerName: r.reseller?.username ?? "\u2014",
     parentResellerName: r.parent?.username,
     resellerType: r.reseller?.resellerType ?? "credits",
@@ -1304,8 +1306,8 @@ async function getUnlimitedKeysLog(limit = 500) {
   await ensureResellerColumns();
   const db = await getDb();
   if (!db) return [];
-  const rows = await db.select({ key: licenseKeys, reseller: resellers }).from(licenseKeys).leftJoin(resellers, eq(licenseKeys.resellerId, resellers.id)).where(eq(licenseKeys.source, "unlimited")).orderBy(desc(licenseKeys.createdAt)).limit(limit);
-  return rows.map((r) => ({ ...r.key, resellerName: r.reseller?.username ?? "\u2014" }));
+  const rows = await db.select({ key: licenseKeys, reseller: resellers, app: apps }).from(licenseKeys).leftJoin(resellers, eq(licenseKeys.resellerId, resellers.id)).leftJoin(apps, eq(licenseKeys.appId, apps.id)).where(eq(licenseKeys.source, "unlimited")).orderBy(desc(licenseKeys.createdAt)).limit(limit);
+  return rows.map((r) => ({ ...r.key, appName: r.app?.name, resellerName: r.reseller?.username ?? "\u2014" }));
 }
 async function countKeysByReseller(resellerId, status) {
   await ensureLicenseKeysSchema();
@@ -3065,6 +3067,31 @@ async function keyauthFetchKeyInfo(opts) {
     level: lic.level ?? null,
     note: lic.note ?? null,
     banned: lic.banned === 1 || lic.banned === "1" || lic.banned === true
+  };
+}
+async function keyauthFetchUserInfo(opts) {
+  if (!opts.sellerKey) return null;
+  const url = new URL("https://keyauth.win/api/seller/");
+  url.searchParams.set("sellerkey", opts.sellerKey);
+  url.searchParams.set("type", "fetchallusers");
+  url.searchParams.set("format", "json");
+  const res = await fetch(url.toString(), { signal: AbortSignal.timeout(15e3) });
+  if (!res.ok) {
+    throw new Error(`KeyAuth respondeu HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  if (!data.success) return null;
+  const users2 = Array.isArray(data.users) ? data.users : [];
+  const u = users2.find((x) => String(x.username ?? "") === opts.username);
+  if (!u) return null;
+  const num = (v) => Number.isFinite(Number(v)) ? Number(v) : null;
+  return {
+    username: String(u.username ?? opts.username),
+    hwid: u.hwid ?? null,
+    ip: u.ip ?? null,
+    lastlogin: num(u.lastlogin),
+    created: num(u.createdate ?? u.created),
+    banned: u.banned === 1 || u.banned === "1" || u.banned === true
   };
 }
 
@@ -5235,17 +5262,20 @@ async function resellerOwnsKey(resellerId, key) {
   const owner = await getResellerById(key.resellerId);
   return owner?.parentResellerId === resellerId;
 }
-async function resetPubEmuHwidExternal(keyValue) {
-  const PUB_EMU_API_URL = "https://resellers.axovgc.site/api/v1/reset";
+function isPubEmuAppName(name) {
+  const n = (name || "").toUpperCase();
+  return n === "PUB EMU" || n === "PUBEMU" || n === "EMULATOR PUBLIC";
+}
+async function pubEmuApiPost(endpoint, body) {
   const apiKeys = Array.from(new Set([ENV.pubEmuApiKey].filter(Boolean)));
   if (!apiKeys.length) {
-    console.warn("[PUB EMU HWID Reset] ENV.pubEmuApiKey n\xE3o configurada \u2014 reset externo ignorado");
+    console.warn(`[PUB EMU ${endpoint}] ENV.pubEmuApiKey n\xE3o configurada \u2014 chamada externa ignorada`);
     return;
   }
   let lastError = "";
   for (const apiKey of apiKeys) {
     try {
-      const url = new URL(PUB_EMU_API_URL);
+      const url = new URL(`https://resellers.axovgc.site/api/v1/${endpoint}`);
       url.searchParams.set("apikey", apiKey);
       const response = await fetch(url.toString(), {
         method: "POST",
@@ -5253,40 +5283,43 @@ async function resetPubEmuHwidExternal(keyValue) {
           "Authorization": `Bearer ${apiKey}`,
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ username: keyValue, product: "PUB EMU" })
+        body: JSON.stringify(body)
       });
       const text2 = await response.text();
       if (response.status === 401) {
-        console.warn("[PUB EMU HWID Reset] 401 com uma das chaves, tentando pr\xF3xima:", text2);
+        console.warn(`[PUB EMU ${endpoint}] 401 com uma das chaves, tentando pr\xF3xima:`, text2);
         lastError = `${response.status} ${text2}`;
         continue;
       }
       if (!response.ok) {
-        console.error("[PUB EMU HWID Reset] error:", response.status, text2);
-        throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: `Erro na API de reset HWID: ${response.status} ${text2}` });
+        console.error(`[PUB EMU ${endpoint}] error:`, response.status, text2);
+        throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: `Erro na API PUB EMU (${endpoint}): ${response.status} ${text2}` });
       }
       try {
         const data = JSON.parse(text2);
         if (data && data.success === false) {
-          const msg = data.message || data.error || "Falha ao resetar no provedor";
-          console.error("[PUB EMU HWID Reset] provider soft-fail:", msg);
+          const msg = data.message || data.error || "Falha no provedor";
+          console.error(`[PUB EMU ${endpoint}] provider soft-fail:`, msg);
           throw new TRPCError3({ code: "BAD_REQUEST", message: `API PUB EMU: ${msg}` });
         }
       } catch (err) {
         if (err instanceof TRPCError3) throw err;
       }
-      console.log("[PUB EMU HWID Reset] success:", text2);
+      console.log(`[PUB EMU ${endpoint}] success:`, text2);
       lastError = "";
       break;
     } catch (err) {
       if (err instanceof TRPCError3) throw err;
-      console.error("[PUB EMU HWID Reset] failed:", err);
-      throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: `Falha ao resetar HWID na API externa: ${err}` });
+      console.error(`[PUB EMU ${endpoint}] failed:`, err);
+      throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: `Falha na API externa do PUB EMU (${endpoint}): ${err}` });
     }
   }
   if (lastError) {
-    throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: `Erro na API de reset HWID: ${lastError}` });
+    throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: `Erro na API PUB EMU (${endpoint}): ${lastError}` });
   }
+}
+async function resetPubEmuHwidExternal(keyValue) {
+  await pubEmuApiPost("reset", { username: keyValue, product: "PUB EMU" });
 }
 async function performHwidReset(key) {
   await updateLicenseKey(key.id, { hwid: null });
@@ -5299,8 +5332,7 @@ async function performHwidReset(key) {
       console.warn("[KeyAuth] HWID reset failed (non-critical):", err);
     }
   }
-  const appName = (app2?.name || "").toUpperCase();
-  if (appName === "PUB EMU" || appName === "PUBEMU" || appName === "EMULATOR PUBLIC") {
+  if (isPubEmuAppName(app2?.name)) {
     await resetPubEmuHwidExternal(key.keyValue);
   }
 }
@@ -6034,6 +6066,68 @@ var adminRouter = router({
   listAllKeys: supportProcedure.query(() => getAllKeysWithReseller()),
   // Log de keys geradas por resellers unlimited (admin only)
   unlimitedKeysLog: adminProcedure2.query(() => getUnlimitedKeysLog()),
+  // ─── Ações nas keys do PUB EMU / Emulator Public (API Axo) ───
+  // Detalhes da key: HWID, usuário, IP e status de uso
+  // (banco local + KeyAuth seller API quando o app tem sellerKey)
+  emuKeyInfo: supportProcedure.input(z2.object({ keyId: z2.number() })).query(async ({ input }) => {
+    const key = await getKeyById(input.keyId);
+    if (!key) throw new TRPCError3({ code: "NOT_FOUND", message: "Key n\xE3o encontrada" });
+    const app2 = await getAppById(key.appId);
+    const sellerKey = (app2?.keyauthSellerKey || KEYAUTH_SELLER_KEY || "").trim();
+    let remote = null;
+    try {
+      remote = sellerKey ? await keyauthFetchKeyInfo({ sellerKey, keyValue: key.keyValue }) : null;
+    } catch {
+    }
+    const username = key.usedBy || remote?.usedBy;
+    let user = null;
+    try {
+      user = sellerKey && username ? await keyauthFetchUserInfo({ sellerKey, username }) : null;
+    } catch {
+    }
+    return {
+      local: {
+        hwid: key.hwid,
+        usedBy: key.usedBy,
+        status: key.status,
+        activatedAt: key.activatedAt,
+        expiresAt: key.expiresAt
+      },
+      remote,
+      user
+    };
+  }),
+  // Resetar HWID da key (banco local + KeyAuth + API Axo quando for PUB EMU)
+  emuResetHwid: adminProcedure2.input(z2.object({ keyId: z2.number() })).mutation(async ({ input }) => {
+    const key = await getKeyById(input.keyId);
+    if (!key) throw new TRPCError3({ code: "NOT_FOUND", message: "Key n\xE3o encontrada" });
+    await performHwidReset(key);
+    return { success: true };
+  }),
+  // Banir a key na API Axo (para de funcionar) e revogar localmente
+  emuBanKey: adminProcedure2.input(z2.object({ keyId: z2.number(), reason: z2.string().max(200).optional() })).mutation(async ({ input }) => {
+    const key = await getKeyById(input.keyId);
+    if (!key) throw new TRPCError3({ code: "NOT_FOUND", message: "Key n\xE3o encontrada" });
+    const app2 = await getAppById(key.appId);
+    if (!isPubEmuAppName(app2?.name)) {
+      throw new TRPCError3({ code: "BAD_REQUEST", message: "Ban via API dispon\xEDvel apenas para keys do PUB EMU" });
+    }
+    await pubEmuApiPost("ban", { key: key.keyValue, reason: input.reason || "Banned by admin" });
+    await updateLicenseKey(key.id, { status: "revoked" });
+    return { success: true };
+  }),
+  // Deletar a key na API Axo e remover do banco local
+  emuDeleteKey: adminProcedure2.input(z2.object({ keyId: z2.number() })).mutation(async ({ input }) => {
+    const key = await getKeyById(input.keyId);
+    if (!key) throw new TRPCError3({ code: "NOT_FOUND", message: "Key n\xE3o encontrada" });
+    const app2 = await getAppById(key.appId);
+    if (!isPubEmuAppName(app2?.name)) {
+      throw new TRPCError3({ code: "BAD_REQUEST", message: "Delete via API dispon\xEDvel apenas para keys do PUB EMU" });
+    }
+    await pubEmuApiPost("delete", { key: key.keyValue });
+    await deleteLicenseKeysByValues([key.keyValue]);
+    return { success: true };
+  }),
   // Transfer keys between resellers
   resellerKeyCount: adminProcedure2.input(z2.object({
     resellerId: z2.number(),

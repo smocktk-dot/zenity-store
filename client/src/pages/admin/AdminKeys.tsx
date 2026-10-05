@@ -1,8 +1,14 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
-import { Search, Key, Copy, Check, CreditCard, Percent, User, Infinity as InfinityIcon } from "lucide-react";
+import { Search, Key, Copy, Check, CreditCard, Percent, User, Infinity as InfinityIcon, Eye, RefreshCw, Ban, Trash2, MonitorSmartphone } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
+
+const isEmuPubKey = (k: any) => {
+  const n = (k.appName || "").toUpperCase();
+  return n === "PUB EMU" || n === "PUBEMU" || n === "EMULATOR PUBLIC";
+};
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
@@ -23,6 +29,7 @@ function TypeBadge({ type }: { type: string }) {
 }
 
 export default function AdminKeys() {
+  const utils = trpc.useUtils();
   const { data: keys = [], isLoading } = trpc.admin.listAllKeys.useQuery();
   const { data: unlimitedKeys = [], isLoading: isLoadingUnlimited } = trpc.admin.unlimitedKeysLog.useQuery();
   const [search, setSearch] = useState("");
@@ -30,12 +37,35 @@ export default function AdminKeys() {
   const [copied, setCopied] = useState<number | null>(null);
   const [page, setPage] = useState(1);
   const [view, setView] = useState<"all" | "unlimited">("all");
+  const [infoKey, setInfoKey] = useState<any>(null);
   const perPage = 20;
+
+  const { data: emuInfo } = trpc.admin.emuKeyInfo.useQuery(
+    { keyId: infoKey?.id ?? 0 },
+    { enabled: !!infoKey, retry: false }
+  );
+  const invalidateKeys = () => {
+    utils.admin.listAllKeys.invalidate();
+    utils.admin.unlimitedKeysLog.invalidate();
+  };
+  const emuResetHwid = trpc.admin.emuResetHwid.useMutation({
+    onSuccess: () => { toast.success("HWID resetado"); invalidateKeys(); },
+    onError: e => toast.error(e.message),
+  });
+  const emuBanKey = trpc.admin.emuBanKey.useMutation({
+    onSuccess: () => { toast.success("Key banida na API PUB EMU"); invalidateKeys(); },
+    onError: e => toast.error(e.message),
+  });
+  const emuDeleteKey = trpc.admin.emuDeleteKey.useMutation({
+    onSuccess: () => { toast.success("Key deletada"); invalidateKeys(); },
+    onError: e => toast.error(e.message),
+  });
 
   const filtered = keys.filter((k: any) => {
     const matchSearch =
       k.keyValue?.toLowerCase().includes(search.toLowerCase()) ||
       k.usedBy?.toLowerCase().includes(search.toLowerCase()) ||
+      k.appName?.toLowerCase().includes(search.toLowerCase()) ||
       k.resellerName?.toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter === "all" || k.status === statusFilter;
     return matchSearch && matchStatus;
@@ -50,6 +80,48 @@ export default function AdminKeys() {
     toast.success("Key copiada!");
     setTimeout(() => setCopied(null), 2000);
   };
+
+  const keyActions = (k: any) => (
+    <div className="flex items-center gap-1">
+      <button onClick={() => copyKey(k.id, k.keyValue)} title="Copiar" className="p-1.5 rounded-lg text-gray-500 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all">
+        {copied === k.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+      </button>
+      <button onClick={() => setInfoKey(k)} title="Ver HWID / IP / uso" className="p-1.5 rounded-lg text-gray-500 hover:text-blue-400 hover:bg-blue-500/10 transition-all">
+        <Eye className="w-3.5 h-3.5" />
+      </button>
+      <button
+        onClick={() => { if (confirm("Resetar HWID desta key?")) emuResetHwid.mutate({ keyId: k.id }); }}
+        disabled={emuResetHwid.isPending}
+        title="Reset HWID"
+        className="p-1.5 rounded-lg text-gray-500 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all disabled:opacity-40"
+      >
+        <RefreshCw className={`w-3.5 h-3.5 ${emuResetHwid.isPending ? "animate-spin" : ""}`} />
+      </button>
+      {isEmuPubKey(k) && (
+        <>
+          <button
+            onClick={() => {
+              const reason = prompt("Motivo do ban (opcional):", "Banned by admin");
+              if (reason !== null) emuBanKey.mutate({ keyId: k.id, reason: reason || undefined });
+            }}
+            disabled={emuBanKey.isPending}
+            title="Banir key (API PUB EMU)"
+            className="p-1.5 rounded-lg text-gray-500 hover:text-orange-400 hover:bg-orange-500/10 transition-all disabled:opacity-40"
+          >
+            <Ban className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => { if (confirm("Deletar esta key? Remove no painel PUB EMU e do sistema. Ação irreversível.")) emuDeleteKey.mutate({ keyId: k.id }); }}
+            disabled={emuDeleteKey.isPending}
+            title="Deletar key (API PUB EMU)"
+            className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-all disabled:opacity-40"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </>
+      )}
+    </div>
+  );
 
   return (
     <div className="p-6 space-y-5">
@@ -104,7 +176,7 @@ export default function AdminKeys() {
                 ).slice((page - 1) * perPage, page * perPage).map((k: any) => (
                 <tr key={k.id} className="border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02] transition-colors">
                   <td className="px-5 py-4"><span className="text-gray-300 text-xs font-mono">{k.keyValue}</span></td>
-                  <td className="px-5 py-4 text-gray-400 text-sm">App #{k.appId}</td>
+                  <td className="px-5 py-4 text-gray-400 text-sm">{k.appName || `App #${k.appId}`}</td>
                   <td className="px-5 py-4 text-gray-400 text-sm">{k.planName || "—"}</td>
                   <td className="px-5 py-4 text-sm">
                     <div className="flex items-center gap-1.5 text-violet-300"><User className="w-3 h-3 text-violet-400/60" /> {k.resellerName || "—"}</div>
@@ -112,11 +184,7 @@ export default function AdminKeys() {
                   <td className="px-5 py-4"><StatusBadge status={k.status} /></td>
                   <td className="px-5 py-4 text-gray-400 text-sm">{k.usedBy || <span className="text-gray-600">—</span>}</td>
                   <td className="px-5 py-4 text-gray-500 text-xs">{new Date(k.createdAt).toLocaleString("pt-BR")}</td>
-                  <td className="px-5 py-4">
-                    <button onClick={() => copyKey(k.id, k.keyValue)} className="p-1.5 rounded-lg text-gray-500 hover:text-violet-400 hover:bg-violet-500/10 transition-all">
-                      {copied === k.id ? <Check className="w-3.5 h-3.5 text-violet-400" /> : <Copy className="w-3.5 h-3.5" />}
-                    </button>
-                  </td>
+                  <td className="px-5 py-4">{keyActions(k)}</td>
                 </tr>
               ))}
               {!isLoadingUnlimited && unlimitedKeys.length === 0 && (
@@ -153,7 +221,7 @@ export default function AdminKeys() {
                 <td className="px-5 py-4">
                   <span className="text-gray-300 text-xs font-mono">{k.keyValue}</span>
                 </td>
-                <td className="px-5 py-4 text-gray-400 text-sm">App #{k.appId}</td>
+                <td className="px-5 py-4 text-gray-400 text-sm">{k.appName || `App #${k.appId}`}</td>
                 <td className="px-5 py-4 text-gray-400 text-sm">{k.planName || "—"}</td>
                 <td className="px-5 py-4 text-gray-300 text-sm flex flex-col gap-0.5">
                   <div className="flex items-center gap-1.5"><User className="w-3 h-3 text-gray-500" /> {k.resellerName || "—"}</div>
@@ -211,11 +279,7 @@ export default function AdminKeys() {
                   })()}
                 </td>
                 <td className="px-5 py-4 text-gray-500 text-xs">{new Date(k.createdAt).toLocaleDateString("pt-BR")}</td>
-                <td className="px-5 py-4">
-                  <button onClick={() => copyKey(k.id, k.keyValue)} className="p-1.5 rounded-lg text-gray-500 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all">
-                    {copied === k.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                  </button>
-                </td>
+                <td className="px-5 py-4">{keyActions(k)}</td>
               </tr>
             ))}
           </tbody>
@@ -249,6 +313,130 @@ export default function AdminKeys() {
           </div>
         );
       })()}
+
+      {/* Modal de detalhes da key (HWID / IP / uso) */}
+      <Dialog open={!!infoKey} onOpenChange={() => setInfoKey(null)}>
+        <DialogContent className="bg-[#080808] border-white/[0.08] text-white max-w-md rounded-3xl p-0 overflow-hidden">
+          <div className="p-6 space-y-5" style={{ background: "linear-gradient(180deg, rgba(59,130,246,0.08) 0%, rgba(8,8,8,0.9) 120px)" }}>
+            <DialogHeader>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-blue-500/20 border border-blue-500/30 flex items-center justify-center">
+                  <MonitorSmartphone className="w-5 h-5 text-blue-400" />
+                </div>
+                <div>
+                  <DialogTitle className="text-white text-sm font-mono break-all">{infoKey?.keyValue}</DialogTitle>
+                  <p className="text-gray-500 text-xs">{infoKey?.appName || `App #${infoKey?.appId}`} · HWID, IP e uso</p>
+                </div>
+              </div>
+            </DialogHeader>
+            {infoKey && (
+              <div className="space-y-4">
+                <div className="rounded-2xl p-3 border border-white/[0.06] bg-white/[0.03]">
+                  <p className="text-sm font-medium text-white flex items-center gap-2">Status: <StatusBadge status={infoKey.status} /></p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { label: "Usada por", value: emuInfo?.local?.usedBy ?? infoKey.usedBy ?? "—" },
+                    { label: "HWID (local)", value: emuInfo?.local?.hwid ?? infoKey.hwid ?? "—" },
+                    { label: "Ativada em", value: (emuInfo?.local?.activatedAt ?? infoKey.activatedAt) ? new Date(emuInfo?.local?.activatedAt ?? infoKey.activatedAt).toLocaleString("pt-BR") : "—" },
+                    { label: "Expira em", value: (emuInfo?.local?.expiresAt ?? infoKey.expiresAt) ? new Date(emuInfo?.local?.expiresAt ?? infoKey.expiresAt).toLocaleString("pt-BR") : (infoKey.durationDays >= 9000 ? "Lifetime" : "—") },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="rounded-2xl bg-white/[0.03] border border-white/[0.06] p-3">
+                      <p className="text-gray-500 text-xs">{label}</p>
+                      <p className="text-white text-xs font-medium mt-1 break-all">{String(value)}</p>
+                    </div>
+                  ))}
+                </div>
+                {!emuInfo && (
+                  <p className="text-gray-600 text-xs">Consultando painel remoto (KeyAuth)...</p>
+                )}
+                {emuInfo?.remote && (
+                  <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.05] p-3.5 space-y-2.5">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400/80">Licença (Seller API)</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="rounded-xl bg-black/30 border border-white/[0.05] p-2.5">
+                        <p className="text-gray-500 text-[10px]">Uso</p>
+                        <p className={`text-xs font-semibold mt-0.5 ${emuInfo.remote.used ? "text-blue-400" : "text-gray-300"}`}>
+                          {emuInfo.remote.used ? "Usada" : "Ainda não usada"}
+                        </p>
+                      </div>
+                      <div className="rounded-xl bg-black/30 border border-white/[0.05] p-2.5">
+                        <p className="text-gray-500 text-[10px]">Usada por</p>
+                        <p className="text-white text-xs font-semibold mt-0.5 break-all">{emuInfo.remote.usedBy || "—"}</p>
+                      </div>
+                      {emuInfo.remote.expiry ? (
+                        <div className="rounded-xl bg-black/30 border border-white/[0.05] p-2.5">
+                          <p className="text-gray-500 text-[10px]">Expiração real</p>
+                          <p className="text-white text-xs font-semibold mt-0.5">{new Date(emuInfo.remote.expiry * 1000).toLocaleString("pt-BR")}</p>
+                        </div>
+                      ) : null}
+                      {emuInfo.remote.banned && (
+                        <div className="rounded-xl bg-black/30 border border-white/[0.05] p-2.5">
+                          <p className="text-gray-500 text-[10px]">Ban</p>
+                          <p className="text-red-400 text-xs font-semibold mt-0.5">Banida</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {emuInfo?.user && (
+                  <div className="rounded-2xl border border-blue-500/20 bg-blue-500/[0.05] p-3.5 space-y-2.5">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-400/80">Usuário (painel)</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="rounded-xl bg-black/30 border border-white/[0.05] p-2.5">
+                        <p className="text-gray-500 text-[10px]">IP</p>
+                        <p className="text-white text-xs font-semibold mt-0.5 break-all">{emuInfo.user.ip || "—"}</p>
+                      </div>
+                      <div className="rounded-xl bg-black/30 border border-white/[0.05] p-2.5">
+                        <p className="text-gray-500 text-[10px]">HWID</p>
+                        <p className="text-white text-xs font-semibold mt-0.5 break-all">{emuInfo.user.hwid || "—"}</p>
+                      </div>
+                      {emuInfo.user.lastlogin ? (
+                        <div className="rounded-xl bg-black/30 border border-white/[0.05] p-2.5">
+                          <p className="text-gray-500 text-[10px]">Último login</p>
+                          <p className="text-white text-xs font-semibold mt-0.5">{new Date(emuInfo.user.lastlogin * 1000).toLocaleString("pt-BR")}</p>
+                        </div>
+                      ) : null}
+                      {emuInfo.user.banned && (
+                        <div className="rounded-xl bg-black/30 border border-white/[0.05] p-2.5">
+                          <p className="text-gray-500 text-[10px]">Ban</p>
+                          <p className="text-red-400 text-xs font-semibold mt-0.5">Banido</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                <div className="flex gap-2 pt-2">
+                  <button onClick={() => copyKey(infoKey.id, infoKey.keyValue)} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white/[0.05] hover:bg-white/10 text-gray-300 text-sm transition-all border border-white/[0.06]">
+                    <Copy className="w-3.5 h-3.5" /> Copiar
+                  </button>
+                  <button onClick={() => { if (confirm("Resetar HWID desta key?")) emuResetHwid.mutate({ keyId: infoKey.id }); }} disabled={emuResetHwid.isPending} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 text-sm transition-all border border-emerald-500/20">
+                    <RefreshCw className="w-3.5 h-3.5" /> Reset HWID
+                  </button>
+                  {isEmuPubKey(infoKey) && (
+                    <button onClick={() => {
+                      const reason = prompt("Motivo do ban (opcional):", "Banned by admin");
+                      if (reason !== null) emuBanKey.mutate({ keyId: infoKey.id, reason: reason || undefined });
+                    }} disabled={emuBanKey.isPending} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 text-sm transition-all border border-orange-500/20">
+                      <Ban className="w-3.5 h-3.5" /> Banir
+                    </button>
+                  )}
+                </div>
+                {isEmuPubKey(infoKey) && (
+                  <button onClick={() => {
+                    if (confirm("Deletar esta key? Remove no painel PUB EMU e do sistema. Ação irreversível.")) {
+                      emuDeleteKey.mutate({ keyId: infoKey.id });
+                      setInfoKey(null);
+                    }
+                  }} disabled={emuDeleteKey.isPending} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-400 text-sm transition-all border border-red-500/20">
+                    <Trash2 className="w-3.5 h-3.5" /> Deletar key
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

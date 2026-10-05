@@ -7,7 +7,7 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { ENV } from "./_core/env";
-import { keyauthCreateLicense, keyauthFetchKeyInfo } from "./keyauth";
+import { keyauthCreateLicense, keyauthFetchKeyInfo, keyauthFetchUserInfo } from "./keyauth";
 import { acquireLicenseKeyValues } from "./keyFulfillment";
 import { calcDiscount } from "./resellerPricing";
 import { checkPurinPaymentStatus, processPurinPaymentUpdate } from "./purinCashWebhook";
@@ -291,20 +291,23 @@ async function resellerOwnsKey(resellerId: number, key: { resellerId: number }):
   return owner?.parentResellerId === resellerId;
 }
 
-// Reseta HWID na API externa do PUB EMU (Axo) — funciona para qualquer key,
-// mesmo que não exista no banco local (vendida fora do painel, etc)
-async function resetPubEmuHwidExternal(keyValue: string) {
-  const PUB_EMU_API_URL = "https://resellers.axovgc.site/api/v1/reset";
-  // Chave vem apenas da env — nunca hardcoded no repositório
+function isPubEmuAppName(name: string | null | undefined) {
+  const n = (name || "").toUpperCase();
+  return n === "PUB EMU" || n === "PUBEMU" || n === "EMULATOR PUBLIC";
+}
+
+// POST genérico na API externa do PUB EMU (Axo) — /reset, /ban, /delete.
+// A chave vem apenas da env — nunca hardcoded no repositório.
+async function pubEmuApiPost(endpoint: "reset" | "ban" | "delete", body: Record<string, unknown>) {
   const apiKeys = Array.from(new Set([ENV.pubEmuApiKey].filter(Boolean) as string[]));
   if (!apiKeys.length) {
-    console.warn("[PUB EMU HWID Reset] ENV.pubEmuApiKey não configurada — reset externo ignorado");
+    console.warn(`[PUB EMU ${endpoint}] ENV.pubEmuApiKey não configurada — chamada externa ignorada`);
     return;
   }
   let lastError = "";
   for (const apiKey of apiKeys) {
     try {
-      const url = new URL(PUB_EMU_API_URL);
+      const url = new URL(`https://resellers.axovgc.site/api/v1/${endpoint}`);
       url.searchParams.set("apikey", apiKey);
       const response = await fetch(url.toString(), {
         method: "POST",
@@ -312,41 +315,47 @@ async function resetPubEmuHwidExternal(keyValue: string) {
           "Authorization": `Bearer ${apiKey}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ username: keyValue, product: "PUB EMU" }),
+        body: JSON.stringify(body),
       });
       const text = await response.text();
       if (response.status === 401) {
-        console.warn("[PUB EMU HWID Reset] 401 com uma das chaves, tentando próxima:", text);
+        console.warn(`[PUB EMU ${endpoint}] 401 com uma das chaves, tentando próxima:`, text);
         lastError = `${response.status} ${text}`;
         continue;
       }
       if (!response.ok) {
-        console.error("[PUB EMU HWID Reset] error:", response.status, text);
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Erro na API de reset HWID: ${response.status} ${text}` });
+        console.error(`[PUB EMU ${endpoint}] error:`, response.status, text);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Erro na API PUB EMU (${endpoint}): ${response.status} ${text}` });
       }
       try {
         const data = JSON.parse(text);
         if (data && data.success === false) {
-          const msg = data.message || data.error || "Falha ao resetar no provedor";
-          console.error("[PUB EMU HWID Reset] provider soft-fail:", msg);
+          const msg = data.message || data.error || "Falha no provedor";
+          console.error(`[PUB EMU ${endpoint}] provider soft-fail:`, msg);
           throw new TRPCError({ code: "BAD_REQUEST", message: `API PUB EMU: ${msg}` });
         }
       } catch (err) {
         if (err instanceof TRPCError) throw err;
         // resposta não-JSON com 200 = sucesso
       }
-      console.log("[PUB EMU HWID Reset] success:", text);
+      console.log(`[PUB EMU ${endpoint}] success:`, text);
       lastError = "";
       break;
     } catch (err) {
       if (err instanceof TRPCError) throw err;
-      console.error("[PUB EMU HWID Reset] failed:", err);
-      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Falha ao resetar HWID na API externa: ${err}` });
+      console.error(`[PUB EMU ${endpoint}] failed:`, err);
+      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Falha na API externa do PUB EMU (${endpoint}): ${err}` });
     }
   }
   if (lastError) {
-    throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Erro na API de reset HWID: ${lastError}` });
+    throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Erro na API PUB EMU (${endpoint}): ${lastError}` });
   }
+}
+
+// Reseta HWID na API externa do PUB EMU (Axo) — funciona para qualquer key,
+// mesmo que não exista no banco local (vendida fora do painel, etc)
+async function resetPubEmuHwidExternal(keyValue: string) {
+  await pubEmuApiPost("reset", { username: keyValue, product: "PUB EMU" });
 }
 
 // Reseta HWID localmente, no KeyAuth e na API externa do PUB EMU (quando aplicável)
@@ -366,8 +375,7 @@ async function performHwidReset(key: { id: number; appId: number; keyValue: stri
   }
 
   // Resetar HWID do PUB EMU na API externa
-  const appName = (app?.name || "").toUpperCase();
-  if (appName === "PUB EMU" || appName === "PUBEMU" || appName === "EMULATOR PUBLIC") {
+  if (isPubEmuAppName(app?.name)) {
     await resetPubEmuHwidExternal(key.keyValue);
   }
 }
@@ -1224,6 +1232,79 @@ const adminRouter = router({
 
   // Log de keys geradas por resellers unlimited (admin only)
   unlimitedKeysLog: adminProcedure.query(() => getUnlimitedKeysLog()),
+
+  // ─── Ações nas keys do PUB EMU / Emulator Public (API Axo) ───
+
+  // Detalhes da key: HWID, usuário, IP e status de uso
+  // (banco local + KeyAuth seller API quando o app tem sellerKey)
+  emuKeyInfo: supportProcedure
+    .input(z.object({ keyId: z.number() }))
+    .query(async ({ input }) => {
+      const key = await getKeyById(input.keyId);
+      if (!key) throw new TRPCError({ code: "NOT_FOUND", message: "Key não encontrada" });
+      const app = await getAppById(key.appId);
+      const sellerKey = ((app as any)?.keyauthSellerKey || KEYAUTH_SELLER_KEY || "").trim();
+      let remote = null;
+      try {
+        remote = sellerKey ? await keyauthFetchKeyInfo({ sellerKey, keyValue: key.keyValue }) : null;
+      } catch { /* indisponível — segue só com dados locais */ }
+      const username = key.usedBy || remote?.usedBy;
+      let user = null;
+      try {
+        user = sellerKey && username ? await keyauthFetchUserInfo({ sellerKey, username }) : null;
+      } catch { /* indisponível */ }
+      return {
+        local: {
+          hwid: key.hwid,
+          usedBy: key.usedBy,
+          status: key.status,
+          activatedAt: key.activatedAt,
+          expiresAt: key.expiresAt,
+        },
+        remote,
+        user,
+      };
+    }),
+
+  // Resetar HWID da key (banco local + KeyAuth + API Axo quando for PUB EMU)
+  emuResetHwid: adminProcedure
+    .input(z.object({ keyId: z.number() }))
+    .mutation(async ({ input }) => {
+      const key = await getKeyById(input.keyId);
+      if (!key) throw new TRPCError({ code: "NOT_FOUND", message: "Key não encontrada" });
+      await performHwidReset(key);
+      return { success: true };
+    }),
+
+  // Banir a key na API Axo (para de funcionar) e revogar localmente
+  emuBanKey: adminProcedure
+    .input(z.object({ keyId: z.number(), reason: z.string().max(200).optional() }))
+    .mutation(async ({ input }) => {
+      const key = await getKeyById(input.keyId);
+      if (!key) throw new TRPCError({ code: "NOT_FOUND", message: "Key não encontrada" });
+      const app = await getAppById(key.appId);
+      if (!isPubEmuAppName(app?.name)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Ban via API disponível apenas para keys do PUB EMU" });
+      }
+      await pubEmuApiPost("ban", { key: key.keyValue, reason: input.reason || "Banned by admin" });
+      await updateLicenseKey(key.id, { status: "revoked" });
+      return { success: true };
+    }),
+
+  // Deletar a key na API Axo e remover do banco local
+  emuDeleteKey: adminProcedure
+    .input(z.object({ keyId: z.number() }))
+    .mutation(async ({ input }) => {
+      const key = await getKeyById(input.keyId);
+      if (!key) throw new TRPCError({ code: "NOT_FOUND", message: "Key não encontrada" });
+      const app = await getAppById(key.appId);
+      if (!isPubEmuAppName(app?.name)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Delete via API disponível apenas para keys do PUB EMU" });
+      }
+      await pubEmuApiPost("delete", { key: key.keyValue });
+      await deleteLicenseKeysByValues([key.keyValue]);
+      return { success: true };
+    }),
 
   // Transfer keys between resellers
   resellerKeyCount: adminProcedure

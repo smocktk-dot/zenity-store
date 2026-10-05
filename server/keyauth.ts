@@ -136,3 +136,50 @@ export async function keyauthFetchKeyInfo(opts: {
     banned: lic.banned === 1 || lic.banned === "1" || lic.banned === true,
   };
 }
+
+export interface KeyauthUserInfo {
+  username: string;
+  hwid: string | null;
+  ip: string | null;
+  lastlogin: number | null;
+  created: number | null;
+  banned: boolean;
+}
+
+/**
+ * Busca dados de um usuário via fetchallusers — retorna HWID e IP
+ * registrados no painel. Retorna null se o usuário não existir.
+ */
+export async function keyauthFetchUserInfo(opts: {
+  sellerKey: string;
+  username: string;
+}): Promise<KeyauthUserInfo | null> {
+  if (!opts.sellerKey) return null;
+
+  const url = new URL("https://keyauth.win/api/seller/");
+  url.searchParams.set("sellerkey", opts.sellerKey);
+  url.searchParams.set("type", "fetchallusers");
+  url.searchParams.set("format", "json");
+
+  const res = await fetch(url.toString(), { signal: AbortSignal.timeout(15_000) });
+  if (!res.ok) {
+    throw new Error(`KeyAuth respondeu HTTP ${res.status}`);
+  }
+
+  const data = await res.json() as any;
+  if (!data.success) return null;
+
+  const users: any[] = Array.isArray(data.users) ? data.users : [];
+  const u = users.find(x => String(x.username ?? "") === opts.username);
+  if (!u) return null;
+
+  const num = (v: any) => (Number.isFinite(Number(v)) ? Number(v) : null);
+  return {
+    username: String(u.username ?? opts.username),
+    hwid: u.hwid ?? null,
+    ip: u.ip ?? null,
+    lastlogin: num(u.lastlogin),
+    created: num(u.createdate ?? u.created),
+    banned: u.banned === 1 || u.banned === "1" || u.banned === true,
+  };
+}
