@@ -487,7 +487,7 @@ var init_env = __esm({
       forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
       forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
       keyauthSellerKey: process.env.KEYAUTH_SELLER_KEY,
-      pubEmuApiKey: process.env.PUB_EMU_API_KEY,
+      pubEmuApiKey: process.env.PUB_EMU_API_KEY || process.env.EMU_PUB_API_KEY || process.env.PUBEMU_API_KEY || process.env.EMU_API_PUB_KEY,
       adminSetupKey: process.env.ADMIN_SETUP_KEY,
       resendApiKey: process.env.RESEND_API_KEY,
       resendFrom: process.env.RESEND_FROM
