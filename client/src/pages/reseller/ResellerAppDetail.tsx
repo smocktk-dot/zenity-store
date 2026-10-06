@@ -1254,16 +1254,24 @@ function AppKeysPanel({ appId }: { appId: number }) {
   });
 
   const banKey = trpc.reseller.banKey.useMutation({
-    onSuccess: () => {
-      toast.success("Key banida!");
+    onSuccess: (d) => {
+      if (d?.remote === "failed") {
+        toast.warning(`Key banida localmente — falha na API remota: ${d.remoteError || ""}`);
+      } else {
+        toast.success("Key banida!");
+      }
       utils.reseller.myKeysByApp.invalidate({ appId });
     },
     onError: e => toast.error(e.message),
   });
 
   const deleteKey = trpc.reseller.deleteKey.useMutation({
-    onSuccess: () => {
-      toast.success("Key deletada!");
+    onSuccess: (d) => {
+      if (d?.remote === "failed") {
+        toast.warning(`Key deletada localmente — falha na API remota: ${d.remoteError || ""}`);
+      } else {
+        toast.success("Key deletada!");
+      }
       utils.reseller.myKeysByApp.invalidate({ appId });
     },
     onError: e => toast.error(e.message),

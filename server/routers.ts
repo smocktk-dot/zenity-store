@@ -1290,9 +1290,17 @@ const adminRouter = router({
       if (!isPubEmuAppName(app?.name)) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Ban via API disponível apenas para keys do PUB EMU" });
       }
-      await pubEmuApiPost("ban", { key: key.keyValue, reason: input.reason || "Banned by admin" });
+      let remote: "ok" | "failed" = "ok";
+      let remoteError: string | null = null;
+      try {
+        await pubEmuApiPost("ban", { key: key.keyValue, reason: input.reason || "Banned by admin" });
+      } catch (err) {
+        remote = "failed";
+        remoteError = err instanceof Error ? err.message : String(err);
+        console.warn(`[admin.emuBanKey] PUB EMU ban falhou p/ ${key.keyValue}:`, remoteError);
+      }
       await updateLicenseKey(key.id, { status: "revoked" });
-      return { success: true };
+      return { success: true, remote, remoteError };
     }),
 
   // Deletar a key na API Axo e remover do banco local
@@ -1305,9 +1313,17 @@ const adminRouter = router({
       if (!isPubEmuAppName(app?.name)) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Delete via API disponível apenas para keys do PUB EMU" });
       }
-      await pubEmuApiPost("delete", { key: key.keyValue });
+      let remote: "ok" | "failed" = "ok";
+      let remoteError: string | null = null;
+      try {
+        await pubEmuApiPost("delete", { key: key.keyValue });
+      } catch (err) {
+        remote = "failed";
+        remoteError = err instanceof Error ? err.message : String(err);
+        console.warn(`[admin.emuDeleteKey] PUB EMU delete falhou p/ ${key.keyValue}:`, remoteError);
+      }
       await deleteLicenseKeysByValues([key.keyValue]);
-      return { success: true };
+      return { success: true, remote, remoteError };
     }),
 
   // Transfer keys between resellers
@@ -2052,11 +2068,22 @@ const resellerRouter = router({
       const key = await getKeyById(input.keyId);
       if (!key || !(await resellerOwnsKey(ctx.resellerId, key))) throw new TRPCError({ code: "FORBIDDEN" });
       const app = await getAppById(key.appId);
+      // Ban remoto é best-effort: a key pode não existir na conta Axo da API key
+      // configurada (404 "not yours") — isso não pode impedir o ban local.
+      let remote: "ok" | "skipped" | "failed" = "skipped";
+      let remoteError: string | null = null;
       if (isPubEmuAppName(app?.name)) {
-        await pubEmuApiPost("ban", { key: key.keyValue, reason: input.reason || `Banned by ${r.username}` });
+        try {
+          await pubEmuApiPost("ban", { key: key.keyValue, reason: input.reason || `Banned by ${r.username}` });
+          remote = "ok";
+        } catch (err) {
+          remote = "failed";
+          remoteError = err instanceof Error ? err.message : String(err);
+          console.warn(`[reseller.banKey] PUB EMU ban falhou p/ ${key.keyValue}:`, remoteError);
+        }
       }
       await updateLicenseKey(key.id, { status: "revoked" });
-      return { success: true };
+      return { success: true, remote, remoteError };
     }),
 
   deleteKey: resellerProcedure
@@ -2069,11 +2096,21 @@ const resellerRouter = router({
       const key = await getKeyById(input.keyId);
       if (!key || !(await resellerOwnsKey(ctx.resellerId, key))) throw new TRPCError({ code: "FORBIDDEN" });
       const app = await getAppById(key.appId);
+      // Delete remoto é best-effort: 404/"not yours" na Axo não impede remover localmente
+      let remote: "ok" | "skipped" | "failed" = "skipped";
+      let remoteError: string | null = null;
       if (isPubEmuAppName(app?.name)) {
-        await pubEmuApiPost("delete", { key: key.keyValue });
+        try {
+          await pubEmuApiPost("delete", { key: key.keyValue });
+          remote = "ok";
+        } catch (err) {
+          remote = "failed";
+          remoteError = err instanceof Error ? err.message : String(err);
+          console.warn(`[reseller.deleteKey] PUB EMU delete falhou p/ ${key.keyValue}:`, remoteError);
+        }
       }
       await deleteLicenseKeysByValues([key.keyValue]);
-      return { success: true };
+      return { success: true, remote, remoteError };
     }),
 
   // ─── Other Store (split) ─────────────────────────────────────────────────────

@@ -6120,9 +6120,17 @@ var adminRouter = router({
     if (!isPubEmuAppName(app2?.name)) {
       throw new TRPCError3({ code: "BAD_REQUEST", message: "Ban via API dispon\xEDvel apenas para keys do PUB EMU" });
     }
-    await pubEmuApiPost("ban", { key: key.keyValue, reason: input.reason || "Banned by admin" });
+    let remote = "ok";
+    let remoteError = null;
+    try {
+      await pubEmuApiPost("ban", { key: key.keyValue, reason: input.reason || "Banned by admin" });
+    } catch (err) {
+      remote = "failed";
+      remoteError = err instanceof Error ? err.message : String(err);
+      console.warn(`[admin.emuBanKey] PUB EMU ban falhou p/ ${key.keyValue}:`, remoteError);
+    }
     await updateLicenseKey(key.id, { status: "revoked" });
-    return { success: true };
+    return { success: true, remote, remoteError };
   }),
   // Deletar a key na API Axo e remover do banco local
   emuDeleteKey: adminProcedure2.input(z2.object({ keyId: z2.number() })).mutation(async ({ input }) => {
@@ -6132,9 +6140,17 @@ var adminRouter = router({
     if (!isPubEmuAppName(app2?.name)) {
       throw new TRPCError3({ code: "BAD_REQUEST", message: "Delete via API dispon\xEDvel apenas para keys do PUB EMU" });
     }
-    await pubEmuApiPost("delete", { key: key.keyValue });
+    let remote = "ok";
+    let remoteError = null;
+    try {
+      await pubEmuApiPost("delete", { key: key.keyValue });
+    } catch (err) {
+      remote = "failed";
+      remoteError = err instanceof Error ? err.message : String(err);
+      console.warn(`[admin.emuDeleteKey] PUB EMU delete falhou p/ ${key.keyValue}:`, remoteError);
+    }
     await deleteLicenseKeysByValues([key.keyValue]);
-    return { success: true };
+    return { success: true, remote, remoteError };
   }),
   // Transfer keys between resellers
   resellerKeyCount: adminProcedure2.input(z2.object({
@@ -6732,11 +6748,20 @@ var resellerRouter = router({
     const key = await getKeyById(input.keyId);
     if (!key || !await resellerOwnsKey(ctx.resellerId, key)) throw new TRPCError3({ code: "FORBIDDEN" });
     const app2 = await getAppById(key.appId);
+    let remote = "skipped";
+    let remoteError = null;
     if (isPubEmuAppName(app2?.name)) {
-      await pubEmuApiPost("ban", { key: key.keyValue, reason: input.reason || `Banned by ${r.username}` });
+      try {
+        await pubEmuApiPost("ban", { key: key.keyValue, reason: input.reason || `Banned by ${r.username}` });
+        remote = "ok";
+      } catch (err) {
+        remote = "failed";
+        remoteError = err instanceof Error ? err.message : String(err);
+        console.warn(`[reseller.banKey] PUB EMU ban falhou p/ ${key.keyValue}:`, remoteError);
+      }
     }
     await updateLicenseKey(key.id, { status: "revoked" });
-    return { success: true };
+    return { success: true, remote, remoteError };
   }),
   deleteKey: resellerProcedure.input(z2.object({ keyId: z2.number() })).mutation(async ({ ctx, input }) => {
     const r = ctx.reseller;
@@ -6746,11 +6771,20 @@ var resellerRouter = router({
     const key = await getKeyById(input.keyId);
     if (!key || !await resellerOwnsKey(ctx.resellerId, key)) throw new TRPCError3({ code: "FORBIDDEN" });
     const app2 = await getAppById(key.appId);
+    let remote = "skipped";
+    let remoteError = null;
     if (isPubEmuAppName(app2?.name)) {
-      await pubEmuApiPost("delete", { key: key.keyValue });
+      try {
+        await pubEmuApiPost("delete", { key: key.keyValue });
+        remote = "ok";
+      } catch (err) {
+        remote = "failed";
+        remoteError = err instanceof Error ? err.message : String(err);
+        console.warn(`[reseller.deleteKey] PUB EMU delete falhou p/ ${key.keyValue}:`, remoteError);
+      }
     }
     await deleteLicenseKeysByValues([key.keyValue]);
-    return { success: true };
+    return { success: true, remote, remoteError };
   }),
   // ─── Other Store (split) ─────────────────────────────────────────────────────
   createOtherStoreSplitCharge: resellerProcedure.input(z2.object({

@@ -57,16 +57,24 @@ export default function ResellerKeys() {
   });
 
   const banKey = trpc.reseller.banKey.useMutation({
-    onSuccess: () => {
-      toast.success(language === "en" ? "Key banned!" : "Key banida!");
+    onSuccess: (d) => {
+      if (d?.remote === "failed") {
+        toast.warning((language === "en" ? "Key banned locally — remote API failed: " : "Key banida localmente — falha na API remota: ") + (d.remoteError || ""));
+      } else {
+        toast.success(language === "en" ? "Key banned!" : "Key banida!");
+      }
       utils.reseller.myKeys.invalidate();
     },
     onError: e => toast.error(e.message),
   });
 
   const deleteKey = trpc.reseller.deleteKey.useMutation({
-    onSuccess: () => {
-      toast.success(language === "en" ? "Key deleted!" : "Key deletada!");
+    onSuccess: (d) => {
+      if (d?.remote === "failed") {
+        toast.warning((language === "en" ? "Key deleted locally — remote API failed: " : "Key deletada localmente — falha na API remota: ") + (d.remoteError || ""));
+      } else {
+        toast.success(language === "en" ? "Key deleted!" : "Key deletada!");
+      }
       utils.reseller.myKeys.invalidate();
       setViewKey(null);
       setViewKeyId(null);

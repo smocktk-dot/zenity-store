@@ -53,11 +53,19 @@ export default function AdminKeys() {
     onError: e => toast.error(e.message),
   });
   const emuBanKey = trpc.admin.emuBanKey.useMutation({
-    onSuccess: () => { toast.success("Key banida na API PUB EMU"); invalidateKeys(); },
+    onSuccess: (d) => {
+      if (d?.remote === "failed") toast.warning(`Banida localmente — falha na API PUB EMU: ${d.remoteError || ""}`);
+      else toast.success("Key banida na API PUB EMU");
+      invalidateKeys();
+    },
     onError: e => toast.error(e.message),
   });
   const emuDeleteKey = trpc.admin.emuDeleteKey.useMutation({
-    onSuccess: () => { toast.success("Key deletada"); invalidateKeys(); },
+    onSuccess: (d) => {
+      if (d?.remote === "failed") toast.warning(`Deletada localmente — falha na API PUB EMU: ${d.remoteError || ""}`);
+      else toast.success("Key deletada");
+      invalidateKeys();
+    },
     onError: e => toast.error(e.message),
   });
 
