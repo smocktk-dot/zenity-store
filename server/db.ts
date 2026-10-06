@@ -130,6 +130,7 @@ export async function ensureAppsSchema(): Promise<void> {
     _appsSchemaReady = (async () => {
       try {
         await _sqlClient!.unsafe(`ALTER TABLE "apps" ADD COLUMN IF NOT EXISTS "keyMask" varchar(64)`);
+        await _sqlClient!.unsafe(`ALTER TABLE "apps" ADD COLUMN IF NOT EXISTS "axoApiKey" varchar(128)`);
       } catch (e) {
         console.error("[Database] Failed to ensure apps schema:", e);
         throw e;

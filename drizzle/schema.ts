@@ -120,6 +120,7 @@ export const apps = pgTable("apps", {
   maxUsers: integer("maxUsers").default(5000),
   features: text("features"), // JSON string of feature list
   keyauthSellerKey: varchar("keyauthSellerKey", { length: 64 }), // KeyAuth Seller API Key for this app
+  axoApiKey: varchar("axoApiKey", { length: 128 }), // API key do painel Axo (resellers.axovgc.site) — reset/ban/delete de keys
   keyMask: varchar("keyMask", { length: 64 }), // Máscara das keys geradas via KeyAuth (ex.: KEY-******-******)
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),

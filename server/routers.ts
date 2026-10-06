@@ -297,9 +297,10 @@ function isPubEmuAppName(name: string | null | undefined) {
 }
 
 // POST genérico na API externa do PUB EMU (Axo) — /reset, /ban, /delete.
-// A chave vem apenas da env — nunca hardcoded no repositório.
-async function pubEmuApiPost(endpoint: "reset" | "ban" | "delete", body: Record<string, unknown>) {
-  const apiKeys = Array.from(new Set([ENV.pubEmuApiKey].filter(Boolean) as string[]));
+// A chave vem do campo axoApiKey do app (configurado no admin) ou da env
+// PUB_EMU_API_KEY — nunca hardcoded no repositório.
+async function pubEmuApiPost(endpoint: "reset" | "ban" | "delete", body: Record<string, unknown>, appApiKey?: string | null) {
+  const apiKeys = Array.from(new Set([appApiKey, ENV.pubEmuApiKey].filter(Boolean) as string[]));
   if (!apiKeys.length) {
     console.warn(`[PUB EMU ${endpoint}] ENV.pubEmuApiKey não configurada — chamada externa ignorada`);
     return;
@@ -354,8 +355,8 @@ async function pubEmuApiPost(endpoint: "reset" | "ban" | "delete", body: Record<
 
 // Reseta HWID na API externa do PUB EMU (Axo) — funciona para qualquer key,
 // mesmo que não exista no banco local (vendida fora do painel, etc)
-async function resetPubEmuHwidExternal(keyValue: string) {
-  await pubEmuApiPost("reset", { username: keyValue, product: "PUB EMU" });
+async function resetPubEmuHwidExternal(keyValue: string, apiKey?: string | null) {
+  await pubEmuApiPost("reset", { username: keyValue, product: "PUB EMU" }, apiKey);
 }
 
 // Reseta HWID localmente, no KeyAuth e na API externa do PUB EMU (quando aplicável)
@@ -376,7 +377,7 @@ async function performHwidReset(key: { id: number; appId: number; keyValue: stri
 
   // Resetar HWID do PUB EMU na API externa
   if (isPubEmuAppName(app?.name)) {
-    await resetPubEmuHwidExternal(key.keyValue);
+    await resetPubEmuHwidExternal(key.keyValue, (app as any)?.axoApiKey);
   }
 }
 
@@ -1020,6 +1021,7 @@ const adminRouter = router({
       version: z.string().optional(), categoryId: z.number().optional(),
       maxUsers: z.number().optional(), features: z.string().optional(),
       keyauthSellerKey: z.string().length(32).optional(),
+      axoApiKey: z.string().max(128).optional(),
       keyMask: z.string().max(64).optional(),
     }))
     .mutation(async ({ input }) => { await createApp(input as any); return { success: true }; }),
@@ -1031,6 +1033,7 @@ const adminRouter = router({
       status: z.enum(["active", "inactive"]).optional(),
       maxUsers: z.number().optional(), features: z.string().optional(),
       keyauthSellerKey: z.string().length(32).optional().nullable(),
+      axoApiKey: z.string().max(128).optional().nullable(),
       keyMask: z.string().max(64).optional().nullable(),
     }))
     .mutation(async ({ input }) => { const { id, ...data } = input; await updateApp(id, data as any); return { success: true }; }),
@@ -1293,7 +1296,7 @@ const adminRouter = router({
       let remote: "ok" | "failed" = "ok";
       let remoteError: string | null = null;
       try {
-        await pubEmuApiPost("ban", { key: key.keyValue, reason: input.reason || "Banned by admin" });
+        await pubEmuApiPost("ban", { key: key.keyValue, reason: input.reason || "Banned by admin" }, (app as any)?.axoApiKey);
       } catch (err) {
         remote = "failed";
         remoteError = err instanceof Error ? err.message : String(err);
@@ -1316,7 +1319,7 @@ const adminRouter = router({
       let remote: "ok" | "failed" = "ok";
       let remoteError: string | null = null;
       try {
-        await pubEmuApiPost("delete", { key: key.keyValue });
+        await pubEmuApiPost("delete", { key: key.keyValue }, (app as any)?.axoApiKey);
       } catch (err) {
         remote = "failed";
         remoteError = err instanceof Error ? err.message : String(err);
@@ -1828,7 +1831,7 @@ const resellerRouter = router({
     const result = await Promise.all(rows.map(async (row) => {
       const plans = await getPlansByAppId(row.app.id);
       // Nunca expor a seller key para resellers
-      const { keyauthSellerKey, ...safeApp } = row.app;
+      const { keyauthSellerKey, axoApiKey, ...safeApp } = row.app;
       return { ...safeApp, autoKeys: !!keyauthSellerKey, plans, assignedAt: row.assignedAt };
     }));
     return result;
@@ -1843,7 +1846,7 @@ const resellerRouter = router({
       if (!app) throw new TRPCError({ code: "NOT_FOUND" });
       const plans = await getPlansByAppId(input.appId);
       // Nunca expor a seller key para resellers
-      const { keyauthSellerKey, ...safeApp } = app;
+      const { keyauthSellerKey, axoApiKey, ...safeApp } = app;
       return { ...safeApp, autoKeys: !!keyauthSellerKey, plans };
     }),
 
@@ -2074,7 +2077,7 @@ const resellerRouter = router({
       let remoteError: string | null = null;
       if (isPubEmuAppName(app?.name)) {
         try {
-          await pubEmuApiPost("ban", { key: key.keyValue, reason: input.reason || `Banned by ${r.username}` });
+          await pubEmuApiPost("ban", { key: key.keyValue, reason: input.reason || `Banned by ${r.username}` }, (app as any)?.axoApiKey);
           remote = "ok";
         } catch (err) {
           remote = "failed";
@@ -2101,7 +2104,7 @@ const resellerRouter = router({
       let remoteError: string | null = null;
       if (isPubEmuAppName(app?.name)) {
         try {
-          await pubEmuApiPost("delete", { key: key.keyValue });
+          await pubEmuApiPost("delete", { key: key.keyValue }, (app as any)?.axoApiKey);
           remote = "ok";
         } catch (err) {
           remote = "failed";

@@ -110,6 +110,8 @@ var init_schema = __esm({
       // JSON string of feature list
       keyauthSellerKey: varchar("keyauthSellerKey", { length: 64 }),
       // KeyAuth Seller API Key for this app
+      axoApiKey: varchar("axoApiKey", { length: 128 }),
+      // API key do painel Axo (resellers.axovgc.site) — reset/ban/delete de keys
       keyMask: varchar("keyMask", { length: 64 }),
       // Máscara das keys geradas via KeyAuth (ex.: KEY-******-******)
       createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -797,6 +799,7 @@ async function ensureAppsSchema() {
     _appsSchemaReady = (async () => {
       try {
         await _sqlClient.unsafe(`ALTER TABLE "apps" ADD COLUMN IF NOT EXISTS "keyMask" varchar(64)`);
+        await _sqlClient.unsafe(`ALTER TABLE "apps" ADD COLUMN IF NOT EXISTS "axoApiKey" varchar(128)`);
       } catch (e) {
         console.error("[Database] Failed to ensure apps schema:", e);
         throw e;
@@ -5270,8 +5273,8 @@ function isPubEmuAppName(name) {
   const n = (name || "").toUpperCase();
   return n === "PUB EMU" || n === "PUBEMU" || n === "EMULATOR PUBLIC";
 }
-async function pubEmuApiPost(endpoint, body) {
-  const apiKeys = Array.from(new Set([ENV.pubEmuApiKey].filter(Boolean)));
+async function pubEmuApiPost(endpoint, body, appApiKey) {
+  const apiKeys = Array.from(new Set([appApiKey, ENV.pubEmuApiKey].filter(Boolean)));
   if (!apiKeys.length) {
     console.warn(`[PUB EMU ${endpoint}] ENV.pubEmuApiKey n\xE3o configurada \u2014 chamada externa ignorada`);
     return;
@@ -5322,8 +5325,8 @@ async function pubEmuApiPost(endpoint, body) {
     throw new TRPCError3({ code: "INTERNAL_SERVER_ERROR", message: `Erro na API PUB EMU (${endpoint}): ${lastError}` });
   }
 }
-async function resetPubEmuHwidExternal(keyValue) {
-  await pubEmuApiPost("reset", { username: keyValue, product: "PUB EMU" });
+async function resetPubEmuHwidExternal(keyValue, apiKey) {
+  await pubEmuApiPost("reset", { username: keyValue, product: "PUB EMU" }, apiKey);
 }
 async function performHwidReset(key) {
   await updateLicenseKey(key.id, { hwid: null });
@@ -5337,7 +5340,7 @@ async function performHwidReset(key) {
     }
   }
   if (isPubEmuAppName(app2?.name)) {
-    await resetPubEmuHwidExternal(key.keyValue);
+    await resetPubEmuHwidExternal(key.keyValue, app2?.axoApiKey);
   }
 }
 async function signCustomJwt(payload) {
@@ -5897,6 +5900,7 @@ var adminRouter = router({
     maxUsers: z2.number().optional(),
     features: z2.string().optional(),
     keyauthSellerKey: z2.string().length(32).optional(),
+    axoApiKey: z2.string().max(128).optional(),
     keyMask: z2.string().max(64).optional()
   })).mutation(async ({ input }) => {
     await createApp(input);
@@ -5912,6 +5916,7 @@ var adminRouter = router({
     maxUsers: z2.number().optional(),
     features: z2.string().optional(),
     keyauthSellerKey: z2.string().length(32).optional().nullable(),
+    axoApiKey: z2.string().max(128).optional().nullable(),
     keyMask: z2.string().max(64).optional().nullable()
   })).mutation(async ({ input }) => {
     const { id, ...data } = input;
@@ -6123,7 +6128,7 @@ var adminRouter = router({
     let remote = "ok";
     let remoteError = null;
     try {
-      await pubEmuApiPost("ban", { key: key.keyValue, reason: input.reason || "Banned by admin" });
+      await pubEmuApiPost("ban", { key: key.keyValue, reason: input.reason || "Banned by admin" }, app2?.axoApiKey);
     } catch (err) {
       remote = "failed";
       remoteError = err instanceof Error ? err.message : String(err);
@@ -6143,7 +6148,7 @@ var adminRouter = router({
     let remote = "ok";
     let remoteError = null;
     try {
-      await pubEmuApiPost("delete", { key: key.keyValue });
+      await pubEmuApiPost("delete", { key: key.keyValue }, app2?.axoApiKey);
     } catch (err) {
       remote = "failed";
       remoteError = err instanceof Error ? err.message : String(err);
@@ -6552,7 +6557,7 @@ var resellerRouter = router({
     const rows = await getAppsByResellerId(ctx.resellerId);
     const result = await Promise.all(rows.map(async (row) => {
       const plans = await getPlansByAppId(row.app.id);
-      const { keyauthSellerKey, ...safeApp } = row.app;
+      const { keyauthSellerKey, axoApiKey, ...safeApp } = row.app;
       return { ...safeApp, autoKeys: !!keyauthSellerKey, plans, assignedAt: row.assignedAt };
     }));
     return result;
@@ -6563,7 +6568,7 @@ var resellerRouter = router({
     const app2 = await getAppById(input.appId);
     if (!app2) throw new TRPCError3({ code: "NOT_FOUND" });
     const plans = await getPlansByAppId(input.appId);
-    const { keyauthSellerKey, ...safeApp } = app2;
+    const { keyauthSellerKey, axoApiKey, ...safeApp } = app2;
     return { ...safeApp, autoKeys: !!keyauthSellerKey, plans };
   }),
   myKeys: resellerProcedure.query(async ({ ctx }) => {
@@ -6752,7 +6757,7 @@ var resellerRouter = router({
     let remoteError = null;
     if (isPubEmuAppName(app2?.name)) {
       try {
-        await pubEmuApiPost("ban", { key: key.keyValue, reason: input.reason || `Banned by ${r.username}` });
+        await pubEmuApiPost("ban", { key: key.keyValue, reason: input.reason || `Banned by ${r.username}` }, app2?.axoApiKey);
         remote = "ok";
       } catch (err) {
         remote = "failed";
@@ -6775,7 +6780,7 @@ var resellerRouter = router({
     let remoteError = null;
     if (isPubEmuAppName(app2?.name)) {
       try {
-        await pubEmuApiPost("delete", { key: key.keyValue });
+        await pubEmuApiPost("delete", { key: key.keyValue }, app2?.axoApiKey);
         remote = "ok";
       } catch (err) {
         remote = "failed";
