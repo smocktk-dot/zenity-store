@@ -25,6 +25,10 @@ export default function AdminVgAuth() {
     onSuccess: () => { toast.success("Secret regenerada"); refetch(); },
     onError: e => toast.error(e.message),
   });
+  const regenSignKey = trpc.vgauth.regenerateSigningKey.useMutation({
+    onSuccess: () => { toast.success("Chave de assinatura rotacionada — atualize a Pub Key nos loaders"); refetch(); },
+    onError: e => toast.error(e.message),
+  });
 
   const copy = (id: string, text: string, label: string) => {
     navigator.clipboard.writeText(text);
@@ -126,6 +130,23 @@ export default function AdminVgAuth() {
                           {copied === `o${a.id}` ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                         </button>
                       </div>
+                      <div className="flex items-center gap-2 rounded-xl px-3 py-2" style={{ background: "rgba(16,185,129,0.04)", border: "1px solid rgba(16,185,129,0.12)" }}>
+                        <span className="text-emerald-500/80 text-[10px] uppercase font-semibold w-14">Pub Key</span>
+                        <code className="text-gray-300 text-xs font-mono truncate flex-1">
+                          {a.signPublicKey || "—"}
+                        </code>
+                        {a.signPublicKey && (
+                          <button onClick={() => copy(`p${a.id}`, a.signPublicKey, "Pub Key")} className="text-gray-500 hover:text-emerald-400 transition-colors" title="Copiar — vai no loader no lugar do secret">
+                            {copied === `p${a.id}` ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                          </button>
+                        )}
+                        <button
+                          onClick={() => { if (confirm("Rotacionar a chave de assinatura? Todos os loaders com a Pub Key antiga param de validar — só faça ao rebuildar/redistribuir.")) regenSignKey.mutate({ id: a.id }); }}
+                          className="text-gray-500 hover:text-amber-400 transition-colors" title="Rotacionar chave de assinatura"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                       <div className="flex items-center gap-2 rounded-xl px-3 py-2" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}>
                         <span className="text-gray-500 text-[10px] uppercase font-semibold w-14">Secret</span>
                         <code className="text-gray-300 text-xs font-mono truncate flex-1">
@@ -134,12 +155,12 @@ export default function AdminVgAuth() {
                         <button onClick={() => setShowSecret(s => ({ ...s, [a.id]: !s[a.id] }))} className="text-gray-500 hover:text-white transition-colors">
                           {showSecret[a.id] ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                         </button>
-                        <button onClick={() => copy(`s${a.id}`, a.secret, "Secret")} className="text-gray-500 hover:text-emerald-400 transition-colors">
+                        <button onClick={() => copy(`s${a.id}`, a.secret, "Secret")} className="text-gray-500 hover:text-emerald-400 transition-colors" title="Legado (HMAC) — prefira a Pub Key">
                           {copied === `s${a.id}` ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                         </button>
                         <button
-                          onClick={() => { if (confirm("Regenerar a secret? Apps usando a antiga vão parar de autenticar.")) regenSecret.mutate({ id: a.id }); }}
-                          className="text-gray-500 hover:text-amber-400 transition-colors" title="Regenerar secret"
+                          onClick={() => { if (confirm("Regenerar a secret? Clientes legados (HMAC) com a antiga param de autenticar.")) regenSecret.mutate({ id: a.id }); }}
+                          className="text-gray-500 hover:text-amber-400 transition-colors" title="Regenerar secret legada"
                         >
                           <RefreshCw className="w-3.5 h-3.5" />
                         </button>

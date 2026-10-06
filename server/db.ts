@@ -1826,6 +1826,10 @@ export async function ensureVgAuthSchema(): Promise<void> {
       await _sqlClient!.unsafe(`ALTER TABLE "vgauth_apps" ADD COLUMN IF NOT EXISTS "dlExtraUrl" varchar(512)`);
       await _sqlClient!.unsafe(`ALTER TABLE "vgauth_apps" ADD COLUMN IF NOT EXISTS "dlExtraName" varchar(128)`);
       await _sqlClient!.unsafe(`ALTER TABLE "vgauth_apps" ADD COLUMN IF NOT EXISTS "dlExtraSize" integer`);
+      // Assinatura de resposta por chave assimétrica (ECDSA P-256) — o secret
+      // embutido no exe é público; com a pubkey o cliente valida sem poder forjar.
+      await _sqlClient!.unsafe(`ALTER TABLE "vgauth_apps" ADD COLUMN IF NOT EXISTS "signPublicKey" varchar(128)`);
+      await _sqlClient!.unsafe(`ALTER TABLE "vgauth_apps" ADD COLUMN IF NOT EXISTS "signPrivateKey" text`);
       await _sqlClient!.unsafe(`CREATE TABLE IF NOT EXISTS "vgauth_licenses" (
         "id" serial PRIMARY KEY,
         "appId" integer NOT NULL REFERENCES "vgauth_apps"("id"),

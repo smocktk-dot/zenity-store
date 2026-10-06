@@ -69,17 +69,66 @@ async function uploadTamperShot(shot: string): Promise<string | null> {
   }
 }
 
-/** Assinatura HMAC da resposta — o cliente valida com o secret do app */
-function sign(secret: string, success: boolean, message: string, sessionid: string, ts: number): string {
-  const payload = `${success ? "1" : "0"}|${message}|${sessionid}|${ts}`;
+/** Payload canônico assinado nas respostas (mesmo formato p/ HMAC e ECDSA) */
+function sigPayload(success: boolean, message: string, sessionid: string, ts: number): string {
+  return `${success ? "1" : "0"}|${message}|${sessionid}|${ts}`;
+}
+
+function signHmac(secret: string, payload: string): string {
   return crypto.createHmac("sha256", secret).update(payload).digest("hex");
 }
 
-function respond(res: Response, secret: string | null, payload: Record<string, any>) {
+type VgauthAppLike = { id?: number; secret?: string | null; signPrivateKey?: string | null };
+
+/** Gera o par ECDSA P-256 do app sob demanda (privada fica só no servidor). */
+function genSigningKeypair(): { pubHex: string; privPem: string } {
+  const { publicKey, privateKey } = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
+  const jwk = publicKey.export({ format: "jwk" }) as { x: string; y: string };
+  const pubHex = Buffer.from(jwk.x, "base64url").toString("hex") + Buffer.from(jwk.y, "base64url").toString("hex");
+  const privPem = privateKey.export({ format: "pem", type: "pkcs8" }).toString();
+  return { pubHex, privPem };
+}
+
+const signKeyCache = new Map<number, crypto.KeyObject>();
+
+async function ensureSigningKey(app: VgauthAppLike): Promise<crypto.KeyObject | null> {
+  if (!app.id) return null;
+  const cached = signKeyCache.get(app.id);
+  if (cached) return cached;
+  let pem = app.signPrivateKey;
+  if (!pem) {
+    const { pubHex, privPem } = genSigningKeypair();
+    await updateVgauthApp(app.id, { signPublicKey: pubHex, signPrivateKey: privPem });
+    pem = privPem;
+  }
+  const key = crypto.createPrivateKey(pem);
+  signKeyCache.set(app.id, key);
+  return key;
+}
+
+/**
+ * Resposta assinada em DOIS esquemas:
+ *  - `signature`: HMAC-SHA256 com o secret (clientes legados)
+ *  - `sig`: ECDSA P-256 com a chave privada do app (novos clientes — o loader
+ *    embute só a chave pública, então resposta não pode ser forjada nem se o
+ *    binário inteiro for extraído)
+ */
+async function respond(res: Response, app: VgauthAppLike | null, payload: Record<string, any>) {
   const ts = Math.floor(Date.now() / 1000);
   const body: Record<string, any> = { ts, ...payload };
-  if (secret) {
-    body.signature = sign(secret, !!payload.success, String(payload.message ?? ""), String(payload.sessionid ?? ""), ts);
+  const p = sigPayload(!!payload.success, String(payload.message ?? ""), String(payload.sessionid ?? ""), ts);
+  if (app?.secret) body.signature = signHmac(app.secret, p);
+  if (app?.id) {
+    try {
+      const key = await ensureSigningKey(app);
+      if (key) {
+        body.sig = crypto
+          .sign("sha256", Buffer.from(p), { key, dsaEncoding: "ieee-p1363" })
+          .toString("hex");
+      }
+    } catch (e) {
+      console.warn("[vgauth] assinatura ECDSA indisponível:", e);
+    }
   }
   return res.json(body);
 }
@@ -131,7 +180,8 @@ const PTK_ENFORCED_OWNERS = new Set<string>([
 function vgPtk(sid: string): string {
   let h = 0x811c9dc5;
   for (const v of [0x51a3, 0x2f4d, 0x7b1e]) h = Math.imul(h ^ v, 16777619) >>> 0;
-  for (const b of Buffer.from(sid, "utf8")) h = Math.imul(h ^ b, 16777619) >>> 0;
+  const buf = Buffer.from(sid, "utf8");
+  for (let i = 0; i < buf.length; i++) h = Math.imul(h ^ buf[i], 16777619) >>> 0;
   return h.toString(16).padStart(8, "0");
 }
 
@@ -149,16 +199,21 @@ export function registerVgAuthApi(app: Express) {
     try {
       // ── INIT ──────────────────────────────────────────────────────────────
       if (type === "init") {
-        const { name, ownerid, secret, ver } = body;
-        if (!name || !ownerid || !secret) {
+        // O secret não é mais exigido: ele ia embutido no exe (público por
+        // natureza) e não agregava segurança. O app é identificado por
+        // name+ownerid e a resposta é assinada com a chave privada ECDSA
+        // (o loader valida com a pubkey embutida — impossível de forjar).
+        // Clientes antigos ainda enviam `secret` — é ignorado.
+        const { name, ownerid, ver } = body;
+        if (!name || !ownerid) {
           return respond(res, null, { success: false, message: "missing_params" });
         }
         const appRow = await getVgauthAppByOwnerId(String(ownerid));
-        if (!appRow || appRow.name !== String(name) || appRow.secret !== String(secret)) {
+        if (!appRow || appRow.name !== String(name)) {
           return respond(res, null, { success: false, message: "invalid_app_credentials" });
         }
         if (appRow.status !== "active") {
-          return respond(res, appRow.secret, { success: false, message: "app_disabled" });
+          return respond(res, appRow, { success: false, message: "app_disabled" });
         }
         // proof-of-protection: no init o ptk e calculado sobre o app name
         if (PTK_ENFORCED_OWNERS.has(appRow.ownerId) && String(body.ptk || "") !== vgPtk(String(name))) {
@@ -175,7 +230,7 @@ export function registerVgAuthApi(app: Express) {
           expiresAt: new Date(Date.now() + 24 * 3_600_000),
         });
         await createVgauthLog({ appId: appRow.id, action: "session.init", detail: `ver=${ver || "?"}`, ip });
-        return respond(res, appRow.secret, {
+        return respond(res, appRow, {
           success: true,
           message: "initialized",
           sessionid,
@@ -269,7 +324,7 @@ export function registerVgAuthApi(app: Express) {
             }
           }
         }
-        return respond(res, appRow?.secret ?? null, { success: true, message: "ok" });
+        return respond(res, appRow ?? null, { success: true, message: "ok" });
       }
 
       // Todas as outras ações exigem sessão válida
@@ -283,17 +338,16 @@ export function registerVgAuthApi(app: Express) {
       if (!appRec || appRec.status !== "active") {
         return respond(res, null, { success: false, message: "app_disabled" });
       }
-      const secret = appRec.secret;
 
       // proof-of-protection: demais tipos usam o sessionid
       if (PTK_ENFORCED_OWNERS.has(appRec.ownerId) && String(body.ptk || "") !== vgPtk(sessionid)) {
         await createVgauthLog({ appId: appRec.id, action: "protect.ptk_rejected", detail: `type=${type}`, ip });
-        return respond(res, secret, { success: false, message: "invalid_session", sessionid });
+        return respond(res, appRec, { success: false, message: "invalid_session", sessionid });
       }
 
       // Rate limit mais agressivo para ações de auth
       if (["register", "login", "license"].includes(type) && !rateLimit(`vga:${ip}:${type}`, 12, 60_000)) {
-        return respond(res, secret, { success: false, message: "rate_limited", sessionid });
+        return respond(res, appRec, { success: false, message: "rate_limited", sessionid });
       }
 
       // Ban global: IP + HWID placa-mãe + HWID CPU
@@ -302,7 +356,7 @@ export function registerVgAuthApi(app: Express) {
       const banHit = await findVgauthBan({ ip, hwidMb, hwidCpu });
       if (banHit && ["register", "login", "license"].includes(type)) {
         await createVgauthLog({ appId: appRec.id, action: "auth.banned_attempt", detail: `type=${type} banId=${banHit.id}`, ip });
-        return respond(res, secret, {
+        return respond(res, appRec, {
           success: false, message: "banned", banned: true,
           reason: banHit.reason || "Banido", sessionid,
         });
@@ -327,7 +381,7 @@ export function registerVgAuthApi(app: Express) {
       // do .hpp (sem coleta de HWID) precisam ser atualizadas pelo dev.
       if (["register", "login", "license"].includes(type) && (!hwidMb || !hwidCpu)) {
         await createVgauthLog({ appId: appRec.id, action: "auth.hwid_missing", detail: `type=${type}`, ip });
-        return respond(res, secret, { success: false, message: "hwid_required", sessionid });
+        return respond(res, appRec, { success: false, message: "hwid_required", sessionid });
       }
 
       // ── REGISTER ──────────────────────────────────────────────────────────
@@ -335,15 +389,15 @@ export function registerVgAuthApi(app: Express) {
         const { username, pass, key, email } = body;
         const isLoader = appRec.type === "loader";
         if (!username || !pass || (!isLoader && !key)) {
-          return respond(res, secret, { success: false, message: "missing_params", sessionid });
+          return respond(res, appRec, { success: false, message: "missing_params", sessionid });
         }
         const uname = String(username).trim();
         if (uname.length < 3 || uname.length > 32) {
-          return respond(res, secret, { success: false, message: "invalid_username", sessionid });
+          return respond(res, appRec, { success: false, message: "invalid_username", sessionid });
         }
         const existing = await getVgauthUserByUsername(appRec.id, uname);
         if (existing) {
-          return respond(res, secret, { success: false, message: "username_taken", sessionid });
+          return respond(res, appRec, { success: false, message: "username_taken", sessionid });
         }
 
         if (isLoader) {
@@ -360,7 +414,7 @@ export function registerVgAuthApi(app: Express) {
           });
           await updateVgauthSession(session.id, { userId: user.id, username: uname, hwidMb, hwidCpu });
           await createVgauthLog({ appId: appRec.id, action: "loader.register", detail: `${uname} <${email || "sem-email"}>`, ip });
-          return respond(res, secret, {
+          return respond(res, appRec, {
             success: true,
             message: "registered",
             sessionid,
@@ -371,19 +425,19 @@ export function registerVgAuthApi(app: Express) {
 
         const lic = await getVgauthLicenseByKey(appRec.id, String(key).trim());
         if (!lic) {
-          return respond(res, secret, { success: false, message: "invalid_key", sessionid });
+          return respond(res, appRec, { success: false, message: "invalid_key", sessionid });
         }
         if (lic.status === "banned") {
-          return respond(res, secret, { success: false, message: "banned", banned: true, reason: "Key banida", sessionid });
+          return respond(res, appRec, { success: false, message: "banned", banned: true, reason: "Key banida", sessionid });
         }
         if (lic.status !== "active") {
-          return respond(res, secret, { success: false, message: `key_${lic.status}`, sessionid });
+          return respond(res, appRec, { success: false, message: `key_${lic.status}`, sessionid });
         }
         if (lic.usedBy) {
-          return respond(res, secret, { success: false, message: "key_already_used", sessionid });
+          return respond(res, appRec, { success: false, message: "key_already_used", sessionid });
         }
         if (lic.paused) {
-          return respond(res, secret, { success: false, message: "key_paused", sessionid });
+          return respond(res, appRec, { success: false, message: "key_paused", sessionid });
         }
 
         const passwordHash = await bcrypt.hash(String(pass), 10);
@@ -408,7 +462,7 @@ export function registerVgAuthApi(app: Express) {
         });
         await updateVgauthSession(session.id, { userId: user.id, username: uname, hwidMb, hwidCpu });
         await createVgauthLog({ appId: appRec.id, action: "user.register", detail: `${uname} key=${String(key).slice(0, 8)}…`, ip });
-        return respond(res, secret, {
+        return respond(res, appRec, {
           success: true,
           message: "registered",
           sessionid,
@@ -421,29 +475,29 @@ export function registerVgAuthApi(app: Express) {
       if (type === "login") {
         const { username, pass } = body;
         if (!username || !pass) {
-          return respond(res, secret, { success: false, message: "missing_params", sessionid });
+          return respond(res, appRec, { success: false, message: "missing_params", sessionid });
         }
         const user = await getVgauthUserByUsername(appRec.id, String(username).trim());
         if (!user || !(await bcrypt.compare(String(pass), user.passwordHash))) {
           await createVgauthLog({ appId: appRec.id, action: "auth.failed_login", detail: String(username).slice(0, 32), ip });
-          return respond(res, secret, { success: false, message: "invalid_credentials", sessionid });
+          return respond(res, appRec, { success: false, message: "invalid_credentials", sessionid });
         }
         if (user.status === "banned") {
-          return respond(res, secret, { success: false, message: "banned", banned: true, reason: "Conta banida", sessionid });
+          return respond(res, appRec, { success: false, message: "banned", banned: true, reason: "Conta banida", sessionid });
         }
         const license = user.licenseId ? await getVgauthLicenseById(user.licenseId) : null;
         if (license) {
           if (license.status === "banned") {
-            return respond(res, secret, { success: false, message: "banned", banned: true, reason: "Key banida", sessionid });
+            return respond(res, appRec, { success: false, message: "banned", banned: true, reason: "Key banida", sessionid });
           }
           if (license.status !== "active") {
-            return respond(res, secret, { success: false, message: `key_${license.status}`, sessionid });
+            return respond(res, appRec, { success: false, message: `key_${license.status}`, sessionid });
           }
           if (license.paused) {
-            return respond(res, secret, { success: false, message: "key_paused", sessionid });
+            return respond(res, appRec, { success: false, message: "key_paused", sessionid });
           }
           if (license.expiresAt && license.expiresAt.getTime() < Date.now()) {
-            return respond(res, secret, { success: false, message: "subscription_expired", sessionid });
+            return respond(res, appRec, { success: false, message: "subscription_expired", sessionid });
           }
         }
 
@@ -466,11 +520,11 @@ export function registerVgAuthApi(app: Express) {
                 createdBy: "system",
               });
               await createVgauthLog({ appId: appRec.id, action: "auth.auto_ban", detail: `${user.username} hwid mismatch`, ip });
-              return respond(res, secret, { success: false, message: "banned", banned: true, reason: "HWID diferente do registrado", sessionid });
+              return respond(res, appRec, { success: false, message: "banned", banned: true, reason: "HWID diferente do registrado", sessionid });
             }
           }
           await createVgauthLog({ appId: appRec.id, action: "auth.hwid_mismatch", detail: user.username, ip });
-          return respond(res, secret, { success: false, message: "hwid_mismatch", sessionid });
+          return respond(res, appRec, { success: false, message: "hwid_mismatch", sessionid });
         }
 
         // Re-vincula HWID se estiver resetado (null) — senão a key fica aberta pra qualquer PC
@@ -486,7 +540,7 @@ export function registerVgAuthApi(app: Express) {
           });
         }
         await updateVgauthSession(session.id, { userId: user.id, username: user.username, hwidMb, hwidCpu });
-        return respond(res, secret, {
+        return respond(res, appRec, {
           success: true,
           message: "logged_in",
           sessionid,
@@ -504,25 +558,25 @@ export function registerVgAuthApi(app: Express) {
       // ── LICENSE (login direto por key, sem conta) ─────────────────────────
       if (type === "license") {
         if (appRec.type === "loader") {
-          return respond(res, secret, { success: false, message: "not_supported", sessionid });
+          return respond(res, appRec, { success: false, message: "not_supported", sessionid });
         }
         const key = String(body.key || "").trim();
-        if (!key) return respond(res, secret, { success: false, message: "missing_params", sessionid });
+        if (!key) return respond(res, appRec, { success: false, message: "missing_params", sessionid });
         const lic = await getVgauthLicenseByKey(appRec.id, key);
         if (!lic) {
-          return respond(res, secret, { success: false, message: "invalid_key", sessionid });
+          return respond(res, appRec, { success: false, message: "invalid_key", sessionid });
         }
         if (lic.status === "banned") {
-          return respond(res, secret, { success: false, message: "banned", banned: true, reason: "Key banida", sessionid });
+          return respond(res, appRec, { success: false, message: "banned", banned: true, reason: "Key banida", sessionid });
         }
         if (lic.status !== "active") {
-          return respond(res, secret, { success: false, message: `key_${lic.status}`, sessionid });
+          return respond(res, appRec, { success: false, message: `key_${lic.status}`, sessionid });
         }
         if (lic.paused) {
-          return respond(res, secret, { success: false, message: "key_paused", sessionid });
+          return respond(res, appRec, { success: false, message: "key_paused", sessionid });
         }
         if (lic.expiresAt && lic.expiresAt.getTime() < Date.now()) {
-          return respond(res, secret, { success: false, message: "subscription_expired", sessionid });
+          return respond(res, appRec, { success: false, message: "subscription_expired", sessionid });
         }
 
         if (!lic.usedBy) {
@@ -537,7 +591,7 @@ export function registerVgAuthApi(app: Express) {
           });
           await updateVgauthSession(session.id, { username: `key:${key.slice(0, 12)}`, hwidMb, hwidCpu });
           await createVgauthLog({ appId: appRec.id, action: "license.activated", detail: key.slice(0, 12), ip });
-          return respond(res, secret, {
+          return respond(res, appRec, {
             success: true, message: "activated", sessionid,
             shutdown: (await shutdownFor(`key:${key.slice(0, 12)}`)) || undefined,
             info: { username: `key:${key.slice(0, 12)}`, subLevel: lic.subLevel, expiresAt: expiresAt?.toISOString() ?? "lifetime" },
@@ -561,10 +615,10 @@ export function registerVgAuthApi(app: Express) {
               createdBy: "system",
             });
             await createVgauthLog({ appId: appRec.id, action: "auth.auto_ban", detail: `license ${key.slice(0, 12)}`, ip });
-            return respond(res, secret, { success: false, message: "banned", banned: true, reason: "HWID diferente do registrado", sessionid });
+            return respond(res, appRec, { success: false, message: "banned", banned: true, reason: "HWID diferente do registrado", sessionid });
           }
           await createVgauthLog({ appId: appRec.id, action: "auth.hwid_mismatch", detail: `license ${key.slice(0, 12)}`, ip });
-          return respond(res, secret, { success: false, message: "hwid_mismatch", sessionid });
+          return respond(res, appRec, { success: false, message: "hwid_mismatch", sessionid });
         }
 
         // Re-vincula HWID resetado no login direto por key também
@@ -576,7 +630,7 @@ export function registerVgAuthApi(app: Express) {
           });
         }
         await updateVgauthSession(session.id, { username: lic.usedBy, hwidMb, hwidCpu });
-        return respond(res, secret, {
+        return respond(res, appRec, {
           success: true, message: "authenticated", sessionid,
           shutdown: (await shutdownFor(lic.usedBy)) || undefined,
           info: { username: lic.usedBy, subLevel: lic.subLevel, expiresAt: lic.expiresAt ? lic.expiresAt.toISOString() : "lifetime" },
@@ -588,20 +642,20 @@ export function registerVgAuthApi(app: Express) {
         if (session.userId) {
           const user = await getVgauthUserByUsername(appRec.id, session.username || "");
           if (!user || user.status === "banned") {
-            return respond(res, secret, { success: false, message: "banned", banned: true, reason: "Conta banida", sessionid });
+            return respond(res, appRec, { success: false, message: "banned", banned: true, reason: "Conta banida", sessionid });
           }
           if (user.licenseId) {
             const lic = await getVgauthLicenseById(user.licenseId);
             if (lic && lic.status === "banned") {
-              return respond(res, secret, { success: false, message: "banned", banned: true, reason: "Key banida", sessionid });
+              return respond(res, appRec, { success: false, message: "banned", banned: true, reason: "Key banida", sessionid });
             }
             if (lic && (lic.status !== "active" || lic.paused ||
               (lic.expiresAt && lic.expiresAt.getTime() < Date.now()))) {
-              return respond(res, secret, { success: false, message: "subscription_invalid", sessionid });
+              return respond(res, appRec, { success: false, message: "subscription_invalid", sessionid });
             }
           }
         }
-        return respond(res, secret, {
+        return respond(res, appRec, {
           success: true, message: "session_valid", sessionid,
           shutdown: (await shutdownFor()) || undefined,
           sessionExpiresAt: session.expiresAt.toISOString(),
@@ -611,10 +665,10 @@ export function registerVgAuthApi(app: Express) {
       // ── LOG ───────────────────────────────────────────────────────────────
       if (type === "log") {
         await createVgauthLog({ appId: appRec.id, action: "client.log", detail: String(body.message || "").slice(0, 500), ip });
-        return respond(res, secret, { success: true, message: "logged", sessionid });
+        return respond(res, appRec, { success: true, message: "logged", sessionid });
       }
 
-      return respond(res, secret, { success: false, message: "unknown_type", sessionid });
+      return respond(res, appRec, { success: false, message: "unknown_type", sessionid });
     } catch (err) {
       console.error("[VGAuth] error:", err);
       return respond(res, null, { success: false, message: "server_error" });
@@ -623,7 +677,7 @@ export function registerVgAuthApi(app: Express) {
 
   // GET: info básica do endpoint
   app.get("/api/vgauth/v1", (_req: Request, res: Response) => {
-    res.json({ name: "VG Auth", version: "1.0", usage: "POST { type, name, ownerid, secret, ... }" });
+    res.json({ name: "VG Auth", version: "1.1", usage: "POST { type, name, ownerid, ... }" });
   });
 
   // ─── AUTO-UPDATE / DISTRIBUIÇÃO ─────────────────────────────────────────────

@@ -33,12 +33,12 @@ O VG Auth é composto de três partes:
 | **API pública** | `POST /api/vgauth/v1` | Autenticação dos seus programas/sites |
 | **SDKs** | Download no painel | Cliente pronto para C++ e Web |
 
-Cada aplicação criada recebe um **Owner ID** (público, vai no código do cliente) e uma **Secret** (usada para autenticar o app E assinar as respostas — o cliente valida a assinatura para detectar servidores falsos).
+Cada aplicação criada recebe um **Owner ID** (público, vai no código do cliente) e uma **Public Key de assinatura ECDSA P-256** (128 hex — vai embutida no loader). A **chave privada** correspondente fica **apenas no servidor** e assina todas as respostas — quem extrai a pubkey do binário não consegue forjar resposta nenhuma. Existe ainda uma **Secret** legada (64 hex, modo HMAC antigo — funciona, mas é mais fraca porque um secret extraído do exe consegue forjar respostas).
 
 ## 2. Como funciona
 
 ```
-┌──────────┐   1. init (name+ownerid+secret)    ┌──────────┐
+┌──────────┐   1. init (name+ownerid)           ┌──────────┐
 │          │ ─────────────────────────────────► │          │
 │ Seu app  │   2. login/register/license        │ VG Auth  │
 │ (C++/web)│ ─────────────────────────────────► │  Server  │
@@ -47,7 +47,7 @@ Cada aplicação criada recebe um **Owner ID** (público, vai no código do clie
 └──────────┘                                    └──────────┘
 ```
 
-1. **`init`** — valida `name` + `ownerid` + `secret` e cria uma **sessão** (`sessionid`, válida por 24h).
+1. **`init`** — valida `name` + `ownerid` e cria uma **sessão** (`sessionid`, válida por 24h). O `secret` não é mais exigido.
 2. **`register`/`login`/`license`** — autentica o usuário. O HWID (placa-mãe + CPU) é gravado no primeiro uso e **exigido** nos próximos logins.
 3. **`check`** — heartbeat: revalida se a licença continua ativa. Se o admin banir/pausar a key, o cliente é derrubado na próxima chamada.
 
@@ -56,10 +56,10 @@ Cada aplicação criada recebe um **Owner ID** (público, vai no código do clie
 No painel admin → **VG Auth** → **Nova Aplicação**:
 
 - Informe apenas o **nome** (ex: `MeuCheat`, `MeuSite`)
-- O sistema gera: **Owner ID** (32 hex) e **Secret** (64 hex)
-- Copie os três valores para o seu código (`name`, `ownerid`, `secret`)
+- O sistema gera: **Owner ID** (32 hex), **Secret** legada (64 hex) e o **par de chaves ECDSA** (a "Pub Key", 128 hex, é a que vai no seu código)
+- Copie para o código: `name`, `ownerid` e a **Pub Key** (128 hex — mostrada na lista de apps)
 - A **versão** (`1.0` por padrão) serve para forçar update — se o `ver` enviado pelo cliente for diferente, o campo `versionMismatch` vem `true` na resposta do init
-- **Regenerar secret**: invalida instantaneamente todos os clientes com a secret antiga (use se vazar)
+- **Regenerar secret**: invalida clientes no modo legado (HMAC) com a secret antiga
 - **Desativar app**: bloqueia init/login de todos os usuários daquele app
 
 ## 4. Gerando keys
@@ -87,7 +87,7 @@ Content-Type: application/json
 ### 5.1 `init` — iniciar sessão
 
 ```json
-{ "type": "init", "name": "MeuApp", "ownerid": "...", "secret": "...", "ver": "1.0" }
+{ "type": "init", "name": "MeuApp", "ownerid": "...", "ver": "1.0" }
 ```
 
 Resposta:
@@ -99,6 +99,7 @@ Resposta:
   "enckey": "d4e5f6...",
   "appinfo": { "name": "MeuApp", "version": "1.0" },
   "ts": 1758220000,
+  "sig": "ecdsa-p256-ieee-p1363-hex...",
   "signature": "hmac-sha256-hex..."
 }
 ```
@@ -167,20 +168,21 @@ Revalida usuário + licença. Retorna `subscription_invalid` se a key foi banida
 Toda resposta contém:
 
 ```json
-{ "success": bool, "message": "string", "sessionid": "...", "ts": 1758220000, "signature": "hex" }
+{ "success": bool, "message": "string", "sessionid": "...", "ts": 1758220000, "sig": "hex", "signature": "hex" }
 ```
 
-**Assinatura** (o cliente DEVE verificar):
+**Assinatura** (o cliente DEVE verificar) — o servidor envia duas:
 
-```
-signature = HMAC_SHA256_HEX(secret, "{success:0|1}|{message}|{sessionid}|{ts}")
-```
+| Campo | Algoritmo | Quem verifica |
+|-------|-----------|---------------|
+| `sig` | **ECDSA P-256 + SHA-256** (r‖s IEEE-P1363, hex) sobre `"{success:0\|1}\|{message}\|{sessionid}\|{ts}"` | Clientes novos (pubkey embutida) |
+| `signature` | `HMAC_SHA256_HEX(secret, mesmo payload)` | Clientes legados |
 
-- Recompute o HMAC com o `secret` do app e compare em **tempo constante**
+- **Modo recomendado (pubkey):** verifique `sig` com a chave pública ECDSA do app. Se `sig` estiver ausente → **rejeite** (fail-closed — não existe downgrade pra HMAC quando você tem pubkey embutida)
 - Rejeite se `|agora - ts| > 120s` (anti-replay)
 - Se a assinatura falhar → a resposta é de um **emulador falso** — descarte
 
-Os SDKs (`VgAuth.hpp` / `vgauth.js`) já fazem essa verificação automaticamente — retornam `signature_mismatch` quando falha.
+Os SDKs (`VgAuth.hpp` / `vgauth.js`) detectam automaticamente pelo tamanho da credencial: **128 hex = pubkey ECDSA**, 64 hex = secret legado. Retornam `signature_mismatch` quando falha.
 
 ## 7. Sistema de HWID duplo
 
@@ -232,7 +234,7 @@ Remover um registro na aba Bans desfaz o bloqueio daquele identificador.
 | `message` | `errorText()` (PT-BR) | Significado |
 |-----------|----------------------|-------------|
 | `banned` (+`banned`,`reason`) | "Você foi banido. Motivo: X" | IP/HWID na lista global de bans |
-| `invalid_app_credentials` | — | name/ownerid/secret errados |
+| `invalid_app_credentials` | — | name/ownerid errados |
 | `app_disabled` | "Aplicação desativada." | App desativado no painel |
 | `invalid_session` / `missing_session` | "Sessão inválida. Reinicie o programa." | sessionid inválida ou expirada |
 | `rate_limited` | "Muitas tentativas. Aguarde 1 minuto." | Anti brute-force (60/min global, 12/min por ação) |
@@ -263,7 +265,7 @@ No detalhe do app:
 ```cpp
 #include "VgAuth.hpp"
 
-VgAuth::api auth("MeuApp", "OWNER_ID", "SECRET", "1.0");
+VgAuth::api auth("MeuApp", "OWNER_ID", "PUB_KEY_128_HEX", "1.0");
 
 int main() {
     // anti-debug na entrada — selfDefense() tira print da tela e reporta
@@ -305,7 +307,7 @@ int main() {
 | `auth.loggedIn` | Sessão autenticada ativa |
 
 **Proteções já embutidas no .hpp:**
-- Verificação de assinatura HMAC-SHA256 (anti emulador de servidor)
+- Verificação de assinatura ECDSA P-256 (anti emulador de servidor — pubkey embutida, privada só no servidor; secret legado cai no modo HMAC-SHA256)
 - Timestamp anti-replay (±120s)
 - Comparação de assinatura em tempo constante
 - Anti-debug: `IsDebuggerPresent`, `CheckRemoteDebuggerPresent`, `NtQueryInformationProcess(DebugPort)`, `PEB.BeingDebugged`, timing check
@@ -318,7 +320,7 @@ int main() {
 ```html
 <script src="vgauth.js"></script>
 <script>
-  const auth = new VgAuth("MeuSite", "OWNER_ID", "SECRET", "1.0");
+  const auth = new VgAuth("MeuSite", "OWNER_ID", "PUB_KEY_128_HEX", "1.0");
   await auth.init();
   await auth.login("user", "pass");      // ou register/license
   if (auth.banned) alert(auth.errorText());
@@ -327,13 +329,13 @@ int main() {
 
 No browser, `hwid_mb` = fingerprint persistente (localStorage) e `hwid_cpu` = `"web"`.
 
-> **Nota**: para sites de produção, o ideal é chamar a API do **seu backend** (Node/PHP), assim o `secret` não fica exposto no código público do front-end.
+> **Nota**: a Pub Key **pode** ficar exposta no código do front — ela só valida assinaturas, não forja nada. Não é mais necessário esconder credencial atrás de um backend.
 
 ## 13. Segurança e anti-bypass
 
 | Ataque | Defesa implementada |
 |--------|---------------------|
-| Emulador de servidor (hosts + CA falsa) | Assinatura HMAC em toda resposta + verificação obrigatória no cliente |
+| Emulador de servidor (hosts + CA falsa) | Assinatura **ECDSA P-256** em toda resposta — o exe carrega só a pubkey, então nem com o binário extraído dá pra forjar resposta (legado: HMAC) |
 | Replay de resposta capturada | `ts` com janela de ±120s |
 | Timing attack na comparação | Comparação em tempo constante (`ConstantTimeEqual`) |
 | Brute-force de login/keys | Rate limit: 60 req/min por IP global, 12 req/min para register/login/license |
@@ -349,6 +351,5 @@ No browser, `hwid_mb` = fingerprint persistente (localStorage) e `hwid_cpu` = `"
 - [ ] Rodar **VMProtect/Themida** no binário final (virtualizar `VgAuth::api` + pontos de checagem de login)
 - [ ] Chamar `check()` numa thread a cada ~30s
 - [ ] Baixar dados/lógica crítica do **seu** backend após autenticar (não deixe nada essencial decidido só no cliente)
-- [ ] Guardar `secret` ofuscada no binário (string encryption do VMProtect)
+- [ ] Usar a **Pub Key** (128 hex) como credencial do app — não embutir a secret legada em builds novos
 - [ ] Considerar **certificate pinning** no WinHTTP se o público for alvo de emuladores
-- [ ] Para web: chamar a API pelo backend, não direto do browser público

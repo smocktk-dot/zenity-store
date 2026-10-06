@@ -6,11 +6,14 @@
 #include "VgAuth.hpp"
 
 int main() {
-    // Credenciais do app — copie do painel admin → VG Auth → seu app
+    // Credenciais do app — copie do painel admin → VG Auth → seu app.
+    // O 3º parâmetro é a PUBLIC KEY do app (campo "Pub Key", 128 hex) —
+    // ela só valida assinaturas do servidor e pode ir embutida no exe
+    // sem risco: quem extrai não consegue forjar resposta.
     VgAuth::api auth(
         "MeuApp",                                   // name
         "OWNER_ID_AQUI",                            // ownerid
-        "SECRET_AQUI",                              // secret
+        "PUB_KEY_128_HEX_AQUI",                     // public key (campo "Pub Key" do painel)
         "1.0"                                       // versão do seu binário
     );
 

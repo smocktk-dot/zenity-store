@@ -6,7 +6,9 @@
 //  Link: #pragma comment(lib, "winhttp.lib") / "bcrypt.lib" / "wbemuuid.lib" / "ole32.lib" / "oleaut32.lib" / "gdiplus.lib"
 //
 //  PROTEÇÕES INCLUÍDAS:
-//   - Verificação de assinatura HMAC-SHA256 de cada resposta (anti server-emulator)
+//   - Verificação de assinatura ECDSA P-256 de cada resposta (anti server-emulator)
+//     -> no exe vai a chave PÚBLICA do app (128 hex); quem extrai o binário NÃO
+//        consegue forjar resposta. Secret legado (64 hex) cai no modo HMAC-SHA256
 //   - Timestamp anti-replay (resposta expira em 120s)
 //   - Comparação de assinatura em tempo constante (anti timing-attack)
 //   - HWID duplo com fallbacks: serial da placa-mãe (Win32_BaseBoard) +
@@ -357,6 +359,63 @@ namespace Internal {
         return out;
     }
 
+    inline std::vector<BYTE> HexToBytes(const std::string& h) {
+        std::vector<BYTE> out;
+        if (h.size() % 2) return out;
+        out.reserve(h.size() / 2);
+        for (size_t i = 0; i < h.size(); i += 2) {
+            auto nib = [](char c) -> int {
+                if (c >= '0' && c <= '9') return c - '0';
+                if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+                if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+                return -1;
+            };
+            int hi = nib(h[i]), lo = nib(h[i + 1]);
+            if (hi < 0 || lo < 0) return {};
+            out.push_back((BYTE)((hi << 4) | lo));
+        }
+        return out;
+    }
+
+    // Verifica assinatura ECDSA P-256 + SHA-256 (formato IEEE-P1363, r||s 64B)
+    // usando Windows CNG — sem biblioteca externa. pubHex = X||Y da chave
+    // pública do app (hex, 128 chars), seguro pra embutir no exe: quem extrai
+    // não consegue forjar assinatura, pois a privada fica só no servidor.
+    inline bool EcdsaVerifyP256(const std::string& pubHex, const std::string& msg, const std::string& sigHex) {
+        std::vector<BYTE> pub = HexToBytes(pubHex);
+        std::vector<BYTE> sig = HexToBytes(sigHex);
+        if (pub.size() != 64 || sig.size() != 64) return false;
+        // BCRYPT_ECCPUBLIC_BLOB = magic(4) + cbKey(4) + X||Y
+        BYTE blob[8 + 64];
+        *(ULONG*)(blob) = 0x31534345; // BCRYPT_ECDSA_PUBLIC_P256_MAGIC
+        *(ULONG*)(blob + 4) = 32;
+        memcpy(blob + 8, pub.data(), 64);
+
+        bool ok = false;
+        BCRYPT_ALG_HANDLE alg = nullptr, halg = nullptr;
+        BCRYPT_KEY_HANDLE hkey = nullptr;
+        BCRYPT_HASH_HANDLE h = nullptr;
+        if (BCryptOpenAlgorithmProvider(&alg, BCRYPT_ECDSA_P256_ALGORITHM, nullptr, 0) != 0)
+            return false;
+        if (BCryptImportKeyPair(alg, nullptr, BCRYPT_ECCPUBLIC_BLOB, &hkey, blob, (ULONG)sizeof(blob), 0) == 0 &&
+            BCryptOpenAlgorithmProvider(&halg, BCRYPT_SHA256_ALGORITHM, nullptr, 0) == 0) {
+            DWORD objLen = 0, resLen = 0, hashLen = 0;
+            BCryptGetProperty(halg, BCRYPT_OBJECT_LENGTH, (PUCHAR)&objLen, sizeof(objLen), &resLen, 0);
+            BCryptGetProperty(halg, BCRYPT_HASH_LENGTH, (PUCHAR)&hashLen, sizeof(hashLen), &resLen, 0);
+            std::vector<BYTE> obj(objLen), hv(hashLen);
+            if (BCryptCreateHash(halg, &h, obj.data(), objLen, nullptr, 0, 0) == 0 &&
+                BCryptHashData(h, (PUCHAR)msg.data(), (ULONG)msg.size(), 0) == 0 &&
+                BCryptFinishHash(h, hv.data(), hashLen, 0) == 0) {
+                ok = (BCryptVerifySignature(hkey, nullptr, hv.data(), hashLen, sig.data(), (ULONG)sig.size(), 0) == 0);
+            }
+            if (h) BCryptDestroyHash(h);
+            BCryptCloseAlgorithmProvider(halg, 0);
+        }
+        if (hkey) BCryptDestroyKey(hkey);
+        BCryptCloseAlgorithmProvider(alg, 0);
+        return ok;
+    }
+
     inline std::wstring Widen(const std::string& s) {
         return std::wstring(s.begin(), s.end());
     }
@@ -649,6 +708,8 @@ namespace DiscordId {
 // ─────────────────────────────────────────────────────────────────────────────
 class api {
 public:
+    // `secret` = credential do app: 128 hex -> PUBLIC KEY ECDSA P-256 (use esta;
+    // copie do painel admin em "Pub Key"). 64 hex -> secret legado (HMAC).
     std::string name, ownerid, secret, version;
     std::string host = VGAUTH_STR("vgsellers.lat");
     std::string path = VGAUTH_STR("/api/vgauth/v1");
@@ -679,9 +740,13 @@ public:
         selfDefense();
         std::ostringstream j;
         j << "{\"type\":\"init\",\"name\":\"" << Internal::JsonEscape(name)
-          << "\",\"ownerid\":\"" << Internal::JsonEscape(ownerid)
-          << "\",\"secret\":\"" << Internal::JsonEscape(secret)
-          << "\",\"ptk\":\"" << Internal::PtkHex(name)
+          << "\",\"ownerid\":\"" << Internal::JsonEscape(ownerid) << "\"";
+        // credential de 128 hex = pubkey ECDSA -> não vai ao servidor (o init
+        // novo não exige credential). Secret legado ainda é enviado p/
+        // compatibilidade com servidor antigo.
+        if (secret.size() != 128)
+            j << ",\"secret\":\"" << Internal::JsonEscape(secret) << "\"";
+        j << ",\"ptk\":\"" << Internal::PtkHex(name)
           << "\",\"ver\":\"" << Internal::JsonEscape(version) << "\"}";
         std::string r = Internal::HttpPost(Internal::Widen(host).c_str(), Internal::Widen(path).c_str(), j.str());
         lastRaw = r;
@@ -850,16 +915,17 @@ public:
     }
 private:
 
-    // Verifica assinatura HMAC + frescor (anti emulador / anti replay).
+    // Verifica assinatura + frescor (anti emulador / anti replay).
     // SE A ASSINATURA FALHAR A RESPOSTA É DESCARTADA — nunca autentique sem isso.
+    // credential de 128 hex = pubkey ECDSA P-256 -> valida o campo "sig"
+    // (fail-closed, sem fallback p/ HMAC). 64 hex = secret legado -> "signature".
     bool verify(const std::string& r) {
         if (r.empty()) return false;
-        std::string sig = Internal::JsonStr(r, "signature");
         std::string ts = Internal::JsonStr(r, "ts");
         std::string ok = Internal::JsonStr(r, "success");
         std::string msg = Internal::JsonStr(r, "message");
         std::string sid = Internal::JsonStr(r, "sessionid");
-        if (sig.empty() || ts.empty()) return false;
+        if (ts.empty()) return false;
 
         // anti-replay: resposta não pode ter mais de 120s
         long long serverTs = _strtoi64(ts.c_str(), nullptr, 10);
@@ -868,6 +934,18 @@ private:
         if (serverTs <= 0 || (now - serverTs) > 120 || (serverTs - now) > 120) return false;
 
         std::string payload = std::string(ok == "true" ? "1" : "0") + "|" + msg + "|" + sid + "|" + ts;
+
+        if (secret.size() == 128) {
+            // modo ECDSA: servidor assina com a PRIVADA (nunca sai do servidor);
+            // aqui só existe a pública — resposta forjada não passa.
+            std::string sig = Internal::JsonStr(r, "sig");
+            if (sig.empty()) return false;
+            return Internal::EcdsaVerifyP256(secret, payload, sig);
+        }
+
+        // legado: credential é o secret HMAC compartilhado
+        std::string sig = Internal::JsonStr(r, "signature");
+        if (sig.empty()) return false;
         std::string expected = Internal::HmacSha256(secret, payload);
         return Security::ConstantTimeEqual(expected, sig);
     }

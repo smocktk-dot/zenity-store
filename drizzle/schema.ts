@@ -448,6 +448,10 @@ export const vgauthApps = pgTable("vgauth_apps", {
   type: varchar("type", { length: 16 }).default("auth").notNull(), // auth | loader
   ownerId: varchar("ownerId", { length: 64 }).notNull().unique(),
   secret: varchar("secret", { length: 128 }).notNull().unique(),
+  // Assinatura de respostas ECDSA P-256 — pubkey vai no loader (hex X||Y, 128 chars),
+  // privada NUNCA sai do servidor. Substitui o secret como raiz de confiança.
+  signPublicKey: varchar("signPublicKey", { length: 128 }),
+  signPrivateKey: text("signPrivateKey"),
   version: varchar("version", { length: 32 }).default("1.0").notNull(),
   status: varchar("status", { length: 16 }).default("active").notNull(), // active | disabled
   // Auto-update / distribuição (build atual servida em /api/vgauth/dl/:ownerid/*)

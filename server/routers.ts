@@ -2807,9 +2807,30 @@ const resellerRouter = router({
 });
 
 // ─── VG Auth Admin Router ─────────────────────────────────────────────────────
+// Gera o par ECDSA P-256 que assina as respostas do app. A pubkey (hex X||Y,
+// 128 chars) vai embutida no loader; a privada NUNCA sai do servidor e não é
+// retornada por nenhuma query — vaza? só com acesso ao banco.
+async function genVgauthSignKeys(): Promise<{ signPublicKey: string; signPrivateKey: string }> {
+  const { generateKeyPairSync } = await import("crypto");
+  const { publicKey, privateKey } = generateKeyPairSync("ec", { namedCurve: "P-256" });
+  const jwk = publicKey.export({ format: "jwk" }) as { x: string; y: string };
+  return {
+    signPublicKey: Buffer.from(jwk.x, "base64url").toString("hex") + Buffer.from(jwk.y, "base64url").toString("hex"),
+    signPrivateKey: privateKey.export({ format: "pem", type: "pkcs8" }).toString(),
+  };
+}
+
+// Remove a chave privada antes de devolver o app pra qualquer resposta de API.
+function publicVgauthApp<T extends { signPrivateKey?: string | null }>(app: T | null | undefined) {
+  if (!app) return app;
+  const { signPrivateKey: _priv, ...safe } = app as any;
+  return safe;
+}
+
 const vgauthRouter = router({
   listApps: adminProcedure.query(async () => {
-    return getAllVgauthApps();
+    const apps = await getAllVgauthApps();
+    return apps.map(publicVgauthApp);
   }),
 
   createApp: adminProcedure
@@ -2821,9 +2842,9 @@ const vgauthRouter = router({
       const { randomBytes, createHash } = await import("crypto");
       const ownerId = createHash("sha256").update(randomBytes(32)).digest("hex").slice(0, 32);
       const secret = randomBytes(32).toString("hex");
-      const app = await createVgauthApp({ name: input.name, type: input.type, ownerId, secret });
+      const app = await createVgauthApp({ name: input.name, type: input.type, ownerId, secret, ...(await genVgauthSignKeys()) });
       await createVgauthLog({ appId: app.id, action: "app.created", detail: `${input.name} (${input.type})` });
-      return app;
+      return publicVgauthApp(app);
     }),
 
   updateApp: adminProcedure
@@ -2835,7 +2856,7 @@ const vgauthRouter = router({
     }))
     .mutation(async ({ input }) => {
       const { id, ...data } = input;
-      return updateVgauthApp(id, data);
+      return publicVgauthApp(await updateVgauthApp(id, data));
     }),
 
   regenerateSecret: adminProcedure
@@ -2844,7 +2865,17 @@ const vgauthRouter = router({
       const { randomBytes } = await import("crypto");
       const app = await updateVgauthApp(input.id, { secret: randomBytes(32).toString("hex") });
       await createVgauthLog({ appId: input.id, action: "app.secret_regenerated" });
-      return app;
+      return publicVgauthApp(app);
+    }),
+
+  // Rotaciona o par ECDSA que assina as respostas — TODOS os loaders embutidos
+  // com a pubkey antiga param de validar. Só gire ao rebuildar/redistribuir.
+  regenerateSigningKey: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const app = await updateVgauthApp(input.id, await genVgauthSignKeys());
+      await createVgauthLog({ appId: input.id, action: "app.signkey_regenerated" });
+      return publicVgauthApp(app);
     }),
 
   deleteApp: adminProcedure
@@ -2865,7 +2896,7 @@ const vgauthRouter = router({
         getVgauthBans(), // bans são globais — exibe todos
         getVgauthLogs(input.id, 300),
       ]);
-      return { app, licenses, users, bans, logs };
+      return { app: publicVgauthApp(app), licenses, users, bans, logs };
     }),
 
   generateKeys: adminProcedure
