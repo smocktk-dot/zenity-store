@@ -988,6 +988,22 @@ const adminRouter = router({
       return purgeResellerPurchases(input.resellerId);
     }),
 
+  // Exclui o reseller permanentemente — deleteResellerById limpa em cascata:
+  // keys, tickets+mensagens, transações de crédito, pix, API keys, vínculos de
+  // app, other-store e whitelist. Sub-resellers dele sobem pro mesmo "pai"
+  // (não são excluídos junto).
+  deleteReseller: adminProcedure
+    .input(z.object({ resellerId: z.number(), confirmUsername: z.string() }))
+    .mutation(async ({ input }) => {
+      const reseller = await getResellerById(input.resellerId);
+      if (!reseller) throw new TRPCError({ code: "NOT_FOUND" });
+      if (input.confirmUsername !== reseller.username) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Confirmação incorreta — digite o username exato" });
+      }
+      await deleteResellerById(input.resellerId);
+      return { success: true };
+    }),
+
   // Categories
   listCategories: adminProcedure.query(() => getAllCategories()),
 

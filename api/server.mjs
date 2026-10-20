@@ -4189,13 +4189,13 @@ function registerVgAuthApi(app2) {
         await createVgauthLog({ appId: appRec.id, action: "protect.ptk_rejected", detail: `type=${type}`, ip });
         return respond(res, appRec, { success: false, message: "invalid_session", sessionid });
       }
-      if (["register", "login", "license"].includes(type) && !rateLimit(`vga:${ip}:${type}`, 12, 6e4)) {
+      if (["register", "login", "license", "redeem"].includes(type) && !rateLimit(`vga:${ip}:${type}`, 12, 6e4)) {
         return respond(res, appRec, { success: false, message: "rate_limited", sessionid });
       }
       const hwidMb = String(body.hwid_mb || body.hwid || "").trim() || null;
       const hwidCpu = String(body.hwid_cpu || "").trim() || null;
       const banHit = await findVgauthBan({ ip, hwidMb, hwidCpu });
-      if (banHit && ["register", "login", "license"].includes(type)) {
+      if (banHit && ["register", "login", "license", "redeem"].includes(type)) {
         await createVgauthLog({ appId: appRec.id, action: "auth.banned_attempt", detail: `type=${type} banId=${banHit.id}`, ip });
         return respond(res, appRec, {
           success: false,
@@ -4217,7 +4217,7 @@ function registerVgAuthApi(app2) {
           return false;
         }
       };
-      if (["register", "login", "license"].includes(type) && (!hwidMb || !hwidCpu)) {
+      if (["register", "login", "license", "redeem"].includes(type) && (!hwidMb || !hwidCpu)) {
         await createVgauthLog({ appId: appRec.id, action: "auth.hwid_missing", detail: `type=${type}`, ip });
         return respond(res, appRec, { success: false, message: "hwid_required", sessionid });
       }
@@ -4464,6 +4464,84 @@ function registerVgAuthApi(app2) {
           sessionid,
           shutdown: await shutdownFor(lic.usedBy) || void 0,
           info: { username: lic.usedBy, subLevel: lic.subLevel, expiresAt: lic.expiresAt ? lic.expiresAt.toISOString() : "lifetime" }
+        });
+      }
+      if (type === "redeem") {
+        if (appRec.type === "loader") {
+          return respond(res, appRec, { success: false, message: "not_supported", sessionid });
+        }
+        let renewUser = session.userId && session.username ? await getVgauthUserByUsername(appRec.id, session.username) : null;
+        if (!renewUser) {
+          const uname = String(body.username || "").trim();
+          const pass = String(body.pass || "");
+          if (uname && pass) {
+            const cand = await getVgauthUserByUsername(appRec.id, uname);
+            if (cand && await bcrypt.compare(pass, cand.passwordHash)) renewUser = cand;
+          }
+        }
+        if (!renewUser) {
+          return respond(res, appRec, { success: false, message: "invalid_credentials", sessionid });
+        }
+        if (renewUser.status === "banned") {
+          return respond(res, appRec, { success: false, message: "banned", banned: true, reason: "Conta banida", sessionid });
+        }
+        const key = String(body.key || "").trim();
+        if (!key) return respond(res, appRec, { success: false, message: "missing_params", sessionid });
+        const lic = await getVgauthLicenseByKey(appRec.id, key);
+        if (!lic) {
+          return respond(res, appRec, { success: false, message: "invalid_key", sessionid });
+        }
+        if (lic.status === "banned") {
+          return respond(res, appRec, { success: false, message: "banned", banned: true, reason: "Key banida", sessionid });
+        }
+        if (lic.status !== "active") {
+          return respond(res, appRec, { success: false, message: `key_${lic.status}`, sessionid });
+        }
+        if (lic.usedBy) {
+          return respond(res, appRec, { success: false, message: "key_already_used", sessionid });
+        }
+        if (lic.paused) {
+          return respond(res, appRec, { success: false, message: "key_paused", sessionid });
+        }
+        const durMs = durationToMs(lic.durationValue, lic.durationUnit);
+        const base = Math.max(Date.now(), renewUser.expiresAt ? renewUser.expiresAt.getTime() : 0);
+        const newExpiry = durMs === null ? null : new Date(base + durMs);
+        await updateVgauthUser(renewUser.id, {
+          expiresAt: newExpiry,
+          subLevel: lic.subLevel,
+          licenseId: lic.id
+        });
+        await updateVgauthLicense(lic.id, {
+          usedBy: renewUser.username,
+          hwidMb: hwidMb || session.hwidMb,
+          hwidCpu: hwidCpu || session.hwidCpu,
+          ip,
+          activatedAt: /* @__PURE__ */ new Date(),
+          expiresAt: newExpiry
+        });
+        await updateVgauthSession(session.id, {
+          userId: renewUser.id,
+          username: renewUser.username,
+          hwidMb,
+          hwidCpu
+        });
+        await createVgauthLog({
+          appId: appRec.id,
+          action: "user.redeem",
+          detail: `${renewUser.username} key=${key.slice(0, 12)}`,
+          ip
+        });
+        return respond(res, appRec, {
+          success: true,
+          message: "renewed",
+          sessionid,
+          shutdown: await shutdownFor(renewUser.username) || void 0,
+          info: {
+            username: renewUser.username,
+            email: renewUser.email,
+            subLevel: lic.subLevel,
+            expiresAt: newExpiry ? newExpiry.toISOString() : "lifetime"
+          }
         });
       }
       if (type === "check") {
@@ -5907,6 +5985,19 @@ var adminRouter = router({
       throw new TRPCError3({ code: "BAD_REQUEST", message: "Confirma\xE7\xE3o incorreta \u2014 digite o username exato" });
     }
     return purgeResellerPurchases(input.resellerId);
+  }),
+  // Exclui o reseller permanentemente — deleteResellerById limpa em cascata:
+  // keys, tickets+mensagens, transações de crédito, pix, API keys, vínculos de
+  // app, other-store e whitelist. Sub-resellers dele sobem pro mesmo "pai"
+  // (não são excluídos junto).
+  deleteReseller: adminProcedure2.input(z2.object({ resellerId: z2.number(), confirmUsername: z2.string() })).mutation(async ({ input }) => {
+    const reseller = await getResellerById(input.resellerId);
+    if (!reseller) throw new TRPCError3({ code: "NOT_FOUND" });
+    if (input.confirmUsername !== reseller.username) {
+      throw new TRPCError3({ code: "BAD_REQUEST", message: "Confirma\xE7\xE3o incorreta \u2014 digite o username exato" });
+    }
+    await deleteResellerById(input.resellerId);
+    return { success: true };
   }),
   // Categories
   listCategories: adminProcedure2.query(() => getAllCategories()),

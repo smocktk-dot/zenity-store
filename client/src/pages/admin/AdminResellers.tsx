@@ -110,6 +110,15 @@ export default function AdminResellers() {
     onSuccess: () => { toast.success("IP removido"); utils.admin.listIpWhitelist.invalidate(); },
     onError: e => toast.error(e.message),
   });
+  const del = trpc.admin.deleteReseller.useMutation({
+    onSuccess: () => {
+      toast.success("Reseller excluído permanentemente");
+      utils.admin.listResellers.invalidate();
+      utils.admin.listAllKeys.invalidate();
+      utils.admin.dashboardStats.invalidate();
+    },
+    onError: e => toast.error(e.message),
+  });
   const purge = trpc.admin.purgeResellerPurchases.useMutation({
     onSuccess: d => {
       toast.success(`${d.keysDeleted} keys apagadas, ${d.transactionsDeleted} logs removidos — faturamento recalculado`);
@@ -263,6 +272,16 @@ export default function AdminResellers() {
                       title="Apagar todas as keys + logs de compra"
                     >
                       <Eraser className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        const c = prompt(`EXCLUIR o reseller "${r.username}"?\nIsso apaga a conta e TODOS os dados dela: keys, tickets, transações, pix e API keys — irreversível.\n\nDigite o username para confirmar:`);
+                        if (c) del.mutate({ resellerId: r.id, confirmUsername: c });
+                      }}
+                      className="p-1.5 rounded-lg bg-red-600/15 hover:bg-red-600/30 text-red-400 transition-all"
+                      title="Excluir reseller (irreversível)"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </td>
