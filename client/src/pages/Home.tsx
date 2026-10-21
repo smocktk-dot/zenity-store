@@ -3,7 +3,7 @@ import { trpc } from "@/lib/trpc";
 import CyberNetwork from "@/components/CyberNetwork";
 import { PublicNav, PublicFooter, DEFAULT_DISCORD_URL } from "@/components/PublicChrome";
 import {
-  Zap, Download, LayoutDashboard, Bitcoin, Paintbrush, ArrowRight, ShieldCheck,
+  Zap, Download, LayoutDashboard, Bitcoin, Paintbrush, ArrowRight,
 } from "lucide-react";
 
 type Product = {
@@ -112,19 +112,42 @@ export default function Home() {
                 <h3 className="text-lg font-bold tracking-tight">{p.title} — Tiers de Revenda</h3>
                 <p className="text-xs text-zinc-500 mt-1.5">Quanto maior o depósito, maior o desconto em cada key</p>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl mx-auto">
-                {p.pricingCredits && (
-                  <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-6 text-center">
-                    <p className="text-[10px] font-bold tracking-[0.25em] text-zinc-500 uppercase mb-3">Créditos</p>
-                    <p className="text-sm text-zinc-200 whitespace-pre-line leading-relaxed">{p.pricingCredits}</p>
-                  </div>
-                )}
-                {p.pricingPercentage && (
-                  <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-6 text-center">
-                    <p className="text-[10px] font-bold tracking-[0.25em] text-zinc-500 uppercase mb-3">Porcentagem</p>
-                    <p className="text-sm text-zinc-200 whitespace-pre-line leading-relaxed">{p.pricingPercentage}</p>
-                  </div>
-                )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {(() => {
+                  const lines = [
+                    ...(p.pricingCredits || "").split("\n"),
+                    ...(p.pricingPercentage || "").split("\n"),
+                  ].map(l => l.trim()).filter(Boolean);
+                  return lines.map((line, i) => {
+                  const parts = line.split(/\s*[|—–]\s*|\s+-\s+/).map(s => s.trim()).filter(Boolean);
+                  const isLast = i === lines.length - 1;
+                  const name = parts[0] || line;
+                  const price = parts.length > 1 ? parts[1] : null;
+                  const unit = parts.length > 3 ? parts[2] : null;
+                  const highlight = parts.length > 2 ? parts[parts.length > 3 ? 3 : 2] : null;
+                  const sub = parts.length > 4 ? parts.slice(4).join(" ") : null;
+                  return (
+                    <div key={i} className="relative rounded-2xl border border-white/[0.07] bg-white/[0.02] p-6 text-center hover:border-white/[0.14] hover:bg-white/[0.035] transition-all flex flex-col">
+                      {isLast && parts.length > 1 && (
+                        <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 text-[8px] font-bold tracking-[0.2em] uppercase bg-white text-black rounded-full px-2.5 py-0.5 whitespace-nowrap">Melhor valor</span>
+                      )}
+                      <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-zinc-300 mb-3">{name}</p>
+                      {price ? (
+                        <>
+                          <p className="text-xl font-extrabold tracking-tight">{price}</p>
+                          {unit && <p className="text-[10px] text-zinc-500 uppercase tracking-wider">{unit}</p>}
+                          <div className="mt-4 mt-auto pt-2">
+                            {highlight && <p className="text-sm font-bold text-emerald-400">{highlight}</p>}
+                            {sub && <p className="text-[10px] text-zinc-500 mt-1">{sub}</p>}
+                          </div>
+                        </>
+                      ) : (
+                        <p className="text-sm text-zinc-300 leading-relaxed my-auto">{line}</p>
+                      )}
+                    </div>
+                  );
+                  });
+                })()}
               </div>
             </div>
           ))}
@@ -133,14 +156,16 @@ export default function Home() {
 
       {/* ── Features ─────────────────────────────────────────────────────── */}
       <section className="mx-auto max-w-5xl px-6 pb-20">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {FEATURES.map(f => (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {FEATURES.slice(0, 3).map(f => (
             <div key={f.title} className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-6">
               <f.icon className="w-4 h-4 text-zinc-400 mb-4" />
               <p className="text-[11px] font-bold tracking-[0.18em] uppercase mb-2">{f.title}</p>
               <p className="text-xs text-zinc-500 leading-relaxed">{f.desc}</p>
             </div>
           ))}
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
           <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-6 relative">
             <span className="absolute top-5 right-5 text-[9px] font-bold tracking-[0.15em] text-zinc-500 border border-white/10 rounded-full px-2 py-0.5 uppercase">Sob consulta</span>
             <Paintbrush className="w-4 h-4 text-zinc-400 mb-4" />
@@ -151,11 +176,13 @@ export default function Home() {
             </a>
           </div>
           <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-6">
-            <ShieldCheck className="w-4 h-4 text-zinc-400 mb-4" />
-            <p className="text-[11px] font-bold tracking-[0.18em] uppercase mb-3">Criptos Aceitas</p>
-            <div className="flex flex-wrap gap-2">
+            <Bitcoin className="w-4 h-4 text-zinc-400 mb-4" />
+            <p className="text-[11px] font-bold tracking-[0.18em] uppercase mb-2">{FEATURES[3].title}</p>
+            <p className="text-xs text-zinc-500 leading-relaxed mb-4">{FEATURES[3].desc}</p>
+            <p className="text-[9px] font-bold tracking-[0.2em] uppercase text-zinc-600 mb-2">Criptos Aceitas</p>
+            <div className="flex flex-wrap gap-1.5">
               {CRYPTOS.map(c => (
-                <span key={c} className="text-[10px] font-mono font-semibold text-zinc-300 bg-white/[0.05] border border-white/[0.08] rounded-md px-2.5 py-1.5">{c}</span>
+                <span key={c} className="text-[9px] font-mono font-semibold text-zinc-300 bg-white/[0.05] border border-white/[0.08] rounded px-2 py-1">{c}</span>
               ))}
             </div>
           </div>
