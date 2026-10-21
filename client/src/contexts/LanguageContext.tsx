@@ -814,14 +814,18 @@ const LanguageContext = createContext<LanguageContextType>({
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const [language, setLanguageState] = useState<Language>(() => {
-    const stored = localStorage.getItem("zenity_language");
-    if (stored === "en" || stored === "pt") return stored;
+    try {
+      const stored = localStorage.getItem("zenity_language");
+      if (stored === "en" || stored === "pt") return stored;
+    } catch {}
     return "pt";
   });
 
   const setLanguage = (lang: Language) => {
     setLanguageState(lang);
-    localStorage.setItem("zenity_language", lang);
+    try {
+      localStorage.setItem("zenity_language", lang);
+    } catch {}
   };
 
   const t = language === "en" ? enTranslations : ptTranslations;

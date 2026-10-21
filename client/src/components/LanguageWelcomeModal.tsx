@@ -7,10 +7,12 @@ export function LanguageWelcomeModal() {
 
   useEffect(() => {
     // Show only if user has never chosen a language
-    const stored = localStorage.getItem("zenity_language");
-    if (!stored) {
-      setVisible(true);
-    }
+    try {
+      const stored = localStorage.getItem("zenity_language");
+      if (!stored) {
+        setVisible(true);
+      }
+    } catch {}
   }, []);
 
   const handleSelect = (lang: "pt" | "en") => {
@@ -23,7 +25,7 @@ export function LanguageWelcomeModal() {
   return (
     <div
       className="fixed inset-0 z-[9999] flex items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.85)", backdropFilter: "blur(8px)" }}
+      style={{ background: "rgba(0,0,0,0.72)", backdropFilter: "blur(6px)" }}
     >
       <div
         className="relative rounded-2xl overflow-hidden w-full max-w-sm mx-4"
