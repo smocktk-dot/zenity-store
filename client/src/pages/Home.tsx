@@ -28,6 +28,12 @@ const FEATURES = [
 
 const CRYPTOS = ["BTC", "ETH", "LTC", "SOL", "USDT ERC20", "USDT SPL", "USDC ERC20", "USDC SPL"];
 
+const CREDIT_TIERS = [
+  { name: "Entrada", price: "$0", unit: "sem depósito mínimo", off: "50% OFF", note: "em todas as keys" },
+  { name: "Starter", price: "$200", unit: "depósito", off: "60% OFF", note: "em todas as keys" },
+  { name: "Pro", price: "$300", unit: "depósito", off: "70% OFF", note: "em todas as keys" },
+];
+
 export default function Home() {
   const { data: products = [] } = trpc.auth.listResellerInfo.useQuery();
   const active = (products as Product[]).filter(p => p.status === "active");
@@ -113,41 +119,29 @@ export default function Home() {
                 <p className="text-xs text-zinc-500 mt-1.5">Quanto maior o depósito, maior o desconto em cada key</p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {(() => {
-                  const lines = [
-                    ...(p.pricingCredits || "").split("\n"),
-                    ...(p.pricingPercentage || "").split("\n"),
-                  ].map(l => l.trim()).filter(Boolean);
-                  return lines.map((line, i) => {
-                  const parts = line.split(/\s*[|—–]\s*|\s+-\s+/).map(s => s.trim()).filter(Boolean);
-                  const isLast = i === lines.length - 1;
-                  const name = parts[0] || line;
-                  const price = parts.length > 1 ? parts[1] : null;
-                  const unit = parts.length > 3 ? parts[2] : null;
-                  const highlight = parts.length > 2 ? parts[parts.length > 3 ? 3 : 2] : null;
-                  const sub = parts.length > 4 ? parts.slice(4).join(" ") : null;
-                  return (
-                    <div key={i} className="relative rounded-2xl border border-white/[0.07] bg-white/[0.02] p-6 text-center hover:border-white/[0.14] hover:bg-white/[0.035] transition-all flex flex-col">
-                      {isLast && parts.length > 1 && (
-                        <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 text-[8px] font-bold tracking-[0.2em] uppercase bg-white text-black rounded-full px-2.5 py-0.5 whitespace-nowrap">Melhor valor</span>
-                      )}
-                      <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-zinc-300 mb-3">{name}</p>
-                      {price ? (
-                        <>
-                          <p className="text-xl font-extrabold tracking-tight">{price}</p>
-                          {unit && <p className="text-[10px] text-zinc-500 uppercase tracking-wider">{unit}</p>}
-                          <div className="mt-4 mt-auto pt-2">
-                            {highlight && <p className="text-sm font-bold text-emerald-400">{highlight}</p>}
-                            {sub && <p className="text-[10px] text-zinc-500 mt-1">{sub}</p>}
-                          </div>
-                        </>
-                      ) : (
-                        <p className="text-sm text-zinc-300 leading-relaxed my-auto">{line}</p>
-                      )}
+                {p.pricingCredits && CREDIT_TIERS.map((t, i) => (
+                  <div key={t.name} className="relative rounded-2xl border border-white/[0.07] bg-white/[0.02] p-6 text-center hover:border-white/[0.14] hover:bg-white/[0.035] transition-all flex flex-col">
+                    {i === CREDIT_TIERS.length - 1 && (
+                      <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 text-[8px] font-bold tracking-[0.2em] uppercase bg-white text-black rounded-full px-2.5 py-0.5 whitespace-nowrap">Melhor valor</span>
+                    )}
+                    <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-zinc-300 mb-3">{t.name}</p>
+                    <p className="text-2xl font-extrabold tracking-tight">{t.price}</p>
+                    <p className="text-[10px] text-zinc-500 uppercase tracking-wider">{t.unit}</p>
+                    <div className="mt-auto pt-4">
+                      <p className="text-sm font-bold text-emerald-400">{t.off}</p>
+                      <p className="text-[10px] text-zinc-500 mt-1">{t.note}</p>
                     </div>
-                  );
-                  });
-                })()}
+                  </div>
+                ))}
+                {p.pricingPercentage && (
+                  <div className="relative rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.04] p-6 text-center flex flex-col">
+                    <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-emerald-300 mb-3">Porcentagem</p>
+                    <p className="text-sm font-bold text-zinc-100">Painel porcentagem disponível</p>
+                    <p className="text-xs text-zinc-400 leading-relaxed mt-2">
+                      Único requisito: ter uma loja consolidada ou uma loja com 1k+ membros
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           ))}
