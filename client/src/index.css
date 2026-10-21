@@ -281,7 +281,7 @@ button:active:not(:disabled) {
   padding: 40px 40px 32px;
   min-height: 100vh;
   overflow-y: auto;
-  background: #07080d;
+  background: #050508;
 }
 
 .auth-right::before {
@@ -903,11 +903,6 @@ input:-webkit-autofill:active {
   margin: auto auto;
   position: relative;
   z-index: 10;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 18px;
-  padding: 32px 28px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .auth-card-head {
@@ -1019,11 +1014,11 @@ input:-webkit-autofill:active {
 
 .auth-input {
   width: 100%;
-  height: 46px;
+  height: 44px;
   padding: 0 16px 0 40px;
-  font-size: 13.5px;
-  background: #0d1118;
-  border: 1px solid rgba(255, 255, 255, 0.17);
+  font-size: 13px;
+  background: #0a0c10;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 10px;
   color: #ffffff;
   outline: none;
@@ -1031,7 +1026,7 @@ input:-webkit-autofill:active {
 }
 
 .auth-input::placeholder {
-  color: #5b5f6b;
+  color: #52525b;
 }
 
 .auth-input:focus {
@@ -1066,7 +1061,7 @@ input:-webkit-autofill:active {
 .auth-input:-webkit-autofill:hover,
 .auth-input:-webkit-autofill:focus {
   -webkit-text-fill-color: #ffffff !important;
-  -webkit-box-shadow: 0 0 0 1000px #0d1118 inset !important;
+  -webkit-box-shadow: 0 0 0 1000px #0a0c10 inset !important;
   caret-color: #ffffff;
   transition: background-color 9999s ease-in-out 0s;
 }
