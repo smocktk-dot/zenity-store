@@ -35,7 +35,7 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
   const logout = trpc.auth.logout.useMutation({
     onSuccess: () => {
       toast.success(t.nav_logout_success);
-      navigate("/");
+      navigate("/login");
     },
   });
 
@@ -62,7 +62,7 @@ export default function ResellerLayout({ children }: { children: React.ReactNode
   // Allow both resellers and admins to access the reseller panel
   useEffect(() => {
     if (!isLoading && (!session || (session.role !== "reseller" && session.role !== "admin"))) {
-      navigate("/");
+      navigate("/login");
     }
   }, [session, isLoading]);
 

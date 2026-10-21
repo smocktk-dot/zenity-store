@@ -6,7 +6,9 @@ import { useEffect, useState } from "react";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
+import Home from "./pages/Home";
 import LoginPage from "./pages/LoginPage";
+import RulesPage from "./pages/RulesPage";
 import ResellerInfoPage from "./pages/ResellerInfoPage";
 import AdminLayout from "./pages/admin/AdminLayout";
 import AdminResellers from "./pages/admin/AdminResellers";
@@ -45,7 +47,9 @@ import { LanguageWelcomeModal } from "./components/LanguageWelcomeModal";
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={LoginPage} />
+      <Route path="/" component={Home} />
+      <Route path="/login" component={LoginPage} />
+      <Route path="/rules" component={RulesPage} />
       <Route path="/resellerinfo" component={ResellerInfoPage} />
       <Route path="/setup" component={SetupPage} />
 

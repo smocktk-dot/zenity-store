@@ -12,7 +12,7 @@ export default function SetupPage() {
   const [form, setForm] = useState({ username: "", password: "", setupKey: "" });
 
   const setup = trpc.auth.setupAdmin.useMutation({
-    onSuccess: () => { toast.success("Admin criado! Faça login."); navigate("/"); },
+    onSuccess: () => { toast.success("Admin criado! Faça login."); navigate("/login"); },
     onError: (e) => toast.error(e.message),
   });
 

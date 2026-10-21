@@ -399,6 +399,14 @@ export default function LoginPage() {
           <div className="auth-topbar-actions">
             <button
               type="button"
+              onClick={() => navigate("/")}
+              className="auth-topbar-link"
+            >
+              Início
+            </button>
+            <span className="auth-topbar-sep" />
+            <button
+              type="button"
               onClick={() => setShowSupport(true)}
               className="auth-topbar-link"
             >

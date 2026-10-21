@@ -15,7 +15,7 @@ export function useAdminSession() {
   const { session, isLoading } = useSession();
   const [, navigate] = useLocation();
   if (!isLoading && (!session || session.role !== "admin")) {
-    navigate("/");
+    navigate("/login");
   }
   return { session: session?.role === "admin" ? session : null, isLoading };
 }
@@ -24,7 +24,7 @@ export function useResellerSession() {
   const { session, isLoading } = useSession();
   const [, navigate] = useLocation();
   if (!isLoading && (!session || session.role !== "reseller")) {
-    navigate("/");
+    navigate("/login");
   }
   return { session: session?.role === "reseller" ? session : null, isLoading };
 }

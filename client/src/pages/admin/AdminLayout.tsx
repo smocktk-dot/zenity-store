@@ -56,14 +56,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [menuOpen, setMenuOpen] = useState(false);
   const { data: session, isLoading } = trpc.auth.session.useQuery(undefined, { retry: false });
   const logout = trpc.auth.logout.useMutation({
-    onSuccess: () => { toast.success("Logout realizado"); navigate("/"); },
+    onSuccess: () => { toast.success("Logout realizado"); navigate("/login"); },
   });
 
   const isSupport = (session as any)?.adminRole === "support";
   const visibleItems = isSupport ? navItems.filter(i => SUPPORT_HREFS.has(i.href)) : navItems;
 
   useEffect(() => {
-    if (!isLoading && (!session || session.role !== "admin")) navigate("/");
+    if (!isLoading && (!session || session.role !== "admin")) navigate("/login");
     else if (!isLoading && isSupport && !SUPPORT_HREFS.has(location)) navigate("/admin/tickets");
   }, [session, isLoading, location]);
 
